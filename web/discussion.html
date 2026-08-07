@@ -1,0 +1,208 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Ulysse — Discussion</title>
+<style>
+  :root{
+    --seed:#4f5b9e;
+    --seed-d:#3a4478;
+    --bg:#f6f7fb;
+    --surface:#ffffff;
+    --on-surface:#1c1b1f;
+    --muted:#5f6368;
+    --bubble-user:#4f5b9e;
+    --bubble-user-txt:#ffffff;
+    --bubble-ai:#eef0f7;
+    --ai-txt:#1c1b1f;
+    --err:#b3261e;
+    --radius:20px;
+    --shadow:0 1px 3px rgba(0,0,0,.12),0 4px 12px rgba(0,0,0,.08);
+    font-family:Roboto,"Segoe UI",system-ui,-apple-system,sans-serif;
+  }
+  *{box-sizing:border-box}
+  html,body{height:100%;margin:0}
+  body{background:var(--bg);color:var(--on-surface);display:flex;flex-direction:column}
+  header{
+    background:var(--seed);color:#fff;padding:14px 20px;
+    display:flex;align-items:center;gap:12px;box-shadow:var(--shadow);z-index:2;
+  }
+  header .dot{width:12px;height:12px;border-radius:50%;background:#7ee08a;
+    box-shadow:0 0 0 3px rgba(255,255,255,.25)}
+  header h1{font-size:18px;margin:0;font-weight:500;letter-spacing:.2px}
+  header .sub{font-size:12px;opacity:.85;margin-left:auto}
+  #log{flex:1;overflow-y:auto;padding:18px;display:flex;flex-direction:column;gap:14px}
+  .msg{display:flex;max-width:78%}
+  .msg.user{margin-left:auto;justify-content:flex-end}
+  .msg.ai{margin-right:auto}
+  .bubble{padding:12px 16px;border-radius:var(--radius);line-height:1.5;
+    white-space:pre-wrap;word-wrap:break-word;box-shadow:var(--shadow)}
+  .msg.user .bubble{background:var(--bubble-user);color:var(--bubble-user-txt);
+    border-bottom-right-radius:6px}
+  .msg.ai .bubble{background:var(--bubble-ai);color:var(--ai-txt);
+    border-bottom-left-radius:6px}
+  .msg.err .bubble{background:#fdeceb;color:var(--err);border:1px solid #f3c2bf}
+  .msg.sys .bubble{background:#fff7e6;color:#7a5b00;border:1px solid #f0d9a8}
+  .who{font-size:11px;opacity:.6;margin:0 6px 4px}
+  footer{display:flex;gap:10px;padding:14px 16px;background:var(--surface);
+    border-top:1px solid #e6e7ee;align-items:flex-end}
+  #input{flex:1;resize:none;font:inherit;padding:12px 14px;border-radius:14px;
+    border:1px solid #d8dae3;background:#fafbff;color:var(--on-surface);
+    max-height:160px;outline:none}
+  #input:focus{border-color:var(--seed)}
+  #send{background:var(--seed);color:#fff;border:none;border-radius:14px;
+    padding:12px 20px;font:inherit;font-weight:500;cursor:pointer;
+    box-shadow:var(--shadow);transition:background .15s}
+  #send:hover{background:var(--seed-d)}
+  #send:disabled{opacity:.5;cursor:not-allowed}
+  .typing{display:inline-flex;gap:4px;padding:4px 2px}
+  .typing i{width:7px;height:7px;border-radius:50%;background:var(--muted);
+    animation:blink 1.2s infinite}
+  .typing i:nth-child(2){animation-delay:.2s}
+  .typing i:nth-child(3){animation-delay:.4s}
+  @keyframes blink{0%,80%,100%{opacity:.3}40%{opacity:1}}
+</style>
+</head>
+<body>
+<header>
+  <span class="dot" id="status-dot" title="proxy"></span>
+  <h1>Ulysse — Discussion</h1>
+  <span class="sub" id="sub">mode discussion pur · proxy</span>
+</header>
+
+<div id="log" aria-live="polite"></div>
+
+<footer>
+  <textarea id="input" rows="1" placeholder="Écris ton message…  (Entrée pour envoyer, Maj+Entrée pour saut de ligne)"></textarea>
+  <button id="send">Envoyer</button>
+</footer>
+
+<script>
+  // === Réglages (à modifier sans toucher au reste) ===
+  const PROXY = "http://127.0.0.1:8645/v1/chat/completions";
+  const TOKEN = "ulysse";            // le proxy accepte n'importe quel bearer
+  const MODEL = "tencent/hy3:free";  // modèle par défaut (gratuit)
+  const MAX_TOKENS = 800;
+
+  const log = document.getElementById("log");
+  const input = document.getElementById("input");
+  const sendBtn = document.getElementById("send");
+  const statusDot = document.getElementById("status-dot");
+
+  let busy = false;
+  let history = [];   // fil envoyé au proxy
+
+  function addBubble(role, text, kind){
+    const wrap = document.createElement("div");
+    wrap.className = "msg " + (kind || role);
+    const who = document.createElement("div");
+    who.className = "who";
+    who.textContent = role === "user" ? "Toi" : role === "ai" ? "Ulysse" : "";
+    const b = document.createElement("div");
+    b.className = "bubble";
+    b.textContent = text;
+    if (role === "user" || role === "ai") wrap.appendChild(who);
+    wrap.appendChild(b);
+    log.appendChild(wrap);
+    log.scrollTop = log.scrollHeight;
+    return wrap;
+  }
+
+  function setBusy(state){
+    busy = state;
+    sendBtn.disabled = state;
+    input.disabled = state;
+    if (state) statusDot.style.background = "#ffce4f";
+    else statusDot.style.background = "#7ee08a";
+  }
+
+  function showTyping(){
+    const wrap = document.createElement("div");
+    wrap.className = "msg ai";
+    wrap.id = "typing";
+    const b = document.createElement("div");
+    b.className = "bubble";
+    b.innerHTML = '<span class="typing"><i></i><i></i><i></i></span>';
+    wrap.appendChild(b);
+    log.appendChild(wrap);
+    log.scrollTop = log.scrollHeight;
+  }
+  function hideTyping(){ const t = document.getElementById("typing"); if (t) t.remove(); }
+
+  async function send(){
+    const text = input.value.trim();
+    if (!text || busy) return;
+    addBubble("user", text);
+    input.value = "";
+    autoGrow();
+    history.push({ role: "user", content: text });
+
+    setBusy(true);
+    showTyping();
+
+    const body = { model: MODEL, messages: history, max_tokens: MAX_TOKENS };
+    try {
+      const res = await fetch(PROXY, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": "Bearer " + TOKEN
+        },
+        body: JSON.stringify(body)
+      });
+
+      hideTyping();
+
+      if (res.status === 403){
+        addBubble("err", "⏳ Le modèle gratuit est temporairement saturé (limite atteinte). Réessaie dans quelques secondes.");
+        history.pop(); // on retire le message du fil pour pouvoir réessayer proprement
+        return;
+      }
+      if (!res.ok){
+        addBubble("err", "⚠️ Erreur du proxy (HTTP " + res.status + "). Vérifie que le moteur proxy tourne (port 8645).");
+        history.pop();
+        return;
+      }
+
+      const data = await res.json();
+      const content = data.choices && data.choices[0] && data.choices[0].message
+                      ? data.choices[0].message.content : null;
+
+      if (content && content.trim()){
+        addBubble("ai", content.trim());
+        history.push({ role: "assistant", content: content.trim() });
+      } else {
+        addBubble("sys", "(réponse reçue sans texte — le modèle a peut-être raisonné sans répondre. Réessaie.)");
+        history.pop();
+      }
+    } catch (e){
+      hideTyping();
+      addBubble("err", "🔌 Connexion impossible au proxy. Vérifie qu'Ulysse (proxy :8645) est lancé.\n" + e);
+      history.pop();
+    } finally {
+      setBusy(false);
+      input.focus();
+    }
+  }
+
+  function autoGrow(){
+    input.style.height = "auto";
+    input.style.height = Math.min(input.scrollHeight, 160) + "px";
+  }
+
+  sendBtn.addEventListener("click", send);
+  input.addEventListener("input", autoGrow);
+  input.addEventListener("keydown", (e) => {
+    if (e.key === "Enter" && !e.shiftKey){
+      e.preventDefault();
+      send();
+    }
+  });
+
+  // message d'accueil
+  addBubble("ai", "Bonjour, je suis Ulysse. Dis-moi ce que tu veux faire — j'agis en mode Discussion (sans outils).");
+  input.focus();
+</script>
+</body>
+</html>
