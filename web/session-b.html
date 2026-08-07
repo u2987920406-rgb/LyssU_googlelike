@@ -1,0 +1,1847 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Ulysse — Session B</title>
+<style>
+  /* ==========================================================================
+     Charte Material 3 — reprise de discussion.html (Session A) et etendue
+     aux tokens dont la Session B a besoin (surfaces, contours, elevations).
+     La graine reste --seed:#4f5b9e.
+     ========================================================================== */
+  :root{
+    --seed:#4f5b9e;
+    --seed-d:#3a4478;
+    --primary:#4f5b9e;
+    --on-primary:#ffffff;
+    --primary-container:#dee0ff;
+    --on-primary-container:#000f5c;
+    --secondary-container:#e1e0f9;
+    --on-secondary-container:#1a1a2c;
+
+    --bg:#f6f7fb;
+    --surface:#ffffff;
+    --surface-1:#f2f3fa;
+    --surface-2:#eef0f7;
+    --surface-3:#e6e8f2;
+    --on-surface:#1c1b1f;
+    --on-surface-var:#45464f;
+    --muted:#5f6368;
+    --outline:#757780;
+    --outline-var:#c6c6d0;
+
+    --bubble-user:#4f5b9e;
+    --bubble-user-txt:#ffffff;
+    --bubble-ai:#eef0f7;
+    --ai-txt:#1c1b1f;
+
+    --ok:#1e6b3a;
+    --ok-bg:#d7f2df;
+    --warn:#7a5b00;
+    --warn-bg:#fff7e6;
+    --err:#b3261e;
+    --err-bg:#fdeceb;
+
+    --radius:20px;
+    --radius-s:12px;
+    --radius-m:16px;
+    --radius-xl:28px;
+    --shadow:0 1px 3px rgba(0,0,0,.12),0 4px 12px rgba(0,0,0,.08);
+    --shadow-1:0 1px 2px rgba(0,0,0,.10),0 1px 3px rgba(0,0,0,.06);
+    font-family:Roboto,"Segoe UI",system-ui,-apple-system,sans-serif;
+  }
+  *{box-sizing:border-box}
+  html,body{height:100%;margin:0}
+  body{background:var(--bg);color:var(--on-surface);overflow:hidden}
+  button{font:inherit}
+
+  /* ---- Ossature : rail de navigation + colonne principale ---------------- */
+  .shell{display:flex;height:100%}
+  .rail{
+    width:92px;flex:0 0 92px;background:var(--surface);border-right:1px solid var(--outline-var);
+    display:flex;flex-direction:column;align-items:center;padding:12px 0 16px;gap:4px;z-index:3;
+  }
+  .rail .brand{width:44px;height:44px;border-radius:14px;background:var(--primary);color:#fff;
+    display:grid;place-items:center;font-weight:600;font-size:17px;margin-bottom:10px;box-shadow:var(--shadow-1)}
+  .dest{
+    width:76px;border:none;background:transparent;color:var(--on-surface-var);cursor:pointer;
+    display:flex;flex-direction:column;align-items:center;gap:4px;padding:6px 0 4px;border-radius:16px;
+  }
+  .dest .pill{width:56px;height:32px;border-radius:16px;display:grid;place-items:center;transition:background .15s}
+  .dest svg{width:22px;height:22px;fill:currentColor}
+  .dest .lbl{font-size:11px;letter-spacing:.2px}
+  .dest:hover .pill{background:var(--surface-3)}
+  .dest.active{color:var(--on-secondary-container);font-weight:500}
+  .dest.active .pill{background:var(--secondary-container)}
+  .dest .badge{position:absolute;transform:translate(18px,-14px);background:var(--err);color:#fff;
+    font-size:10px;border-radius:8px;padding:0 5px;line-height:15px}
+
+  .main{flex:1;display:flex;flex-direction:column;min-width:0}
+
+  /* ---- Barre d'application + bandeau de statut --------------------------- */
+  .appbar{background:var(--primary);color:#fff;padding:12px 20px;display:flex;align-items:center;
+    gap:12px;box-shadow:var(--shadow);z-index:2}
+  .appbar h1{font-size:18px;margin:0;font-weight:500;letter-spacing:.2px}
+  .appbar .spacer{flex:1}
+  .appbar .sub{font-size:12px;opacity:.85}
+  .iconbtn{background:rgba(255,255,255,.14);border:none;color:#fff;width:36px;height:36px;border-radius:12px;
+    display:grid;place-items:center;cursor:pointer;transition:background .15s}
+  .iconbtn:hover{background:rgba(255,255,255,.26)}
+  .iconbtn svg{width:20px;height:20px;fill:currentColor}
+
+  .statusband{display:flex;gap:8px;flex-wrap:wrap;align-items:center;padding:8px 20px;
+    background:var(--surface);border-bottom:1px solid var(--outline-var);z-index:1}
+  .chip{display:inline-flex;align-items:center;gap:6px;background:var(--surface-2);color:var(--on-surface-var);
+    border:1px solid var(--outline-var);border-radius:999px;padding:4px 12px;font-size:12px;white-space:nowrap}
+  .chip .dot{width:9px;height:9px;border-radius:50%;background:var(--outline);flex:0 0 9px}
+  .chip.ok{background:var(--ok-bg);border-color:#a9dcbb;color:var(--ok)}
+  .chip.ok .dot{background:#2e9e5b}
+  .chip.warn{background:var(--warn-bg);border-color:#f0d9a8;color:var(--warn)}
+  .chip.warn .dot{background:#e0a800}
+  .chip.err{background:var(--err-bg);border-color:#f3c2bf;color:var(--err)}
+  .chip.err .dot{background:#d1493f}
+  .chip b{font-weight:500}
+
+  /* ---- Banniere d'alerte globale (401, backend injoignable...) ----------- */
+  #alert{display:none;padding:12px 20px;background:var(--err-bg);color:var(--err);
+    border-bottom:1px solid #f3c2bf;font-size:13px;line-height:1.5}
+  #alert.show{display:block}
+  #alert code{background:rgba(0,0,0,.06);padding:1px 5px;border-radius:5px}
+  #alert .close{float:right;background:none;border:none;color:inherit;cursor:pointer;font-size:16px}
+
+  /* ---- Panneaux ---------------------------------------------------------- */
+  .panes{flex:1;position:relative;min-height:0}
+  .pane{position:absolute;inset:0;display:none;flex-direction:column;min-height:0}
+  .pane.active{display:flex}
+  .pane-head{padding:14px 20px 6px;display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+  .pane-head h2{margin:0;font-size:17px;font-weight:500}
+  .pane-head .hint{font-size:12px;color:var(--muted)}
+  .pane-body{flex:1;overflow:auto;padding:12px 20px 20px;min-height:0}
+  .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:14px}
+
+  .card{background:var(--surface);border-radius:var(--radius-m);box-shadow:var(--shadow-1);
+    border:1px solid var(--outline-var);overflow:hidden}
+  .card h3{margin:0;padding:12px 16px;font-size:14px;font-weight:500;background:var(--surface-1);
+    border-bottom:1px solid var(--outline-var);display:flex;align-items:center;gap:8px}
+  .card .body{padding:14px 16px;font-size:13px;line-height:1.6}
+  .kv{display:grid;grid-template-columns:auto 1fr;gap:4px 14px;font-size:13px}
+  .kv dt{color:var(--muted)}
+  .kv dd{margin:0;word-break:break-word}
+
+  /* ---- Conversation (Discussion + Cowork) -------------------------------- */
+  .log{flex:1;overflow-y:auto;padding:18px;display:flex;flex-direction:column;gap:14px;min-height:0}
+  .msg{display:flex;flex-direction:column;max-width:78%}
+  .msg.user{margin-left:auto;align-items:flex-end}
+  .msg.ai,.msg.sys,.msg.err{margin-right:auto;align-items:flex-start}
+  .msg.sys,.msg.err{max-width:92%}
+  .bubble{padding:12px 16px;border-radius:var(--radius);line-height:1.5;white-space:pre-wrap;
+    word-wrap:break-word;overflow-wrap:anywhere;box-shadow:var(--shadow)}
+  .msg.user .bubble{background:var(--bubble-user);color:var(--bubble-user-txt);border-bottom-right-radius:6px}
+  .msg.ai .bubble{background:var(--bubble-ai);color:var(--ai-txt);border-bottom-left-radius:6px}
+  .msg.err .bubble{background:var(--err-bg);color:var(--err);border:1px solid #f3c2bf}
+  .msg.sys .bubble{background:var(--warn-bg);color:var(--warn);border:1px solid #f0d9a8}
+  .who{font-size:11px;opacity:.6;margin:0 6px 4px}
+  .empty{color:var(--muted);font-size:13px;text-align:center;padding:28px 10px}
+
+  .tools{display:flex;flex-direction:column;gap:6px;margin:6px 0 0;width:100%}
+  .tool{display:flex;align-items:flex-start;gap:8px;background:var(--surface);border:1px solid var(--outline-var);
+    border-radius:var(--radius-s);padding:8px 12px;font-size:12.5px;box-shadow:var(--shadow-1)}
+  .tool .st{width:9px;height:9px;border-radius:50%;margin-top:5px;flex:0 0 9px;background:#e0a800}
+  .tool.done .st{background:#2e9e5b}
+  .tool .nm{font-weight:500}
+  .tool .ctx{color:var(--muted);word-break:break-word}
+  .tool .dur{margin-left:auto;color:var(--muted);font-size:11px;white-space:nowrap}
+  .tool details{margin-top:4px}
+  .tool pre{margin:6px 0 0;background:var(--surface-2);padding:8px;border-radius:8px;font-size:11.5px;
+    max-height:220px;overflow:auto;white-space:pre-wrap}
+
+  details.reasoning{margin:4px 0 0;font-size:12.5px;color:var(--muted)}
+  details.reasoning pre{white-space:pre-wrap;background:var(--surface-2);padding:8px;border-radius:8px;margin:6px 0 0}
+
+  .approval{background:var(--warn-bg);border:1px solid #f0d9a8;border-radius:var(--radius-m);
+    padding:12px 16px;margin:4px 0;font-size:13px}
+  .approval .acts{display:flex;gap:8px;margin-top:10px;flex-wrap:wrap}
+
+  .composer{display:flex;gap:10px;padding:14px 16px;background:var(--surface);
+    border-top:1px solid var(--outline-var);align-items:flex-end}
+  .composer textarea{flex:1;resize:none;font:inherit;padding:12px 14px;border-radius:14px;
+    border:1px solid #d8dae3;background:#fafbff;color:var(--on-surface);max-height:180px;outline:none}
+  .composer textarea:focus{border-color:var(--primary)}
+  .btn{background:var(--primary);color:#fff;border:none;border-radius:14px;padding:12px 20px;
+    font-weight:500;cursor:pointer;box-shadow:var(--shadow);transition:background .15s;
+    display:inline-flex;align-items:center;gap:8px}
+  .btn svg{width:18px;height:18px;fill:currentColor}
+  .btn:hover{background:var(--seed-d)}
+  .btn:disabled{opacity:.5;cursor:not-allowed}
+  .btn.tonal{background:var(--secondary-container);color:var(--on-secondary-container);box-shadow:none}
+  .btn.tonal:hover{background:#d3d2f0}
+  .btn.danger{background:var(--err)}
+  .btn.danger:hover{background:#8f1d17}
+  .btn.small{padding:7px 14px;font-size:13px;border-radius:12px}
+
+  .segmented{display:inline-flex;border:1px solid var(--outline);border-radius:999px;overflow:hidden}
+  .segmented button{background:transparent;border:none;padding:7px 16px;cursor:pointer;font-size:13px;
+    color:var(--on-surface-var)}
+  .segmented button+button{border-left:1px solid var(--outline)}
+  .segmented button.on{background:var(--secondary-container);color:var(--on-secondary-container);font-weight:500}
+
+  .typing{display:inline-flex;gap:4px;padding:4px 2px}
+  .typing i{width:7px;height:7px;border-radius:50%;background:var(--muted);animation:blink 1.2s infinite}
+  .typing i:nth-child(2){animation-delay:.2s}
+  .typing i:nth-child(3){animation-delay:.4s}
+  @keyframes blink{0%,80%,100%{opacity:.3}40%{opacity:1}}
+
+  /* ---- Listes (sessions, fichiers, skills, memoire) ---------------------- */
+  .list{background:var(--surface);border:1px solid var(--outline-var);border-radius:var(--radius-m);
+    overflow:hidden;box-shadow:var(--shadow-1)}
+  .row{display:flex;align-items:center;gap:12px;padding:11px 16px;border-bottom:1px solid var(--outline-var);
+    cursor:pointer;font-size:13.5px;background:none;border-left:none;border-right:none;border-top:none;
+    width:100%;text-align:left;color:inherit}
+  .row:last-child{border-bottom:none}
+  .row:hover{background:var(--surface-1)}
+  .row.plain{cursor:default}
+  .row.plain:hover{background:none}
+  .row svg{width:20px;height:20px;fill:var(--muted);flex:0 0 20px}
+  .row .main-txt{flex:1;min-width:0}
+  .row .t{font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .row .s{font-size:12px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .row .meta{color:var(--muted);font-size:12px;white-space:nowrap}
+  .tag{font-size:11px;border-radius:6px;padding:1px 7px;background:var(--surface-3);color:var(--on-surface-var)}
+  .tag.on{background:var(--ok-bg);color:var(--ok)}
+  .tag.off{background:var(--surface-3);color:var(--muted)}
+
+  .crumbs{display:flex;align-items:center;gap:4px;flex-wrap:wrap;font-size:12.5px;color:var(--muted)}
+  .crumbs button{background:none;border:none;color:var(--primary);cursor:pointer;padding:2px 4px;
+    border-radius:6px;font-size:12.5px}
+  .crumbs button:hover{background:var(--surface-2)}
+
+  .search{border:1px solid #d8dae3;border-radius:12px;padding:8px 12px;font:inherit;font-size:13px;
+    background:#fafbff;outline:none;min-width:220px}
+  .search:focus{border-color:var(--primary)}
+
+  /* ---- Studio ------------------------------------------------------------ */
+  .studio{display:grid;grid-template-columns:minmax(300px,1fr) minmax(320px,1.2fr);gap:14px;align-items:start}
+  @media (max-width:1000px){.studio{grid-template-columns:1fr}}
+  .evlog{font-size:12px;max-height:420px;overflow:auto}
+  .ev{display:flex;gap:10px;padding:5px 16px;border-bottom:1px solid var(--surface-2);align-items:baseline}
+  .ev:last-child{border-bottom:none}
+  .ev .tm{color:var(--muted);font-variant-numeric:tabular-nums;flex:0 0 62px}
+  .ev .ty{font-weight:500;flex:0 0 130px;color:var(--on-primary-container)}
+  .ev .br{color:var(--on-surface-var);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .step{font-size:14px;padding:10px 14px;border-radius:var(--radius-s);background:var(--primary-container);
+    color:var(--on-primary-container);display:flex;align-items:center;gap:10px}
+  pre.raw{background:var(--surface-2);border-radius:10px;padding:10px;font-size:11.5px;overflow:auto;
+    max-height:260px;white-space:pre-wrap;margin:8px 0 0}
+</style>
+</head>
+<body>
+
+<div class="shell">
+  <!-- Rail de navigation (icones Material, dessinees en SVG inline : la page
+       reste autonome, aucune police d'icones a telecharger) -->
+  <nav class="rail" id="rail">
+    <div class="brand">U</div>
+  </nav>
+
+  <div class="main">
+    <header class="appbar">
+      <h1>Ulysse — Session B</h1>
+      <span class="sub" id="ab-sub"></span>
+      <span class="spacer"></span>
+      <button class="iconbtn" id="btn-refresh" title="Rafraichir le statut et l'onglet courant"></button>
+    </header>
+
+    <div class="statusband" id="statusband"></div>
+    <div id="alert"></div>
+
+    <div class="panes" id="panes">
+
+      <!-- ============================ DISCUSSION ============================ -->
+      <section class="pane" id="pane-discussion">
+        <div class="pane-head">
+          <h2>Discussion</h2>
+          <div class="segmented" id="disc-mode">
+            <button data-mode="cowork" class="on">Cowork (outils)</button>
+            <button data-mode="pur">Chat pur (proxy)</button>
+          </div>
+          <span class="hint" id="disc-hint"></span>
+        </div>
+        <div class="log" id="disc-log" aria-live="polite"></div>
+        <div class="composer">
+          <textarea id="disc-input" rows="1"
+            placeholder="Ecris ton message…  (Entree pour envoyer, Maj+Entree pour saut de ligne)"></textarea>
+          <button class="btn" id="disc-send">Envoyer</button>
+        </div>
+      </section>
+
+      <!-- ============================== COWORK ============================== -->
+      <section class="pane" id="pane-cowork">
+        <div class="pane-head">
+          <h2>Cowork</h2>
+          <span class="hint" id="cowork-hint"></span>
+          <span class="spacer" style="flex:1"></span>
+          <button class="btn tonal small" id="cowork-new">Nouvelle session</button>
+        </div>
+        <div class="log" id="cowork-log" aria-live="polite"></div>
+        <div class="composer">
+          <textarea id="cowork-input" rows="1"
+            placeholder="Decris la tache a faire — l'agent a ses outils (fichiers, shell, recherche)…"></textarea>
+          <button class="btn" id="cowork-send">Travailler</button>
+          <button class="btn danger" id="cowork-stop" style="display:none">Interrompre</button>
+        </div>
+      </section>
+
+      <!-- ============================== STUDIO ============================== -->
+      <section class="pane" id="pane-studio">
+        <div class="pane-head">
+          <h2>Studio</h2>
+          <span class="hint">Miroir vivant de la session Cowork — meme WebSocket, aucune donnee simulee.</span>
+        </div>
+        <div class="pane-body">
+          <div class="studio" id="studio"></div>
+        </div>
+      </section>
+
+      <!-- ============================= SESSIONS ============================= -->
+      <section class="pane" id="pane-sessions">
+        <div class="pane-head">
+          <h2>Sessions</h2>
+          <span class="hint">GET /api/sessions — clic sur une ligne pour voir la fiche et la reprendre.</span>
+          <span class="spacer" style="flex:1"></span>
+          <button class="btn tonal small" id="sess-reload">Recharger</button>
+        </div>
+        <div class="pane-body" id="sessions-body"></div>
+      </section>
+
+      <!-- ============================= FICHIERS ============================= -->
+      <section class="pane" id="pane-files">
+        <div class="pane-head">
+          <h2>Fichiers</h2>
+          <div class="crumbs" id="files-crumbs"></div>
+        </div>
+        <div class="pane-body" id="files-body"></div>
+      </section>
+
+      <!-- ============================= MEMOIRE ============================== -->
+      <section class="pane" id="pane-memory">
+        <div class="pane-head">
+          <h2>Memoire</h2>
+          <span class="hint">GET /api/memory — fournisseur actif et fichiers memoire integres.</span>
+        </div>
+        <div class="pane-body" id="memory-body"></div>
+      </section>
+
+      <!-- ============================== SKILLS ============================== -->
+      <section class="pane" id="pane-skills">
+        <div class="pane-head">
+          <h2>Skills</h2>
+          <input class="search" id="skills-search" placeholder="Filtrer les skills…" />
+          <span class="hint" id="skills-count"></span>
+        </div>
+        <div class="pane-body" id="skills-body"></div>
+      </section>
+
+    </div>
+  </div>
+</div>
+
+<!-- Configuration locale : URL du dashboard + jeton de session ephemere.
+     Volontairement dans un fichier separe pour ne JAMAIS ecrire le jeton
+     dans la page. Si le fichier manque, la page demarre quand meme avec des
+     valeurs par defaut et affiche une banniere. -->
+<script src="ulysse-config.js" onerror="window.__ULYSSE_CONFIG_MISSING=true"></script>
+
+<script>
+"use strict";
+
+/* ===========================================================================
+   0. Configuration
+   =========================================================================== */
+
+const RAW_CFG = (typeof window.ULYSSE_CONFIG === "object" && window.ULYSSE_CONFIG) || {};
+const CFG = {
+  DASHBOARD_URL: (RAW_CFG.DASHBOARD_URL || "http://127.0.0.1:9122").replace(/\/+$/, ""),
+  SESSION_TOKEN: RAW_CFG.SESSION_TOKEN || "",
+  AUTH_HEADER_STYLE: RAW_CFG.AUTH_HEADER_STYLE || "x-token",
+  PROXY_URL: RAW_CFG.PROXY_URL || "http://127.0.0.1:8645/v1/chat/completions",
+  PROXY_TOKEN: RAW_CFG.PROXY_TOKEN || "ulysse",
+  PROXY_MODEL: RAW_CFG.PROXY_MODEL || "tencent/hy3:free",
+  PROXY_MAX_TOKENS: RAW_CFG.PROXY_MAX_TOKENS || 800,
+  SESSION_CWD: RAW_CFG.SESSION_CWD || "",
+  SESSION_MODEL: RAW_CFG.SESSION_MODEL || "",
+  START_PATH: RAW_CFG.START_PATH || "",
+  STUDIO_LOG_MAX: RAW_CFG.STUDIO_LOG_MAX || 300
+};
+
+/* ===========================================================================
+   1. Petits utilitaires
+   =========================================================================== */
+
+const $ = (id) => document.getElementById(id);
+
+function el(tag, cls, txt){
+  const n = document.createElement(tag);
+  if (cls) n.className = cls;
+  if (txt !== undefined && txt !== null) n.textContent = String(txt);
+  return n;
+}
+function clear(node){ while (node.firstChild) node.removeChild(node.firstChild); }
+
+function fmtBytes(n){
+  if (n === null || n === undefined) return "—";
+  if (n < 1024) return n + " o";
+  if (n < 1048576) return (n / 1024).toFixed(1) + " Ko";
+  if (n < 1073741824) return (n / 1048576).toFixed(1) + " Mo";
+  return (n / 1073741824).toFixed(2) + " Go";
+}
+function fmtWhen(ts){
+  if (!ts) return "—";
+  const d = new Date(ts > 1e12 ? ts : ts * 1000);
+  if (isNaN(d.getTime())) return "—";
+  return d.toLocaleString("fr-FR", { dateStyle: "short", timeStyle: "short" });
+}
+function fmtClock(d){
+  return d.toLocaleTimeString("fr-FR", { hour12: false }) ;
+}
+function fmtDur(ms){
+  if (!ms && ms !== 0) return "";
+  if (ms < 1000) return Math.round(ms) + " ms";
+  return (ms / 1000).toFixed(1) + " s";
+}
+function shorten(s, n){
+  s = String(s === null || s === undefined ? "" : s);
+  return s.length > n ? s.slice(0, n - 1) + "…" : s;
+}
+/* Extrait un texte lisible d'un contenu de message qui peut etre une chaine
+   ou une liste de blocs ({type:"text", text:"…"}). */
+function contentToText(c){
+  if (typeof c === "string") return c;
+  if (Array.isArray(c)){
+    return c.map((p) => (typeof p === "string" ? p : (p && (p.text || p.content)) || "")).join("");
+  }
+  if (c && typeof c === "object") return c.text || c.content || "";
+  return "";
+}
+
+/* --- Icones Material (chemins SVG 24px, inline) -------------------------- */
+const ICONS = {
+  chat:     "M20 2H4c-1.1 0-1.99.9-1.99 2L2 22l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2z",
+  bolt:     "M11 21h-1l1-7H7.5c-.58 0-.57-.32-.38-.66.19-.34.05-.08.07-.12C8.48 10.94 10.42 7.54 13 3h1l-1 7h3.5c.49 0 .56.33.47.51l-.07.15C12.96 17.55 11 21 11 21z",
+  dashboard:"M3 13h8V3H3v10zm0 8h8v-6H3v6zm10 0h8V11h-8v10zm0-18v6h8V3h-8z",
+  history:  "M13 3a9 9 0 0 0-9 9H1l3.89 3.89.07.14L9 12H6c0-3.87 3.13-7 7-7s7 3.13 7 7-3.13 7-7 7c-1.93 0-3.68-.79-4.94-2.06l-1.42 1.42A8.954 8.954 0 0 0 13 21a9 9 0 0 0 0-18zm-1 5v5l4.28 2.54.72-1.21-3.5-2.08V8H12z",
+  folder:   "M10 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2h-8l-2-2z",
+  memory:   "M15 9H9v6h6V9zm-2 4h-2v-2h2v2zm8-2V9h-2V7c0-1.1-.9-2-2-2h-2V3h-2v2h-2V3H9v2H7c-1.1 0-2 .9-2 2v2H3v2h2v2H3v2h2v2c0 1.1.9 2 2 2h2v2h2v-2h2v2h2v-2h2c1.1 0 2-.9 2-2v-2h2v-2h-2v-2h2zm-4 6H7V7h10v10z",
+  extension:"M20.5 11H19V7c0-1.1-.9-2-2-2h-4V3.5C13 2.12 11.88 1 10.5 1S8 2.12 8 3.5V5H4c-1.1 0-1.99.9-1.99 2v3.8H3.5c1.49 0 2.7 1.21 2.7 2.7s-1.21 2.7-2.7 2.7H2V20c0 1.1.9 2 2 2h3.8v-1.5c0-1.49 1.21-2.7 2.7-2.7 1.49 0 2.7 1.21 2.7 2.7V22H17c1.1 0 2-.9 2-2v-4h1.5c1.38 0 2.5-1.12 2.5-2.5S21.88 11 20.5 11z",
+  send:     "M2.01 21L23 12 2.01 3 2 10l15 2-15 2z",
+  refresh:  "M17.65 6.35A7.958 7.958 0 0 0 12 4c-4.42 0-7.99 3.58-8 8s3.58 8 8 8c3.73 0 6.84-2.55 7.73-6h-2.08A5.99 5.99 0 0 1 12 18c-3.31 0-6-2.69-6-6s2.69-6 6-6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z",
+  file:     "M14 2H6c-1.1 0-1.99.9-1.99 2L4 20c0 1.1.89 2 1.99 2H18c1.1 0 2-.9 2-2V8l-6-6zm2 16H8v-2h8v2zm0-4H8v-2h8v2zm-3-5V3.5L18.5 9H13z",
+  up:       "M4 12l1.41 1.41L11 7.83V20h2V7.83l5.58 5.59L20 12l-8-8-8 8z",
+  build:    "M22.7 19l-9.1-9.1c.9-2.3.4-5-1.5-6.9-2-2-5-2.4-7.4-1.3L9 6 6 9 1.6 4.7C.4 7.1.9 10.1 2.9 12.1c1.9 1.9 4.6 2.4 6.9 1.5l9.1 9.1c.4.4 1 .4 1.4 0l2.3-2.3c.5-.4.5-1.1.1-1.4z"
+};
+function svgIcon(name){
+  const ns = "http://www.w3.org/2000/svg";
+  const svg = document.createElementNS(ns, "svg");
+  svg.setAttribute("viewBox", "0 0 24 24");
+  const p = document.createElementNS(ns, "path");
+  p.setAttribute("d", ICONS[name] || ICONS.chat);
+  svg.appendChild(p);
+  return svg;
+}
+
+/* --- Banniere d'alerte ---------------------------------------------------- */
+const alertBox = $("alert");
+let lastAlert = "";
+function showAlert(html){
+  if (html === lastAlert) return;
+  lastAlert = html;
+  alertBox.innerHTML = '<button class="close" title="Fermer">&times;</button>' + html;
+  alertBox.classList.add("show");
+  alertBox.querySelector(".close").onclick = () => { alertBox.classList.remove("show"); lastAlert = ""; };
+}
+function hideAlert(){ alertBox.classList.remove("show"); lastAlert = ""; }
+
+function alertFor(err){
+  if (err && err.status === 401){
+    showAlert("<b>401 — jeton de session refuse.</b> Le dashboard Hermes est en mode protege : " +
+      "renseigne <code>SESSION_TOKEN</code> dans <code>ulysse-config.js</code> avec la valeur de " +
+      "<code>HERMES_DASHBOARD_SESSION_TOKEN</code> (variable d'environnement du processus " +
+      "<code>hermes dashboard</code>), puis recharge la page.");
+  } else if (err && err.network){
+    showAlert("<b>Dashboard injoignable</b> a <code>" + CFG.DASHBOARD_URL + "</code>. " +
+      "Verifie que <code>hermes dashboard --port …</code> tourne, et que " +
+      "<code>DASHBOARD_URL</code> dans <code>ulysse-config.js</code> pointe sur le bon port.");
+  } else if (err){
+    showAlert("<b>Erreur backend</b> : " + shorten(err.message || String(err), 300));
+  }
+}
+
+/* ===========================================================================
+   2. Couche REST — appels /api/* authentifies
+   ---------------------------------------------------------------------------
+   En mode loopback, le dashboard exige le jeton de session sur chaque appel
+   /api/*. Deux formes acceptees : l'en-tete X-Hermes-Session-Token (defaut
+   ici) ou Authorization: Bearer. Sans jeton valide -> HTTP 401.
+   =========================================================================== */
+
+function authHeaders(){
+  const h = {};
+  if (!CFG.SESSION_TOKEN) return h;
+  const style = CFG.AUTH_HEADER_STYLE;
+  if (style === "bearer" || style === "both") h["Authorization"] = "Bearer " + CFG.SESSION_TOKEN;
+  if (style === "x-token" || style === "both") h["X-Hermes-Session-Token"] = CFG.SESSION_TOKEN;
+  if (!h["Authorization"] && !h["X-Hermes-Session-Token"]) h["X-Hermes-Session-Token"] = CFG.SESSION_TOKEN;
+  return h;
+}
+
+class ApiError extends Error {
+  constructor(message, status, network){
+    super(message);
+    this.status = status || 0;
+    this.network = !!network;
+  }
+}
+
+async function api(path, opts){
+  opts = opts || {};
+  let res;
+  try {
+    res = await fetch(CFG.DASHBOARD_URL + path, {
+      method: opts.method || "GET",
+      headers: Object.assign({}, authHeaders(), opts.headers || {},
+        opts.body ? { "Content-Type": "application/json" } : {}),
+      body: opts.body ? JSON.stringify(opts.body) : undefined,
+      cache: "no-store"
+    });
+  } catch (e){
+    throw new ApiError("connexion impossible : " + e.message, 0, true);
+  }
+  if (res.status === 401) throw new ApiError("Unauthorized", 401);
+  if (!res.ok){
+    let detail = "";
+    try { const j = await res.json(); detail = j.detail || j.message || ""; } catch (e){ /* corps non JSON */ }
+    throw new ApiError("HTTP " + res.status + (detail ? " — " + detail : ""), res.status);
+  }
+  if (res.status === 204) return null;
+  return res.json();
+}
+
+/* ===========================================================================
+   3. Couche WebSocket — le lien Cowork (JSON-RPC delimite par newline)
+   ---------------------------------------------------------------------------
+   Un SEUL lien pour toute la page : l'onglet Cowork, l'onglet Discussion en
+   mode Cowork, et le Studio ecoutent le meme flux. C'est ce qui fait du
+   Studio un miroir reel de la session, sans donnee simulee.
+
+   - URL : ws://HOTE/api/ws?token=<jeton>   (le handshake WS ne peut pas
+     porter d'en-tete : en mode loopback Hermes accepte le jeton en query.)
+   - Le serveur emet immediatement un evenement 'gateway.ready'.
+   - Requetes  : {"jsonrpc":"2.0","id":N,"method":"…","params":{…}}
+   - Reponses  : {"jsonrpc":"2.0","id":N,"result":{…}} ou {…,"error":{…}}
+   - Evenements: {"jsonrpc":"2.0","method":"event",
+                  "params":{"type":"…","session_id":"…","payload":{…}}}
+   - Codes de fermeture : 4401 = auth refusee, 4403 = surface desactivee.
+   =========================================================================== */
+
+function wsUrl(){
+  const u = new URL(CFG.DASHBOARD_URL);
+  const proto = u.protocol === "https:" ? "wss:" : "ws:";
+  let url = proto + "//" + u.host + "/api/ws";
+  if (CFG.SESSION_TOKEN) url += "?token=" + encodeURIComponent(CFG.SESSION_TOKEN);
+  return url;
+}
+
+class HermesLink {
+  constructor(){
+    this.ws = null;
+    this.state = "idle";        // idle | connecting | open | closed | denied
+    this.reason = "";
+    this.nextId = 1;
+    this.pending = new Map();   // id -> {resolve, reject, timer}
+    this.listeners = new Set(); // (type, params) => void
+    this.stateListeners = new Set();
+    this.retries = 0;
+    this.retryTimer = null;
+    this.giveUp = false;        // vrai apres 4401/4403 : inutile d'insister
+  }
+
+  onEvent(fn){ this.listeners.add(fn); }
+  onState(fn){ this.stateListeners.add(fn); }
+
+  _setState(s, reason){
+    this.state = s;
+    this.reason = reason || "";
+    this.stateListeners.forEach((fn) => { try { fn(s, this.reason); } catch (e){ console.error(e); } });
+  }
+
+  connect(){
+    if (this.state === "open" || this.state === "connecting") return;
+    if (this.retryTimer){ clearTimeout(this.retryTimer); this.retryTimer = null; }
+    this.giveUp = false;
+    this._open();
+  }
+
+  _open(){
+    let ws;
+    this._setState("connecting");
+    try {
+      ws = new WebSocket(wsUrl());
+    } catch (e){
+      this._setState("closed", e.message);
+      this._scheduleRetry();
+      return;
+    }
+    this.ws = ws;
+
+    ws.onopen = () => { this.retries = 0; /* l'etat passe a "open" sur gateway.ready */ };
+
+    ws.onmessage = (ev) => {
+      // Le protocole est "newline-delimited" : une trame peut, en theorie,
+      // contenir plusieurs objets JSON. On decoupe donc systematiquement.
+      const lines = String(ev.data).split("\n");
+      for (const line of lines){
+        const s = line.trim();
+        if (!s) continue;
+        let msg;
+        try { msg = JSON.parse(s); } catch (e){ console.warn("trame WS illisible", s); continue; }
+        this._dispatch(msg);
+      }
+    };
+
+    ws.onerror = () => { /* onclose suit toujours : la reprise est geree la */ };
+
+    ws.onclose = (ev) => {
+      this.ws = null;
+      // Purge des requetes en vol.
+      this.pending.forEach((p) => { clearTimeout(p.timer); p.reject(new Error("WebSocket ferme")); });
+      this.pending.clear();
+
+      if (ev.code === 4401){
+        this.giveUp = true;
+        this._setState("denied", "jeton refuse (4401)");
+        alertFor(new ApiError("Unauthorized", 401));
+        return;
+      }
+      if (ev.code === 4403){
+        this.giveUp = true;
+        this._setState("denied", "surface Cowork desactivee cote serveur (4403)");
+        showAlert("<b>Cowork indisponible</b> — le dashboard a ferme le WebSocket avec le code 4403 : " +
+          "la surface de chat embarquee est desactivee sur ce serveur.");
+        return;
+      }
+      this._setState("closed", "code " + ev.code);
+      this._scheduleRetry();
+    };
+  }
+
+  _scheduleRetry(){
+    if (this.giveUp) return;
+    const delays = [1000, 2000, 4000, 8000, 15000, 30000];
+    const d = delays[Math.min(this.retries, delays.length - 1)];
+    this.retries++;
+    if (this.retryTimer) clearTimeout(this.retryTimer);
+    this.retryTimer = setTimeout(() => { this.retryTimer = null; this._open(); }, d);
+  }
+
+  _dispatch(msg){
+    // Reponse a une requete ?
+    if (msg.id !== undefined && msg.id !== null && this.pending.has(msg.id)){
+      const p = this.pending.get(msg.id);
+      this.pending.delete(msg.id);
+      clearTimeout(p.timer);
+      if (msg.error) p.reject(new Error((msg.error.code || "") + " " + (msg.error.message || "erreur RPC")));
+      else p.resolve(msg.result || {});
+      return;
+    }
+    // Sinon : evenement pousse par le gateway.
+    if (msg.method === "event" && msg.params){
+      if (msg.params.type === "gateway.ready" && this.state !== "open") this._setState("open");
+      this.listeners.forEach((fn) => {
+        try { fn(msg.params.type, msg.params); } catch (e){ console.error(e); }
+      });
+    }
+  }
+
+  /* Envoie une requete JSON-RPC. `timeout` en ms (0 = pas de garde-fou). */
+  rpc(method, params, timeout){
+    return new Promise((resolve, reject) => {
+      if (!this.ws || this.ws.readyState !== WebSocket.OPEN){
+        reject(new Error("WebSocket non connecte"));
+        return;
+      }
+      const id = this.nextId++;
+      const frame = { jsonrpc: "2.0", id: id, method: method, params: params || {} };
+      const t = timeout === 0 ? null : setTimeout(() => {
+        this.pending.delete(id);
+        reject(new Error("delai depasse sur " + method));
+      }, timeout || 60000);
+      this.pending.set(id, { resolve: resolve, reject: reject, timer: t });
+      try {
+        this.ws.send(JSON.stringify(frame) + "\n");
+      } catch (e){
+        this.pending.delete(id);
+        if (t) clearTimeout(t);
+        reject(e);
+      }
+    });
+  }
+
+  /* Attend que le lien soit pret (gateway.ready recu). */
+  ready(timeout){
+    if (this.state === "open") return Promise.resolve();
+    if (this.state === "denied") return Promise.reject(new Error(this.reason));
+    this.connect();
+    return new Promise((resolve, reject) => {
+      const to = setTimeout(() => { this.stateListeners.delete(watch); reject(new Error("le WebSocket ne repond pas")); },
+        timeout || 15000);
+      const watch = (s, reason) => {
+        if (s === "open"){ clearTimeout(to); this.stateListeners.delete(watch); resolve(); }
+        else if (s === "denied"){ clearTimeout(to); this.stateListeners.delete(watch); reject(new Error(reason)); }
+      };
+      this.stateListeners.add(watch);
+    });
+  }
+}
+
+const link = new HermesLink();
+
+/* ===========================================================================
+   4. Modele de conversation — alimente UNIQUEMENT par les evenements du WS
+   =========================================================================== */
+
+const conv = {
+  sessionId: null,      // identifiant de la session vivante (session.create)
+  storedId: null,       // identifiant persiste (stored_session_id)
+  info: null,           // dernier payload session.info
+  status: null,         // derniere status.update {kind, text}
+  running: false,       // un tour est en cours
+  approval: null,       // demande d'approbation en attente
+  turns: []             // voir newTurn()
+};
+const studioLog = [];   // journal brut des evenements (Studio)
+let turnSeq = 0;
+
+function newTurn(role, text){
+  const t = { key: ++turnSeq, role: role, text: text || "", tools: [], reasoning: "",
+              sawDelta: false, state: role === "assistant" ? "streaming" : "done", ts: Date.now() };
+  conv.turns.push(t);
+  return t;
+}
+function currentAssistantTurn(){
+  for (let i = conv.turns.length - 1; i >= 0; i--){
+    const t = conv.turns[i];
+    if (t.role === "assistant") return t.state === "streaming" ? t : newTurn("assistant");
+    if (t.role === "user") break;
+  }
+  return newTurn("assistant");
+}
+function findTool(toolId){
+  for (let i = conv.turns.length - 1; i >= 0; i--){
+    const tools = conv.turns[i].tools;
+    for (let j = tools.length - 1; j >= 0; j--) if (tools[j].id === toolId) return tools[j];
+  }
+  return null;
+}
+
+/* Resume court d'un evenement, pour le journal du Studio. */
+function eventBrief(type, p){
+  const pl = p.payload || {};
+  switch (type){
+    case "message.delta":
+    case "reasoning.delta":
+    case "thinking.delta": return shorten(pl.text || "", 90);
+    case "tool.start":     return (pl.name || "") + (pl.context ? " — " + shorten(pl.context, 70) : "");
+    case "tool.complete":  return (pl.name || "") + " termine";
+    case "status.update":  return (pl.kind ? "[" + pl.kind + "] " : "") + shorten(pl.text || "", 80);
+    case "message.complete": return "statut=" + (pl.status || "ok");
+    case "error":          return shorten(pl.message || "", 90);
+    case "session.info":   return (pl.model || "") + (pl.cwd ? " · " + shorten(pl.cwd, 50) : "");
+    case "gateway.ready":  return "gateway pret";
+    default:               return shorten(JSON.stringify(pl), 90);
+  }
+}
+
+/* --- Reducteur : un evenement du gateway -> etat de la conversation ------- */
+link.onEvent((type, params) => {
+  const pl = params.payload || {};
+
+  studioLog.push({ t: new Date(), type: type, sid: params.session_id || "", brief: eventBrief(type, params) });
+  if (studioLog.length > CFG.STUDIO_LOG_MAX) studioLog.splice(0, studioLog.length - CFG.STUDIO_LOG_MAX);
+
+  switch (type){
+    case "message.start":
+      newTurn("assistant");
+      break;
+
+    case "message.delta": {
+      const t = currentAssistantTurn();
+      t.text += pl.text || "";
+      t.sawDelta = true;
+      break;
+    }
+
+    case "reasoning.delta":
+    case "thinking.delta": {
+      const t = currentAssistantTurn();
+      t.reasoning += pl.text || "";
+      break;
+    }
+
+    case "message.complete": {
+      const t = currentAssistantTurn();
+      // Les deltas ont deja peint le texte : ne le rejoue pas (double affichage).
+      if (!t.sawDelta && pl.text) t.text = pl.text;
+      t.state = pl.status === "error" ? "error" : "done";
+      conv.running = false;
+      conv.status = null;
+      break;
+    }
+
+    case "tool.start": {
+      const t = currentAssistantTurn();
+      t.tools.push({ id: pl.tool_id, name: pl.name || "outil", context: pl.context || "",
+                     args: pl.args_text || "", state: "running", t0: Date.now(), result: "" });
+      break;
+    }
+
+    case "tool.complete": {
+      const tool = findTool(pl.tool_id);
+      if (tool){
+        tool.state = "done";
+        tool.ms = Date.now() - tool.t0;
+        tool.result = pl.inline_diff || pl.result || tool.result || "";
+        if (pl.name) tool.name = pl.name;
+      } else {
+        // Outil dont on n'a pas vu le demarrage (reprise en cours de tour).
+        const t = currentAssistantTurn();
+        t.tools.push({ id: pl.tool_id, name: pl.name || "outil", context: "", state: "done",
+                       t0: Date.now(), ms: 0, result: pl.inline_diff || pl.result || "" });
+      }
+      break;
+    }
+
+    case "status.update":
+      conv.status = { kind: pl.kind || "", text: pl.text || "" };
+      break;
+
+    case "session.info":
+      conv.info = pl;
+      break;
+
+    case "approval.request":
+      conv.approval = pl;
+      break;
+
+    case "error": {
+      const t = newTurn("error", pl.message || "erreur inconnue");
+      t.state = "error";
+      conv.running = false;
+      break;
+    }
+
+    default:
+      break; // les autres evenements alimentent le journal du Studio
+  }
+
+  paint();
+});
+
+link.onState((s) => {
+  if (s === "closed" || s === "denied") conv.running = false;
+  paintStatusBand();
+  paint();
+});
+
+/* ===========================================================================
+   5. Rendu de la conversation (partage par Discussion-Cowork et Cowork)
+   =========================================================================== */
+
+function bubbleFor(turn){
+  const wrap = el("div", "msg " + (turn.role === "user" ? "user"
+                : turn.role === "assistant" ? "ai"
+                : turn.role === "error" ? "err" : "sys"));
+  if (turn.role === "user" || turn.role === "assistant"){
+    wrap.appendChild(el("div", "who", turn.role === "user" ? "Toi" : "Ulysse"));
+  }
+
+  // Outils : affiches AVANT le texte, dans l'ordre reel d'execution.
+  if (turn.tools.length){
+    const tools = el("div", "tools");
+    turn.tools.forEach((tool) => {
+      const row = el("div", "tool" + (tool.state === "done" ? " done" : ""));
+      row.appendChild(el("span", "st"));
+      const mid = el("div");
+      mid.style.flex = "1";
+      mid.style.minWidth = "0";
+      mid.appendChild(el("span", "nm", tool.name));
+      if (tool.context) mid.appendChild(el("div", "ctx", tool.context));
+      if (tool.args) mid.appendChild(el("div", "ctx", tool.args));
+      if (tool.result){
+        const d = el("details");
+        d.appendChild(el("summary", null, "resultat"));
+        d.appendChild(el("pre", null, shorten(tool.result, 4000)));
+        mid.appendChild(d);
+      }
+      row.appendChild(mid);
+      row.appendChild(el("span", "dur", tool.state === "done" ? fmtDur(tool.ms) : "en cours"));
+      tools.appendChild(row);
+    });
+    wrap.appendChild(tools);
+  }
+
+  if (turn.reasoning){
+    const d = el("details", "reasoning");
+    d.appendChild(el("summary", null, "reflexion de l'agent"));
+    d.appendChild(el("pre", null, turn.reasoning));
+    wrap.appendChild(d);
+  }
+
+  if (turn.text || turn.role !== "assistant" || !turn.tools.length){
+    const b = el("div", "bubble");
+    if (!turn.text && turn.state === "streaming"){
+      b.innerHTML = '<span class="typing"><i></i><i></i><i></i></span>';
+    } else {
+      b.textContent = turn.text;
+    }
+    wrap.appendChild(b);
+  }
+  return wrap;
+}
+
+function approvalNode(){
+  const p = conv.approval;
+  const box = el("div", "approval");
+  box.appendChild(el("b", null, "L'agent demande une autorisation"));
+  if (p.command) box.appendChild(el("div", null, p.command));
+  else if (p.tool || p.name) box.appendChild(el("div", null, p.tool || p.name));
+  if (p.reason) box.appendChild(el("div", null, p.reason));
+  const acts = el("div", "acts");
+  const choices = Array.isArray(p.choices) && p.choices.length ? p.choices : ["once", "deny"];
+  const label = { once: "Autoriser une fois", session: "Toute la session", always: "Toujours", deny: "Refuser" };
+  choices.forEach((c) => {
+    const b = el("button", "btn small" + (c === "deny" ? " danger" : " tonal"), label[c] || c);
+    b.onclick = async () => {
+      conv.approval = null;
+      paint();
+      try { await link.rpc("approval.respond", { session_id: conv.sessionId, choice: c }); }
+      catch (e){ pushSystem("Reponse d'approbation refusee : " + e.message); }
+    };
+    acts.appendChild(b);
+  });
+  box.appendChild(acts);
+  return box;
+}
+
+function paintConversation(container){
+  if (!container) return;
+  const stick = container.scrollHeight - container.scrollTop - container.clientHeight < 80;
+  clear(container);
+
+  if (!conv.turns.length && !conv.approval){
+    const e = el("div", "empty",
+      conv.sessionId
+        ? "Session ouverte. Ecris une consigne pour lancer un tour."
+        : "Aucune session ouverte. Envoie une consigne : la session Cowork sera creee automatiquement.");
+    container.appendChild(e);
+  }
+  conv.turns.forEach((t) => container.appendChild(bubbleFor(t)));
+  if (conv.approval) container.appendChild(approvalNode());
+
+  if (conv.status && conv.running){
+    const s = el("div", "msg sys");
+    s.appendChild(el("div", "bubble", (conv.status.kind ? "[" + conv.status.kind + "] " : "") + conv.status.text));
+    container.appendChild(s);
+  }
+  if (stick) container.scrollTop = container.scrollHeight;
+}
+
+/* Repeint uniquement ce qui est visible, au rythme de l'affichage. */
+let paintQueued = false;
+function paint(){
+  if (paintQueued) return;
+  paintQueued = true;
+  requestAnimationFrame(() => {
+    paintQueued = false;
+    if (activePane === "discussion" && discMode === "cowork") paintConversation($("disc-log"));
+    if (activePane === "cowork") paintConversation($("cowork-log"));
+    if (activePane === "studio") paintStudio();
+    paintCoworkControls();
+  });
+}
+
+function pushSystem(text){
+  const t = newTurn("system", text);
+  t.state = "done";
+  paint();
+}
+
+/* ===========================================================================
+   6. Actions Cowork : ouvrir la session, soumettre, interrompre
+   =========================================================================== */
+
+async function ensureSession(){
+  await link.ready();
+  if (conv.sessionId) return conv.sessionId;
+
+  const params = { cols: 100, source: "ulysse" };
+  if (CFG.SESSION_CWD) params.cwd = CFG.SESSION_CWD;
+  if (CFG.SESSION_MODEL) params.model = CFG.SESSION_MODEL;
+
+  const res = await link.rpc("session.create", params, 60000);
+  conv.sessionId = res.session_id;
+  conv.storedId = res.stored_session_id || null;
+  if (res.info) conv.info = res.info;
+  paintStatusBand();
+  return conv.sessionId;
+}
+
+async function submitPrompt(text){
+  const t = newTurn("user", text);
+  t.state = "done";
+  conv.running = true;
+  conv.status = { kind: "", text: "connexion a l'agent…" };
+  paint();
+
+  try {
+    const sid = await ensureSession();
+    conv.status = { kind: "", text: "l'agent travaille…" };
+    // prompt.submit peut ne repondre qu'a la fin du tour : on ne bloque pas
+    // l'interface dessus, l'affichage vit des evenements (message.delta…).
+    link.rpc("prompt.submit", { session_id: sid, text: text }, 0)
+      .catch((e) => {
+        conv.running = false;
+        pushSystem("prompt.submit : " + e.message);
+      });
+  } catch (e){
+    conv.running = false;
+    const err = newTurn("error", "Impossible d'ouvrir la session Cowork : " + e.message);
+    err.state = "error";
+    paint();
+  }
+  paint();
+}
+
+async function interruptTurn(){
+  if (!conv.sessionId) return;
+  try { await link.rpc("session.interrupt", { session_id: conv.sessionId }, 15000); }
+  catch (e){ pushSystem("Interruption : " + e.message); }
+  conv.running = false;
+  paint();
+}
+
+function resetSession(){
+  conv.sessionId = null;
+  conv.storedId = null;
+  conv.info = null;
+  conv.status = null;
+  conv.running = false;
+  conv.approval = null;
+  conv.turns = [];
+  studioLog.length = 0;
+  paintStatusBand();
+  paint();
+}
+
+function paintCoworkControls(){
+  const send = $("cowork-send"), stop = $("cowork-stop");
+  send.style.display = conv.running ? "none" : "";
+  stop.style.display = conv.running ? "" : "none";
+  $("disc-send").disabled = (discMode === "cowork" && conv.running);
+  $("cowork-hint").textContent = conv.sessionId
+    ? "session " + conv.sessionId + (conv.info && conv.info.model ? " · " + conv.info.model : "")
+    : "aucune session — elle sera creee au premier envoi";
+}
+
+/* ===========================================================================
+   7. Onglet Discussion — deux modes
+     - "cowork" : agent complet via le WebSocket /api/ws (memes evenements
+       que l'onglet Cowork, donc le Studio reste un miroir fidele)
+     - "pur"    : chat sans outils via le proxy (cablage de la Session A)
+   =========================================================================== */
+
+let discMode = "cowork";
+const pureHistory = [];      // fil envoye au proxy
+const pureTurns = [];        // rendu local du mode chat pur
+
+function paintPure(){
+  const c = $("disc-log");
+  const stick = c.scrollHeight - c.scrollTop - c.clientHeight < 80;
+  clear(c);
+  if (!pureTurns.length){
+    c.appendChild(el("div", "empty", "Mode chat pur : reponses du proxy, sans aucun outil."));
+  }
+  pureTurns.forEach((t) => c.appendChild(bubbleFor(t)));
+  if (stick) c.scrollTop = c.scrollHeight;
+}
+
+function pushPure(role, text, state){
+  const t = { key: ++turnSeq, role: role, text: text, tools: [], reasoning: "",
+              sawDelta: false, state: state || "done", ts: Date.now() };
+  pureTurns.push(t);
+  return t;
+}
+
+async function sendPure(text){
+  pushPure("user", text);
+  pureHistory.push({ role: "user", content: text });
+  const pending = pushPure("assistant", "", "streaming");
+  paintPure();
+  $("disc-send").disabled = true;
+
+  try {
+    const res = await fetch(CFG.PROXY_URL, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "Authorization": "Bearer " + CFG.PROXY_TOKEN },
+      body: JSON.stringify({ model: CFG.PROXY_MODEL, messages: pureHistory, max_tokens: CFG.PROXY_MAX_TOKENS })
+    });
+    pureTurns.splice(pureTurns.indexOf(pending), 1);
+
+    if (res.status === 403){
+      pushPure("system", "Le modele gratuit est temporairement sature (limite atteinte). Reessaie dans quelques secondes.");
+      pureHistory.pop();
+    } else if (!res.ok){
+      pushPure("error", "Erreur du proxy (HTTP " + res.status + "). Verifie que le proxy tourne sur " + CFG.PROXY_URL + ".");
+      pureHistory.pop();
+    } else {
+      const data = await res.json();
+      const content = data.choices && data.choices[0] && data.choices[0].message
+        ? contentToText(data.choices[0].message.content) : "";
+      if (content && content.trim()){
+        pushPure("assistant", content.trim());
+        pureHistory.push({ role: "assistant", content: content.trim() });
+      } else {
+        pushPure("system", "(reponse recue sans texte — reessaie.)");
+        pureHistory.pop();
+      }
+    }
+  } catch (e){
+    const i = pureTurns.indexOf(pending);
+    if (i >= 0) pureTurns.splice(i, 1);
+    pushPure("error", "Connexion impossible au proxy (" + CFG.PROXY_URL + ") : " + e.message);
+    pureHistory.pop();
+  } finally {
+    $("disc-send").disabled = false;
+    paintPure();
+    $("disc-input").focus();
+  }
+}
+
+function setDiscMode(mode){
+  discMode = mode;
+  Array.prototype.forEach.call($("disc-mode").children, (b) => {
+    b.classList.toggle("on", b.dataset.mode === mode);
+  });
+  $("disc-hint").textContent = mode === "cowork"
+    ? "WebSocket /api/ws — agent complet, outils actifs, reflete dans le Studio"
+    : "POST " + CFG.PROXY_URL + " — sans outils";
+  $("disc-input").placeholder = mode === "cowork"
+    ? "Parle a l'agent (outils actifs)…"
+    : "Ecris ton message… (chat pur, sans outils)";
+  if (mode === "cowork") paintConversation($("disc-log")); else paintPure();
+  paintCoworkControls();
+}
+
+/* ===========================================================================
+   8. Onglet Studio — miroir vivant, alimente par le meme WebSocket
+   =========================================================================== */
+
+function paintStudio(){
+  const root = $("studio");
+  clear(root);
+
+  // --- Colonne gauche : etat de session + etape courante -----------------
+  const left = el("div");
+  left.style.display = "grid";
+  left.style.gap = "14px";
+
+  const cSession = el("div", "card");
+  cSession.appendChild(el("h3", null, "Session vivante"));
+  const bSession = el("div", "body");
+  const dl = el("dl", "kv");
+  const put = (k, v) => { dl.appendChild(el("dt", null, k)); dl.appendChild(el("dd", null, v)); };
+  put("Lien WebSocket", linkStateLabel());
+  put("session_id", conv.sessionId || "—");
+  put("stored_session_id", conv.storedId || "—");
+  const info = conv.info || {};
+  put("modele", info.model || "—");
+  if (info.provider) put("fournisseur", info.provider);
+  if (info.cwd) put("dossier", info.cwd);
+  if (info.message_count !== undefined) put("messages", info.message_count);
+  if (info.tokens !== undefined) put("tokens", info.tokens);
+  put("tour en cours", conv.running ? "oui" : "non");
+  bSession.appendChild(dl);
+  if (conv.info){
+    const d = el("details");
+    d.appendChild(el("summary", null, "payload session.info brut"));
+    d.appendChild(el("pre", "raw", JSON.stringify(conv.info, null, 2)));
+    bSession.appendChild(d);
+  }
+  cSession.appendChild(bSession);
+  left.appendChild(cSession);
+
+  const cStep = el("div", "card");
+  cStep.appendChild(el("h3", null, "Etape courante"));
+  const bStep = el("div", "body");
+  const running = conv.turns.reduce((acc, t) => acc.concat(t.tools.filter((x) => x.state === "running")), []);
+  let stepText;
+  if (conv.status && conv.status.text) stepText = (conv.status.kind ? "[" + conv.status.kind + "] " : "") + conv.status.text;
+  else if (running.length) stepText = "outil en cours : " + running.map((t) => t.name).join(", ");
+  else if (conv.running) stepText = "l'agent reflechit…";
+  else stepText = "au repos";
+  bStep.appendChild(el("div", "step", stepText));
+  cStep.appendChild(bStep);
+  left.appendChild(cStep);
+
+  const cTools = el("div", "card");
+  const allTools = conv.turns.reduce((acc, t) => acc.concat(t.tools), []);
+  cTools.appendChild(el("h3", null, "Outils appeles (" + allTools.length + ")"));
+  const bTools = el("div", "body");
+  if (!allTools.length){
+    bTools.appendChild(el("div", "empty", "Aucun outil appele dans cette session."));
+  } else {
+    const wrap = el("div", "tools");
+    allTools.slice(-40).forEach((tool) => {
+      const row = el("div", "tool" + (tool.state === "done" ? " done" : ""));
+      row.appendChild(el("span", "st"));
+      const mid = el("div");
+      mid.style.flex = "1";
+      mid.style.minWidth = "0";
+      mid.appendChild(el("span", "nm", tool.name));
+      if (tool.context) mid.appendChild(el("div", "ctx", shorten(tool.context, 160)));
+      row.appendChild(mid);
+      row.appendChild(el("span", "dur", tool.state === "done" ? fmtDur(tool.ms) : "en cours"));
+      wrap.appendChild(row);
+    });
+    bTools.appendChild(wrap);
+  }
+  cTools.appendChild(bTools);
+  left.appendChild(cTools);
+
+  // --- Colonne droite : conversation miroir + journal brut ---------------
+  const right = el("div");
+  right.style.display = "grid";
+  right.style.gap = "14px";
+
+  const cConv = el("div", "card");
+  cConv.appendChild(el("h3", null, "Conversation (miroir)"));
+  const bConv = el("div", "body");
+  bConv.style.maxHeight = "360px";
+  bConv.style.overflow = "auto";
+  if (!conv.turns.length){
+    bConv.appendChild(el("div", "empty", "Rien a refleter : aucune session en cours."));
+  } else {
+    conv.turns.forEach((t) => {
+      const line = el("div");
+      line.style.marginBottom = "10px";
+      const who = el("div", "who", t.role === "user" ? "Toi" : t.role === "assistant" ? "Ulysse" : t.role);
+      const body = el("div", null, shorten(t.text, 600) || (t.tools.length ? "(" + t.tools.length + " appel(s) d'outil)" : "…"));
+      body.style.whiteSpace = "pre-wrap";
+      line.appendChild(who);
+      line.appendChild(body);
+      bConv.appendChild(line);
+    });
+  }
+  cConv.appendChild(bConv);
+  right.appendChild(cConv);
+
+  const cLog = el("div", "card");
+  cLog.appendChild(el("h3", null, "Journal des evenements (" + studioLog.length + ")"));
+  const bLog = el("div", "evlog");
+  if (!studioLog.length){
+    bLog.appendChild(el("div", "empty", "Aucun evenement recu pour l'instant."));
+  } else {
+    studioLog.slice().reverse().forEach((e) => {
+      const row = el("div", "ev");
+      row.appendChild(el("span", "tm", fmtClock(e.t)));
+      row.appendChild(el("span", "ty", e.type));
+      row.appendChild(el("span", "br", e.brief));
+      bLog.appendChild(row);
+    });
+  }
+  cLog.appendChild(bLog);
+  right.appendChild(cLog);
+
+  root.appendChild(left);
+  root.appendChild(right);
+}
+
+function linkStateLabel(){
+  switch (link.state){
+    case "open": return "connecte";
+    case "connecting": return "connexion…";
+    case "denied": return "refuse — " + link.reason;
+    case "closed": return "ferme (" + link.reason + ") — reconnexion automatique";
+    default: return "inactif";
+  }
+}
+
+/* ===========================================================================
+   9. Onglet Sessions — GET /api/sessions, reprise via session.resume
+   =========================================================================== */
+
+async function loadSessions(){
+  const body = $("sessions-body");
+  clear(body);
+  body.appendChild(el("div", "empty", "Chargement…"));
+  try {
+    const data = await api("/api/sessions?limit=50&order=recent");
+    const rows = Array.isArray(data) ? data : (data.sessions || []);
+    clear(body);
+
+    const head = el("div", "pane-head");
+    head.style.padding = "0 0 10px";
+    head.appendChild(el("span", "hint",
+      rows.length + " session(s) affichee(s)" + (data && data.total !== undefined ? " sur " + data.total : "")));
+    body.appendChild(head);
+
+    if (!rows.length){ body.appendChild(el("div", "empty", "Aucune session enregistree.")); return; }
+
+    const list = el("div", "list");
+    rows.forEach((s) => {
+      const row = el("button", "row");
+      row.appendChild(svgIcon("history"));
+      const main = el("div", "main-txt");
+      main.appendChild(el("div", "t", s.title || s.id || "(sans titre)"));
+      const bits = [];
+      if (s.id) bits.push(s.id);
+      if (s.model) bits.push(s.model);
+      if (s.message_count !== undefined) bits.push(s.message_count + " msg");
+      if (s.total_tokens !== undefined) bits.push(s.total_tokens + " tokens");
+      else if (s.tokens !== undefined) bits.push(s.tokens + " tokens");
+      if (s.cwd) bits.push(s.cwd);
+      main.appendChild(el("div", "s", bits.join(" · ")));
+      row.appendChild(main);
+      if (s.is_active) row.appendChild(el("span", "tag on", "active"));
+      row.appendChild(el("span", "meta", fmtWhen(s.last_active || s.started_at)));
+      row.onclick = () => showSessionDetail(s);
+      list.appendChild(row);
+    });
+    body.appendChild(list);
+    body.appendChild(el("div", "empty", " "));
+    const detail = el("div");
+    detail.id = "session-detail";
+    body.appendChild(detail);
+  } catch (e){
+    clear(body);
+    body.appendChild(el("div", "empty", "Chargement impossible : " + e.message));
+    alertFor(e);
+  }
+}
+
+function showSessionDetail(s){
+  const host = $("session-detail");
+  if (!host) return;
+  clear(host);
+
+  const card = el("div", "card");
+  card.appendChild(el("h3", null, "Fiche de session — " + (s.title || s.id)));
+  const b = el("div", "body");
+  const dl = el("dl", "kv");
+  Object.keys(s).forEach((k) => {
+    const v = s[k];
+    if (v === null || v === undefined || v === "") return;
+    if (typeof v === "object") return;
+    dl.appendChild(el("dt", null, k));
+    dl.appendChild(el("dd", null, k.match(/_at$|^started_at$|^last_active$/) ? fmtWhen(v) : String(v)));
+  });
+  b.appendChild(dl);
+
+  const acts = el("div");
+  acts.style.marginTop = "14px";
+  acts.style.display = "flex";
+  acts.style.gap = "10px";
+  acts.style.flexWrap = "wrap";
+
+  const resume = el("button", "btn small", "Reprendre dans Cowork");
+  resume.onclick = () => resumeSession(s.id, resume);
+  acts.appendChild(resume);
+
+  const openMsgs = el("button", "btn tonal small", "Voir les messages (REST)");
+  openMsgs.onclick = async () => {
+    openMsgs.disabled = true;
+    try {
+      const d = await api("/api/sessions/" + encodeURIComponent(s.id) + "/messages?limit=50");
+      const pre = el("pre", "raw", JSON.stringify(d, null, 2));
+      b.appendChild(pre);
+    } catch (e){
+      b.appendChild(el("div", "empty", "Lecture impossible : " + e.message));
+    } finally { openMsgs.disabled = false; }
+  };
+  acts.appendChild(openMsgs);
+
+  b.appendChild(acts);
+  card.appendChild(b);
+  host.appendChild(card);
+  host.scrollIntoView({ behavior: "smooth", block: "nearest" });
+}
+
+/* Reprise : session.resume sur le meme WebSocket. Le resultat contient
+   l'historique, qu'on rejoue dans la conversation pour que le Studio reflete
+   l'etat repris. */
+async function resumeSession(sessionId, btn){
+  if (btn) btn.disabled = true;
+  try {
+    await link.ready();
+    const res = await link.rpc("session.resume", { session_id: sessionId, cols: 100 }, 90000);
+    conv.turns = [];
+    conv.approval = null;
+    conv.running = false;
+    conv.sessionId = res.session_id || sessionId;
+    conv.storedId = res.session_key || sessionId;
+    if (res.info) conv.info = res.info;
+
+    const msgs = Array.isArray(res.messages) ? res.messages : [];
+    msgs.forEach((m) => {
+      const role = m.role === "user" ? "user" : m.role === "assistant" ? "assistant" : "system";
+      const text = contentToText(m.content !== undefined ? m.content : m.text);
+      if (!text) return;
+      const t = newTurn(role, text);
+      t.state = "done";
+      t.sawDelta = true;
+    });
+    if (res.messages_omitted) pushSystem("Historique tronque par le serveur (messages_omitted).");
+    pushSystem("Session " + conv.sessionId + " reprise (" + (res.message_count || msgs.length) + " message(s)).");
+    go("cowork");
+  } catch (e){
+    alertFor(new ApiError(e.message, 0));
+    pushSystem("Reprise impossible : " + e.message);
+  } finally {
+    if (btn) btn.disabled = false;
+    paintStatusBand();
+    paint();
+  }
+}
+
+/* ===========================================================================
+   10. Onglet Fichiers — GET /api/files?path=…
+   =========================================================================== */
+
+let filesPath = CFG.START_PATH || null;
+
+async function loadFiles(path){
+  const body = $("files-body");
+  clear(body);
+  body.appendChild(el("div", "empty", "Chargement…"));
+  const q = path ? "?path=" + encodeURIComponent(path) : "";
+  try {
+    const data = await api("/api/files" + q);
+    filesPath = data.path || path || null;
+    paintCrumbs(data);
+    clear(body);
+
+    const list = el("div", "list");
+    if (data.parent){
+      const up = el("button", "row");
+      up.appendChild(svgIcon("up"));
+      const m = el("div", "main-txt");
+      m.appendChild(el("div", "t", ".."));
+      m.appendChild(el("div", "s", data.parent));
+      up.appendChild(m);
+      up.onclick = () => loadFiles(data.parent);
+      list.appendChild(up);
+    }
+    const entries = data.entries || [];
+    if (!entries.length && !data.parent) list.appendChild(el("div", "empty", "Dossier vide."));
+    entries.forEach((f) => {
+      const row = el("button", "row");
+      row.appendChild(svgIcon(f.is_directory ? "folder" : "file"));
+      const m = el("div", "main-txt");
+      m.appendChild(el("div", "t", f.name));
+      m.appendChild(el("div", "s", f.is_directory ? "dossier" : (f.mime_type || "fichier")));
+      row.appendChild(m);
+      row.appendChild(el("span", "meta", (f.is_directory ? "" : fmtBytes(f.size) + " · ") + fmtWhen(f.mtime)));
+      row.onclick = () => (f.is_directory ? loadFiles(f.path) : previewFile(f));
+      list.appendChild(row);
+    });
+    body.appendChild(list);
+    const host = el("div");
+    host.id = "file-preview";
+    host.style.marginTop = "14px";
+    body.appendChild(host);
+  } catch (e){
+    clear(body);
+    body.appendChild(el("div", "empty", "Lecture impossible : " + e.message));
+    alertFor(e);
+  }
+}
+
+function paintCrumbs(data){
+  const c = $("files-crumbs");
+  clear(c);
+  const p = data.path || "";
+  const home = el("button", null, "racine");
+  home.onclick = () => loadFiles(null);
+  c.appendChild(home);
+  if (!p) return;
+  c.appendChild(el("span", null, "·"));
+  c.appendChild(el("span", null, p));
+}
+
+/* Decode le data_url base64 renvoye par /api/files/read en texte UTF-8.
+   Renvoie null si le contenu n'est pas du texte lisible. */
+function decodeDataUrlText(dataUrl){
+  const i = dataUrl.indexOf(",");
+  if (i < 0) return null;
+  try {
+    const bin = atob(dataUrl.slice(i + 1));
+    const bytes = new Uint8Array(bin.length);
+    for (let k = 0; k < bin.length; k++) bytes[k] = bin.charCodeAt(k);
+    return new TextDecoder("utf-8", { fatal: true }).decode(bytes);
+  } catch (e){
+    return null;
+  }
+}
+
+async function previewFile(f){
+  const host = $("file-preview");
+  if (!host) return;
+  clear(host);
+  const card = el("div", "card");
+  card.appendChild(el("h3", null, f.name));
+  const b = el("div", "body");
+  b.appendChild(el("div", null, f.path));
+  b.appendChild(el("div", "hint", fmtBytes(f.size) + " · " + (f.mime_type || "type inconnu")));
+  card.appendChild(b);
+  host.appendChild(card);
+  try {
+    // /api/files/read renvoie {name, path, size, mime_type, data_url} — le
+    // contenu est encode en base64 dans data_url, jamais en clair.
+    const d = await api("/api/files/read?path=" + encodeURIComponent(f.path));
+    const mime = d.mime_type || f.mime_type || "";
+    if (mime.indexOf("image/") === 0 && d.data_url){
+      const img = document.createElement("img");
+      img.src = d.data_url;
+      img.style.maxWidth = "100%";
+      img.style.borderRadius = "10px";
+      img.style.marginTop = "8px";
+      b.appendChild(img);
+    } else if (d.data_url){
+      const text = decodeDataUrlText(d.data_url);
+      if (text === null){
+        b.appendChild(el("div", "empty", "Fichier binaire — apercu texte impossible."));
+      } else {
+        b.appendChild(el("pre", "raw", shorten(text, 20000)));
+      }
+    } else {
+      b.appendChild(el("pre", "raw", shorten(JSON.stringify(d, null, 2), 20000)));
+    }
+  } catch (e){
+    b.appendChild(el("div", "empty", "Apercu indisponible : " + e.message));
+  }
+  host.scrollIntoView({ behavior: "smooth", block: "nearest" });
+}
+
+/* ===========================================================================
+   11. Onglet Memoire — GET /api/memory
+   =========================================================================== */
+
+async function loadMemory(){
+  const body = $("memory-body");
+  clear(body);
+  body.appendChild(el("div", "empty", "Chargement…"));
+  try {
+    const d = await api("/api/memory");
+    clear(body);
+    const grid = el("div", "grid");
+
+    const c1 = el("div", "card");
+    c1.appendChild(el("h3", null, "Fournisseur actif"));
+    const b1 = el("div", "body");
+    b1.appendChild(el("div", "step", d.active || "(aucun — memoire integree)"));
+    c1.appendChild(b1);
+    grid.appendChild(c1);
+
+    const c2 = el("div", "card");
+    c2.appendChild(el("h3", null, "Fichiers memoire integres"));
+    const b2 = el("div", "body");
+    const dl = el("dl", "kv");
+    const files = d.builtin_files || {};
+    Object.keys(files).forEach((k) => {
+      dl.appendChild(el("dt", null, k === "memory" ? "MEMORY.md" : k === "user" ? "USER.md" : k));
+      dl.appendChild(el("dd", null, fmtBytes(files[k])));
+    });
+    if (!Object.keys(files).length) dl.appendChild(el("dd", null, "—"));
+    b2.appendChild(dl);
+    c2.appendChild(b2);
+    grid.appendChild(c2);
+
+    body.appendChild(grid);
+
+    const providers = d.providers || [];
+    const list = el("div", "list");
+    list.style.marginTop = "14px";
+    const arr = Array.isArray(providers) ? providers
+      : Object.keys(providers).map((k) => Object.assign({ name: k }, providers[k]));
+    if (!arr.length) list.appendChild(el("div", "empty", "Aucun fournisseur de memoire declare."));
+    arr.forEach((p) => {
+      const row = el("div", "row plain");
+      row.appendChild(svgIcon("memory"));
+      const m = el("div", "main-txt");
+      m.appendChild(el("div", "t", p.name || p.id || "(sans nom)"));
+      m.appendChild(el("div", "s", p.status || p.state || p.detail || p.description || ""));
+      row.appendChild(m);
+      if (p.ready !== undefined) row.appendChild(el("span", "tag " + (p.ready ? "on" : "off"), p.ready ? "pret" : "non configure"));
+      if ((p.name || p.id) === d.active) row.appendChild(el("span", "tag on", "actif"));
+      list.appendChild(row);
+    });
+    body.appendChild(list);
+
+    const det = el("details");
+    det.style.marginTop = "14px";
+    det.appendChild(el("summary", null, "reponse brute /api/memory"));
+    det.appendChild(el("pre", "raw", JSON.stringify(d, null, 2)));
+    body.appendChild(det);
+  } catch (e){
+    clear(body);
+    body.appendChild(el("div", "empty", "Lecture impossible : " + e.message));
+    alertFor(e);
+  }
+}
+
+/* ===========================================================================
+   12. Onglet Skills — GET /api/skills
+   =========================================================================== */
+
+let skillsCache = [];
+
+async function loadSkills(){
+  const body = $("skills-body");
+  clear(body);
+  body.appendChild(el("div", "empty", "Chargement…"));
+  try {
+    const d = await api("/api/skills");
+    skillsCache = Array.isArray(d) ? d : (d.skills || []);
+    paintSkills();
+  } catch (e){
+    clear(body);
+    body.appendChild(el("div", "empty", "Lecture impossible : " + e.message));
+    alertFor(e);
+  }
+}
+
+function paintSkills(){
+  const body = $("skills-body");
+  const q = ($("skills-search").value || "").toLowerCase().trim();
+  const rows = skillsCache.filter((s) =>
+    !q || (s.name || "").toLowerCase().includes(q) || (s.description || "").toLowerCase().includes(q));
+  clear(body);
+  $("skills-count").textContent = rows.length + " / " + skillsCache.length + " skill(s)";
+  if (!rows.length){ body.appendChild(el("div", "empty", "Aucun skill.")); return; }
+
+  const list = el("div", "list");
+  rows.forEach((s) => {
+    const row = el("div", "row plain");
+    row.appendChild(svgIcon("extension"));
+    const m = el("div", "main-txt");
+    m.appendChild(el("div", "t", s.name || "(sans nom)"));
+    m.appendChild(el("div", "s", shorten(s.description || s.path || "", 220)));
+    row.appendChild(m);
+    if (s.provenance) row.appendChild(el("span", "tag", s.provenance));
+    if (s.usage !== undefined) row.appendChild(el("span", "meta", s.usage + " usage(s)"));
+    row.appendChild(el("span", "tag " + (s.enabled === false ? "off" : "on"), s.enabled === false ? "desactive" : "actif"));
+    list.appendChild(row);
+  });
+  body.appendChild(list);
+}
+
+/* ===========================================================================
+   13. Bandeau de statut — GET /api/status (+ etat du lien WS)
+   =========================================================================== */
+
+let lastStatus = null;
+
+async function loadStatus(){
+  try {
+    lastStatus = await api("/api/status");
+    hideAlert();
+  } catch (e){
+    lastStatus = null;
+    alertFor(e);
+  }
+  paintStatusBand();
+}
+
+function chip(kind, label, value){
+  const c = el("span", "chip" + (kind ? " " + kind : ""));
+  c.appendChild(el("span", "dot"));
+  const b = el("b", null, label);
+  c.appendChild(b);
+  if (value !== undefined && value !== null && value !== "") c.appendChild(el("span", null, String(value)));
+  return c;
+}
+
+function paintStatusBand(){
+  const band = $("statusband");
+  clear(band);
+
+  // Lien WebSocket (Cowork / Studio)
+  const wsKind = link.state === "open" ? "ok" : link.state === "denied" ? "err"
+    : link.state === "connecting" ? "warn" : "";
+  band.appendChild(chip(wsKind, "Cowork WS", linkStateLabel()));
+
+  if (!lastStatus){
+    band.appendChild(chip("err", "Dashboard", "injoignable ou non autorise"));
+    $("ab-sub").textContent = CFG.DASHBOARD_URL;
+    return;
+  }
+
+  const s = lastStatus;
+  band.appendChild(chip("ok", "Hermes", "v" + (s.version || "?")));
+  const g = s.gateway_state || (s.gateway_running ? "running" : "stopped");
+  band.appendChild(chip(g === "running" ? "ok" : "warn", "Gateway", g));
+  band.appendChild(chip("", "Sessions actives", s.active_sessions !== undefined ? s.active_sessions : "?"));
+  if (s.active_agents !== undefined) band.appendChild(chip(s.active_agents ? "warn" : "", "Agents", s.active_agents));
+
+  const comps = s.components || {};
+  Object.keys(comps).forEach((k) => {
+    const c = comps[k] || {};
+    const ok = (c.status || "").toLowerCase() === "ok";
+    band.appendChild(chip(ok ? "ok" : "warn", k, c.state || c.status || ""));
+  });
+
+  const plats = s.gateway_platforms || {};
+  Object.keys(plats).forEach((k) => {
+    const p = plats[k] || {};
+    band.appendChild(chip(p.state === "connected" ? "ok" : "warn", k, p.state || ""));
+  });
+
+  $("ab-sub").textContent = CFG.DASHBOARD_URL + (CFG.SESSION_TOKEN ? " · jeton fourni" : " · aucun jeton");
+}
+
+/* ===========================================================================
+   14. Navigation
+   =========================================================================== */
+
+const DESTS = [
+  { id: "discussion", label: "Discussion", icon: "chat",      onShow: () => (discMode === "cowork" ? paintConversation($("disc-log")) : paintPure()) },
+  { id: "cowork",     label: "Cowork",     icon: "bolt",      onShow: () => paintConversation($("cowork-log")) },
+  { id: "studio",     label: "Studio",     icon: "dashboard", onShow: paintStudio },
+  { id: "sessions",   label: "Sessions",   icon: "history",   onShow: loadSessions },
+  { id: "files",      label: "Fichiers",   icon: "folder",    onShow: () => loadFiles(filesPath) },
+  { id: "memory",     label: "Memoire",    icon: "memory",    onShow: loadMemory },
+  { id: "skills",     label: "Skills",     icon: "extension", onShow: loadSkills }
+];
+
+let activePane = "discussion";
+
+function buildRail(){
+  const rail = $("rail");
+  DESTS.forEach((d) => {
+    const b = el("button", "dest");
+    b.dataset.id = d.id;
+    const pill = el("span", "pill");
+    pill.appendChild(svgIcon(d.icon));
+    b.appendChild(pill);
+    b.appendChild(el("span", "lbl", d.label));
+    b.onclick = () => go(d.id);
+    rail.appendChild(b);
+  });
+}
+
+function go(id){
+  const dest = DESTS.find((d) => d.id === id);
+  if (!dest) return;
+  activePane = id;
+  Array.prototype.forEach.call(document.querySelectorAll(".dest"), (b) =>
+    b.classList.toggle("active", b.dataset.id === id));
+  Array.prototype.forEach.call(document.querySelectorAll(".pane"), (p) =>
+    p.classList.toggle("active", p.id === "pane-" + id));
+  try { dest.onShow(); } catch (e){ console.error(e); }
+  if (location.hash.slice(1) !== id) location.hash = id;
+}
+
+/* ===========================================================================
+   15. Cablage de l'interface
+   =========================================================================== */
+
+function autoGrow(ta){
+  ta.style.height = "auto";
+  ta.style.height = Math.min(ta.scrollHeight, 180) + "px";
+}
+
+function wireComposer(inputId, btnId, handler){
+  const ta = $(inputId), btn = $(btnId);
+  const fire = () => {
+    const text = ta.value.trim();
+    if (!text) return;
+    ta.value = "";
+    autoGrow(ta);
+    handler(text);
+  };
+  btn.onclick = fire;
+  ta.addEventListener("input", () => autoGrow(ta));
+  ta.addEventListener("keydown", (e) => {
+    if (e.key === "Enter" && !e.shiftKey){ e.preventDefault(); fire(); }
+  });
+}
+
+function boot(){
+  buildRail();
+
+  // Icones des boutons a icone
+  $("btn-refresh").appendChild(svgIcon("refresh"));
+  $("disc-send").insertBefore(svgIcon("send"), $("disc-send").firstChild);
+  $("cowork-send").insertBefore(svgIcon("build"), $("cowork-send").firstChild);
+
+  // Composeurs
+  wireComposer("disc-input", "disc-send", (text) => {
+    if (discMode === "pur") sendPure(text);
+    else submitPrompt(text);
+  });
+  wireComposer("cowork-input", "cowork-send", (text) => submitPrompt(text));
+  $("cowork-stop").onclick = interruptTurn;
+  $("cowork-new").onclick = () => {
+    resetSession();
+    pushSystem("Nouvelle session : elle sera creee au prochain envoi.");
+  };
+
+  // Bascule Discussion : Cowork (WS, outils) <-> chat pur (proxy)
+  Array.prototype.forEach.call($("disc-mode").children, (b) => {
+    b.onclick = () => setDiscMode(b.dataset.mode);
+  });
+  setDiscMode("cowork");
+
+  $("sess-reload").onclick = loadSessions;
+  $("skills-search").addEventListener("input", paintSkills);
+  $("btn-refresh").onclick = () => {
+    loadStatus();
+    const d = DESTS.find((x) => x.id === activePane);
+    if (d) try { d.onShow(); } catch (e){ console.error(e); }
+  };
+
+  window.addEventListener("hashchange", () => {
+    const id = location.hash.slice(1);
+    if (id && id !== activePane) go(id);
+  });
+
+  // Avertissements de configuration
+  if (window.__ULYSSE_CONFIG_MISSING){
+    showAlert("<b>ulysse-config.js introuvable.</b> La page utilise les valeurs par defaut " +
+      "(<code>" + CFG.DASHBOARD_URL + "</code>, sans jeton). Cree le fichier a cote de " +
+      "<code>session-b.html</code> pour renseigner <code>DASHBOARD_URL</code> et " +
+      "<code>SESSION_TOKEN</code>.");
+  } else if (!CFG.SESSION_TOKEN){
+    showAlert("<b>Aucun jeton de session configure.</b> Si le dashboard tourne en mode protege " +
+      "(bind 127.0.0.1), les appels <code>/api/*</code> repondront 401 et le WebSocket se fermera " +
+      "en 4401. Renseigne <code>SESSION_TOKEN</code> dans <code>ulysse-config.js</code> avec la valeur " +
+      "de <code>HERMES_DASHBOARD_SESSION_TOKEN</code>.");
+  }
+  if (location.protocol === "file:"){
+    showAlert("<b>Page ouverte en <code>file://</code>.</b> Le WebSocket et les appels <code>fetch</code> " +
+      "ont besoin d'une origine http : lance <code>python serve.py</code> dans ce dossier puis ouvre " +
+      "<code>http://127.0.0.1:8080/session-b.html</code>.");
+  }
+
+  // Statut + ouverture du lien Cowork
+  loadStatus();
+  setInterval(loadStatus, 15000);
+  link.connect();
+
+  go(location.hash.slice(1) || "discussion");
+  $("disc-input").focus();
+}
+
+boot();
+</script>
+</body>
+</html>

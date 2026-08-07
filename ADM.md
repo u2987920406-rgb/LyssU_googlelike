@@ -17,3 +17,9 @@
   Décision : ne PAS forcer la démo, ne PAS inventer de réponse. Jalon = code +
   infra prouvés. Preuve texte reportée à quand un modèle répond.
 - Méthode : 1 jalon = 1 commit + 1 tag git (reprise.py --check le confirme).
+- Règle kuchu (2026-08-07) : si le modèle courant (hy3:free) tombe sur du code
+  lourd / une fonction / un problème qu'il ne sait pas faire, il DOIT le dire
+  IMMÉDIATEMENT à kuchu pour faire intervenir un modèle plus puissant
+  (ex. Claude Code Opus 5) et ne pas perdre de temps. Ne pas boucler en silence.
+  (Note : écrit ici car l'outil mémoire a refusé l'écriture — à reporter en
+  MEMORY.md quand le format § sera résolu.)
