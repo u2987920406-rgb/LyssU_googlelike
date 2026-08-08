@@ -1,5 +1,28 @@
-# Relais — 2026-08-08, retour vers le CODE
-# (complété le 2026-08-09 : §5 est faite, le Terminal attend une passe)
+# Relais — 2026-08-09, la balle repart vers COWORK
+
+> **Un seul écran vous attend : le Terminal.** Il est branché — un vrai
+> `hermes --tui` tourne dedans — mais il n'a jamais été dessiné. Je l'ai
+> habillé au jugé. **Allez directement à la §5**, elle est écrite pour ça :
+> le piège de `#tecran`, les classes au contrat, et ce à quoi ne pas toucher.
+>
+> Le reste de ce document est le relais du 2026-08-08 vers le code, conservé
+> tel quel : il dit ce qui a été décidé et pourquoi. **Ce qui est barré est
+> fait.** Ne rien re-trancher de ce qui l'a déjà été.
+
+---
+
+## Ce qui a changé depuis votre dernier passage
+
+| | |
+|---|---|
+| Vos cinq passes de design | appliquées, aucun refus contesté |
+| Les six réparations | faites |
+| Premier lancement, dictée | branchés |
+| **Terminal** | branché, **à dessiner** ← votre part |
+| Vérifications | **389** au vert (189 page · 61 serveur · 39 réel · 100 personas) |
+| Le dépôt | déplacé sur le Bureau, jalon 4 committé |
+
+---
 
 > **Ce fichier est court par choix.** Il dit qui a la balle et quoi faire dans
 > l'heure. Le détail — l'état de la pile, les jalons, l'historique des
@@ -8,18 +31,18 @@
 
 ---
 
-## La balle repart CÔTÉ CODE
+## ~~La balle repart côté code~~ — c'était le 2026-08-08
 
     COWORK (#first + la question tranchée) ──── terminé ────>  CODE
+    CODE (les trois branchements)          ──── terminé ────>  COWORK
 
 **Les cinq passes posées et 155 vérifications au vert : c'est du bon travail.**
 Vos cinq refus sont tous justifiés — je n'en conteste aucun.
 
 > **Ajout du 2026-08-09.** Tout ce qui restait « à moi » en §5 est fait :
-> le premier lancement, la dictée, et le terminal intégré. **289
-> vérifications au vert** (189 page · 61 serveur · 39 contre l'Hermès réel),
-> plus les 100 personas. Le Terminal est le seul des trois qui ait besoin de
-> vous : lisez la §5, elle a été réécrite pour ça.
+> le premier lancement, la dictée, et le terminal intégré. Le Terminal est le
+> seul des trois qui ait besoin de vous : lisez la §5, elle a été réécrite
+> pour ça.
 
 ---
 
@@ -92,17 +115,31 @@ faut le contourner.
 
 ---
 
-## 3. Ce qu'il reste à trancher, et qui vous revient
+## ~~3. Ce qu'il reste à trancher~~ — tranché le 2026-08-09
 
-- **Comment sait-on que c'est le premier lancement ?** Un marqueur côté
-  `serve.py`, ou l'absence des fichiers de mémoire ? `localStorage` est exclu —
-  le produit n'en utilise nulle part.
-- **`#first` et `#firstcard` entrent au contrat §2.1.** Ils étaient dans la
-  maquette, jamais dans le produit, donc jamais listés.
+- ~~Comment sait-on que c'est le premier lancement ?~~ **Un marqueur côté
+  `serve.py`**, écrit hors du dossier servi, donc ni téléchargeable ni
+  visible de la page. `localStorage` est resté exclu. La page l'apprend par
+  `CFG.PREMIER`, que `serve.py` ajoute au fichier de config au moment de le
+  servir ; le marqueur est posé par `POST /ulysse/premier-vu`, même origine
+  exigée.
+- ~~`#first` et `#firstcard` entrent au contrat §2.1.~~ **Fait.**
 
 ---
 
-## 4. ⚠ Un doute qu'il faut lever, et il n'est pas mince
+## ~~4. Un doute qu'il faut lever~~ — levé le 2026-08-08
+
+> **La 33 est la référence retenue, et la question est close.** Cherchée
+> partout depuis ici : le Bureau, tout le profil utilisateur, le Hermes Home,
+> et l'historique git du dépôt — aucune maquette postérieure, nulle part.
+> Aucun document du projet n'en cite d'autre. C'est écrit noir sur blanc dans
+> `REPRISE.md`, comme vous le demandiez.
+>
+> Le Hermes Home que vous ne voyiez pas d'ici : **il n'y avait aucune
+> maquette dedans**, et cette copie parallèle n'existe plus — le dépôt a été
+> déplacé sur le Bureau le 2026-08-09. Il n'y a qu'un seul arbre.
+>
+> Ce qui suit est votre texte d'origine, conservé pour la trace.
 
 kuchu mentionne **une maquette d'une version ultérieure à la 33**. Elle n'est
 pas dans `Projet Ulysse\`, et je n'ai pas pu la trouver depuis Cowork.
@@ -167,11 +204,20 @@ trois mois.
 
 ---
 
-## 6. Deux notes de tenue
+## 6. Trois notes de tenue
 
 **`apercu-plan.html` est dépassé** sur le repliage — le vôtre est réel, le sien
 était simulé. C'est écrit en tête de `PASSE-DESIGN-PLAN.md`. Il reste utile
 pour la carte colorée, le kebab d'étape et l'échelle.
+
+**⚠ `apercu-reglages-terminal-reperes.html` est dépassé sur le Terminal.**
+Vous y montriez un écran *illustratif*, et vous aviez posé la réserve
+vous-même : « c'est juste tant que `/api/pty` n'est pas branché »
+(`PASSE-DESIGN-REGLAGES-TERMINAL-REPERES.md`, §57). Il l'est. Ce que vous
+verrez dans l'aperçu n'est plus ce qui s'affiche : `#tecran` porte désormais
+un vrai terminal, avec une vraie session. **Regardez le produit qui tourne,
+pas l'aperçu** — c'est précisément l'objet de la passe qu'on vous demande.
+L'aperçu reste juste pour les Réglages et les Repères.
 
 **Les huit aperçus restent fidèles côté style** tant qu'`ulysse.css` ne change
 pas. Ce sont des copies figées au 2026-08-08.
