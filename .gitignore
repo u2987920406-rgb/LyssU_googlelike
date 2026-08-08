@@ -1,0 +1,30 @@
+# Ce qui ne rentre pas dans le dépôt, et pourquoi.
+
+# ── LE SEUL VRAI SECRET DU PROJET ────────────────────────────────────────
+# `lancer_ulysse.bat` engendre un jeton de session à chaque lancement et le
+# dépose ici pour que serve.py et le dashboard parlent du même. Il est vivant
+# tant que la pile tourne. Un dépôt garde tout, y compris ce qu'on croyait
+# éphémère : celui-là ne doit JAMAIS y entrer.
+web/.jeton-session
+
+# ── Les faux Hermès des tests ────────────────────────────────────────────
+# `faux_hermes.py` et les suites s'écrivent un Hermes Home jetable, avec des
+# secrets de webhook factices. Ils se régénèrent à chaque exécution, et un
+# secret même faux dans un dépôt apprend une mauvaise habitude.
+web/.faux-home/
+web/.test-home/
+
+# ── Le reste : des choses qui se régénèrent ──────────────────────────────
+
+# jsdom & co, réinstallables par `npm install` — 26 Mo de dépendances
+web/node_modules/
+
+# Caches Python
+__pycache__/
+*.pyc
+
+# Brouillons de vérification, écrits puis jetés pendant une passe
+web/_verif_tmp.js
+
+# Une redirection shell malheureuse, le 2026-08-07 : fichier de 0 octet
+'ERR

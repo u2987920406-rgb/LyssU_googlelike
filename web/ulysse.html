@@ -1,0 +1,798 @@
+<!DOCTYPE html>
+<html lang="fr" data-d="epure">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Ulysse</title>
+
+<!-- Le système visuel vient TEL QUEL de la maquette : elle est le produit
+     fini, pas une inspiration. ulysse.css est diffable ligne à ligne avec le
+     bloc <style> de maquette-ulysse-google-33.html. -->
+<link rel="stylesheet" href="ulysse.css">
+<!-- xterm.js, EMPRUNTÉ à l'installation Hermès par serve.py — pas recopié.
+     C'est la bibliothèque avec laquelle le dashboard rend lui-même /api/pty.
+     Si Hermès est installé ailleurs, ces deux-là renvoient 404 et le Terminal
+     le dit au lieu de rester blanc. -->
+<link rel="stylesheet" href="/xterm/xterm.css">
+
+<style>
+/* ═══════════════════════════════════════════════════════════════════════
+   Ce qui s'ajoute à la maquette — et RIEN QUI LA RECOUVRE.
+
+   Règle tenue ici : aucune de ces règles ne redéfinit un sélecteur que la
+   maquette utilise déjà. Une première version redéclarait `.row` et
+   `.row .meta` ; comme ce bloc passe après la feuille liée, c'est lui qui
+   gagnait, et les listes perdaient silencieusement l'aspect de la maquette.
+   Tout ce qui suit est donc préfixé `u-`, ou porte un nom absent de la
+   maquette.
+
+   Ces états, la maquette n'avait pas à les montrer : elle affichait des
+   données écrites d'avance, jamais un backend absent, un chargement, ou une
+   capacité non reliée. Un produit, si.
+   ═══════════════════════════════════════════════════════════════════════ */
+
+/* Une attente. Pas de squelette animé : la maquette ne clignote nulle part,
+   et un chargement qui s'agite fait paraître l'attente plus longue. */
+.u-load{color:var(--faint);font-size:var(--font-size-sm);padding:18px 0}
+
+/* Ce qui n'est PAS relié. Plutôt que de meubler avec du faux — ce que la
+   règle STU-1 interdit — on dit ce qui manque et où ça se branchera.
+
+   Le TON a changé le 2026-08-08. Ces réserves sont justes et doivent rester,
+   mais mises bout à bout — quatre encadrés pointillés sur sept sections des
+   Réglages — elles faisaient un écran qui parle surtout de ce qu'il ne fait
+   pas. Même texte, même place : un filet gris à gauche au lieu d'un cadre.
+   Ce qui est réglable reprend le premier plan ; ce qui ne l'est pas se lit
+   quand on descend jusque-là. */
+.u-todo{border-left:2px solid var(--outline-var);border-radius:0;
+  padding:2px 0 2px 14px;color:var(--faint);font-size:var(--font-size-xs);
+  max-width:620px;line-height:1.6;margin:14px 0}
+.u-todo b{color:var(--muted);font-weight:500}
+.u-todo code{background:var(--surface);border-radius:6px;padding:1px 6px}
+
+/* Une note de bas de bloc — ce que `.glegend` faisait à tort hors du canevas.
+   `.glegend` est `position:absolute` : dans un panneau ordinaire elle se
+   détachait du flux et allait se poser sur ce qui suivait. Deux emplois de
+   ce genre traînaient encore, dans les Automatisations et le Terminal. */
+.u-note{display:flex;align-items:flex-start;gap:9px;margin:14px 0 4px;
+  font-size:var(--font-size-xs);line-height:1.5;color:var(--faint);max-width:720px}
+.u-note i{width:7px;height:7px;border-radius:50%;background:var(--outline);
+  flex:none;margin-top:6px}
+
+/* Une section qui ne règle RIEN le dit en haut. On parcourait « Le cerveau »
+   et « Connexions » en entier avant d'apprendre, dans l'encadré du bas,
+   qu'il n'y avait rien à y faire. */
+.u-lecture{display:inline-flex;align-items:center;gap:8px;margin:-4px 0 14px;
+  font-size:var(--font-size-xs);color:var(--muted);background:var(--surface);
+  border-radius:var(--radius-pill);padding:5px 14px}
+
+/* Le bandeau d'état : le seul endroit qui dit si Hermès répond. */
+.u-band{display:flex;gap:8px;align-items:center;flex-wrap:wrap;padding:0 0 16px;
+  font-size:var(--font-size-xs);color:var(--muted)}
+.u-chip{display:inline-flex;align-items:center;gap:6px;background:var(--surface);
+  border-radius:var(--radius-pill);padding:4px 12px}
+.u-chip i{width:7px;height:7px;border-radius:50%;background:var(--grey);flex:none}
+.u-chip.ok i{background:var(--green)} .u-chip.warn i{background:var(--amber)}
+.u-chip.err i{background:#B3261E}
+.u-chip b{font-weight:500;color:var(--text)}
+
+/* Le fil réel. La maquette avait deux bulles écrites en dur ; ici elles
+   arrivent par le WebSocket. On reste sur ses classes .msg.you / .msg.ulysse
+   pour ne pas créer un second langage visuel à côté du sien. */
+.u-who{font-size:var(--font-size-xs);color:var(--faint);margin-bottom:4px}
+.msg.u-sys{background:var(--surface);border-radius:var(--radius-md);padding:10px 14px;
+  color:var(--muted);font-size:var(--font-size-sm);max-width:640px}
+.msg.u-err{background:#FCE8E6;border-radius:var(--radius-md);padding:10px 14px;
+  color:#B3261E;font-size:var(--font-size-sm);max-width:640px}
+.u-caret::after{content:"▍";animation:u-blink 1s step-end infinite;color:var(--accent)}
+@keyframes u-blink{50%{opacity:0}}
+
+/* Les outils d'un tour, lus AVANT le texte : c'est l'ordre réel d'exécution. */
+.u-tools{margin:8px 0;display:grid;gap:4px}
+.u-tool{display:flex;gap:10px;align-items:flex-start;background:var(--surface);
+  border-radius:var(--radius-sm);padding:8px 12px;font-size:var(--font-size-sm)}
+.u-tool .d{width:7px;height:7px;border-radius:50%;background:var(--amber);
+  margin-top:7px;flex:none}
+.u-tool.done .d{background:var(--green)}
+.u-tool .n{font-weight:500}
+.u-tool .c{color:var(--muted);font-size:var(--font-size-xs);
+  word-break:break-word;white-space:pre-wrap}
+.u-tool .z{margin-left:auto;color:var(--faint);font-size:var(--font-size-xs);flex:none}
+.u-tool pre{white-space:pre-wrap;word-break:break-word;font-size:var(--font-size-xs);
+  background:var(--bg);border-radius:6px;padding:8px;margin-top:6px;
+  max-height:260px;overflow:auto}
+
+/* Les couples clé/valeur (état de session, état d'Hermès). */
+.u-kv{display:grid;grid-template-columns:auto 1fr;gap:6px 16px;
+  font-size:var(--font-size-sm);max-width:720px}
+.u-kv dt{color:var(--muted)}
+.u-kv dd{word-break:break-word}
+
+.u-raw{white-space:pre-wrap;word-break:break-word;background:var(--surface);
+  border-radius:var(--radius-md);padding:12px;font-size:var(--font-size-xs);
+  max-height:380px;overflow:auto;max-width:900px}
+
+/* Le fil d'Ariane des fichiers. */
+.u-crumbs{display:flex;gap:6px;align-items:center;flex-wrap:wrap;
+  font-size:var(--font-size-sm);color:var(--muted);margin-bottom:12px}
+.u-crumbs button{color:var(--accent);border-radius:6px;padding:2px 6px}
+.u-crumbs button:hover{background:var(--hover-bg)}
+
+/* Le journal brut du flux : « miroir » doit vouloir dire miroir, pas résumé. */
+.u-jrn{display:grid;gap:1px;font-size:var(--font-size-xs);max-height:38vh;overflow:auto}
+.u-jrn div{display:flex;gap:10px;padding:3px 0;border-bottom:1px solid var(--surface)}
+.u-jrn .h{color:var(--faint);flex:none;font-variant-numeric:tabular-nums}
+.u-jrn .y{color:var(--accent);flex:none;min-width:130px}
+.u-jrn .b{color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+
+/* ═══ Le premier lancement ═══════════════════════════════════════════════
+   Tout vient de `ulysse.css`. Ce qui suit n'ajoute que les quatre états
+   d'une pastille et la source de chaque ligne — ce que la maquette n'avait
+   pas à prévoir, puisqu'elle écrivait ses réponses d'avance. */
+
+/* `.defl .dd` n'avait que deux états : vert, ou gris. Il en faut QUATRE —
+   il existe un état d'avant, celui où l'on n'a pas encore demandé. Afficher
+   rouge avant d'avoir la réponse accuserait une installation qui va très
+   bien, dès la première seconde. */
+.f-att{background:var(--grey)!important;animation:f-respire 1.6s ease-in-out infinite}
+@keyframes f-respire{0%,100%{opacity:.35}50%{opacity:1}}
+.f-warn{background:var(--amber)!important;animation:none}
+.f-ko{background:#B3261E!important;animation:none}
+
+/* `.defl .dn` et `.defl .dt` sont des `span` : dans la maquette ils vivaient
+   dans un conteneur qui les empilait. Ici ils se suivaient sur une ligne —
+   on lisait « Hermès répondversion 0.20.0 ». */
+#first .defl .dn,#first .defl .dt{display:block}
+
+/* Une pastille verte sans source est une affirmation ; avec sa source, c'est
+   un constat. C'est ce qui sépare un diagnostic d'une liste rassurante. */
+.f-src{display:block;font-size:11px;color:var(--faint);margin-top:3px;
+  font-family:ui-monospace,Menlo,monospace}
+
+/* Le compte, pour qu'on sache si l'écran a fini de parler. */
+.f-compte{font-size:var(--font-size-xs);color:var(--muted);margin-bottom:4px}
+
+/* La commande est ÉCRITE avant d'être copiable — même règle qu'au Terminal :
+   on ne copie pas ce qu'on n'a pas vu. */
+.f-cmd{display:flex;align-items:center;gap:10px;background:var(--surface);
+  border-radius:var(--radius-md);padding:10px 12px;margin:14px 0;
+  font-family:ui-monospace,Menlo,monospace;font-size:12.5px}
+.f-cmd code{flex:1;min-width:0;word-break:break-all}
+
+.f-pied{display:flex;align-items:center;gap:14px;flex-wrap:wrap;margin-top:20px}
+.f-pied .sp{flex:1}
+
+/* ═══ L'ACCUEIL — le mot, le champ, rien ═════════════════════════════════
+   `#pDiscuter` porte `accueil` tant qu'aucun message n'a été envoyé. Le pied
+   enfle par le bas : le composeur remonte au centre optique, et le fil —
+   vide de toute façon — se réduit à rien.
+
+   On anime `padding-bottom`, pas une hauteur ni un `transform` : le composeur
+   reste dans le flux, donc il n'y a aucune position à recalculer quand la
+   fenêtre change de taille, et rien à remettre en place à l'arrivée du
+   premier message. La descente EST le retour au repos, pas une animation à
+   jouer. */
+#pDiscuter .foot{transition:padding-bottom .52s cubic-bezier(.2,0,0,1)}
+#pDiscuter.accueil .foot{padding-bottom:calc(38vh - 40px)}
+
+.u-marque{width:min(720px,calc(100vw - 48px));margin:0 auto;text-align:center;
+  font-size:34px;font-weight:500;letter-spacing:-.6px;
+  background:linear-gradient(74deg,#4285F4 0%,#9B72CB 46%,#D96570 100%);
+  -webkit-background-clip:text;background-clip:text;color:transparent;
+  max-height:0;opacity:0;overflow:hidden;
+  transition:max-height .52s cubic-bezier(.2,0,0,1),opacity .3s ease,
+             margin-bottom .52s cubic-bezier(.2,0,0,1)}
+#pDiscuter.accueil .u-marque{max-height:70px;opacity:1;margin-bottom:34px}
+
+/* À l'accueil, la barre de titre n'a pas de titre : le mot-marque le dit
+   déjà, et l'écrire deux fois n'apprend rien. */
+#pDiscuter .topbar .title{transition:opacity .3s ease}
+#pDiscuter.accueil .topbar .title{opacity:0;pointer-events:none}
+
+/* Le fil vide ne dit rien du tout. « Cowork : l'agent complet, outils
+   actifs… » expliquait un mode à quelqu'un qui n'avait encore rien demandé ;
+   l'interrupteur juste au-dessous le dit mieux, et sans le dire. */
+#pDiscuter.accueil .thread{opacity:0}
+#pDiscuter.accueil #composerHint{opacity:0}
+.u-modenote{transition:opacity .3s ease}
+#pDiscuter.accueil .u-modenote{opacity:0}
+
+/* Et l'Établi ne s'ouvre pas à l'accueil : un volet vide à côté d'un écran nu
+   se remarque plus que tout le reste. */
+#pDiscuter.accueil .etabli{display:none}
+
+/* La barre sous le composeur : la bascule Cowork/Discussion, et ce qu'elle
+   change. On la met LÀ et pas dans une barre du haut parce qu'elle décrit ce
+   qu'on s'apprête à écrire — pas l'écran. */
+.u-sousbarre{position:relative;z-index:1;display:flex;align-items:center;gap:12px;
+  width:min(720px,calc(100vw - 48px));margin:10px auto 0}
+/* L'interrupteur ne se comprime jamais : c'est la seule chose de cette barre
+   sur laquelle on clique. Les deux mentions, elles, sont du commentaire —
+   elles se coupent proprement plutôt que de renvoyer la barre à la ligne et
+   de pousser la session hors de l'écran. */
+.u-sousbarre > .seg{flex:none}
+.u-modenote{font-size:var(--font-size-xs);color:var(--muted);
+  min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+
+/* Ce que dit la sous-barre à droite : la session, ou l'absence d'outils.
+   Elle portait `.glegend`, qui est la légende du SCHÉMA du Plan et vaut
+   `position:absolute; left:16px; right:120px; bottom:12px`. Hors du canevas
+   elle se détachait du flux et venait se poser PAR-DESSUS l'interrupteur.
+   Mêmes traits, sans le positionnement — et `.glegend` reste intacte là où
+   elle a un sens. */
+/* `display:block` et non `flex` : `.glegend` était en flex pour aligner sa
+   pastille, que #composerHint n'a pas — et `text-overflow` ne s'applique pas
+   au texte d'un conteneur flex. En flex, la mention de session se faisait
+   couper au milieu d'un caractère au lieu de finir par des points de
+   suspension. */
+.u-hint{display:block;font-size:var(--font-size-xs);line-height:1.4;
+  color:var(--faint);min-width:0;overflow:hidden;
+  text-overflow:ellipsis;white-space:nowrap;text-align:right}
+
+/* Les pièces jointes en attente, juste au-dessus du champ : on voit ce qu'on
+   emporte avant d'envoyer, et on peut encore l'enlever. */
+.u-jointes{position:relative;z-index:1;display:flex;flex-wrap:wrap;gap:6px;
+  width:min(720px,calc(100vw - 48px));margin:0 auto 8px}
+.u-jointes:empty{display:none}
+.u-jointe{display:inline-flex;align-items:center;gap:7px;background:var(--surface);
+  border-radius:var(--radius-pill);padding:5px 6px 5px 12px;font-size:var(--font-size-xs)}
+.u-jointe.att{opacity:.55}
+.u-jointe .x{width:20px;height:20px;border-radius:50%;display:grid;place-items:center;
+  color:var(--muted);flex:none}
+.u-jointe .x:hover{background:var(--hover-bg);color:var(--text)}
+.u-jointe .o{color:var(--faint)}
+
+/* ═══ La demande d'accord, DANS LE FIL ═══════════════════════════════════
+   Elle n'y était pas : `conv.approval` était posé par le core, `onApproval()`
+   en faisait une notification, et `paintThread()` ne le rendait jamais.
+   L'agent était bloqué, on regardait Discuter, et la seule chose qui le
+   disait était une cloche dans un menu replié.
+
+   `.ask`, `.opt` et `.tick` viennent de la maquette — c'est le langage
+   qu'elle a dessiné pour exactement ça : une question à choix posée par
+   l'agent au milieu de la conversation. On n'ajoute pas un vocabulaire.
+   Tout ce qui suit est SCOPÉ sous `.u-accord` : rien ne recouvre la
+   maquette ailleurs, `.ask` et `.opt` gardent leur aspect partout. */
+.u-accord .ask{border-left:3px solid var(--amber)}
+.u-accord .ask .q{display:flex;align-items:center;gap:9px}
+.u-accord .ask .q svg{color:var(--amber);flex:none}
+
+/* Ce que l'agent s'apprête à faire, en toutes lettres et à part : c'est la
+   seule chose qu'on doit lire avant de répondre. */
+.u-quoi{font-family:ui-monospace,Menlo,monospace;font-size:12.5px;
+  background:var(--bg);border-radius:var(--radius-sm);padding:10px 14px;
+  margin:10px 0 16px;word-break:break-word;color:var(--text)}
+
+/* Chaque option porte sa portée. La conséquence se lit sous le libellé, pas
+   dans une infobulle : un choix dont on ne mesure pas la portée n'en est pas
+   un. */
+.u-accord .opt{align-items:flex-start;padding:13px 16px}
+.u-accord .opt .tick{margin-top:1px}
+.u-accord .opt .tx{flex:1;min-width:0}
+.u-accord .opt .sub{display:block;font-size:var(--font-size-xs);color:var(--muted);
+  margin-top:2px;line-height:1.45}
+.u-accord .opt.pick .sub{color:var(--on-accent-container);opacity:.8}
+
+/* « Toujours » engage au-delà de ce fil : il se sépare des deux autres par un
+   filet. Il n'est pas interdit — il est distingué. */
+.u-accord .u-sep{height:1px;background:var(--outline-var);margin:12px 2px}
+.u-accord .opt.u-fort .tick{border-color:var(--amber)}
+.u-accord .opt.u-fort.pick .tick{border-color:var(--accent);background:var(--accent)}
+
+/* Refuser n'est pas une portée parmi quatre : c'est l'autre réponse. Il
+   quitte la liste et redevient un bouton, à droite. */
+.u-accord .u-bas{display:flex;align-items:center;gap:12px;margin-top:14px}
+.u-accord .u-bas .l{flex:1;font-size:var(--font-size-xs);color:var(--faint);
+  line-height:1.5}
+
+/* La bulle ne change pas de forme — elle gagne un renvoi. Elle est le
+   RAPPEL quand on est ailleurs, pas le lieu de la décision. */
+.u-lien{display:block;margin-top:9px;font-size:var(--font-size-xs);
+  color:var(--accent);cursor:pointer}
+
+/* ═══ Les quatre listes ══════════════════════════════════════════════════ */
+
+/* Une ligne de Travaux a deux niveaux : ce qui IDENTIFIE en haut, ce qui
+   SITUE en dessous et en petit. Trois `.meta` de même poids se suivaient, et
+   un chemin de cent caractères écrasait tout — la ligne n'avait plus de
+   premier mot. */
+.u-l2{display:flex;flex-direction:column;gap:3px;min-width:0;flex:1}
+.u-l2 .t{font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.u-l2 .s{font-size:var(--font-size-xs);color:var(--muted);
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+/* La date est le seul champ sur lequel on compare deux lignes du regard :
+   largeur fixe, sinon les yeux la cherchent à chaque ligne. */
+.u-quand{font-size:var(--font-size-sm);color:var(--muted);flex:none;
+  width:110px;text-align:right}
+
+/* Les rangs de Travaux. Épingler et archiver ne sont pas des détails : sans
+   eux, cette liste est un journal — on y retrouve ce qu'on vient de faire,
+   jamais ce qu'on cherche. */
+.u-rang{display:flex;align-items:center;gap:12px;margin:22px 0 10px;
+  font-size:var(--font-size-sm);color:var(--muted);font-weight:500}
+.u-rang:first-child{margin-top:0}
+.u-rang .l{flex:1;height:1px;background:var(--outline-var)}
+.u-rang button{color:var(--accent);font-size:var(--font-size-xs);
+  border-radius:6px;padding:2px 8px}
+.u-rang button:hover{background:var(--hover-bg)}
+
+/* Un état vide dit quoi faire. « Dossier vide. » et rien d'autre oblige à
+   sortir de l'écran pour comprendre où l'on s'est trompé. Et « aucun
+   résultat pour ce filtre » n'est pas « il n'y a rien » : les deux
+   n'appellent pas la même réponse. */
+.u-vide-sub{margin-top:4px;font-size:var(--font-size-sm)}
+
+/* La loupe du filtre — `.search` attend un enfant, la maquette y met l'icône. */
+.u-lo{display:grid;place-items:center;color:var(--muted);flex:none}
+
+/* La maquette met sa méta dans `.arow` et l'espace vient de `.arow .ameta`.
+   Le produit la met dans `.amain`, où la règle ne l'atteint jamais : les deux
+   étiquettes se touchaient — on lisait « logsignature requise ». Même règle,
+   à l'endroit où le produit l'a posée. */
+.amain .ameta{display:flex;gap:8px;align-items:center;margin-top:9px;flex-wrap:wrap}
+
+/* ═══ Le Vestiaire ═══════════════════════════════════════════════════════
+   Une provenance devient une section. La grille est en `grid` : l'en-tête
+   doit traverser toutes ses colonnes, sinon il se range comme une tuile. */
+.u-groupe{grid-column:1/-1;display:flex;align-items:center;gap:10px;
+  margin:20px 0 2px;font-size:var(--font-size-sm);color:var(--muted);cursor:pointer}
+.u-groupe:first-child{margin-top:0}
+.u-groupe .n{font-weight:500;color:var(--text)}
+.u-groupe .k{font-size:var(--font-size-xs)}
+.u-groupe .l{flex:1;height:1px;background:var(--outline-var)}
+.u-groupe .c{display:grid;place-items:center;transition:transform .18s ease;
+  transform:rotate(-90deg)}
+.u-groupe .c.o{transform:none}
+.u-groupe:hover .n{color:var(--accent)}
+
+/* La réserve sur `POST /api/skills/toggle` occupait un tiers du volet, en
+   encadré, sur CHACUNE des 99 compétences. Elle est juste et doit rester —
+   STU-1 interdit de laisser croire qu'un bouton agit — mais elle se lit au
+   pied, une fois, en petit. */
+.u-pied{margin-top:22px;padding-top:12px;border-top:1px solid var(--outline-var);
+  font-size:var(--font-size-xs);color:var(--faint);line-height:1.55}
+
+/* Une ligne d'aide-mémoire du Terminal. Elle est là pour être tapée : la
+   faire recopier à la main était le seul usage qu'on n'attendait pas d'elle.
+
+   La maquette posait `.tmemo div{display:flex}` avec `code{flex:none}` — ses
+   propres exemples étaient courts. Les vraies commandes d'Hermès font jusqu'à
+   46 caractères : elles débordaient la colonne de 300 px et y poussaient une
+   barre de défilement horizontale. La commande passe donc au-dessus de son
+   explication, et elle a le droit de revenir à la ligne. */
+.u-cmd{cursor:pointer;border-radius:var(--radius-sm);position:relative;
+  flex-direction:column;align-items:flex-start;gap:2px;
+  padding-right:24px!important}
+.u-cmd code{flex:0 1 auto;max-width:100%;white-space:pre-wrap;word-break:break-word}
+.u-cmd .k{position:absolute;right:2px;top:2px;opacity:0;color:var(--muted);
+  transition:opacity .15s ease}
+.u-cmd:hover{background:var(--hover-bg)}
+.u-cmd:hover .k,.u-cmd:focus-visible .k{opacity:1}
+
+/* ═══ Le Plan — le volet devient un CADRE, le schéma une carte dedans ════
+   `svg.graph{width:100%;height:auto}` et l'`aspect-ratio` posé en style
+   inline par le moteur faisaient que le SVG se dimensionnait par son CONTENU.
+   Sur un contenu large il débordait son volet et se faisait couper des deux
+   côtés — on voyait une étape et demie sur douze, sans rien pour dire qu'il y
+   en avait d'autres. `preserveAspectRatio` (« xMidYMid meet », le défaut)
+   fait tenir le contenu, et plus rien ne dépasse. */
+#pPlan svg.graph{width:100%!important;height:100%!important;
+  max-height:none!important;aspect-ratio:auto!important}
+#pPlan .canvas-body{overflow:hidden}
+
+/* Ce qui rend le déplacement trouvable : un fond qui dit « ceci est un
+   canevas ». Le curseur `grab` est déjà dans ulysse.css (l. 543). */
+.u-canevas{background-image:radial-gradient(var(--outline-var) 1px,transparent 1px);
+  background-size:22px 22px;background-position:-1px -1px}
+
+.u-echelle{position:absolute;right:var(--space-3);bottom:var(--space-3);z-index:3;
+  display:flex;align-items:center;background:var(--bg);border-radius:var(--radius-pill);
+  box-shadow:var(--elev-1);overflow:hidden}
+.u-echelle button{height:30px;min-width:34px;padding:0 8px;color:var(--muted);
+  font-size:var(--font-size-xs);font-variant-numeric:tabular-nums}
+.u-echelle button:hover{background:var(--hover-bg);color:var(--text)}
+#recentrer{min-width:54px}
+/* « Ranger » s'allume dès que la caméra ou une carte a bougé : on ne cherche
+   pas « comment revenir », on le voit. */
+#recentrer.u-actif{color:var(--accent);font-weight:500}
+
+/* Les actions d'une étape, SOUS elle. Elles appartiennent à la ligne, elles
+   ne survolent pas la liste — d'où pas de menu flottant. */
+.u-exp-acts{display:flex;flex-wrap:wrap;gap:6px;padding:10px 0 2px}
+.u-exp-acts button{height:32px;padding:0 14px;border-radius:var(--radius-pill);
+  border:1px solid var(--outline-var);font-size:var(--font-size-xs);color:var(--muted)}
+.u-exp-acts button:hover{background:var(--hover-bg);color:var(--text)}
+
+/* ═══ Le terminal ════════════════════════════════════════════════════════
+   `.tscreen` de la maquette dessinait une fenêtre en hauteur libre : elle
+   montrait trois lignes écrites d'avance. Un vrai terminal a besoin d'une
+   hauteur, sinon xterm.js ouvre à zéro ligne et n'affiche rien. */
+.u-tscreen{display:flex;flex-direction:column;min-height:0}
+.u-tecran{flex:1;min-height:340px;margin-top:10px}
+.u-tecran .xterm{height:100%}
+.u-tstate{font-size:11.5px;opacity:.55}
+.u-tstate.ouvert{color:var(--green);opacity:.95}
+.u-tstate.ouverture{color:var(--amber);opacity:.95}
+
+/* La dictée. Le micro dit dans quel état il est — on ne laisse pas quelqu'un
+   se demander si ça enregistre. */
+.u-ecoute{color:#B3261E!important}
+.u-ecoute svg{animation:u-bat 1.1s ease-in-out infinite}
+@keyframes u-bat{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.45;transform:scale(.82)}}
+.u-attente{color:var(--accent)!important;pointer-events:none}
+.u-attente svg{animation:u-tourne 1.1s linear infinite}
+@keyframes u-tourne{to{transform:rotate(360deg)}}
+
+/* Les cadres de rôle, repliés derrière une gélule. */
+.u-roles{display:block}
+.u-role{display:flex;align-items:center;gap:12px;width:100%;height:32px;
+  padding:0 10px;border-radius:var(--radius-sm);font-size:var(--font-size-sm);
+  text-align:left}
+.u-role:hover{background:var(--hover-bg)}
+.u-role .tick{width:18px;height:18px;flex:none;border-radius:50%;
+  border:2px solid var(--outline);display:grid;place-items:center;color:transparent}
+.u-role.on .tick{border-color:var(--accent);background:var(--accent);color:#fff}
+
+.u-cadrewrap{position:relative;flex:none}
+.u-cadre{display:inline-flex;align-items:center;gap:7px;height:28px;padding:0 13px;
+  border-radius:var(--radius-pill);background:var(--surface);color:var(--muted);
+  font-size:var(--font-size-xs);white-space:nowrap}
+.u-cadre:hover{background:var(--surface-hi);color:var(--text)}
+.u-cadre i{width:6px;height:6px;border-radius:50%;background:var(--accent);flex:none}
+/* La gélule n'apparaît qu'en Cowork. Ce n'est pas une préférence : en Chat,
+   `sendPure()` n'appelle pas `roleOpts()` — le cadre n'agirait sur rien, et
+   afficher un contrôle qui ne fait rien est exactement ce que STU-1 interdit.
+   Il n'y a pas d'agent à cadrer quand le modèle ne fait que répondre. */
+#pDiscuter:not(.cowork) .u-cadrewrap{display:none}
+
+/* Le repli s'ouvre AU-DESSUS du champ, donc au-dessus de la conversation :
+   tout ce qu'il prend en hauteur, il le prend à ce qu'on est en train de
+   lire. D'où six lignes de 32 px, sans sous-titre, sans phrase
+   d'introduction — et une ombre légère au lieu de l'ombre portée des menus :
+   il se pose sur la conversation, il ne s'en détache pas. */
+.u-cadrepop{bottom:38px;left:0;right:auto;top:auto;width:246px;padding:6px;
+  box-shadow:0 2px 10px rgba(60,64,67,.14)}
+.u-cadrepop .u-pied{margin-top:6px;padding-top:8px}
+
+/* Les sections du kebab, qui accueille désormais l'état du réseau. */
+.u-popsec{padding:8px 12px 4px;font-size:var(--font-size-xs);color:var(--faint)}
+.u-popsep{height:1px;background:var(--outline-var);margin:6px 8px}
+#morePop .u-band{padding:0 12px 8px;margin:0}
+
+/* Quand une brique ne répond plus, LE KEBAB LUI-MÊME se marque. Un seul
+   signal, et il ne se déclenche que quand il a quelque chose à dire — c'est
+   ce que l'écran regagne d'avoir retiré ses trois pastilles vertes
+   permanentes. */
+#pDiscuter.hs #moreBtn{color:#B3261E}
+#pDiscuter.hs #moreBtn::after{content:"";position:absolute;top:8px;right:8px;
+  width:7px;height:7px;border-radius:50%;background:#B3261E}
+#moreBtn{position:relative}
+
+/* L'Établi se range par sa croix — il GLISSE, il ne disparaît pas — et laisse
+   une languette contre le bord droit, avec le nombre de fichiers. Un volet
+   qu'on ferme et qui ne laisse rien derrière lui est un volet qu'on ne
+   rouvrira pas : on ne cherche pas dans un menu ce dont on ignore
+   l'existence. */
+.u-languette{position:absolute;right:0;top:50%;transform:translateY(-50%);
+  z-index:4;display:none;flex-direction:column;align-items:center;gap:6px;
+  padding:14px 6px;border-radius:var(--radius-md) 0 0 var(--radius-md);
+  background:var(--sidebar);color:var(--muted);font-size:var(--font-size-xs);
+  writing-mode:vertical-rl}
+.u-languette:hover{color:var(--text);background:var(--surface-hi)}
+#pDiscuter:not(.accueil) .work:not(.atelier) .u-languette{display:flex}
+/* `.work` est déjà `position:relative` dans la maquette — on ne la redéclare
+   pas pour ça, la languette s'y ancre telle quelle. */
+</style>
+</head>
+<body>
+
+<!-- ══════ PREMIER LANCEMENT ══════
+     Le seul écran qui n'avait aucun design : il appartenait à l'installateur,
+     et l'installateur ne l'a jamais dessiné. Tout son style dormait pourtant
+     dans ulysse.css depuis la maquette — `#first`, `.firstcard`, `.defs`,
+     `.defl`, `.lead`, `.q`, `.ex2`, `.cout` — sans qu'aucune ne serve.
+
+     Ce qu'il dit est VÉRIFIÉ, et chaque ligne porte sa source. La maquette
+     affirmait « sept assistants », « votre coffre de notes est relié », « la
+     mise en ligne est éteinte » : trois phrases qu'aucun endpoint ne permet
+     de tenir. C'est la première phrase qu'Ulysse adresse à quelqu'un — s'il
+     commence par affirmer ce qu'il ne sait pas, tout le reste devient
+     suspect. -->
+<section class="scene" id="first">
+  <div class="wash"></div>
+  <div class="mark">Ulysse</div>
+  <div class="firstcard" id="firstcard"></div>
+</section>
+
+<!-- ══════ APPLICATION ══════
+     Il n'y a plus qu'une scène. L'écran d'entrée n'a pas disparu : il EST
+     devenu l'accueil de Discuter. Même mot-marque, même champ centré, même
+     interrupteur — les garder tous les deux, c'était montrer deux fois la
+     même chose à la suite, avec un basculement entre les deux.
+
+     Le premier lancement (#first) de la maquette demande le fournisseur et la
+     clé : c'est le travail de l'installateur, que lancer_ulysse.bat fait déjà.
+     Il reviendra avec lui. -->
+<section class="scene on" id="app">
+  <div class="wash"></div>
+
+  <div class="railwrap mini" id="railwrap">
+    <div class="railhot" id="railhot" aria-hidden="true"></div>
+    <nav class="rail" id="rail" aria-label="Navigation principale">
+      <div class="railbg" aria-hidden="true"></div>
+      <div class="rail-top">
+        <button class="icon-btn" id="burger" aria-label="Épingler le menu"></button>
+      </div>
+      <div id="railItems"></div>
+      <div class="rail-sep"></div>
+      <button class="bellbtn" id="bell" aria-label="Notifications">
+        <span class="ic" id="bellIc"></span><span class="lbl">Notifications</span></button>
+      <div class="rail-note">Survolez la lisière gauche pour déplier</div>
+    </nav>
+  </div>
+
+  <div class="stage">
+    <div class="dettewrap" id="dettewrap"></div>
+    <div class="panelwrap">
+
+    <!-- ─── Discuter ─── -->
+    <div class="panel on" id="pDiscuter">
+      <div class="topbar">
+        <span class="title">Discuter</span>
+        <span class="privchip" id="privchip"></span>
+        <span class="sep"></span>
+        <span style="position:relative">
+          <button class="icon-btn" id="moreBtn" aria-label="Autres options"></button>
+          <div class="pop" id="morePop" style="bottom:auto;top:48px;right:0;left:auto"></div>
+        </span>
+      </div>
+
+      <!-- Le vestiaire des éléments déplacés. `#band` et `#roles` vivent
+           désormais ailleurs — dans le kebab et derrière la gélule « Cadre » —
+           mais ce sont les MÊMES éléments, déplacés, ni recréés ni renommés :
+           le contrat les nomme, et le JavaScript les lit par leur id.
+           Ce conteneur est leur point de départ et leur refuge quand le menu
+           qui les accueille est reconstruit. -->
+      <div id="uStock" hidden>
+        <div class="u-band" id="band"></div>
+        <div class="u-roles" id="roles"></div>
+      </div>
+
+      <div class="work" id="work">
+        <div class="thread"><div class="thread-in">
+          <div id="thread"></div>
+          <!-- Le compteur d'attente. Il vivait au niveau 1 et n'avait plus
+               d'écran où vivre ; il se rejoue ici, À L'ENDROIT OÙ LA RÉPONSE
+               VA APPARAÎTRE, en `.wait.inline` — la variante que la maquette
+               avait déjà prévue. Il est hors de #thread parce que son
+               intervalle écrit dedans : reconstruit à chaque repaint, il
+               perdrait la seconde en cours. -->
+          <div class="wait inline" id="wait0">
+            <div class="wait-row"><span id="wait0txt">Un instant</span>
+              <span><span class="sec">0</span> s</span></div>
+            <div class="wait-bar"><div class="wait-fill"></div></div>
+          </div>
+        </div></div>
+
+        <!-- La languette de l'Établi rangé. -->
+        <button class="u-languette" id="languette"></button>
+
+        <!-- L'Établi : les fichiers ouverts, à droite. Il ne pousse rien,
+             il s'ouvre à côté. -->
+        <div class="etabli">
+          <div class="etabli-head"><span class="vt">Établi</span>
+            <span class="sp" style="flex:1"></span>
+            <div class="ctl" id="ctlEtabli"></div></div>
+          <div class="etabli-body" id="files"></div>
+        </div>
+      </div>
+
+      <div class="foot"><div style="position:relative;max-width:720px;margin:0 auto">
+        <div class="pop" id="pop"></div>
+        <!-- Le mot-marque vit AU-DESSUS du champ, dans le pied : il reste
+             collé à lui pendant toute la descente au lieu de glisser à part.
+             Même dégradé qu'avant — le produit ne se présente pas deux fois
+             de deux façons. -->
+        <div class="u-marque">Ulysse</div>
+        <div class="u-jointes" id="jointes1"></div>
+        <!-- Le composeur de l'application dit « Répondre… » : on est dans un
+             fil, pas devant une page blanche. C'est le mot de la maquette. -->
+        <form class="composer" id="composer">
+          <button type="button" class="icon-btn" aria-label="Joindre un fichier"
+                  id="plus1"></button>
+          <input id="reply" autocomplete="off" placeholder="Répondre…">
+          <button type="button" class="icon-btn" aria-label="Parler" id="mic1"></button>
+          <button type="button" class="icon-btn" id="stopBtn" aria-label="Interrompre"
+                  style="display:none"></button>
+          <button type="submit" class="icon-btn send" id="snd1" aria-label="Envoyer"></button>
+        </form>
+        <!-- La même bascule qu'à l'entrée, au même endroit : sous le champ. -->
+        <div class="u-sousbarre">
+          <!-- Chat d'abord, et Chat par défaut : c'est le visage nu, celui
+               qui n'engage aucun outil. Les valeurs `data-mode` ne changent
+               pas — seuls l'ordre et les mots bougent. -->
+          <div class="seg u-modeseg" data-seg="1">
+            <button data-mode="pur" class="on">Chat</button>
+            <button data-mode="cowork">Cowork</button>
+          </div>
+          <!-- Les six cadres se replient derrière une gélule. Choisir un cadre
+               est un geste avancé : on le fait rarement, et jamais avant
+               d'avoir écrit sa première phrase. Elle reste GRISE dans les deux
+               états — le bleu est la couleur de ce qui est sélectionné dans le
+               contenu, pas d'un réglage. Un point bleu suffit à dire qu'on
+               n'écrit plus à nu. -->
+          <span class="u-cadrewrap">
+            <button class="u-cadre" id="cadreBtn" aria-haspopup="true"></button>
+            <div class="pop u-cadrepop" id="cadrePop"></div>
+          </span>
+          <span class="u-modenote" id="modenote1"></span>
+          <span class="sp" style="flex:1"></span>
+          <span class="u-hint" id="composerHint"></span>
+        </div>
+      </div></div>
+      <input type="file" id="fileInput" multiple style="display:none">
+    </div>
+
+    <!-- ─── Plan ─── -->
+    <div class="panel" id="pPlan">
+      <div class="topbar"><span class="title">Ce que fait l'agent</span>
+        <div class="seg stseg" id="stseg">
+          <button data-v="canvas">Schéma</button>
+          <button data-v="both" class="on">Les deux</button>
+          <button data-v="reader">Détail</button></div>
+        <span class="sep"></span>
+        <span class="tmeta" id="planMeta"></span>
+        <button class="ghost-btn" id="planStop">Interrompre</button></div>
+      <!-- La maquette n'avait AUCUN `.volet-head` dans le Plan. Le produit en
+           avait ajouté deux — « Ce que fait l'agent » et « Le détail » — juste
+           sous un segment qui dit déjà « Schéma · Les deux · Détail ». Deux
+           titres de 46 px pour renommer ce que le bouton au-dessus vient de
+           nommer : 92 px perdus sur le seul écran qui a vraiment besoin de
+           place. -->
+      <div class="studio" id="studio">
+        <div class="volet" id="vCanvas">
+          <div class="canvas-body u-canevas" id="paneG">
+            <svg class="graph" viewBox="-10 -10 920 380" id="svg"></svg>
+            <!-- L'échelle. Le zoom et le déplacement existaient déjà — molette
+                 autour du pointeur, tirer avec seuil de 4 px, double-clic pour
+                 recentrer — ils n'étaient simplement pas TROUVABLES. Trois
+                 commandes de la même famille au même endroit valent mieux
+                 qu'un bouton isolé qui apparaît et disparaît. -->
+            <div class="u-echelle">
+              <button data-z="-" aria-label="Dézoomer">−</button>
+              <button id="recentrer" title="Recentrer">100 %</button>
+              <button data-z="+" aria-label="Zoomer">+</button>
+            </div>
+            <div class="glegend"><i></i>Ce qui brille est en train de se faire.
+              Cliquez une étape pour la suivre, son ⋯ pour tout savoir.</div>
+          </div>
+        </div>
+        <div class="volet" id="vReader">
+          <div class="reader-body" id="steps"></div>
+          <div class="reader-foot">
+            <button class="quiet-link" id="toutbtn">Tout déplier</button>
+            <span class="sp"></span>
+            <button class="quiet-link" id="voirJrn">Voir le flux brut</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ─── Travaux ───
+         « Rafraîchir » n'est plus un bouton plein : depuis le jalon 4 les
+         listes écoutent `sessions.changed` et se redessinent sur événement.
+         Un bouton de 40 px en évidence était l'aveu qu'elles ne se tenaient
+         pas à jour. Il reste atteignable, il cesse d'être la chose la plus
+         visible d'un écran qui n'a rien à décider. -->
+    <div class="panel" id="pTravaux">
+      <div class="topbar"><span class="title">Travaux</span><span class="sep"></span>
+        <label class="search"><span class="u-lo"></span>
+          <input id="travQ" placeholder="Filtrer…"></label>
+        <button class="icon-btn sm" id="travRefresh" aria-label="Rafraîchir"
+                title="Rafraîchir"></button></div>
+      <div class="body"><div class="body-in" id="works"></div></div>
+    </div>
+
+    <!-- ─── Livrables ─── -->
+    <div class="panel" id="pLivrables">
+      <div class="topbar"><span class="title">Livrables</span><span class="sep"></span>
+        <label class="search"><span class="u-lo"></span>
+          <input id="livQ" placeholder="Filtrer…"></label>
+        <button class="icon-btn sm" id="livRefresh" aria-label="Rafraîchir"
+                title="Rafraîchir"></button></div>
+      <div class="body"><div class="body-in" id="livrables"></div></div>
+    </div>
+
+    <!-- ─── Projets ─── -->
+    <div class="panel" id="pProjets">
+      <div class="topbar"><span class="title">Projets</span><span class="sep"></span>
+        <button class="icon-btn sm" id="projRefresh" aria-label="Rafraîchir"
+                title="Rafraîchir"></button></div>
+      <div class="body"><div class="body-in" id="projets"></div></div>
+    </div>
+
+    <!-- ─── Automatisations ─── -->
+    <div class="panel" id="pAutomatisations">
+      <div class="topbar"><span class="title">Automatisations</span><span class="sep"></span>
+        <button class="icon-btn sm" id="autoRefresh" aria-label="Rafraîchir"
+                title="Rafraîchir"></button></div>
+      <div class="body"><div class="body-in" id="autos"></div></div>
+    </div>
+
+    <!-- ─── Vestiaire ─── -->
+    <div class="panel" id="pVestiaire">
+      <div class="topbar"><span class="title">Vestiaire</span>
+        <div class="seg" id="vseg">
+          <button data-v="roles" class="on">Rôles</button>
+          <button data-v="skills">Compétences</button>
+        </div>
+        <span class="sep"></span>
+        <label class="search"><span id="icSearch"></span>
+          <input id="vq" placeholder="Filtrer…"></label></div>
+      <div class="vest">
+        <div class="vmain">
+          <div class="vmeta" id="vmeta"></div>
+          <div class="vgrid" id="vgrid"></div>
+        </div>
+        <div class="vdet" id="vdet"></div>
+      </div>
+    </div>
+
+    <!-- ─── Réglages ─── -->
+    <div class="panel" id="pReglages">
+      <div class="topbar"><span class="title">Réglages</span></div>
+      <div class="setwrap">
+        <nav class="setnav" id="setnav"></nav>
+        <div class="setbody"><div class="setbody-in" id="setbody"></div></div>
+      </div>
+    </div>
+
+    <!-- ─── Terminal CLI ───
+         Un lanceur, pas un émulateur. Ulysse n'exécute rien ici : il ouvre le
+         terminal natif d'Hermès et se retire. -->
+    <div class="panel" id="pTerminal">
+      <div class="topbar"><span class="title">Terminal CLI</span>
+        <span class="sep"></span>
+        <span class="tmeta">Hermès en ligne de commande</span></div>
+      <div class="term">
+        <div class="tside" id="tside"></div>
+        <div class="tmain" id="tmain"></div>
+      </div>
+    </div>
+
+    <!-- ─── Repères ───
+         Un glossaire : on y vient avec un signe en tête, pas pour le lire en
+         entier. 43 entrées empilées sans filtre, c'était une liste à parcourir
+         au lieu d'un endroit où chercher. -->
+    <div class="panel" id="pReperes">
+      <div class="topbar"><span class="title">Repères</span><span class="sep"></span>
+        <label class="search"><span class="u-lo"></span>
+          <input id="repQ" placeholder="Filtrer…"></label></div>
+      <div class="body"><div class="body-in" id="glossary"></div></div>
+    </div>
+
+    </div>
+  </div>
+
+  <!-- La fiche d'une étape : tout ce qu'on peut vouloir savoir d'elle est là,
+       et rien n'oblige à aller le chercher dans un autre écran. -->
+  <div class="sheet-bg" id="sNode"><div class="sheet fiche" id="ficheBody"></div></div>
+
+  <!-- La fiche d'un fichier ouvert depuis l'Établi ou les Livrables. -->
+  <div class="sheet-bg" id="sFile"><div class="sheet" id="fileBody"></div></div>
+
+</section>
+
+<div class="npanel" id="npanel"></div>
+<div class="toasts" id="toasts"></div>
+<div class="snack" id="snack"></div>
+
+<script src="/xterm/xterm.js" onerror="window.__XTERM_ABSENT=true"></script>
+<script src="/xterm/addon-fit.js" onerror="window.__XTERM_ABSENT=true"></script>
+<script src="ulysse-config.js" onerror="window.__ULYSSE_CONFIG_MISSING=true"></script>
+<script src="ulysse-icons.js"></script>
+<script src="ulysse-view.js"></script>
+<script src="ulysse-core.js"></script>
+<script src="ulysse-app.js"></script>
+</body>
+</html>

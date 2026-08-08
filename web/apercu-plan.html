@@ -1,0 +1,3167 @@
+<!DOCTYPE html>
+<html lang="fr" data-d="epure">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Aperçu — Plan</title>
+
+<!-- ═══════════════════════════════════════════════════════════════════════
+     APERÇU DE DESIGN — panneau « Plan »
+     Aucun backend, données figées. Le vrai ulysse.css, le vrai
+     ulysse-icons.js et le VRAI moteur de schéma (Graph, d'ulysse-view.js)
+     sont recopiés plus bas — ce qu'on voit sortir du SVG est exactement ce
+     que le produit dessine.
+
+     Le commutateur Actuel / Proposé n'active qu'un bloc <style> et une
+     variante de disposition. Aucun id, aucun data-* du contrat n'est
+     renommé ni supprimé.
+     ═══════════════════════════════════════════════════════════════════════ -->
+
+<!-- ─────────────────────────────────────────────────────────────────────
+     PAGE AUTONOME. ulysse.css, ulysse-icons.js et (si besoin)
+     ulysse-view.js sont RECOPIÉS ci-dessous, pas liés : cette page doit
+     s'ouvrir n'importe où — visualiseur intégré, double-clic, pièce
+     jointe — sans rien à côté d'elle. Un <link> relatif ne se résout pas
+     dans un visualiseur, et la page arrive alors nue, sans même un
+     message : c'est arrivé.
+
+     Ce sont donc des COPIES FIGÉES au 2026-08-08. Si ulysse.css change,
+     cet aperçu ne suit pas. C'est un aperçu, pas le produit.
+     ───────────────────────────────────────────────────────────────────── -->
+<style>
+/* ══ ulysse.css, recopié ══ */
+/* ============================================================================
+ * ulysse.css — le systeme visuel d'Ulysse
+ * ----------------------------------------------------------------------------
+ * EXTRAIT VERBATIM de maquette-ulysse-google-33.html (bloc <style>, lignes
+ * 8-1545). Rien n'a ete redessine : la maquette EST le produit fini, donc
+ * elle est la source, pas une inspiration.
+ *
+ * Les commentaires d'origine sont conserves — ils expliquent les decisions
+ * (les deux vitesses du menu, le retrait de backdrop-filter, la densite de la
+ * pastille active). Les relire evite de « corriger » ce qui etait voulu.
+ *
+ * Ce qui est AJOUTE pour le produit vit dans ulysse-app.css, jamais ici :
+ * ce fichier doit rester diffable avec la maquette.
+ * ========================================================================== */
+
+/* ═══════════════════════════════════════════════════════════════════
+   Quatrième passe. Ajouts :
+   · Vestiaire   — les agents, les équipes, et les trois fantômes.
+   · Projets     — chacun son coffre, chacun son bac à sable.
+   · Incognito   — le fil sans mémoire.
+   · Chat/Atelier— la bascule, avec un établi qui s'ouvre à droite.
+   · « + »       — ouvrir ou ajouter des fichiers.
+   · Le menu se déplie AU SURVOL, sans clic (façon Cowork).
+   ═══════════════════════════════════════════════════════════════════ */
+:root{
+  --bg:#FFFFFF;--sidebar:#F8FAFD;--surface:#F0F4F9;--surface-hi:#E9EEF6;
+  --outline:#747775;--outline-var:#C4C7C5;
+  --text:#1F1F1F;--muted:#5F6368;--faint:#9AA0A6;
+  --accent:#0B57D0;--accent-hover:#0842A0;
+  --accent-container:#D3E3FD;--on-accent-container:#041E49;
+  --green:#188038;--amber:#E37400;--grey:#C4C7C5;--violet:#9B72CB;
+  --hover-bg:rgba(31,31,31,.06);
+  --radius-sm:8px;--radius-md:12px;--radius-card:16px;--radius-lg:28px;--radius-pill:999px;
+  --space-2:8px;--space-3:12px;--space-4:16px;
+  --font-size-xs:12px;--font-size-sm:14px;
+  --font-ui:"Google Sans","Product Sans",Roboto,Arial,system-ui,sans-serif;
+  --elev-1:0 1px 2px rgba(0,0,0,.30),0 1px 3px 1px rgba(0,0,0,.15);
+  --elev-2:0 1px 2px rgba(0,0,0,.30),0 2px 6px 2px rgba(0,0,0,.15);
+  --elev-3:0 4px 8px 3px rgba(0,0,0,.15),0 1px 3px rgba(0,0,0,.30);
+  --tint:rgba(66,133,244,.10);
+  /* La pastille de l'élément actif : la densité la plus faible, avec
+     une dominante bleue à peine perceptible — l'entre-deux entre le
+     gris franc et le bleuté de Google.
+     Variante strictement neutre, si on veut : #F4F4F4. */
+  --pill:#F1F4FA;
+}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%}
+body{font-family:var(--font-ui);font-size:16px;line-height:1.5;background:var(--bg);
+  color:var(--text);-webkit-font-smoothing:antialiased;overflow:hidden}
+button{font:inherit;color:inherit;background:none;border:none;cursor:pointer;text-align:left}
+input{font:inherit;color:inherit;background:none;border:none;outline:none}
+.scene{position:fixed;inset:0;opacity:0;pointer-events:none;transition:opacity .3s cubic-bezier(.2,0,0,1)}
+.scene.on{opacity:1;pointer-events:auto}
+.hidden{display:none!important}
+.wash{position:absolute;inset:0;pointer-events:none;z-index:0;
+  background:radial-gradient(130% 65% at 50% -12%, var(--tint) 0%, transparent 60%);
+  transition:background .55s ease}
+
+/* ═══ Niveau 1 ═══ */
+#lvl1{display:flex;flex-direction:column;align-items:center;justify-content:flex-start;
+  overflow-y:auto;padding:28px 20px 36px}
+#lvl1 .mark{margin-top:auto}
+#lvl1 .composer,#lvl1 .lvl1-foot{margin-bottom:auto}
+#lvl1 .wash{background:
+  radial-gradient(60% 45% at 28% 8%, rgba(66,133,244,.14) 0%, transparent 62%),
+  radial-gradient(55% 45% at 62% 2%, rgba(155,114,203,.15) 0%, transparent 60%),
+  radial-gradient(50% 40% at 82% 14%, rgba(217,101,112,.12) 0%, transparent 62%)}
+.mark{position:relative;z-index:1;font-size:36px;font-weight:500;letter-spacing:-.6px;
+  margin-bottom:40px;background:linear-gradient(74deg,#4285F4 0%,#9B72CB 46%,#D96570 100%);
+  -webkit-background-clip:text;background-clip:text;color:transparent;transition:opacity .5s ease}
+.composer{position:relative;z-index:1;width:min(720px,calc(100vw - 48px));display:flex;
+  align-items:center;gap:6px;background:var(--surface);border-radius:var(--radius-lg);
+  padding:8px 8px 8px 12px;transition:background .2s ease,box-shadow .2s ease}
+.composer:focus-within{background:var(--bg);box-shadow:var(--elev-2)}
+.composer input{flex:1;font-size:16px;padding:12px 6px}
+.composer input::placeholder{color:var(--muted)}
+.icon-btn{width:44px;height:44px;flex:none;border-radius:var(--radius-pill);display:grid;
+  place-items:center;color:var(--muted);transition:background .15s ease,color .15s ease}
+.icon-btn:hover{background:var(--hover-bg);color:var(--text)}
+.icon-btn.sm{width:36px;height:36px}
+.send{background:var(--accent-container);color:var(--on-accent-container)}
+.send:hover{background:#BFD8FB;color:var(--on-accent-container)}
+.wait{position:relative;z-index:1;width:min(720px,calc(100vw - 48px));margin-top:32px;
+  opacity:0;transition:opacity .3s ease}
+.wait.on{opacity:1}
+.wait.inline{width:auto;max-width:420px;margin-top:18px}
+.wait-row{display:flex;justify-content:space-between;align-items:baseline;
+  font-size:var(--font-size-sm);color:var(--muted);margin-bottom:var(--space-2)}
+.wait-bar{height:4px;background:var(--accent-container);border-radius:var(--radius-pill);overflow:hidden}
+.wait-fill{height:100%;width:0;background:var(--accent);border-radius:var(--radius-pill);
+  transition:width .9s linear}
+
+/* ═══════════ LE MENU — déplié au survol, sans clic ═══════════
+   La bande de 72 px est elle-même la zone sensible. Le menu passe
+   PAR-DESSUS le contenu au lieu de le pousser : rien ne bouge
+   derrière, c'est ce qui rend le survol supportable. */
+#app{display:flex}
+.railwrap{position:relative;z-index:60;width:240px;flex:none;transition:width .26s cubic-bezier(.2,0,0,1)}
+.railwrap.mini{width:72px}
+.rail{position:absolute;top:0;bottom:0;left:0;height:100vh;
+  width:240px;display:flex;flex-direction:column;
+  padding:10px 8px;transition:width .26s cubic-bezier(.2,0,0,1),box-shadow .26s ease,background .26s ease}
+.railwrap.mini .rail{width:72px}
+
+/* ── Deux défauts, deux causes différentes ────────────────────────
+   1 · « Je vois la fenêtre du fond à travers le menu. »
+   La cause n'était pas la couleur : c'était `backdrop-filter`. Il
+   crée un contexte de composition qui, dans certains moteurs, laisse
+   passer ce qu'il est censé flouter. Le flou est retiré. Un menu qui
+   passe par-dessus du texte n'a pas besoin d'être joli, il a besoin
+   d'être ILLISIBLE au travers.
+
+   2 · « Le menu s'ouvre tout seul quand je passe à côté. »
+   La cause : les libellés du menu replié sont en `opacity:0` mais
+   toujours là, en `nowrap`, et ils DÉBORDENT bien au-delà des 72 px
+   visibles. Un élément invisible reçoit le survol comme les autres.
+   D'où `overflow:hidden` au repos, et plus de survol fantôme.
+
+   Et le déclenchement passe en JavaScript, avec deux délais
+   différents : 140 ms sur la lisière gauche — on y va exprès — et
+   520 ms sur la bande des icônes — on ne fait souvent que la
+   traverser. Un menu qui s'ouvre quand on passe est un menu qui
+   s'ouvre par erreur.
+   ─────────────────────────────────────────────────────────────── */
+.railhot{position:absolute;left:0;top:0;bottom:0;width:18px;z-index:2}
+.railwrap.mini:not(.open) .rail{overflow:hidden}
+.railwrap.mini:not(.open) .lbl,
+.railwrap.mini:not(.open) .rail-note{pointer-events:none}
+.railwrap.mini.open .rail{width:240px;
+  background:#FFFFFF;
+  box-shadow:var(--elev-3);
+  border-right:1px solid var(--outline-var);
+  border-radius:0 var(--radius-card) var(--radius-card) 0}
+/* Le fond en tant qu'élément, pas en tant que propriété. */
+.rail{isolation:isolate}
+.railbg{position:absolute;top:0;left:0;width:100%;height:100vh;z-index:-1;
+  background:#FFFFFF;opacity:0;
+  border-radius:0 var(--radius-card) var(--radius-card) 0;
+  transition:opacity .2s ease;pointer-events:none}
+.railwrap.mini.open .railbg{opacity:1}
+.railwrap:not(.mini) .railbg{opacity:0}
+/* Les enfants passent au-dessus du fond. */
+.rail-top,#railItems,.rail-sep,.rail-note,.rail-div,.bellbtn{position:relative;z-index:1}
+.rail-top{display:flex;align-items:center;height:48px;padding-left:0;margin-bottom:6px}
+.rail-top .icon-btn{width:38px;height:38px;margin-left:8px;flex:none}
+/* ── Le menu ──────────────────────────────────────────────────────
+   Monochrome, sans exception : les icônes ne prennent JAMAIS de
+   couleur, ni au repos, ni au survol, ni actives.
+
+   L'état actif se dit par DEUX signaux faibles qui se cumulent —
+   variante 13 de la planche d'essai :
+     · une pastille de fond très pâle, sur toute la ligne ;
+     · un décalage de 5 px vers la droite.
+
+   Pourquoi deux. À ce niveau de pâleur, la pastille seule se devine
+   plus qu'elle ne se voit ; le décalage la rend certaine. Et deux
+   signaux faibles pèsent moins qu'un signal fort — c'est justement ce
+   qu'on cherchait. En menu replié, la pastille tient seule.
+
+   La couleur ne survit qu'à deux endroits dans l'application : le
+   lavis de fond de chaque fenêtre, et les marqueurs d'état. */
+.rail-btn{position:relative;height:46px;border-radius:var(--radius-pill);display:flex;
+  align-items:center;gap:14px;padding:0 16px;color:var(--faint);
+  transition:background .2s ease,color .2s ease,transform .2s cubic-bezier(.2,0,0,1);
+  width:100%}
+.rail-btn .ic{flex:none;display:grid;place-items:center;width:22px}
+.rail-btn .lbl{font-size:15px;white-space:nowrap;color:var(--muted);opacity:1;
+  transition:opacity .16s ease,color .2s ease}
+.railwrap.mini .rail-btn .lbl{opacity:0}
+.railwrap.mini.open .rail-btn .lbl{opacity:1}
+.rail-btn:hover{background:var(--hover-bg);color:var(--text)}
+.rail-btn:hover .lbl{color:var(--text)}
+.rail-btn.on{background:var(--pill);color:var(--text);transform:translateX(5px)}
+.rail-btn.on .lbl{color:var(--text);font-weight:500}
+/* Replié, le décalage n'a plus de place : la pastille tient seule. */
+.railwrap.mini:not(.open) .rail-btn.on{transform:none}
+.rail-div{height:1px;background:var(--outline-var);margin:8px 16px}
+.rail-sep{flex:1}
+.rail-note{font-size:var(--font-size-xs);color:var(--faint);padding:6px 18px;white-space:nowrap;
+  opacity:0;transition:opacity .16s ease}
+.railwrap:not(.mini) .rail-note,.railwrap.mini.open .rail-note{opacity:1}
+
+.stage{flex:1;min-width:0;position:relative;display:flex;flex-direction:column}
+.panel{position:absolute;inset:0;display:none;flex-direction:column;z-index:1}
+.panel.on{display:flex}
+.topbar{position:relative;z-index:2;height:64px;flex:none;display:flex;align-items:center;
+  gap:var(--space-3);padding:0 var(--space-4)}
+.topbar .title{font-size:22px;font-weight:400}
+.topbar .sep{flex:1}
+.validate{background:var(--accent);color:#fff;height:40px;padding:0 24px;
+  border-radius:var(--radius-pill);font-size:14px;font-weight:500;
+  transition:background .15s ease,box-shadow .15s ease}
+.validate:hover{background:var(--accent-hover);box-shadow:var(--elev-1)}
+.ghost-btn{height:40px;padding:0 18px;border-radius:var(--radius-pill);
+  border:1px solid var(--outline);font-size:14px;font-weight:500;display:flex;
+  align-items:center;gap:8px;transition:background .15s ease}
+.ghost-btn:hover{background:var(--hover-bg)}
+
+/* Bouton segmenté M3 — sert au Chat/Atelier ET au Schéma/Liste. */
+.seg{display:flex;border:1px solid var(--outline);border-radius:var(--radius-pill);overflow:hidden}
+.seg button{padding:7px 16px;font-size:14px;font-weight:500;display:flex;align-items:center;gap:7px;
+  transition:background .15s ease}
+.seg button:hover{background:var(--hover-bg)}
+.seg button+button{border-left:1px solid var(--outline)}
+.seg button.on{background:var(--accent-container);color:var(--on-accent-container)}
+
+/* ═══════════ INCOGNITO ═══════════
+   La fenêtre entière change de teint. Ce n'est pas décoratif :
+   c'est le seul moyen qu'on ne s'y trompe pas. */
+/* ═══ Le mode privé, en trois signes faibles ═══
+   Un bandeau noir criait. Trois signaux discrets mais PERMANENTS
+   valent mieux qu'un seul très fort : la teinte du fond, une pastille
+   près du titre, et une ligne entre deux filets en tête de fil.
+   Aucun n'est spectaculaire ; ensemble, on ne peut pas s'y tromper. */
+#pDiscuter.incog{--tint:rgba(95,99,104,.11)}
+#pDiscuter.incog .thread{background:#FAFAFB}
+#pDiscuter.incog .msg.you p{background:#ECECEF}
+#pDiscuter.incog .composer{background:#EFEFF2}
+#pDiscuter.incog .composer:focus-within{background:var(--bg)}
+.privchip{display:none;align-items:center;gap:6px;font-size:13px;color:var(--muted);
+  background:rgba(95,99,104,.12);border-radius:var(--radius-pill);padding:5px 13px 5px 10px}
+#pDiscuter.incog .privchip{display:inline-flex}
+.privnote{display:none;align-items:center;justify-content:center;gap:9px;
+  max-width:720px;margin:0 auto 24px;padding:11px 0;color:var(--muted);font-size:13.5px;
+  border-top:1px solid var(--outline-var);border-bottom:1px solid var(--outline-var)}
+#pDiscuter.incog .privnote{display:flex}
+#incogBtn.on{background:rgba(95,99,104,.14);color:var(--text)}
+
+/* ═══ Discuter ═══ */
+.work{position:relative;z-index:1;flex:1;display:flex;min-height:0;gap:var(--space-2);
+  padding:0 var(--space-4) 0 0}
+.thread{flex:1;min-width:0;overflow-y:auto;padding:0 24px 8px;transition:background .3s ease}
+.thread-in{max-width:720px;margin:0 auto}
+.msg{margin-bottom:26px;animation:rise .4s cubic-bezier(.2,0,0,1) both}
+@keyframes rise{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+.msg.you{display:flex;justify-content:flex-end}
+.msg.you p{background:var(--surface);border-radius:20px;padding:12px 20px;max-width:80%}
+.msg.ulysse p{line-height:1.65}
+.msg.ulysse p+p{margin-top:var(--space-3)}
+/* L'établi — n'existe qu'en mode Atelier. */
+.etabli{flex:0 0 340px;background:var(--sidebar);border-radius:var(--radius-card);
+  display:none;flex-direction:column;overflow:hidden}
+.work.atelier .etabli{display:flex}
+.etabli-head{height:46px;flex:none;display:flex;align-items:center;gap:8px;padding:0 8px 0 18px}
+.etabli-head .vt{font-size:var(--font-size-sm);color:var(--muted);font-weight:500;flex:1}
+.etabli-body{flex:1;overflow-y:auto;padding:0 12px 12px}
+.file{display:flex;align-items:center;gap:12px;background:var(--bg);border-radius:var(--radius-md);
+  padding:12px 14px;margin-bottom:6px;font-size:15px}
+.file .fs{font-size:var(--font-size-xs);color:var(--muted);margin-left:auto}
+.drop{border:2px dashed var(--outline-var);border-radius:var(--radius-md);padding:22px;
+  text-align:center;color:var(--muted);font-size:var(--font-size-sm);margin-top:8px}
+
+.ask{margin-top:18px;background:var(--surface);border-radius:var(--radius-card);padding:20px;
+  animation:rise .4s cubic-bezier(.2,0,0,1) both}
+.ask .q{font-weight:500;margin-bottom:4px}
+.ask .hint{font-size:var(--font-size-sm);color:var(--muted);margin-bottom:16px}
+.opt{width:100%;display:flex;align-items:center;gap:14px;background:var(--bg);
+  border-radius:var(--radius-md);padding:14px 18px;margin-bottom:8px;
+  transition:background .15s ease,box-shadow .15s ease}
+.opt:hover{background:var(--surface-hi);box-shadow:var(--elev-1)}
+.opt .tick{width:22px;height:22px;flex:none;border-radius:50%;border:2px solid var(--outline);
+  display:grid;place-items:center;color:transparent;transition:all .18s ease}
+.opt.pick{background:var(--accent-container);color:var(--on-accent-container)}
+.opt.pick .tick{border-color:var(--accent);background:var(--accent);color:#fff}
+.ask .free{display:flex;align-items:center;gap:var(--space-2);margin-top:14px;background:var(--bg);
+  border-radius:var(--radius-pill);padding:6px 6px 6px 18px}
+.ask .free input{flex:1;font-size:15px;padding:8px 0}
+.ask.done{background:transparent;padding:0}
+.ask.done .q,.ask.done .hint,.ask.done .free,.ask.done .opt{display:none}
+.ask.done .opt.pick{display:flex;background:var(--surface);color:var(--text);box-shadow:none;margin:0}
+.ask.done .opt.pick .tick{border-color:var(--green);background:var(--green)}
+.plan-card{margin-top:22px;background:var(--surface);border-radius:var(--radius-card);
+  overflow:hidden;transition:background .2s ease,box-shadow .2s ease;
+  animation:rise .4s cubic-bezier(.2,0,0,1) both}
+.plan-card:hover{background:var(--surface-hi);box-shadow:var(--elev-1)}
+.plan-card button{width:100%;display:flex;align-items:center;justify-content:space-between;
+  gap:var(--space-4);padding:20px 24px}
+.plan-card .t{font-weight:500}
+.plan-card .s{font-size:var(--font-size-sm);color:var(--muted)}
+.plan-card .go{color:var(--accent);flex:none;display:flex;align-items:center;gap:6px;
+  font-size:var(--font-size-sm);font-weight:500}
+.foot{position:relative;z-index:1;padding:12px 24px 20px}
+.foot .composer{margin:0 auto}
+
+/* Le menu du « + ». */
+.pop{position:absolute;bottom:74px;left:0;min-width:250px;background:var(--bg);
+  border-radius:var(--radius-md);box-shadow:var(--elev-3);padding:8px;z-index:40;display:none}
+.pop.on{display:block}
+.pop button{width:100%;display:flex;align-items:center;gap:14px;padding:11px 14px;
+  border-radius:var(--radius-sm);font-size:15px;transition:background .14s ease}
+.pop button:hover{background:var(--hover-bg)}
+.pop .sub{font-size:var(--font-size-xs);color:var(--muted);display:block}
+.pop-sep{height:1px;background:var(--outline-var);margin:6px 10px}
+
+/* ═══ Studio ═══ */
+.studio{position:relative;z-index:1;flex:1;display:flex;min-height:0;gap:var(--space-2);
+  padding:0 var(--space-4) var(--space-2) 0}
+.volet{min-width:0;position:relative;background:var(--sidebar);border-radius:var(--radius-card);
+  display:flex;flex-direction:column;overflow:hidden;transition:flex-grow .3s cubic-bezier(.2,0,0,1)}
+/* D1 : le schéma prend deux tiers, la liste un tiers.
+   Le visuel porte l'avancée, le texte porte le contenu. */
+#vCanvas{flex:2}#vReader{flex:1}
+.studio.max-canvas #vReader{display:none}
+.studio.max-reader #vCanvas{display:none}
+.volet-head{flex:none;height:46px;display:flex;align-items:center;gap:var(--space-2);padding:0 8px 0 18px}
+.volet-head .vt{font-size:var(--font-size-sm);color:var(--muted);font-weight:500}
+.volet-head .sp{flex:1}
+.ctl{display:flex;gap:2px;opacity:0;transform:translateX(4px);
+  transition:opacity .16s ease,transform .16s ease}
+.volet:hover .ctl,.etabli:hover .ctl{opacity:1;transform:none}
+.ctl button{width:32px;height:32px;border-radius:var(--radius-sm);display:grid;place-items:center;
+  color:var(--muted);transition:background .14s ease,color .14s ease}
+.ctl button:hover{background:var(--hover-bg);color:var(--text)}
+.ctl button.danger:hover{background:#FCE8E6;color:#B3261E}
+/* Le segmenté du Studio : une position, pas une action. Il se pose
+   à côté du titre, jamais du côté du bouton qui engage. */
+.stseg{margin-left:16px;height:34px}
+.stseg button{padding:0 15px;font-size:13.5px}
+.reader-foot .sp{flex:1;min-width:0}
+.reader-foot{flex-wrap:wrap;row-gap:4px}
+/* La fiche d'étape sur un écran étroit : les intitulés passent
+   au-dessus de leur valeur au lieu de rogner les deux. */
+@media (max-width:640px){
+  .fl{flex-direction:column;gap:3px}
+  .fk{flex:none}
+  .fiche{padding:18px 16px 14px}
+  .sheet-acts{justify-content:stretch}
+  .sheet-acts .validate{margin-left:auto}
+}
+/* Le volet du schéma. Deux pièges corrigés ici :
+
+   1 · `height:100%` sur un SVG dont le parent n'a pas de hauteur
+       définie ne résout rien : le SVG retombe sur sa hauteur
+       intrinsèque de 150 px et le dessin est réduit de moitié. D'où
+       `aspect-ratio`, qui déduit la hauteur de la largeur — une
+       largeur, elle, est toujours définie.
+
+   2 · Un schéma à quatre colonnes ne tient pas dans une colonne de
+       400 px : le texte tombe à 6 px. La réponse n'est pas de rétrécir
+       le texte, c'est de CHANGER DE SENS — voir `orientation()`. */
+.canvas-body{flex:1;min-height:0;display:flex;align-items:center;justify-content:center;
+  padding:0 var(--space-4) var(--space-4);overflow:hidden}
+svg.graph{width:100%;height:auto;max-height:100%}
+/* ═══ Le schéma — des cartes, une couleur par équipe ═══════════
+   D1 amendée le 6 août. Les perles étaient trop maigres : on ne
+   reconnaissait pas une étape sans lire la légende. Retour à des
+   cartes, mais sous trois conditions qui n'existaient pas avant :
+
+     · une COULEUR par équipe — c'est elle qui dit qui travaille,
+       et elle se retrouve à l'identique dans le liseré, dans le
+       texte de l'équipe et dans le flux du lien ;
+     · des liens RIGIDES, à angles arrondis. Une courbe libre se
+       croise et se lit mal ; un coude se suit du doigt ;
+     · le néon ne brille QUE sur ce qui travaille. Partout ailleurs
+       il est posé à 22 % — présent, pas allumé.
+
+   La règle tient toujours :
+     « Ce qui bouge est ce qui travaille. Rien d'autre ne bouge. »
+   ═══════════════════════════════════════════════════════════════ */
+.node{cursor:pointer}
+.node .b{fill:var(--bg);stroke-width:1.7;transition:fill .18s ease}
+/* Le halo. Un rectangle flouté sous la carte, à la couleur de
+   l'équipe : le liseré néon, sans filtre SVG à déclarer. */
+.node .glow{fill:none;stroke-width:3;filter:blur(5px);opacity:.22;
+  transition:opacity .25s ease}
+.node.st-run .glow{animation:neon 2.1s ease-in-out infinite}
+@keyframes neon{0%,100%{opacity:.3}50%{opacity:.95}}
+.node:hover .glow{opacity:.5}
+.node:hover .b{fill:var(--surface)}
+
+.node .ti{font-family:var(--font-ui);fill:var(--text);font-size:13px;font-weight:500}
+.node .eq{font-family:var(--font-ui);font-size:10.5px;letter-spacing:.3px;font-weight:600}
+.node .au{font-family:var(--font-ui);font-size:10.5px;fill:var(--faint);letter-spacing:.3px}
+.node .track{fill:var(--outline-var);opacity:.55}
+.node .fill{transition:none}
+
+/* Fini : une pellicule de la couleur d'équipe, posée sur le blanc.
+   (Un attribut fill="" sur la balise serait écrasé par la règle CSS
+   ci-dessus — d'où un calque séparé plutôt qu'une couleur inline.) */
+.node .tint{opacity:.08;pointer-events:none}
+/* Sélection : le liseré s'épaissit, la couleur ne change pas —
+   sinon on perdrait l'information d'équipe en désignant. */
+.node.sel .b{stroke-width:3}
+.node.sel .glow{opacity:.6}
+/* Retirée : plus d'équipe, plus de couleur, plus de néon. */
+.node.st-off .b{fill:var(--surface);stroke:var(--outline-var);stroke-dasharray:6 5;stroke-width:1.4}
+.node.st-off .glow{display:none}
+.node.st-off .ti{opacity:.42;text-decoration:line-through}
+.node .badge{stroke:var(--bg);stroke-width:2}
+/* Le point d'entrée de la fiche. Il ne peuple pas le schéma : il
+   attend d'être cherché. Une carte au repos ne porte que ce qu'elle
+   raconte. */
+.nact{opacity:0;cursor:pointer;transition:opacity .16s ease}
+.node:hover .nact,.node.sel .nact{opacity:1}
+.nact-bg{fill:var(--bg);stroke:var(--outline-var);stroke-width:1.2}
+.nact circle:not(.nact-bg){fill:var(--muted);stroke:none}
+.nact:hover .nact-bg{fill:var(--surface)}
+.nact:hover circle:not(.nact-bg){fill:var(--text)}
+
+/* Les liens : orthogonaux, coudes arrondis. */
+.edge{stroke:var(--outline-var);stroke-width:1.8;fill:none;stroke-linejoin:round;
+  stroke-linecap:round;transition:stroke .18s ease}
+.edge.hot{stroke:var(--accent)}
+/* Le flux prend la couleur de l'équipe qui l'émet : on voit d'où
+   part le travail, pas seulement qu'il part. */
+.edge.flow{stroke-width:2.6;stroke-dasharray:7 11;animation:flow 1.2s linear infinite}
+@keyframes flow{to{stroke-dashoffset:-18}}
+.edgeglow{fill:none;stroke-width:5;filter:blur(4px);opacity:.35}
+/* Le point porté, et son halo. */
+.pk{opacity:.95}
+.pkh{opacity:.3;filter:blur(3px)}
+@media (prefers-reduced-motion:reduce){.pk,.pkh{display:none}}
+
+@media (prefers-reduced-motion:reduce){
+  .node.st-run .glow{animation:none;opacity:.8}
+  .edge.flow{animation:none;stroke-dasharray:none}
+}
+/* La légende du schéma. Une seule ligne, qui enseigne la règle
+   sans la réciter : on comprend en regardant. */
+.glegend{position:absolute;left:var(--space-4);right:120px;
+  bottom:var(--space-3);z-index:2;pointer-events:none;
+  display:flex;align-items:center;gap:9px;font-size:var(--font-size-xs);
+  line-height:1.4;color:var(--faint)}
+.glegend i{width:7px;height:7px;border-radius:50%;background:var(--amber);
+  animation:halo2 2.4s ease-out infinite}
+@keyframes halo2{0%,100%{opacity:1}50%{opacity:.3}}
+.reader-body{flex:1;min-height:0;overflow-y:auto;padding:0 22px 20px}
+/* ── Quand le volet se resserre ────────────────────────────────
+   Le Détail peut occuper 300 px comme 900. Rien n'y est en largeur
+   fixe : ce qui ne tient pas passe à la ligne plutôt que de sortir
+   du cadre. */
+@media (max-width:900px){
+  .reader-body{padding:0 14px 16px}
+  .exp-b .in{padding-left:14px}
+  .sactions button{padding:0 11px;font-size:13.5px}
+}
+
+/* Développer / replier — sert au plan ET au vestiaire. */
+.exp{border-bottom:1px solid var(--outline-var)}
+.exp:last-child{border-bottom:none}
+/* Trois pièces dans la ligne du titre : ce qui ouvre, ce qui agit,
+   et la flèche. Le kebab était dans le CORPS de l'étape — donc
+   invisible tant qu'elle était fermée, et rogné par le débordement
+   quand elle était ouverte. Il est maintenant là où on le cherche :
+   sur la ligne, avec le titre.
+
+     Une commande enfermée dans ce qu'elle commande n'est pas une
+     commande.
+*/
+.exp-h{width:100%;display:flex;align-items:center;gap:4px;padding:15px 0;
+  transition:opacity .2s ease}
+.exp-t{flex:1;min-width:0;display:flex;align-items:center;gap:12px;
+  padding:0;background:none;text-align:left}
+.exp-h .n{color:var(--muted);font-size:var(--font-size-sm);flex:none;width:14px}
+.exp-h .t{font-weight:500;flex:1;min-width:0;overflow-wrap:anywhere}
+.exp-h .chev{color:var(--muted);flex:none;width:32px;height:32px;
+  display:grid;place-items:center;border-radius:var(--radius-pill);
+  transition:transform .24s cubic-bezier(.2,0,0,1),background .14s ease}
+.exp-h .chev:hover{background:var(--hover-bg)}
+.exp.open .exp-h .chev{transform:rotate(180deg)}
+/* ── Quatrième version de ce dépliement, et la première qui ne peut
+   pas se tromper. ────────────────────────────────────────────────
+   Successivement : `max-height` avec un plafond (rognait le kebab),
+   puis `grid-template-rows: 0fr→1fr` (laissait passer une ligne).
+   Trois passes, trois défauts, tous du même genre : **une hauteur
+   déduite, et ce qui dépasse découpé.**
+
+   Ici, plus de hauteur du tout. Le corps est là, ou il n'est pas là.
+
+     Après trois tentatives sur le même point, ce n'est plus la
+     technique qu'il faut corriger, c'est le choix d'en avoir une.
+
+   On perd l'animation du dépliement. C'est le prix, et il est juste :
+   aucune règle de la charte ne la promettait, et quatre passes de
+   correction ont coûté plus cher qu'elle ne valait. */
+.exp-b{display:none}
+.exp.open .exp-b{display:block}
+.exp-b .in{padding:0 0 16px 26px}
+.exp-b p{color:var(--muted);line-height:1.6;font-size:15px}
+.exp.dim{opacity:.36}
+.auto-note{display:inline-block;margin-top:10px;font-size:var(--font-size-sm);
+  color:var(--on-accent-container);background:var(--accent-container);
+  border-radius:var(--radius-sm);padding:4px 12px}
+.quiet{position:relative;z-index:1;padding:10px 30px;font-size:var(--font-size-sm);
+  color:var(--muted);display:flex;align-items:center;gap:var(--space-2);flex:none}
+.dot{width:8px;height:8px;border-radius:50%;flex:none}
+
+/* ═══ Listes génériques ═══ */
+.body{position:relative;z-index:1;flex:1;overflow-y:auto;padding:0 24px 24px}
+.body-in{max-width:840px;margin:0 auto}
+.sec-h{display:flex;align-items:center;gap:12px;margin:24px 0 10px}
+.sec-h h3{font-size:var(--font-size-sm);color:var(--muted);font-weight:500}
+.sec-h .l{flex:1;height:1px;background:var(--outline-var)}
+.row{display:flex;align-items:center;gap:16px;background:var(--surface);
+  border-radius:var(--radius-md);padding:14px 18px;margin-bottom:8px;
+  transition:background .16s ease}
+.row:hover{background:var(--surface-hi)}
+.row .nm{font-weight:500}
+.row .meta{font-size:var(--font-size-sm);color:var(--muted)}
+.row .sp{flex:1}
+.bar{height:4px;width:110px;background:var(--surface-hi);border-radius:var(--radius-pill);
+  overflow:hidden;flex:none}
+.bar i{display:block;height:100%;border-radius:var(--radius-pill)}
+.av{width:38px;height:38px;flex:none;border-radius:50%;display:grid;place-items:center;
+  font-weight:600;font-size:15px}
+.chip{font-size:var(--font-size-xs);padding:3px 10px;border-radius:var(--radius-pill);
+  background:var(--bg);color:var(--muted);white-space:nowrap}
+.chip.b{background:var(--accent-container);color:var(--on-accent-container)}
+.acts{display:flex;gap:2px;opacity:0;transition:opacity .16s ease}
+.row:hover .acts,.pcard:hover .acts{opacity:1}
+.acts button{width:32px;height:32px;border-radius:var(--radius-sm);display:grid;place-items:center;
+  color:var(--muted);transition:background .14s ease,color .14s ease}
+.acts button:hover{background:var(--hover-bg);color:var(--text)}
+.empty{text-align:center;padding:48px 24px;color:var(--muted)}
+.empty .big{font-size:20px;color:var(--text);font-weight:500;margin-bottom:6px}
+.set{display:flex;align-items:center;justify-content:space-between;gap:24px;padding:18px 4px;
+  border-bottom:1px solid var(--outline-var)}
+.set:last-child{border-bottom:none}
+.set .sub{font-size:var(--font-size-sm);color:var(--muted)}
+.sw{width:52px;height:32px;border-radius:var(--radius-pill);background:var(--outline-var);
+  position:relative;flex:none;cursor:pointer;transition:background .2s ease}
+.sw i{position:absolute;top:6px;left:6px;width:20px;height:20px;border-radius:50%;background:#fff;
+  transition:transform .2s cubic-bezier(.2,0,0,1),width .2s,height .2s,top .2s}
+.sw.on{background:var(--accent)}
+.sw.on i{transform:translateX(20px);width:24px;height:24px;top:4px}
+
+/* ═══ Projets ═══ */
+.pcard{background:var(--surface);border-radius:var(--radius-card);padding:18px 20px;
+  margin-bottom:10px;transition:background .16s ease,box-shadow .16s ease}
+.pcard:hover{background:var(--surface-hi);box-shadow:var(--elev-1)}
+.pcard .top{display:flex;align-items:center;gap:12px;margin-bottom:12px}
+.pcard .nm{font-weight:500;font-size:17px}
+.pcard .sp{flex:1}
+.iso{display:flex;gap:8px;flex-wrap:wrap}
+.iso span{display:flex;align-items:center;gap:7px;font-size:var(--font-size-sm);
+  color:var(--muted);background:var(--bg);border-radius:var(--radius-pill);padding:5px 14px}
+.warnbox{background:#FEF7E0;color:#5F4200;border-radius:var(--radius-md);padding:14px 18px;
+  font-size:15px;margin-bottom:16px;display:flex;gap:12px;align-items:flex-start}
+
+
+/* Le schéma n'a plus d'outils : rien à ranger, rien à basculer. */
+svg.graph{cursor:grab}
+svg.graph.pan{cursor:grabbing}
+svg.graph *{cursor:inherit}
+.node,.node *{cursor:pointer}
+.recentrer{position:absolute;right:var(--space-4);bottom:var(--space-3);z-index:3;
+  height:30px;padding:0 14px;border-radius:var(--radius-pill);background:var(--bg);
+  box-shadow:var(--elev-1);font-size:13px;font-weight:500;color:var(--muted)}
+.recentrer:hover{background:var(--surface);color:var(--text)}
+/* Le schéma se regarde, la liste se manipule. Un diagramme
+   d'avancement n'est pas un éditeur : on n'y déplace rien. */
+
+/* ═══ Terminal CLI — un lanceur, pas un émulateur ═══════════════
+   Ulysse n'exécute rien ici. Il ouvre le terminal natif d'Hermès et
+   se retire. C'est la seule fenêtre de l'application qui mène en
+   dehors d'elle, et elle le dit. */
+.term{position:relative;z-index:1;flex:1;display:flex;min-height:0;gap:var(--space-2);
+  padding:0 var(--space-4) var(--space-2) 0}
+.tside{flex:0 0 300px;background:var(--sidebar);border-radius:var(--radius-card);
+  overflow-y:auto;padding:18px}
+.tmain{flex:1;min-width:0;overflow-y:auto;padding:2px 2px 18px}
+.tmeta{font-size:var(--font-size-sm);color:var(--faint)}
+.tgrp{margin-bottom:24px}
+.tgrp h3{font-size:11.5px;letter-spacing:.5px;font-weight:600;color:var(--muted);
+  text-transform:uppercase;margin-bottom:12px}
+.tswatch{display:flex;gap:10px;flex-wrap:wrap}
+.tsw{width:44px;height:36px;border-radius:9px;cursor:pointer;position:relative;
+  box-shadow:inset 0 0 0 1px rgba(0,0,0,.14);transition:transform .14s ease}
+.tsw:hover{transform:translateY(-2px)}
+.tsw.on{box-shadow:inset 0 0 0 1px rgba(0,0,0,.14),0 0 0 2px var(--bg),0 0 0 4px var(--accent)}
+.tskill{display:flex;align-items:flex-start;gap:10px;padding:9px 0;
+  border-top:1px solid var(--outline-var);font-size:13.5px;line-height:1.45}
+.tskill:first-of-type{border-top:none}
+.tskill .sw{flex:none;margin-top:1px;transform:scale(.8);transform-origin:left center}
+.tskill code{font-family:var(--font-mono,ui-monospace,Menlo,monospace);font-size:12.5px;
+  color:var(--muted);display:block;margin-top:2px}
+.tskill.off{opacity:.5}
+.tmemo{font-size:13px;line-height:1.7}
+.tmemo div{display:flex;gap:10px;padding:4px 0}
+.tmemo code{font-family:ui-monospace,Menlo,monospace;font-size:12.5px;background:var(--surface);
+  padding:1px 7px;border-radius:5px;flex:none}
+.tmemo span{color:var(--muted)}
+
+/* L'aperçu. Sombre, parce qu'un terminal est sombre — et parce que
+   ce contraste dit qu'on quitte Ulysse. */
+.tscreen{background:#1B1B1F;border-radius:var(--radius-card);padding:20px 22px;
+  font-family:ui-monospace,Menlo,Consolas,monospace;font-size:13px;line-height:1.75;
+  color:#E3E3E6;box-shadow:var(--elev-2);min-height:230px;position:relative;overflow:hidden}
+.tscreen .dim{opacity:.5}
+.tscreen .pr{font-weight:600}
+.tscreen .cur{display:inline-block;width:8px;height:15px;vertical-align:-3px;
+  animation:blink 1.15s steps(2,start) infinite}
+@keyframes blink{to{visibility:hidden}}
+.tbar{display:flex;align-items:center;gap:8px;margin-bottom:14px}
+.tbar i{width:11px;height:11px;border-radius:50%;display:block}
+.tlaunch{display:flex;align-items:center;gap:14px;margin-top:18px;flex-wrap:wrap}
+.tbtn{height:46px;padding:0 26px;border-radius:var(--radius-pill);background:var(--text);
+  color:var(--bg);font-size:15px;font-weight:500;display:flex;align-items:center;gap:10px;
+  transition:opacity .14s ease}
+.tbtn:hover{opacity:.88}
+.tpath{font-family:ui-monospace,Menlo,monospace;font-size:12.5px;color:var(--faint)}
+
+/* ═══ Vestiaire — grille + détail, plus de cascade ═══ */
+.vest{position:relative;z-index:1;flex:1;display:flex;min-height:0;gap:var(--space-2);
+  padding:0 var(--space-4) var(--space-2) 0}
+.vmain{flex:1;min-width:0;display:flex;flex-direction:column}
+.vmeta{font-size:var(--font-size-sm);color:var(--muted);padding:0 4px 10px}
+.vgrid{flex:1;min-height:0;overflow-y:auto;display:grid;
+  grid-template-columns:repeat(auto-fill,minmax(212px,1fr));gap:10px;align-content:start;padding:2px}
+.tile{background:var(--surface);border-radius:var(--radius-card);padding:16px;cursor:pointer;
+  display:flex;flex-direction:column;gap:9px;min-height:132px;
+  transition:background .16s ease,box-shadow .16s ease}
+.tile:hover{background:var(--surface-hi);box-shadow:var(--elev-1)}
+.tile.sel{background:var(--accent-container);color:var(--on-accent-container)}
+.tile .hd{display:flex;align-items:center;gap:10px}
+.tile .tn{font-weight:500;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.tile .rl{font-size:var(--font-size-sm);color:var(--muted);line-height:1.4;flex:1}
+.tile.sel .rl{color:var(--on-accent-container);opacity:.75}
+.tile .ft{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+.stack{display:flex;align-items:center}
+.stack .av{width:28px;height:28px;font-size:12px;margin-left:-9px;box-shadow:0 0 0 2px var(--surface)}
+.stack .av:first-child{margin-left:0}
+.tile:hover .stack .av,.tile.sel .stack .av{box-shadow:0 0 0 2px var(--surface-hi)}
+.vdet{flex:0 0 330px;background:var(--sidebar);border-radius:var(--radius-card);
+  display:flex;flex-direction:column;overflow:hidden}
+.vdet-head{height:46px;flex:none;display:flex;align-items:center;gap:8px;padding:0 8px 0 18px}
+.vdet-head .vt{font-size:var(--font-size-sm);color:var(--muted);font-weight:500;flex:1}
+.vdet-body{flex:1;overflow-y:auto;padding:0 18px 18px}
+.vhero{display:flex;align-items:center;gap:14px;padding:6px 0 16px}
+.vhero .av{width:52px;height:52px;font-size:20px}
+.vhero .n{font-weight:500;font-size:18px}
+.search{display:flex;align-items:center;gap:8px;background:var(--surface);
+  border-radius:var(--radius-pill);padding:0 16px;height:40px;width:210px}
+.search input{flex:1;font-size:14px;min-width:0}
+
+
+/* ═══════════ DIRE NON — trou 10 ═══════════
+   Le refus n'est pas UN bouton, c'est un dégradé. Retirer une étape,
+   la reprendre à la main, reprendre le plan entier. Et la validation
+   n'est plus un clic : elle annonce ce qui devient irréversible. */
+.dirty{display:flex;align-items:center;gap:8px;font-size:14px;color:var(--muted);
+  background:var(--surface);border-radius:var(--radius-pill);padding:5px 6px 5px 16px}
+.dirty b{color:var(--text);font-weight:500}
+.dirty button{font-size:14px;font-weight:500;color:var(--accent);padding:5px 12px;
+  border-radius:var(--radius-pill);transition:background .14s ease}
+.dirty button:hover{background:var(--hover-bg)}
+
+/* ═══ Le détail se lit, il ne se manipule qu'à la demande ═══════
+   Trois boutons par étape, sur douze étapes, faisaient trente-six
+   objets à côté d'un texte qu'on venait lire. Les actions ne
+   disparaissent pas — elles attendent d'être demandées.
+
+     Ce qu'on vient faire ici, c'est COMPRENDRE. Agir vient après,
+     et ne doit pas encombrer avant.
+
+   Le point de sortie est un bouton nommé (survol et lecteur
+   d'écran), jamais une icône muette pour une action irréversible :
+   « Retirer » garde son mot une fois le pli ouvert. */
+/* Le kebab reste visible. Il l'était au survol seulement, et c'est
+   la troisième fois que Raf ne le trouve pas.
+
+     Une commande qu'il faut découvrir pour s'en servir n'est pas
+     discrète, elle est cachée.
+
+   Un glyphe gris de 32 px par ligne coûte infiniment moins cher que
+   les trois boutons qu'il remplace — l'encombrement qu'on voulait
+   retirer, c'étaient eux. */
+.dots{flex:none;width:32px;height:32px;border-radius:var(--radius-pill);
+  display:grid;place-items:center;color:var(--faint);
+  transition:background .14s ease,color .14s ease}
+.dots:hover{background:var(--hover-bg);color:var(--text)}
+.exp.exp-acts .dots{background:var(--surface);color:var(--text)}
+.exp.rem .dots{display:none}
+.dots:hover{background:var(--hover-bg);color:var(--text)}
+.exp.exp-acts .dots{color:var(--text);background:var(--surface)}
+/* Même traitement, même raison : présentes ou absentes, jamais
+   à moitié. Un plafond de 120 px suffisait à trois boutons sur une
+   ligne — et les coupait dès qu'ils passaient à deux lignes dans un
+   volet étroit. */
+.sactions{display:none;gap:6px;flex-wrap:wrap;margin-top:14px}
+.exp.exp-acts .sactions{display:flex}
+/* Une étape retirée n'a qu'un seul geste possible : le défaire.
+   Le cacher derrière un menu serait cacher la sortie. */
+.exp.rem .sactions{display:flex}
+.sactions button{display:flex;align-items:center;gap:7px;height:34px;padding:0 14px;
+  min-width:0;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+  border-radius:var(--radius-pill);border:1px solid var(--outline-var);
+  font-size:14px;font-weight:500;color:var(--muted);
+  transition:background .14s ease,color .14s ease,border-color .14s ease}
+.sactions button:hover{background:var(--hover-bg);color:var(--text)}
+.sactions button.danger:hover{background:#FCE8E6;color:#B3261E;border-color:#F2B8B5}
+.exp.rem .exp-h .t{text-decoration:line-through;color:var(--muted)}
+
+.node.off .b{fill:var(--surface);stroke-dasharray:5 4;stroke-width:1.4}
+.node.off .num,.node.off .cap{opacity:.4}
+.node.off .cap{text-decoration:line-through}
+
+/* Feuille modale M3 : rayon 28, fond assombri, deux actions à droite. */
+.sheet-bg{position:fixed;inset:0;background:rgba(0,0,0,.32);z-index:60;
+  display:none;place-items:center;padding:24px}
+.sheet-bg.on{display:grid}
+.sheet{background:var(--bg);border-radius:var(--radius-lg);padding:26px 26px 20px;
+  width:min(560px,100%);max-height:88vh;overflow-y:auto;box-shadow:var(--elev-3);
+  animation:rise .28s cubic-bezier(.2,0,0,1) both}
+.sheet h2{font-size:22px;font-weight:400;margin-bottom:6px}
+.sheet .sub{color:var(--muted);font-size:15px;margin-bottom:18px}
+.sheet .free{display:flex;align-items:center;gap:8px;margin-top:12px;background:var(--surface);
+  border-radius:var(--radius-pill);padding:6px 6px 6px 18px}
+.sheet .free input{flex:1;font-size:15px;padding:9px 0}
+.sheet-acts{display:flex;justify-content:flex-end;gap:8px;margin-top:22px;
+  align-items:center;flex-wrap:wrap}
+
+/* Montrer l'écart plutôt que le décrire. Deux lignes côte à côte :
+   ce qu'on obtient sans profil, ce qu'on obtient avec. C'est le seul
+   argument qui n'a pas besoin d'être cru. */
+.ex2{display:flex;flex-direction:column;gap:7px;margin:12px 0 10px}
+.exl{position:relative;padding:9px 13px 9px 15px;border-radius:0 8px 8px 0;
+  background:var(--bg);border-left:3px solid var(--outline-var);
+  font-size:13.5px;line-height:1.5;color:var(--muted)}
+.exl b{color:var(--text);font-weight:600}
+.exl i{color:var(--faint)}
+.exl.on{border-left-color:var(--accent);color:var(--text)}
+
+/* ═══ La fiche d'une étape ═══════════════════════════════════════
+   Un peu plus large qu'une feuille de décision : elle n'attend pas
+   une réponse, elle répond. */
+.fiche{width:min(600px,100%);padding:22px 24px 18px}
+.fhd{display:flex;align-items:flex-start;gap:14px}
+.fnum{flex:none;width:34px;height:34px;border-radius:50%;display:grid;place-items:center;
+  font-weight:600;font-size:15px;color:var(--c);
+  box-shadow:inset 0 0 0 2px var(--c);background:color-mix(in srgb,var(--c) 9%,transparent)}
+.ftt{flex:1;min-width:0;display:flex;flex-direction:column;gap:3px}
+.fti{font-size:20px;line-height:1.25}
+.fsub{display:flex;align-items:center;gap:10px;flex-wrap:wrap;font-size:12px}
+.feq,.fau{letter-spacing:.4px;font-weight:600}
+.fau{color:var(--faint)}
+.fet{padding:2px 9px;border-radius:var(--radius-pill);background:var(--surface);color:var(--muted)}
+.fet-run{background:#FEF7E0;color:#7A5900}
+.fet-done{background:#E6F4EA;color:#0B5F2A}
+.fet-off{text-decoration:line-through}
+.fx{flex:none;width:34px;height:34px;border-radius:50%;display:grid;place-items:center;
+  color:var(--muted)}
+.fx:hover{background:var(--hover-bg);color:var(--text)}
+.fbar{height:4px;border-radius:2px;background:var(--outline-var);margin:16px 0 0;overflow:hidden}
+.fbar i{display:block;height:100%;border-radius:2px}
+.fdesc{margin-top:16px;color:var(--text);line-height:1.55}
+.fgrid{margin-top:6px}
+.fl{display:flex;gap:16px;padding:11px 0;border-top:1px solid var(--outline-var);
+  font-size:14px;line-height:1.5}
+.fk{flex:0 0 152px;color:var(--muted)}
+.fv{flex:1;min-width:0}
+.fmanque{color:#B3261E}
+.fsv.ko{color:#B3261E;font-weight:500}
+.fdeh{color:#7A5900;background:#FEF7E0;padding:2px 8px;border-radius:6px}
+.frec{color:var(--muted);font-size:13px}
+/* Les étapes voisines sont cliquables : on circule dans le plan
+   sans repasser par le schéma. */
+.pastille{display:inline-flex;align-items:center;height:28px;padding:0 12px;
+  border-radius:var(--radius-pill);background:var(--surface);font-size:13px;
+  margin:2px 4px 2px 0;transition:background .14s ease}
+.pastille:hover{background:var(--surface-hi)}
+.danger-txt{color:#B3261E}
+.danger-txt:hover{background:#FCE8E6}
+.txt-btn{height:40px;padding:0 20px;border-radius:var(--radius-pill);font-size:14px;
+  font-weight:500;color:var(--accent);transition:background .14s ease}
+.txt-btn:hover{background:var(--accent-bg)}
+.lockline{display:flex;gap:14px;align-items:flex-start;padding:14px 0;
+  border-bottom:1px solid var(--outline-var)}
+.lockline:last-of-type{border-bottom:none}
+.lockline .k{font-weight:500}
+.lockline .v{color:var(--muted);font-size:15px}
+.irrev{background:#FEF7E0;color:#5F4200;border-radius:var(--radius-md);padding:14px 18px;
+  font-size:15px;margin-top:16px;display:flex;gap:12px;align-items:flex-start}
+
+
+/* ═══ Supprimer sans détruire ═══
+   Deux régimes, et un seul principe : rien ne disparaît d'un geste.
+   · Ce qui se refait (un agent, une équipe) part sur place, avec un
+     « Annuler » qui reste six secondes sous les yeux.
+   · Ce qui porte des données (un projet et son coffre) va à la
+     corbeille, et y reste.
+   La destruction définitive n'existe qu'à un seul endroit, et se
+   confirme. C'est le seul écran de l'application qui demande deux fois. */
+.snack{position:fixed;left:50%;bottom:26px;transform:translateX(-50%) translateY(18px);
+  background:#322F35;color:#F4EFF4;border-radius:var(--radius-sm);padding:0 8px 0 18px;
+  min-height:48px;display:flex;align-items:center;gap:18px;font-size:14px;
+  box-shadow:var(--elev-3);z-index:80;opacity:0;pointer-events:none;
+  transition:opacity .22s ease,transform .22s cubic-bezier(.2,0,0,1)}
+.snack.on{opacity:1;transform:translateX(-50%);pointer-events:auto}
+.snack button{color:#D3E3FD;font-weight:500;padding:9px 12px;border-radius:var(--radius-sm)}
+.snack button:hover{background:rgba(255,255,255,.09)}
+.trashbtn{display:flex;align-items:center;gap:8px;height:40px;padding:0 16px;
+  border-radius:var(--radius-pill);font-size:14px;font-weight:500;color:var(--muted);
+  transition:background .15s ease,color .15s ease}
+.trashbtn:hover{background:var(--hover-bg);color:var(--text)}
+.trashbtn.on{background:var(--surface);color:var(--text)}
+.pcard.gone{opacity:.6}
+.pcard.gone .nm{text-decoration:line-through}
+.dangerlink{color:#B3261E;font-weight:500;font-size:14px;padding:7px 14px;
+  border-radius:var(--radius-pill);transition:background .14s ease}
+.dangerlink:hover{background:#FCE8E6}
+.trashnote{display:flex;gap:12px;align-items:flex-start;background:var(--surface);
+  border-radius:var(--radius-md);padding:14px 18px;font-size:15px;color:var(--muted);
+  margin-bottom:16px}
+
+
+/* ═══════════ NOTIFICATIONS ═══════════
+   Une règle, et tout en découle :
+
+     Ce qui demande une décision ne disparaît JAMAIS tout seul.
+     Ce qui informe ne reste JAMAIS.
+
+   D'où deux véhicules. La bulle passagère en haut à droite pour ce
+   qui informe ; le compteur du menu, qui bat doucement, pour ce qui
+   attend une réponse. Le second ne s'éteint que par une réponse. */
+.bellbtn{position:relative;height:46px;border-radius:var(--radius-pill);display:flex;
+  align-items:center;gap:14px;padding:0 16px;color:var(--faint);width:100%;
+  transition:background .2s ease,color .2s ease}
+.bellbtn:hover{background:var(--hover-bg);color:var(--text)}
+.bellbtn .lbl{font-size:15px;white-space:nowrap;color:var(--muted);transition:opacity .16s ease}
+.railwrap.mini .bellbtn .lbl{opacity:0}
+.railwrap.mini.open .bellbtn .lbl{opacity:1}
+.bellbtn .ic{flex:none;width:22px;display:grid;place-items:center;position:relative}
+.badge{position:absolute;top:6px;left:24px;min-width:18px;height:18px;padding:0 5px;
+  border-radius:var(--radius-pill);background:var(--amber);color:#fff;font-size:11px;
+  font-weight:500;display:grid;place-items:center;line-height:1}
+.badge.dec{background:var(--accent);animation:ring 2.6s ease-out infinite}
+@keyframes ring{0%{box-shadow:0 0 0 0 rgba(11,87,208,.5)}
+  70%{box-shadow:0 0 0 9px rgba(11,87,208,0)}100%{box-shadow:0 0 0 0 rgba(11,87,208,0)}}
+@keyframes shake{0%,100%{transform:rotate(0)}14%{transform:rotate(-13deg)}
+  28%{transform:rotate(11deg)}42%{transform:rotate(-8deg)}56%{transform:rotate(6deg)}
+  70%{transform:rotate(-3deg)}}
+.bellbtn.ring .ic svg{animation:shake .72s ease}
+.raildot{width:6px;height:6px;border-radius:50%;background:var(--accent);
+  margin-left:auto;flex:none}
+
+.npanel{position:fixed;bottom:22px;width:394px;max-height:72vh;overflow-y:auto;
+  background:var(--bg);border-radius:var(--radius-card);box-shadow:var(--elev-3);
+  padding:8px;z-index:70;display:none}
+.npanel.on{display:block;animation:rise .24s cubic-bezier(.2,0,0,1) both}
+.ngroup{font-size:var(--font-size-xs);color:var(--muted);font-weight:500;
+  padding:12px 14px 6px;display:flex;align-items:center;gap:8px}
+.ngroup .l{flex:1;height:1px;background:var(--outline-var)}
+.nrow{display:flex;gap:12px;padding:12px 14px;border-radius:var(--radius-md);
+  transition:background .14s ease;cursor:pointer}
+.nrow:hover{background:var(--surface)}
+.nic{width:36px;height:36px;border-radius:50%;display:grid;place-items:center;flex:none}
+.nt{font-weight:500;font-size:15px}
+.nx{font-size:14px;color:var(--muted);line-height:1.45;margin-top:2px}
+.nmeta{font-size:var(--font-size-xs);color:var(--faint);margin-top:6px;
+  display:flex;gap:7px;align-items:center;flex-wrap:wrap}
+.nmeta .o{color:var(--muted);font-weight:500}
+.nacts{display:flex;gap:6px;margin-top:11px}
+.nacts button{height:34px;padding:0 16px;border-radius:var(--radius-pill);font-size:14px;
+  font-weight:500;transition:background .14s ease}
+.nacts .yes{background:var(--accent);color:#fff}
+.nacts .yes:hover{background:var(--accent-hover)}
+.nacts .no{border:1px solid var(--outline-var);color:var(--muted)}
+.nacts .no:hover{background:var(--hover-bg);color:var(--text)}
+
+.toasts{position:fixed;top:16px;right:16px;z-index:75;display:flex;flex-direction:column;
+  gap:10px;width:352px;pointer-events:none}
+.toast{background:var(--bg);border-radius:var(--radius-card);box-shadow:var(--elev-3);
+  padding:14px 16px;display:flex;gap:12px;pointer-events:auto;
+  transform:translateX(24px) scale(.97);opacity:0;
+  transition:transform .34s cubic-bezier(.2,0,0,1),opacity .28s ease}
+.toast.on{transform:none;opacity:1}
+
+/* ═══════════ AUTOMATISATIONS ═══════════
+   Ce ne sont pas des travaux : un travail a un début et une fin, une
+   automatisation tourne en boucle. Et surtout, elle n'a AUCUN agent
+   derrière — c'est une mécanique, pas un jugement (décision 5). */
+.arow{display:flex;gap:16px;align-items:flex-start;background:var(--surface);
+  border-radius:var(--radius-card);padding:16px 20px;margin-bottom:8px;
+  transition:background .16s ease}
+.arow:hover{background:var(--surface-hi)}
+.arow .amain{flex:1;min-width:0}
+.arow .an{font-weight:500}
+.arow .aq{font-size:var(--font-size-sm);color:var(--muted);margin-top:3px}
+.arow .ameta{display:flex;gap:8px;align-items:center;margin-top:9px;flex-wrap:wrap}
+.nomind{display:inline-flex;align-items:center;gap:7px;font-size:var(--font-size-xs);
+  color:var(--muted);background:var(--bg);border-radius:var(--radius-pill);padding:4px 12px}
+
+
+/* ═══════════ RÉGLER UNE AUTOMATISATION ═══════════
+   Deux horaires distincts, et c'est la nuance qui compte :
+   QUAND ça tourne, et QUAND vous recevez le résultat. Une sauvegarde
+   peut tourner à 3 h du matin et ne vous être livrée que le lundi. */
+.acard{background:var(--surface);border-radius:var(--radius-card);margin-bottom:8px;
+  overflow:hidden;transition:background .16s ease}
+.acard:hover{background:var(--surface-hi)}
+.acard.open{background:var(--surface-hi)}
+.ahead{display:flex;gap:16px;align-items:flex-start;padding:16px 20px;cursor:pointer}
+.ahead .chev{color:var(--muted);flex:none;display:grid;place-items:center;margin-top:2px;
+  transition:transform .24s cubic-bezier(.2,0,0,1)}
+.acard.open .ahead .chev{transform:rotate(180deg)}
+.abody{max-height:0;overflow:hidden;transition:max-height .34s cubic-bezier(.2,0,0,1)}
+.acard.open .abody{max-height:620px}
+.abody .in{padding:4px 20px 20px 20px;border-top:1px solid var(--outline-var);margin-top:2px}
+.srow{display:flex;align-items:center;gap:16px;padding:15px 0;
+  border-bottom:1px solid var(--outline-var)}
+.srow:last-child{border-bottom:none}
+.srow .sk{width:168px;flex:none;font-weight:500;font-size:15px}
+.srow .sk .sub{display:block;font-weight:400;font-size:var(--font-size-xs);color:var(--muted)}
+.srow .sv{flex:1;display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.day{width:34px;height:34px;border-radius:50%;border:1px solid var(--outline-var);
+  font-size:13px;font-weight:500;color:var(--muted);display:grid;place-items:center;
+  transition:background .14s ease,color .14s ease,border-color .14s ease}
+.day:hover{background:var(--hover-bg)}
+.day.on{background:var(--accent-container);color:var(--on-accent-container);border-color:transparent}
+.tinput{height:38px;border-radius:var(--radius-sm);border:1px solid var(--outline-var);
+  padding:0 12px;background:var(--bg);font-size:15px;color:var(--text)}
+.btn-pick{height:34px;padding:0 15px;border-radius:var(--radius-pill);
+  border:1px solid var(--outline-var);font-size:14px;font-weight:500;color:var(--muted);
+  transition:background .14s ease,color .14s ease,border-color .14s ease}
+.btn-pick:hover{background:var(--hover-bg)}
+.btn-pick.on{background:var(--accent-container);color:var(--on-accent-container);border-color:transparent}
+.nextline{display:flex;align-items:center;gap:10px;margin-top:16px;font-size:14px;
+  color:var(--on-accent-container);background:var(--accent-container);
+  border-radius:var(--radius-sm);padding:10px 15px}
+
+/* ═══════════ RELANCER UN PROJET ═══════════
+   Le menu vit dans l'encart du projet, pas dans une barre d'outils
+   au loin : on relance là où on lit l'état. */
+.relaunch{position:relative;margin-left:auto}
+.rbtn{display:flex;align-items:center;gap:8px;height:36px;padding:0 16px;
+  border-radius:var(--radius-pill);border:1px solid var(--outline-var);
+  font-size:14px;font-weight:500;transition:background .14s ease}
+.rbtn:hover{background:var(--hover-bg)}
+.rmenu{position:absolute;right:0;top:44px;min-width:288px;background:var(--bg);
+  border-radius:var(--radius-md);box-shadow:var(--elev-3);padding:8px;z-index:30;display:none}
+.rmenu.on{display:block;animation:rise .2s cubic-bezier(.2,0,0,1) both}
+.rmenu button{width:100%;display:flex;gap:12px;align-items:flex-start;padding:11px 14px;
+  border-radius:var(--radius-sm);font-size:15px;transition:background .14s ease}
+.rmenu button:hover{background:var(--hover-bg)}
+.rmenu .sub{font-size:var(--font-size-xs);color:var(--muted);display:block;margin-top:2px}
+.rmenu .sep{height:1px;background:var(--outline-var);margin:6px 10px}
+
+
+/* ═══════════════════════════════════════════════════════════════════
+   LE DÉGRAISSAGE
+
+   Douze passes d'ajouts, aucune de retrait : il fallait s'y attendre.
+   Rien n'est supprimé ici — pas une information, pas une fonction.
+   C'est l'emballage qui part.
+
+   Trois principes, et un seul en fait le tour :
+
+     UN FOND SIGNALE UN OBJET. UNE LISTE N'EST PAS UN OBJET.
+
+   1. Les pastilles redeviennent du texte. Une pastille, c'est un
+      fond + un rayon + deux marges pour UN mot. Le même mot en gris
+      se lit aussi vite et pèse trois fois moins.
+   2. Les bandeaux d'explication perdent leur fond. Ils disent quelque
+      chose d'utile une fois ; ils n'ont pas à occuper un bloc coloré
+      à chaque visite.
+   3. Les listes perdent leur carte. Un filet suffit à séparer deux
+      lignes ; un fond gris par ligne, c'est un emballage plus lourd
+      que son contenu.
+
+   Ce qui GARDE son fond : ce sur quoi on agit — la boîte de réponse,
+   la carte du plan, les tuiles d'agent, les options. Un objet qu'on
+   clique a le droit d'avoir une surface.
+   ═══════════════════════════════════════════════════════════════════ */
+
+/* 1 · Les pastilles redeviennent du texte */
+[data-d="epure"] .chip{background:none;color:var(--muted);padding:0;font-size:13px}
+[data-d="epure"] .chip.b{color:var(--accent)}
+[data-d="epure"] .chip+.chip::before{content:'·';margin-right:9px;color:var(--outline-var)}
+[data-d="epure"] .nomind{background:none;padding:0;color:var(--faint);font-size:12.5px}
+[data-d="epure"] .nomind svg{display:none}
+[data-d="epure"] .iso span{background:none;padding:0;font-size:13px}
+[data-d="epure"] .iso{gap:20px}
+[data-d="epure"] .auto-note{background:none;padding:0;color:var(--muted);font-size:13.5px}
+[data-d="epure"] .nextline{background:none;padding:10px 0 0;color:var(--muted)}
+[data-d="epure"] .nextline svg{display:none}
+[data-d="epure"] .nextline b{color:var(--text);font-weight:500}
+
+/* 2 · Les bandeaux d'explication perdent leur fond */
+[data-d="epure"] .warnbox,[data-d="epure"] .trashnote{background:none;padding:0 2px;
+  color:var(--muted);font-size:13.5px;margin-bottom:20px;gap:0}
+[data-d="epure"] .warnbox svg,[data-d="epure"] .trashnote svg{display:none}
+[data-d="epure"] .warnbox b,[data-d="epure"] .trashnote b{color:var(--text);font-weight:500}
+
+/* 3 · Les listes perdent leur carte, gardent un filet */
+[data-d="epure"] .row,[data-d="epure"] .acard,[data-d="epure"] .pcard{
+  background:none;border-radius:0;box-shadow:none;margin-bottom:0;
+  border-bottom:1px solid rgba(31,31,31,.07)}
+[data-d="epure"] .row:hover,[data-d="epure"] .acard:hover,
+[data-d="epure"] .pcard:hover,[data-d="epure"] .acard.open{background:var(--surface)}
+[data-d="epure"] .row{padding:15px 14px}
+[data-d="epure"] .pcard{padding:17px 14px}
+[data-d="epure"] .ahead{padding:15px 14px}
+[data-d="epure"] .abody .in{border-top:none;padding:0 14px 18px}
+
+/* 4 · Le Studio : une seule surface au lieu de deux volets posés */
+[data-d="epure"] .volet,[data-d="epure"] .etabli,[data-d="epure"] .vdet{background:none}
+[data-d="epure"] #vReader,[data-d="epure"] .vdet,[data-d="epure"] .etabli{
+  border-left:1px solid rgba(31,31,31,.09);border-radius:0}
+[data-d="epure"] .studio,[data-d="epure"] .vest,[data-d="epure"] .work{gap:0}
+
+/* 5 · Les barres se resserrent — le titre est déjà dans le menu */
+[data-d="epure"] .topbar{height:54px}
+[data-d="epure"] .topbar .title{font-size:19px}
+[data-d="epure"] .volet-head,[data-d="epure"] .etabli-head,
+[data-d="epure"] .vdet-head{height:38px}
+[data-d="epure"] .sec-h{margin:22px 0 4px}
+
+/* 6 · Ce qui garde un fond s'allège, mais le garde */
+[data-d="epure"]{--surface:#F6F8FA;--surface-hi:#EFF2F6}
+[data-d="epure"] .plan-card:hover,[data-d="epure"] .opt:hover,
+[data-d="epure"] .tile:hover{box-shadow:none}
+[data-d="epure"] .tile{min-height:122px}
+
+/* 7 · Plus de fond pour les fichiers de l'établi */
+[data-d="epure"] .file{background:none;border-bottom:1px solid rgba(31,31,31,.07);
+  border-radius:0;margin:0;padding:12px 4px}
+
+/* L'interrupteur — hors produit, comme la note du bas. */
+.zz-mort-densbtn,.zz-mort-replay{position:fixed;bottom:6px;z-index:90;font-size:11.5px;color:var(--faint);
+  padding:4px 11px;border-radius:var(--radius-pill);border:1px solid var(--outline-var);
+  background:var(--bg);opacity:.55;transition:opacity .14s ease,background .14s ease}
+.zz-mort-densbtn:hover,.zz-mort-replay:hover{opacity:1;background:var(--surface)}
+.zz-mort-densbtn{right:16px}
+
+
+/* ═══════════════════════════════════════════════════════════════════
+   L'ESSAI À BLANC
+
+   Le moteur sait déjà le faire : `dispatch_once(conn, dry_run=True)`.
+   Le pont web l'expose même en paramètre d'URL. Il ne manquait qu'un
+   bouton — et une façon de montrer le résultat.
+
+   Le principe : l'essai annote le plan lui-même. On ne lit pas un
+   rapport à côté, on voit sur le schéma ce qui passerait et ce qui
+   coincerait. Le diagnostic est au même endroit que l'objet.
+
+   Trois verdicts, pas plus — c'est la même échelle que les marqueurs
+   d'état, et ce n'est pas un hasard : vert, orange, rouge.
+   ═══════════════════════════════════════════════════════════════════ */
+.drybar{display:flex;align-items:center;gap:14px;flex:none;padding:10px 16px 12px 0;
+  font-size:14px;color:var(--muted);animation:rise .3s cubic-bezier(.2,0,0,1) both}
+.drybar .cnt{display:flex;align-items:center;gap:7px}
+.drybar .cnt b{color:var(--text);font-weight:500}
+.drybar .sp{flex:1}
+.drybar .lnk{color:var(--accent);font-weight:500;padding:6px 12px;
+  border-radius:var(--radius-pill);font-size:14px;transition:background .14s ease}
+.drybar .lnk:hover{background:var(--accent-bg)}
+/* L'essai à blanc pose une pastille SUR la perle : elle s'ajoute
+   à l'état d'avancement au lieu de le remplacer. */
+.node.dpret .badge{fill:var(--green)}
+.node.daccord .badge{fill:var(--amber)}
+.node.dbloque .badge{fill:#B3261E}
+/* Un blocage l'emporte sur la couleur d'équipe : c'est la seule
+   chose qui compte à ce moment-là. */
+.node.dbloque .b{stroke:#B3261E!important;stroke-width:2.4}
+.dline{display:flex;gap:9px;align-items:flex-start;margin-top:9px;font-size:14px;
+  line-height:1.45}
+.dline .dd{width:8px;height:8px;border-radius:50%;flex:none;margin-top:6px}
+.dline.pret{color:var(--muted)}
+.dline.accord{color:#5F4200}
+.dline.bloque{color:#B3261E}
+.dline a{color:var(--accent);font-weight:500;cursor:pointer;text-decoration:none}
+.dryline{display:flex;gap:12px;align-items:flex-start;padding:13px 0;
+  border-bottom:1px solid rgba(31,31,31,.08)}
+.dryline:last-of-type{border-bottom:none}
+.dryline .dd{width:9px;height:9px;border-radius:50%;flex:none;margin-top:7px}
+.dryline .dn{font-weight:500}
+.dryline .dt{font-size:14px;color:var(--muted);margin-top:2px}
+.calme{background:var(--surface);border-radius:var(--radius-md);padding:13px 16px;
+  font-size:14px;color:var(--muted);margin-top:16px}
+[data-d="epure"] .calme{background:none;padding:13px 0 0;
+  border-top:1px solid rgba(31,31,31,.08)}
+
+
+/* ═══════════ LES QUATRE RETRAITS ═══════════
+   Aucune fonction supprimée : tout reste atteignable, plus loin.
+   C'est le geste qu'on n'avait jamais fait — décider ce qui ne
+   s'affiche PAS tout de suite. */
+
+/* Les commandes de volet flottent au lieu d'occuper un en-tête.
+   Deux barres de décor en moins. */
+.ctl.float{position:absolute;top:var(--space-3);z-index:3}
+.ctl.float.gauche{left:var(--space-3)}
+.ctl.float.droite{right:var(--space-3)}
+[data-d="epure"] .volet{padding-top:8px}
+.reader-body{padding-top:12px}
+.canvas-body{padding-top:6px}
+.reader-foot{flex:none;padding:12px 22px 16px}
+.quiet-link{font-size:14px;color:var(--muted);padding:7px 12px;
+  border-radius:var(--radius-pill);transition:background .14s ease,color .14s ease}
+/* Le premier seul se recale sur la marge du texte ; les suivants
+   gardent leur cible intacte. Deux zones de clic qui se recouvrent
+   de 8 px, c'est une action prise pour une autre — et l'une des
+   deux refuse le plan. */
+.reader-foot .quiet-link:first-child{margin-left:-12px}
+.quiet-link:hover{background:var(--hover-bg);color:var(--text)}
+
+/* Le verrou en deux temps : l'essai à blanc d'abord, toujours. */
+.lockwait{margin:18px 0 4px}
+.lockwait .wait-row{display:flex;justify-content:space-between;align-items:baseline;
+  font-size:var(--font-size-sm);color:var(--muted);margin-bottom:var(--space-2)}
+.lockwait .wait-bar{height:4px;background:var(--accent-container);
+  border-radius:var(--radius-pill);overflow:hidden}
+.lockwait .wait-fill{height:100%;width:0;background:var(--accent);
+  border-radius:var(--radius-pill);transition:width .28s linear}
+
+
+/* ═══════════════════════════════════════════════════════════════════
+   LE PREMIER LANCEMENT
+
+   La règle « défauts sensés » suppose qu'il y ait des défauts. Il n'y
+   en avait aucun : ni fournisseur, ni roster de profils. Et l'écran nu
+   de la décision 7 suppose que tout soit déjà réglé.
+
+   La réponse n'est pas un assistant de configuration en six écrans.
+   C'est le contraire : **une seule question**, celle qu'Ulysse ne peut
+   pas trancher seul — la clé. Tout le reste, il l'installe, et il le
+   DIT une fois, pour qu'on sache que ça existe.
+
+   Et c'est là qu'on parle d'argent, parce que c'est le seul moment
+   honnête pour le faire : au moment où on donne la clé.
+   ═══════════════════════════════════════════════════════════════════ */
+#first{display:flex;flex-direction:column;align-items:center;justify-content:flex-start;
+  overflow-y:auto;padding:28px 20px 36px}
+#first .mark{margin-top:auto}
+#first .firstcard{margin-bottom:auto}
+#first .wash{background:
+  radial-gradient(60% 45% at 28% 8%, rgba(66,133,244,.14) 0%, transparent 62%),
+  radial-gradient(55% 45% at 62% 2%, rgba(155,114,203,.15) 0%, transparent 60%),
+  radial-gradient(50% 40% at 82% 14%, rgba(217,101,112,.12) 0%, transparent 62%)}
+.firstcard{position:relative;z-index:1;width:min(560px,calc(100vw - 48px));
+  animation:rise .4s cubic-bezier(.2,0,0,1) both}
+.firstcard h2{font-size:26px;font-weight:400;letter-spacing:-.3px;margin-bottom:6px}
+.firstcard .lead{font-size:17px;margin-bottom:16px}
+.firstcard .q{color:var(--muted);font-size:15px;line-height:1.6;margin-bottom:22px}
+.keyform{display:flex;align-items:center;gap:6px;background:var(--surface);
+  border-radius:var(--radius-lg);padding:8px 8px 8px 22px;
+  transition:background .2s ease,box-shadow .2s ease}
+.keyform:focus-within{background:var(--bg);box-shadow:var(--elev-2)}
+.keyform input{flex:1;font-size:16px;padding:12px 0}
+.keyform button{background:var(--accent);color:#fff;height:44px;padding:0 22px;
+  border-radius:var(--radius-pill);font-size:14px;font-weight:500;flex:none}
+.keyform button:hover{background:var(--accent-hover)}
+.kerr{display:flex;gap:9px;align-items:flex-start;margin-top:12px;color:#B3261E;
+  font-size:14px;line-height:1.45;animation:rise .24s cubic-bezier(.2,0,0,1) both}
+.kerr .dd{width:8px;height:8px;border-radius:50%;background:#B3261E;flex:none;margin-top:6px}
+.provs{display:flex;gap:8px;flex-wrap:wrap;margin-top:18px;align-items:center;
+  font-size:14px;color:var(--muted)}
+.provs a{color:var(--accent);font-weight:500;cursor:pointer;padding:5px 12px;
+  border-radius:var(--radius-pill);transition:background .14s ease}
+.provs a:hover{background:var(--accent-bg)}
+.cout{margin-top:20px;padding-top:16px;border-top:1px solid rgba(31,31,31,.09);
+  font-size:14px;color:var(--muted);line-height:1.55}
+.cout b{color:var(--text);font-weight:500}
+.defs{margin:6px 0 22px}
+.defl{display:flex;gap:12px;align-items:flex-start;padding:11px 0;
+  border-bottom:1px solid rgba(31,31,31,.07)}
+.defl:last-child{border-bottom:none}
+.defl .dd{width:8px;height:8px;border-radius:50%;background:var(--green);
+  flex:none;margin-top:7px}
+.defl .dd.off{background:var(--grey)}
+.defl .dn{font-weight:500}
+.defl .dt{font-size:14px;color:var(--muted);margin-top:2px}
+.zz-mort-replay{right:152px}
+.zz-mort-replay.b{right:342px}
+
+
+/* ═══════════════════════════════════════════════════════════════════
+   LES RÉGLAGES
+
+   Deux colonnes : les sections à gauche, une seule à la fois à droite.
+   C'est la même géométrie que le Vestiaire — pas de grammaire neuve.
+
+   Une règle de rédaction, partout : **le nom dit quoi, la ligne
+   dessous dit pourquoi**. Un réglage dont on ne comprend pas la
+   conséquence n'est pas un réglage, c'est un piège.
+
+   Et un mot bannï de la surface : « MCP ». On dit « vos services ».
+   Le sigle n'apparaît qu'une fois, en gris, pour ceux qui le
+   cherchent.
+   ═══════════════════════════════════════════════════════════════════ */
+.setwrap{position:relative;z-index:1;flex:1;display:flex;min-height:0}
+.setnav{flex:0 0 214px;padding:4px 12px 12px 0;display:flex;flex-direction:column;gap:2px}
+.setnav button{height:42px;border-radius:var(--radius-pill);padding:0 18px;
+  font-size:15px;color:var(--muted);display:flex;align-items:center;
+  transition:background .16s ease,color .16s ease}
+.setnav button:hover{background:var(--hover-bg);color:var(--text)}
+.setnav button.on{background:var(--pill);color:var(--text);font-weight:500;
+  transform:translateX(5px)}
+.setbody{flex:1;min-width:0;overflow-y:auto;padding:0 8px 32px 8px}
+.setbody-in{max-width:660px}
+.seth{font-size:13px;color:var(--muted);font-weight:500;letter-spacing:.2px;
+  margin:26px 0 2px;display:flex;align-items:center;gap:12px}
+.seth:first-child{margin-top:2px}
+.seth .l{flex:1;height:1px;background:rgba(31,31,31,.08)}
+.setintro{color:var(--muted);font-size:14.5px;line-height:1.55;margin:8px 0 4px}
+.srow2{display:flex;align-items:center;gap:22px;padding:17px 2px;
+  border-bottom:1px solid rgba(31,31,31,.07)}
+.srow2:last-child{border-bottom:none}
+.srow2 .txt{flex:1;min-width:0}
+.srow2 .nm{font-weight:500}
+.srow2 .sub{font-size:14px;color:var(--muted);margin-top:2px;line-height:1.5}
+.srow2 .ctlz{flex:none;display:flex;align-items:center;gap:8px}
+.tag{font-size:13px;color:var(--muted);white-space:nowrap}
+.tag.ok{color:var(--green)}
+.tag.no{color:var(--faint)}
+.btn-mini{height:34px;padding:0 16px;border-radius:var(--radius-pill);font-size:14px;
+  font-weight:500;border:1px solid var(--outline-var);color:var(--muted);
+  transition:background .14s ease,color .14s ease}
+.btn-mini:hover{background:var(--hover-bg);color:var(--text)}
+.btn-mini.prim{background:var(--accent);color:#fff;border-color:transparent}
+.btn-mini.prim:hover{background:var(--accent-hover);color:#fff}
+.qui{font-size:12.5px;color:var(--faint);margin-top:5px}
+.avert{display:flex;gap:12px;align-items:flex-start;background:#FEF7E0;color:#5F4200;
+  border-radius:var(--radius-md);padding:13px 17px;font-size:14.5px;margin:6px 0 14px}
+[data-d="epure"] .avert{background:none;padding:0;color:var(--muted);
+  margin-bottom:18px}
+[data-d="epure"] .avert svg{display:none}
+.euro{font-size:26px;font-weight:400;letter-spacing:-.5px}
+
+
+/* ═══════════════════════════════════════════════════════════════════
+   LES TROIS FICHIERS
+
+   Hermès en tient trois, et ils ne sont pas de même nature — c'est
+   toute la question de leur présentation :
+
+     user.md    — VOUS écrivez, Ulysse lit.
+     soul.md    — livré avec le produit, modifiable, mais c'est son
+                  caractère et ses limites : y toucher change ce qu'il
+                  fait.
+     memory.md  — ULYSSE écrit, vous relisez.
+
+   D'où une règle : **un fichier que la machine écrit sur vous doit
+   être lisible et effaçable par vous.** C'est le seul des trois qui
+   ait un bouton « Oublier ».
+
+   Et les noms de fichiers restent en gris, sous le nom en français.
+   Personne ne cherche « user.md » : on cherche « ce qu'il sait de
+   moi ».
+   ═══════════════════════════════════════════════════════════════════ */
+.fbloc{border-bottom:1px solid rgba(31,31,31,.07);padding:20px 2px}
+.fbloc:last-of-type{border-bottom:none}
+.fhead{display:flex;align-items:flex-start;gap:16px}
+.fhead .txt{flex:1;min-width:0}
+.fhead .nm{font-weight:500;font-size:16px}
+.fhead .fp{font-size:12.5px;color:var(--faint);font-family:ui-monospace,Menlo,monospace;
+  margin-top:1px}
+.fhead .sub{font-size:14px;color:var(--muted);margin-top:7px;line-height:1.55}
+.fqui{display:inline-flex;align-items:center;gap:7px;font-size:12.5px;color:var(--muted);
+  background:var(--surface);border-radius:var(--radius-pill);padding:4px 12px;margin-top:10px}
+[data-d="epure"] .fqui{background:none;padding:4px 0;color:var(--faint)}
+.fqui-vide{color:#B3261E}
+.edit{width:100%;min-height:280px;background:var(--surface);border-radius:var(--radius-md);
+  padding:16px 18px;font-family:ui-monospace,Menlo,"SF Mono",monospace;font-size:13.5px;
+  line-height:1.65;color:var(--text);resize:vertical;border:1px solid transparent}
+.edit:focus{outline:none;background:var(--bg);border-color:var(--outline-var)}
+.inconnu{display:inline-flex;align-items:center;gap:8px;height:32px;padding:0 14px;
+  border-radius:var(--radius-pill);background:#FEF7E0;color:#5F4200;font-size:13.5px;
+  font-weight:500;transition:background .14s ease}
+.inconnu:hover{background:#FBE9B7}
+
+
+/* ═══════════════════════════════════════════════════════════════════
+   LA DETTE DE PROFIL
+
+   L'installeur livre tout branché — y compris un user.md rempli. Mais
+   ce profil est celui de QUELQU'UN D'AUTRE. Et un profil d'emprunt est
+   plus dangereux qu'un profil vide : vide, Ulysse répond de façon
+   floue et ça se voit. Emprunté, il répond avec assurance à côté, et
+   ça ne se voit pas.
+
+   D'où trois états, pas deux :
+     absent  — rien du tout ;
+     exemple — rempli, mais pas par vous (état livré) ;
+     à vous  — vous l'avez écrit ou modifié.
+
+   Les deux premiers portent une dette. Elle ne bloque rien, ne
+   s'efface jamais toute seule, et **s'aggrave avec l'usage** — parce
+   qu'une approximation répétée coûte plus qu'une approximation isolée.
+   Un bandeau plein qu'on peut réduire, jamais fermer.
+   ═══════════════════════════════════════════════════════════════════ */
+.panelwrap{position:relative;flex:1;min-height:0}
+.dette{position:relative;z-index:4;flex:none;display:flex;align-items:center;gap:14px;
+  margin:0 var(--space-4) 0 0;padding:11px 18px;border-radius:var(--radius-md);
+  background:#FEF7E0;color:#5F4200;font-size:14.5px;line-height:1.45;
+  animation:rise .3s cubic-bezier(.2,0,0,1) both}
+.dette.rouge{background:#FCE8E6;color:#8C1D18}
+.dette .ic{flex:none;display:grid;place-items:center;opacity:.75}
+.dette .tx{flex:1;min-width:0}
+.dette b{font-weight:600}
+.dette .act{flex:none;display:flex;gap:6px}
+.dette .act button{height:32px;padding:0 15px;border-radius:var(--radius-pill);
+  font-size:14px;font-weight:500;transition:background .14s ease}
+.dette .act .go{background:#5F4200;color:#FEF7E0}
+.dette.rouge .act .go{background:#8C1D18;color:#FCE8E6}
+.dette .act .go:hover{opacity:.88}
+.dette .act .later{color:inherit;opacity:.72}
+.dette .act .later:hover{background:rgba(0,0,0,.07);opacity:1}
+/* Réduite : elle reste, mais elle ne prend plus la parole. */
+.dette.mini{padding:7px 14px;font-size:13.5px;cursor:pointer;
+  margin-bottom:0;align-self:flex-start}
+.dette.mini .act,.dette.mini .plus{display:none}
+.dette.mini:hover{filter:brightness(.97)}
+.dettewrap{padding:0 0 10px var(--space-4);display:flex;flex-direction:column}
+
+
+/* ═══════════════════════════════════════════════════════════════════
+   LES AVERTISSEMENTS, INTÉGRÉS
+
+   Les aplats ambre et rouge détonnaient — ils venaient d'un autre
+   monde que le reste de l'interface. Même erreur que l'icône noire :
+   on avait pris « important » pour « saturé ».
+
+   La règle est la même, et elle vaut maintenant partout :
+
+       UN AVERTISSEMENT, C'EST UN FILET DE COULEUR SUR UNE SURFACE
+       NEUTRE. JAMAIS UN APLAT COLORÉ.
+
+   La surface reste celle de l'application, le texte reste noir, et
+   seul un trait de 3 px porte la couleur. La gravité se lit à sa
+   teinte, pas à la surface qu'elle occupe. Un aplat crie une fois ;
+   un filet tient toute la journée.
+   ═══════════════════════════════════════════════════════════════════ */
+.dette{background:var(--surface);color:var(--text);
+  border-left:3px solid var(--amber);border-radius:0 var(--radius-md) var(--radius-md) 0}
+.dette.rouge{border-left-color:#B3261E}
+.dette .ic{color:var(--amber);opacity:1}
+.dette.rouge .ic{color:#B3261E}
+.dette .act .go{background:var(--text);color:var(--bg)}
+.dette.rouge .act .go{background:var(--text);color:var(--bg)}
+.dette .act .later{color:var(--muted);opacity:1}
+.dette.mini{background:var(--surface)}
+
+.avert,.irrev,.warnbox{background:var(--surface);color:var(--text);
+  border-left:3px solid var(--amber);border-radius:0 var(--radius-md) var(--radius-md) 0}
+
+.warnbox{border-left-color:var(--outline-var)}
+.warnbox svg{color:var(--muted)}
+[data-d="epure"] .avert,[data-d="epure"] .warnbox{background:none;border-left:none;
+  color:var(--muted);padding-left:0}
+[data-d="epure"] .dette{background:none;padding-left:14px}
+.fqui.fvide{background:var(--surface)!important;color:var(--amber)}
+
+
+/* ═══════════════════════════════════════════════════════════════════
+   LE ROUGE, AU BON ENDROIT
+
+   L'aplat criait, le filet seul ne disait plus rien. La bonne mesure
+   est entre les deux, et elle tient en deux marques :
+
+     · un POINT de couleur, avant le texte — il annonce la gravité ;
+     · le MOT qui compte, en gras, souligné de rouge, cliquable — il
+       porte l'action.
+
+   Le reste de la phrase est noir sur surface neutre. Le rouge
+   n'occupe donc que deux endroits minuscules, mais les deux seuls
+   qui comptent : ce dont il s'agit, et où aller.
+
+       LA COULEUR NE COLORE PAS LE MESSAGE — ELLE DÉSIGNE LE MOT.
+   ═══════════════════════════════════════════════════════════════════ */
+.pt{width:9px;height:9px;border-radius:50%;flex:none;margin-top:7px;background:var(--amber)}
+.pt.rouge{background:#B3261E}
+.lienr{font-weight:600;color:var(--text);cursor:pointer;
+  border-bottom:2px solid #B3261E;padding-bottom:1px;white-space:nowrap;
+  transition:background .14s ease}
+.lienr:hover{background:rgba(179,38,30,.10)}
+.liena{border-bottom-color:var(--amber)}
+.liena:hover{background:rgba(227,116,0,.12)}
+.dette{border-left:none;border-radius:var(--radius-md);align-items:flex-start;
+  padding:13px 16px}
+.dette .ic{display:none}
+.dette.mini{align-items:center;padding:8px 14px}
+.dette.mini .pt{margin-top:0}
+.avert,.irrev,.warnbox{border-left:none;border-radius:var(--radius-md)}
+.avert .pt svg,.irrev .pt svg,.dette .pt svg{display:block}
+
+
+/* ═══════════════════════════════════════════════════════════════════
+   PRÉVENIR, SANS CRIER — la forme finale
+
+   Trois marques, et pas une de plus :
+
+     · un TRIANGLE jaune, 17 px, en tête — la forme universelle de
+       l'alerte, reconnue même sans savoir lire ;
+     · le MOT surligné en jaune, gras, souligné — il se voit comme un
+       surligneur sur du papier, donc on devine qu'on peut cliquer
+       dessus avant même de survoler ;
+     · un BOUTON, à droite — parce qu'un lien dans une phrase peut
+       être manqué, et qu'on n'a pas le droit de faire dépendre le
+       rattrapage d'un détail typographique.
+
+   Le rouge ne subsiste que sur 2 px de soulignement, quand c'est
+   grave. Le reste est jaune, et le jaune n'occupe qu'un mot.
+   ═══════════════════════════════════════════════════════════════════ */
+.pt{width:auto;height:auto;border-radius:0;background:none!important;margin-top:1px;
+  display:grid;place-items:center;flex:none}
+.lienr{font-weight:600;color:var(--text);cursor:pointer;
+  background:rgba(249,171,0,.28);border-radius:3px;padding:1px 5px;
+  border-bottom:2px solid var(--amber);
+  transition:background .14s ease,border-color .14s ease}
+.lienr:hover{background:rgba(249,171,0,.52)}
+.lienr.rouge{border-bottom-color:#B3261E}
+.liena{border-bottom-color:var(--amber)}
+.liena:hover{background:rgba(249,171,0,.52)}
+.dette .act{align-self:flex-start}
+.dette .act .go{background:var(--text);color:var(--bg);font-weight:500}
+
+
+/* ═══════════════════════════════════════════════════════════════════
+   ALERTER ET AGIR SONT DEUX CHOSES
+
+   Le mot surligné en jaune ne se lisait pas comme un lien — il se
+   lisait comme une notion importante. Normal : le surlignage dit
+   « retenez ça », pas « cliquez ici ». Deux messages différents dans
+   une seule marque, donc aucun des deux.
+
+   On les sépare :
+     · le TRIANGLE jaune alerte ;
+     · le LIEN agit, et il a tous les signes d'un lien — la couleur
+       d'action de l'application, un soulignement, une graisse
+       moyenne, la typo à chasse fixe du nom de fichier, et une
+       flèche sortante.
+
+   Quatre signaux qui disent tous « clic ». Aucun ne dit « important » :
+   c'est le triangle qui s'en charge.
+   ═══════════════════════════════════════════════════════════════════ */
+.lienr{color:var(--accent);font-weight:500;cursor:pointer;background:none;
+  font-family:ui-monospace,Menlo,"SF Mono",monospace;font-size:.93em;
+  border-bottom:1.5px solid var(--accent);border-radius:0;padding:0 0 1px;
+  white-space:nowrap;transition:background .14s ease}
+.lienr::after{content:' ↗';font-family:var(--font-ui);font-size:1.05em}
+.lienr:hover{background:var(--accent-bg)}
+.lienr.rouge,.liena{border-bottom-color:var(--accent)}
+.lienr.rouge:hover,.liena:hover{background:var(--accent-bg)}
+
+
+/* ═══════════════════════════════════════════════════════════════════
+   LA REPRISE DE CONTEXTE
+
+   Le cas vécu : on dit « relance », et l'agent ne sait pas quoi
+   relancer — alors que la conversation est là, ouverte, avec tout
+   dedans. Ce n'est pas une panne de mémoire. C'est une panne d'ORDRE :
+   il est allé chercher loin sans avoir regardé près.
+
+       AVANT DE CHERCHER LOIN, RELIRE PRÈS.
+
+   Face à une demande qui suppose un contexte — « relance »,
+   « continue », « comme tout à l'heure », « ça ne marche pas » —
+   l'ordre est fixe et ne varie jamais :
+
+     1. le fil visible, celui qu'on a sous les yeux ;
+     2. le plan en cours et l'état de ses étapes ;
+     3. la dernière séance résumée ;
+     4. et seulement alors, demander.
+
+   Et il DIT ce qu'il a relu. Une reprise silencieuse est une devinette
+   déguisée : si l'on ne sait pas d'où vient sa réponse, on ne peut pas
+   corriger sa méprise.
+   ═══════════════════════════════════════════════════════════════════ */
+.relu{display:flex;gap:10px;align-items:flex-start;font-size:13.5px;color:var(--muted);
+  background:var(--surface);border-radius:var(--radius-md);padding:10px 14px;
+  margin-bottom:14px;animation:rise .3s cubic-bezier(.2,0,0,1) both}
+[data-d="epure"] .relu{background:none;padding:10px 0 0;border-top:1px solid rgba(31,31,31,.08)}
+.relu b{color:var(--text);font-weight:500}
+.relu .st{flex:none;margin-top:2px;color:var(--muted)}
+
+
+/* ═══════════════════════════════════════════════════════════════════
+   REMPLIR user.md SANS VOIR DE MARKDOWN
+
+   Une zone de texte vide devant quelqu'un qui n'a jamais écrit de
+   markdown, c'est la page blanche. Les cinq questions deviennent donc
+   cinq champs, chacun avec son invite au-dessus et **son exemple en
+   filigrane dans le champ**.
+
+       L'EXEMPLE VA DANS LE CHAMP, PAS À CÔTÉ.
+
+   Un exemple posé sous le champ se lit comme une consigne de plus. Le
+   même texte en filigrane se lit comme « voilà à quoi ressemblerait
+   votre réponse » — et il disparaît dès qu'on tape.
+
+   Le fichier reste consultable d'un lien : rien n'est caché, mais
+   personne n'est obligé de le regarder.
+   ═══════════════════════════════════════════════════════════════════ */
+.qbloc{padding:18px 0;border-bottom:1px solid rgba(31,31,31,.07)}
+.qbloc:last-of-type{border-bottom:none}
+.qn{font-weight:500;margin-bottom:4px}
+.qi{font-size:14px;color:var(--muted);line-height:1.5;margin-bottom:10px}
+.qi b{color:var(--text);font-weight:500}
+.qf{width:100%;background:var(--surface);border-radius:var(--radius-md);
+  padding:12px 15px;font-size:15px;line-height:1.55;border:1px solid transparent;
+  resize:vertical;min-height:52px;color:var(--text);font-family:var(--font-ui)}
+.qf:focus{outline:none;background:var(--bg);border-color:var(--outline-var)}
+.qf::placeholder{color:var(--faint);font-style:italic}
+.qrepondu{color:var(--green);font-size:13px;margin-left:8px;font-weight:500}
+.qprog{display:flex;align-items:center;gap:14px;margin:4px 0 18px;
+  font-size:14px;color:var(--muted)}
+.qprog .bar{flex:1;max-width:220px;height:4px;background:var(--surface-hi);
+  border-radius:var(--radius-pill);overflow:hidden}
+.qprog .bar i{display:block;height:100%;background:var(--green);
+  border-radius:var(--radius-pill);transition:width .3s ease}
+
+/* ═══ Repères ═══ */
+.fam{margin-bottom:26px}
+.fam h3{font-size:var(--font-size-sm);color:var(--muted);font-weight:500;margin-bottom:10px}
+.gl-row{display:flex;align-items:center;gap:18px;padding:13px 18px;background:var(--surface);
+  border-radius:var(--radius-md);margin-bottom:6px}
+.gl-ic{width:40px;height:40px;flex:none;border-radius:var(--radius-sm);background:var(--bg);
+  display:grid;place-items:center;color:var(--text)}
+.gl-nm{width:150px;flex:none;font-weight:500}
+.gl-rule{flex:1;font-size:var(--font-size-sm);color:var(--muted)}
+.law{background:var(--accent-container);color:var(--on-accent-container);
+  border-radius:var(--radius-md);padding:16px 20px;margin-bottom:22px;font-size:15px}
+.law b{font-weight:600}
+.dembar{position:fixed;left:0;right:0;bottom:0;z-index:5;height:34px;
+  display:flex;align-items:center;gap:10px;padding:0 16px;
+  background:rgba(255,255,255,.92);border-top:1px solid var(--outline-var);
+  backdrop-filter:blur(8px)}
+.dembar .sp{flex:1}
+.dembar .note{font-size:var(--font-size-xs);color:var(--faint);white-space:nowrap;
+  overflow:hidden;text-overflow:ellipsis}
+.dembar button{height:24px;padding:0 12px;border-radius:var(--radius-pill);flex:none;
+  font-size:12px;color:var(--muted);background:var(--surface);white-space:nowrap;
+  transition:background .14s ease,color .14s ease}
+.dembar button:hover{background:var(--surface-hi);color:var(--text)}
+/* Le contenu s'arrête au-dessus de la barre : elle ne recouvre rien. */
+#app,#lvl1,#first{padding-bottom:34px}
+
+/* ═══ Régression de la décision 19, trouvée par l'audit sur images ══
+   Le bandeau de dette est entièrement rouge sur les 27 captures du
+   lot 4c. À 760 px il occupe trois lignes pleines en haut de l'écran.
+
+     LA COULEUR NE COLORE PAS LE MESSAGE — ELLE DÉSIGNE LE MOT.
+
+   Ce n'est pas neuf : la correction avait été faite une première
+   fois, puis **perdue quand le texte a été réécrit** pour le rendre
+   plus concret. Une règle qui vit dans une chaîne de caractères se
+   perd à la première réécriture de cette chaîne.
+
+   Posé ici, en fin de feuille, volontairement : après quatre passes
+   perdues aujourd'hui à raffiner des cascades, on choisit ce qui ne
+   peut pas être défait par une règle écrite plus haut.
+   ═══════════════════════════════════════════════════════════════ */
+.dette,.dette.rouge{color:var(--text)}
+.dette .tx{color:var(--text)}
+/* Ce qui garde le droit à la couleur : le triangle qui alerte, et le
+   mot qui mène quelque part. Deux objets, pas une phrase. */
+.dette .pt{color:var(--amber)}
+.dette.rouge .pt{color:#B3261E}
+.dette .tx b{color:var(--text)}
+
+</style>
+
+<style>
+/* Ce que le produit ajoute aujourd'hui (repris de ulysse.html). */
+.u-todo{border:1px dashed var(--outline-var);border-radius:var(--radius-card);
+  padding:18px;color:var(--muted);font-size:var(--font-size-sm);max-width:620px;
+  line-height:1.6;margin:12px 0}
+.u-todo b{color:var(--text);font-weight:500}
+.u-todo code{background:var(--surface);border-radius:6px;padding:1px 6px;
+  font-size:var(--font-size-xs)}
+.u-raw{white-space:pre-wrap;word-break:break-word;background:var(--surface);
+  border-radius:var(--radius-md);padding:12px;font-size:var(--font-size-xs);
+  max-height:380px;overflow:auto;max-width:900px}
+.u-jrn{display:grid;gap:1px;font-size:var(--font-size-xs);max-height:38vh;overflow:auto}
+.u-jrn div{display:flex;gap:10px;padding:3px 0;border-bottom:1px solid var(--surface)}
+.u-jrn .h{color:var(--faint);flex:none;font-variant-numeric:tabular-nums}
+.u-jrn .y{color:var(--accent);flex:none;min-width:130px}
+.u-jrn .b{color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+
+/* ── Habillage de l'aperçu (rien de ceci n'ira au produit) ─────────────── */
+body{overflow:auto}
+.ap-bar{position:sticky;top:0;z-index:900;display:flex;align-items:center;gap:14px;
+  flex-wrap:wrap;padding:10px 20px;background:#1F1F1F;color:#fff;font-size:13px}
+.ap-bar .t{font-weight:500;margin-right:auto}
+.ap-bar .t span{color:#9AA0A6;font-weight:400}
+.ap-seg{display:flex;border:1px solid #5F6368;border-radius:999px;overflow:hidden}
+.ap-seg button{padding:5px 14px;font-size:12.5px;color:#DADCE0}
+.ap-seg button+button{border-left:1px solid #5F6368}
+.ap-seg button.on{background:#D3E3FD;color:#041E49;font-weight:500}
+.ap-frame{position:relative;height:calc(100vh - 46px);min-height:640px;
+  border-top:1px solid var(--outline-var);display:flex;overflow:hidden}
+.ap-frame .stage{flex:1;min-width:0;position:relative;display:flex;flex-direction:column}
+.ap-frame .panel{position:absolute;inset:0;display:flex;flex-direction:column}
+.ap-note{position:fixed;right:16px;bottom:16px;z-index:800;max-width:340px;
+  max-height:60vh;overflow:auto;background:#1F1F1F;color:#E8EAED;border-radius:14px;
+  padding:15px 17px;font-size:12.5px;line-height:1.55;box-shadow:0 4px 20px rgba(0,0,0,.4)}
+.ap-note b{color:#8AB4F8;font-weight:500}
+.ap-note h4{font-size:12.5px;color:#fff;margin:12px 0 5px}
+.ap-note ul{margin:4px 0 0 15px;padding:0}
+.ap-note li{margin-bottom:6px}
+.ap-note code{background:#3C4043;border-radius:4px;padding:1px 5px;font-size:11.5px}
+.ap-note .x{position:absolute;top:8px;right:11px;color:#9AA0A6;cursor:pointer}
+</style>
+
+<!-- ═══════════════════════════════════════════════════════════════════════
+     LA PROPOSITION. Débranchée par défaut (media="not all").
+     ═══════════════════════════════════════════════════════════════════════ -->
+<style id="propose" media="not all">
+
+/* ── 1. LES DEUX BANDEAUX DE VOLET DISPARAISSENT ─────────────────────────
+   La maquette n'avait aucun `.volet-head` dans le Plan. Le produit en a
+   ajouté deux — « Ce que fait l'agent » et « Le détail » — juste sous un
+   segment qui dit déjà « Schéma · Les deux · Détail ».
+
+   Deux titres de 46 px pour renommer ce que le bouton juste au-dessus vient
+   de nommer : 92 px de hauteur perdus sur le seul écran du produit qui a
+   vraiment besoin de place. */
+#pPlan .volet-head{display:none}
+
+/* ── 2. LE SCHÉMA CESSE D'ÊTRE UN RUBAN ──────────────────────────────────
+   C'est le vrai défaut de cet écran, et il ne se voit qu'avec de vraies
+   données. Le layout de la maquette range par couches — il était fait pour
+   un plan qui BRANCHE, avec des étapes parallèles. Or les étapes réelles
+   sont une chaîne : `edges = steps.slice(1).map(s => [s.n-1, s.n])`.
+   Une chaîne rangée par couches donne une couche par étape, donc UNE SEULE
+   LIGNE. À dix outils, le schéma fait 2300 px de large pour 74 de haut : un
+   ruban qu'on lit à la loupe, dans un cadre presque carré.
+
+   Le correctif n'est pas du CSS, c'est le rangement : replier la chaîne en
+   serpentin, rangée par rangée, comme un texte. On garde la lecture dans
+   l'ordre — gauche à droite, puis la ligne suivante — et le schéma remplit
+   son cadre au lieu de le traverser.
+
+   (Basculez sur « Proposé » avec 12 étapes pour voir la différence : c'est
+   la même donnée, le même moteur, un autre rangement.)
+
+   Ce bloc-ci ne fait que le décor ; le rangement lui-même est en JS plus
+   bas, dans serpentin(). */
+#pPlan .canvas-body{padding:0}
+
+/* ── 2 bis. LE VOLET DEVIENT UNE CARTE ───────────────────────────────────
+   Aujourd'hui le SVG se dimensionne par son contenu : le moteur pose un
+   `aspect-ratio` en style inline, et `svg.graph{width:100%;height:auto}`
+   suit. Sur un contenu très large — le ruban ci-dessus — la carte déborde
+   son volet et se fait couper des deux côtés. On voit une étape et demie
+   sur douze, sans rien pour dire qu'il y en a d'autres.
+
+   Le volet devient donc un CADRE, et le schéma une carte à l'intérieur :
+   le SVG remplit le volet, `preserveAspectRatio` fait tenir le contenu
+   dedans, et plus rien ne dépasse jamais. Le zoom et le déplacement
+   existaient déjà dans le moteur (molette autour du pointeur, tirer pour
+   déplacer) — ils n'étaient simplement pas trouvables.
+
+   Ce qui les rend trouvables : un fond qui dit « ceci est un canevas », un
+   curseur qui change, et une petite barre qui donne l'échelle. Un geste
+   qu'on ne devine pas n'existe pas. */
+#pPlan svg.graph{width:100%!important;height:100%!important;max-height:none!important;
+  aspect-ratio:auto!important;display:block}
+#pPlan .canvas-body{position:relative;display:block;overflow:hidden;
+  border-radius:var(--radius-card);
+  background-image:radial-gradient(var(--outline-var) .9px,transparent .9px);
+  background-size:22px 22px;background-position:-1px -1px}
+
+/* Les cartes prennent leur couleur (le remplissage est posé en JS, voir
+   colorier()). Le voile des terminées devient inutile : il s'ajoutait au
+   remplissage et rendait le fini plus dense que ce qui travaille — l'inverse
+   de ce qu'on veut. */
+#pPlan .node .tint{display:none}
+/* Le liseré peut alors s'alléger : la couleur est déjà dans la carte, il n'a
+   plus à la porter seul. */
+#pPlan .node .b{stroke-width:1.3}
+#pPlan .node.st-run .b{stroke-width:2}
+#pPlan .node:hover .b{filter:brightness(.97)}
+
+/* Une carte qu'on peut prendre le dit par son curseur, et le confirme en se
+   décollant du fond pendant qu'on la tient. */
+#pPlan svg.graph g.node{cursor:grab}
+#pPlan svg.graph.p-prise,
+#pPlan svg.graph.p-prise g.node{cursor:grabbing}
+#pPlan svg.graph.p-prise g.node.sel .b{filter:brightness(1.02)}
+#pPlan svg.graph.p-prise g.node.sel{filter:drop-shadow(0 3px 8px rgba(0,0,0,.22))}
+
+/* La barre d'échelle. En bas à droite, avec « Recentrer » qui s'y range :
+   trois commandes de la même famille au même endroit, plutôt qu'un bouton
+   isolé qui apparaît et disparaît. */
+#pPlan .p-cam{position:absolute;right:var(--space-4);bottom:var(--space-3);z-index:4;
+  display:flex;align-items:center;gap:2px;background:var(--bg);
+  border:1px solid var(--outline-var);border-radius:var(--radius-pill);
+  padding:3px;box-shadow:var(--elev-1)}
+#pPlan .p-cam button{width:28px;height:28px;border-radius:50%;display:grid;
+  place-items:center;color:var(--muted);font-size:15px;line-height:1}
+#pPlan .p-cam button:hover{background:var(--hover-bg);color:var(--text)}
+#pPlan .p-cam .k{min-width:44px;text-align:center;font-size:11.5px;
+  color:var(--muted);font-variant-numeric:tabular-nums;cursor:pointer}
+#pPlan .p-cam .k:hover{color:var(--text)}
+#pPlan .p-cam .p-sep{width:1px;height:18px;background:var(--outline-var);margin:0 3px}
+/* Ranger automatiquement n'est pas un réglage de vue comme les autres : il
+   remet de l'ordre. Il se distingue donc des deux loupes — sans crier. */
+#pPlan .p-cam .auto{color:var(--accent)}
+#pPlan .p-cam .auto:hover{background:var(--accent-container);
+  color:var(--on-accent-container)}
+#pPlan .p-cam .auto svg{width:17px;height:17px}
+/* Quand la caméra n'est plus à plat, le bouton le dit : c'est là qu'il sert. */
+#pPlan .p-cam.deplace .auto{background:var(--accent-container);
+  color:var(--on-accent-container)}
+/* « Recentrer » quitte son coin : il est maintenant le clic sur l'échelle. */
+#pPlan #recentrer{display:none!important}
+#pPlan .glegend{right:190px}
+
+/* ── 3. L'ÉTAT VIDE ARRÊTE DE FAIRE PEUR ─────────────────────────────────
+   Aujourd'hui l'écran vide affiche « Rien encore », puis un encadré en
+   pointillés qui parle de `display.tool_progress` et du RPC `config.set`.
+   La réserve est juste — sans ce réglage, rien n'apparaîtra jamais — mais
+   elle s'adresse à quelqu'un qui débogue, pas à quelqu'un qui attend.
+
+   Elle passe donc en seconde ligne : une phrase, et le détail technique
+   derrière un lien. Ce qui reste au premier plan, c'est ce qui va se
+   passer. */
+#pPlan .u-todo{border:none;padding:0;margin:14px 0 0;max-width:460px;
+  font-size:var(--font-size-xs);color:var(--faint)}
+#pPlan .u-todo .p-repli{display:none}
+#pPlan .u-todo.on .p-repli{display:block;margin-top:8px;line-height:1.6}
+#pPlan .u-todo .p-lien{color:var(--accent);cursor:pointer}
+#pPlan .empty{padding:0}
+#pPlan .p-vide{display:flex;flex-direction:column;align-items:center;
+  justify-content:center;height:100%;text-align:center;padding:24px}
+
+/* ── 3 bis. CHAQUE ÉTAPE DU DÉTAIL RETROUVE SON KEBAB ────────────────────
+   Ce n'est pas une invention : `.dots` et `.sactions` sont dans ulysse.css
+   depuis la maquette, avec ce commentaire —
+
+     « Le kebab reste visible. Il l'était au survol seulement, et c'est la
+       troisième fois que Raf ne le trouve pas. Une commande qu'il faut
+       découvrir pour s'en servir n'est pas discrète, elle est cachée. »
+
+   Le produit n'a repris ni l'un ni l'autre : les étapes n'ont plus aucune
+   action. On les remet, avec la même règle — le kebab est VISIBLE, en gris,
+   pas au survol. Les actions s'ouvrent sous l'étape (`.exp-acts`) au lieu
+   d'un menu flottant : elles appartiennent à la ligne, elles ne survolent
+   pas la liste.
+
+   Le double-clic sur une étape ouvre sa fiche — le même geste que le ⋯ du
+   nœud dans le schéma, pour que les deux volets se répondent. */
+#pPlan .exp-h .dots{margin-left:2px}
+#pPlan .sactions{padding-left:26px;padding-bottom:14px}
+#pPlan .exp.exp-acts{background:var(--sidebar);border-radius:var(--radius-md)}
+#pPlan .exp.exp-acts .exp-h{padding-left:10px;padding-right:6px}
+#pPlan .exp.exp-acts .sactions{padding-left:36px}
+/* Une action qui change un réglage durable ne se confond pas avec une
+   action ponctuelle : elle porte l'accent, pas le contour gris. */
+#pPlan .sactions button.regle{border-color:var(--accent-container);
+  background:var(--accent-container);color:var(--on-accent-container)}
+#pPlan .sactions button.regle:hover{background:#BFD8FB}
+
+/* ── 4. LE PIED DU DÉTAIL DIT CE QU'IL MONTRE ────────────────────────────
+   « Voir le flux brut » ouvre un journal de 38 vh sous les étapes, sans
+   qu'on sache combien de lignes arrivent ni si ça bouge encore. On lui
+   ajoute son compte — c'est ce qui distingue un miroir d'un résumé. */
+#pPlan .reader-foot .p-cpt{color:var(--faint);font-size:var(--font-size-xs);
+  margin-left:6px}
+#pPlan .u-jrn{border-top:1px solid var(--outline-var);margin-top:14px;
+  padding-top:10px}
+</style>
+</head>
+<body>
+
+<div class="ap-bar">
+  <span class="t">Aperçu — panneau <b>Plan</b>
+    <span>· vrai moteur de schéma, données figées</span></span>
+
+  <div class="ap-seg" id="apN">
+    <button data-n="0">Vide</button>
+    <button data-n="4" class="on">4 étapes</button>
+    <button data-n="12">12 étapes</button>
+  </div>
+  <div class="ap-seg" id="apVers">
+    <button data-p="0" class="on">Actuel</button>
+    <button data-p="1">Proposé</button>
+  </div>
+</div>
+
+<div class="ap-frame">
+  <div class="stage">
+
+    <div class="panel on" id="pPlan">
+      <div class="topbar">
+        <span class="title" id="pTitre">Plan</span>
+        <div class="seg stseg" id="stseg">
+          <button data-v="canvas">Schéma</button>
+          <button data-v="both" class="on">Les deux</button>
+          <button data-v="reader">Détail</button></div>
+        <span class="sep"></span>
+        <span class="tmeta" id="planMeta"></span>
+        <button class="ghost-btn" id="planStop">Interrompre</button>
+      </div>
+
+      <div class="studio" id="studio">
+        <div class="volet" id="vCanvas">
+          <div class="volet-head"><span class="vt">Ce que fait l'agent</span></div>
+          <div class="canvas-body" id="paneG">
+            <svg class="graph" viewBox="-10 -10 920 380" id="svg"></svg>
+            <button class="recentrer hidden" id="recentrer">Recentrer</button>
+            <!-- L'échelle, visible seulement en « Proposé ». Cliquer le
+                 pourcentage recentre — c'est là qu'on le cherche. -->
+            <div class="p-cam" id="pCam" style="display:none">
+              <button id="pCamM" aria-label="Dézoomer">−</button>
+              <span class="k" id="pCamK" title="Cliquer pour recentrer">100 %</span>
+              <button id="pCamP" aria-label="Zoomer">+</button>
+              <span class="p-sep"></span>
+              <!-- Ranger automatiquement : recalcule la forme du serpentin
+                   pour la forme actuelle du volet, et remet la caméra à
+                   plat. C'est le bouton qui répare tout quand on s'est
+                   perdu à force de tirer et de zoomer. -->
+              <button id="pCamAuto" class="auto"
+                      title="Ranger automatiquement (A)"
+                      aria-label="Ranger automatiquement"></button>
+            </div>
+            <div class="glegend"><i></i>Ce qui brille est en train de se faire.
+              Cliquez une étape pour la suivre, son ⋯ pour tout savoir.</div>
+          </div>
+        </div>
+        <div class="volet" id="vReader">
+          <div class="volet-head"><span class="vt">Le détail</span></div>
+          <div class="reader-body" id="steps"></div>
+          <div class="reader-foot">
+            <button class="quiet-link" id="toutbtn">Tout déplier</button>
+            <span class="sp"></span>
+            <button class="quiet-link" id="voirJrn">Voir le flux brut</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<div class="sheet-bg" id="sNode"><div class="sheet fiche" id="ficheBody"></div></div>
+
+<div class="ap-note" id="apNote">
+  <span class="x" onclick="document.getElementById('apNote').style.display='none'">✕</span>
+  <div id="apBody"></div>
+</div>
+
+<script>
+/* ══ ulysse-icons.js, recopié ══ */
+/* ============================================================================
+ * ulysse-icons.js — le jeu d'icones d'Ulysse
+ * ----------------------------------------------------------------------------
+ * EXTRAIT VERBATIM de maquette-ulysse-google-33.html (table `I` + fonction
+ * `svg()`). Chaque icone porte son nom en clair (`nm`) et sa raison d'etre
+ * (`r`) : c'est ce qui alimente le panneau Reperes. Ne pas remplacer par un
+ * jeu d'icones generique — la maquette est le produit fini.
+ * ========================================================================== */
+
+const I={
+ menu:{d:'M4 7h16M4 12h16M4 17h16',nm:'menu',
+   r:"Épingle le menu ouvert. Le survol du bord gauche suffit à le déplier — l'épingle sert à le garder."},
+ fermer:{d:'M6 6l12 12M18 6L6 18',nm:'fermer',
+   r:"Fait disparaître. Ne détruit jamais : ce qui est fermé se rouvre depuis le menu."},
+ reduire:{d:'M6 12h12',nm:'réduire',r:"Le volet reste là mais cède la place à son voisin."},
+ agrandir:{d:'M9 4H4v5M15 4h5v5M20 15v5h-5M9 20H4v-5',nm:'agrandir',
+   r:"Le volet prend toute la place. Son voisin s'efface, il ne se ferme pas."},
+ restaurer:{d:'M4 9h5V4M20 9h-5V4M20 15h-5v5M4 15h5v5',nm:'restaurer',
+   r:"Revient au partage d'origine. Remplace « agrandir » quand on y est déjà."},
+ chevron:{d:'M6 9l6 6 6-6',nm:'développer / replier',
+   r:"Montre ou cache le détail, sur place. La même icône pivote : jamais deux dessins pour un aller-retour."},
+ tout:{d:'M4 8h16M4 16h16M8 4l4 4 4-4M8 20l4-4 4 4',nm:'tout replier',
+   r:"Applique le repli à toute la liste d'un coup."},
+ retour:{d:'M15 6l-6 6 6 6',nm:'retour',r:"Revient d'où l'on vient. Toujours en haut à gauche."},
+ suivant:{d:'M9 6l6 6-6 6',nm:'suivant',
+   r:"Va vers le détail. Sur une carte, annonce qu'un clic ouvre quelque chose."},
+ plus:{d:'M12 5v14M5 12h14',nm:'ajouter',
+   r:"Ouvre le choix de ce qu'on ajoute — un fichier, un projet, un agent. Ne crée jamais tout seul."},
+ incognito:{raw:`<path d="M4.5 12c0-4 3.3-7 7.5-7s7.5 3 7.5 7"/><path d="M2.5 12h19"/>
+   <circle cx="7.4" cy="16.6" r="2.7"/><circle cx="16.6" cy="16.6" r="2.7"/>
+   <path d="M10.1 16.2h3.8"/>`,nm:'conversation privée',
+   r:"Le fil n'est pas retenu. La fenêtre entière change de teint : on ne peut pas s'y tromper."},
+ coffre:{raw:`<rect x="4" y="10" width="16" height="10" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/>`,
+   nm:'coffre',r:"Le contenu d'un projet. Chaque projet a le sien, aucun ne voit celui d'un autre."},
+ bac:{raw:`<path d="M12 3 3 7.5v9L12 21l9-4.5v-9z"/><path d="M3 7.5 12 12l9-4.5M12 12v9"/>`,
+   nm:'bac à sable',r:"L'espace d'exécution d'un projet. Il s'ouvre, il se ferme, il ne déborde pas."},
+ auto:{raw:`<path d="M11.5 3 13.3 7.7 18 9.5l-4.7 1.8L11.5 16 9.7 11.3 5 9.5l4.7-1.8z"/>
+   <path d="M18.2 15l.85 2.15L21.2 18l-2.15.85L18.2 21l-.85-2.15L15.2 18l2.15-.85z"/>`,
+   nm:'se fait tout seul',
+   r:"Marque une étape qui n'a besoin de personne : ni vous, ni un agent. Elle se fait, elle ne se décide pas."},
+ recherche:{raw:`<circle cx="11" cy="11" r="6"/><path d="M15.6 15.6 21 21"/>`,nm:'filtrer',
+   r:"Réduit la grille à ce qui correspond. Ne masque jamais définitivement : videz le champ, tout revient."},
+ relancer:{raw:`<path d="M20.5 12a8.5 8.5 0 1 1-2.5-6"/><path d="M20.5 2.5v5h-5"/>`,
+   nm:'relancer',
+   r:"Remet un projet en route. Le menu qui l'accompagne dit d'où : de là où ça s'est arrêté, ou du début."},
+ alerte:{raw:`<path d="M12 3.9 21.7 20.3H2.3z" fill="#F9AB00" stroke="#F9AB00"
+   stroke-width="1.7" stroke-linejoin="round"/>
+   <path d="M12 10v3.7" stroke="#3D2B00" stroke-width="1.9" stroke-linecap="round"/>
+   <circle cx="12" cy="16.7" r="1.05" fill="#3D2B00" stroke="none"/>`,
+   nm:'attention',
+   r:"Signale ce qui empêchera quelque chose de bien se passer. Jamais décoratif : s'il est là, il y a une action au bout."},
+ prise:{raw:`<path d="M9 2.5v6M15 2.5v6"/><path d="M5.5 8.5h13v3.5a6.5 6.5 0 0 1-13 0z"/>
+   <path d="M12 18.5V22"/>`,nm:'connexions',
+   r:"Ce à quoi Ulysse a le droit de se brancher. Rien n'est branché sans que vous l'ayez dit."},
+ cloche:{raw:`<path d="M18 16.5v-5.2a6 6 0 1 0-12 0v5.2L4.2 19.5h15.6z"/>
+   <path d="M9.8 22a2.6 2.6 0 0 0 4.4 0"/>`,nm:'notifications',
+   r:"Ce qui attend une réponse s'y compte, et le compteur bat tant qu'on n'a pas répondu."},
+ boucle:{raw:`<path d="M17 2.6 20.6 6 17 9.4"/><path d="M20.6 6H8.2A4.6 4.6 0 0 0 3.6 10.6v1.2"/>
+   <path d="M7 21.4 3.4 18 7 14.6"/><path d="M3.4 18h12.4a4.6 4.6 0 0 0 4.6-4.6v-1.2"/>`,
+   nm:'automatisation',
+   r:"Ce qui tourne en boucle, sans agent derrière. Un travail a une fin ; une automatisation, non."},
+ corbeille:{raw:`<path d="M4 7h16"/><path d="M9.5 7V5.2a1.2 1.2 0 0 1 1.2-1.2h2.6a1.2 1.2 0 0 1 1.2 1.2V7"/>
+   <path d="M6.5 7l.9 12.1a1.5 1.5 0 0 0 1.5 1.4h6.2a1.5 1.5 0 0 0 1.5-1.4L17.5 7"/>`,
+   nm:'supprimer',
+   r:"Met à la corbeille. Ne détruit pas : l'objet y reste, et la corbeille vit là où vivent les objets qu'elle recueille."},
+ point:{circle:true,nm:"marqueur d'état",
+   r:"Vert : terminé. Orange : en cours. Gris : en attente. Trois états, pas plus."},
+ /* service */
+ micro:{d:'M12 2a3 3 0 0 1 3 3v6a3 3 0 0 1-6 0V5a3 3 0 0 1 3-3zM5 11a7 7 0 0 0 14 0M12 18v4'},
+ envoi:{d:'M5 12h13M13 6l6 6-6 6'},
+ coche:{d:'M4 12l6 6L20 6',w:3.4},
+ chat:{d:'M4 6a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2h-6l-5 4v-4H6a2 2 0 0 1-2-2z'},
+ atelier:{d:'M3 21h18M5 21V9l7-5 7 5v12M9 21v-6h6v6'},
+ fichier:{d:'M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8zM14 3v5h5'},
+ lien:{d:'M10 13a5 5 0 0 0 7 0l2-2a5 5 0 0 0-7-7l-1 1M14 11a5 5 0 0 0-7 0l-2 2a5 5 0 0 0 7 7l1-1'},
+ regler:{tune:true},
+ copier:{d:'M9 9h10v10H9zM5 15V5h10'},
+ power:{d:'M12 3v9M6.5 6.5a8 8 0 1 0 11 0'},
+ /* destinations */
+ bulle:{fillable:'M4 6a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2h-6l-5 4v-4H6a2 2 0 0 1-2-2z'},
+ eclair:{fillable:'M13 2 4 14h7l-1 8 9-12h-7z'},
+ doc:{fillable:'M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z'},
+ dossier:{fillable:'M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z'},
+ equipe:{people:true},
+ noeuds:{nodes:true},
+ boussole:{fillable:'M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18zm3.5 5.5-2 5-5 2 2-5z'},
+ points:{raw:`<circle cx="12" cy="5.6" r="1.7" fill="currentColor" stroke="none"/>
+   <circle cx="12" cy="12" r="1.7" fill="currentColor" stroke="none"/>
+   <circle cx="12" cy="18.4" r="1.7" fill="currentColor" stroke="none"/>`,nm:'agir sur',
+   r:"Range les actions d'un élément au lieu de les étaler. Elles ne disparaissent pas : elles attendent qu'on les demande."},
+ terminal:{raw:`<rect x="3" y="4.5" width="18" height="15" rx="2.5"/>
+   <path d="M7.2 10.2 10 12.6l-2.8 2.4M12.4 15.4h4.4"/>`,nm:'terminal',
+   r:"Ouvre la ligne de commande d'Hermès, en dehors d'Ulysse. Ce qui s'y tape ne passe par aucun de vos accords."}
+};
+
+function svg(k,{size=24,fill=false,w=2}={}){
+  const o=I[k]||{}, sw=o.w||w;
+  /* Un glyphe « plein » n'est jamais un aplat : c'est sa propre couleur
+     à 18 %. Le contour reste net, la masse reste légère. */
+  const wrap=(inner,f)=>`<svg width="${size}" height="${size}" viewBox="0 0 24 24"
+    fill="${f||'none'}" fill-opacity="${f&&f!=='none'?'.12':'1'}"
+    stroke="currentColor" stroke-width="${sw}" stroke-linecap="round"
+    stroke-linejoin="round">${inner}</svg>`;
+  if(o.circle) return `<svg width="${size}" height="${size}" viewBox="0 0 24 24">
+    <circle cx="12" cy="12" r="5" fill="currentColor"/></svg>`;
+  if(o.people) return wrap(`<circle cx="9" cy="8" r="3.2"/>
+    <path d="M3 19a6 6 0 0 1 12 0"/><circle cx="17" cy="9.5" r="2.4"/>
+    <path d="M15.5 19h5.5a4.5 4.5 0 0 0-3-4.2"/>`, fill?'currentColor':'none');
+  if(o.nodes) return wrap(`<circle cx="6" cy="6" r="2.6"/><circle cx="18" cy="10" r="2.6"/>
+    <circle cx="8" cy="18" r="2.6"/><path d="M8.4 7.1 15.5 9.3M7.4 8.5 7.9 15.4" fill="none"/>`,
+    fill?'currentColor':'none');
+  if(o.tune) return wrap(`<path d="M4 7h6M15 7h5M4 12h11M4 17h3M12 17h8" fill="none"/>
+    <circle cx="12.5" cy="7" r="2.3"/><circle cx="17.5" cy="12" r="2.3"/>
+    <circle cx="9.5" cy="17" r="2.3"/>`, fill?'currentColor':'none');
+  if(o.raw) return wrap(o.raw);
+  if(o.fillable) return wrap(`<path d="${o.fillable}"/>`,fill?'currentColor':'none');
+  return wrap(`<path d="${o.d}"/>`);
+}
+
+</script>
+<script>
+/* ══ ulysse-view.js, recopié ══ */
+/* ============================================================================
+ * ulysse-view.js — la machinerie de rendu de la maquette, rendue GÉNÉRIQUE
+ * ----------------------------------------------------------------------------
+ * La maquette est scriptée : son schéma dessine six étapes écrites en dur
+ * (STEPS/EDGES), son Vestiaire douze agents inventés (AGENTS), ses
+ * Automatisations trois tâches fictives (AUTOS), sa cloche trois notifications
+ * de démonstration (NOTIFS). Copier ces tableaux aurait donné une maquette qui
+ * ment, pas un produit.
+ *
+ * Ce fichier reprend donc le RENDU — la géométrie du schéma, les coudes, la
+ * caméra, la cloche, les bulles, les feuilles, les rangées de réglages, la
+ * fenêtre du terminal — et en retire les données. Chaque moteur reçoit ce
+ * qu'il doit dessiner ; il ne sait pas d'où ça vient.
+ *
+ * Ce qui est repris tel quel (c'est du dessin, pas de la donnée) :
+ *   · layout()      — rangement par couches, la profondeur = plus longue chaîne
+ *   · coudeAxe()    — les liens orthogonaux à coudes arrondis
+ *   · deuxLignes()  — deux lignes maximum dans une carte
+ *   · la caméra     — on tire pour déplacer, on roule pour zoomer, autour du
+ *                     pointeur ; seuil de 4 px pour distinguer tirer de cliquer
+ *   · NKIND, le vocabulaire visuel des notifications
+ *
+ * Ce qui a été RETIRÉ, et pourquoi :
+ *   · REM / TOG     — la maquette laisse retirer une étape du plan. Hermès
+ *                     n'a pas d'API pour éditer le plan d'un agent ; un
+ *                     bouton qui ne fait rien est pire qu'un bouton absent.
+ *   · DRY           — l'essai à blanc suppose un plan connu d'avance. L'agent
+ *                     n'en produit pas : il agit, et on le regarde agir.
+ *
+ * UNE ADAPTATION NÉCESSAIRE : la maquette interpole ses données directement
+ * dans du `innerHTML`. Elle le peut : ses données, c'est elle qui les écrit.
+ * Ici elles viennent du backend et du WebSocket — un titre de session
+ * contenant `<img onerror=…>` s'exécuterait dans la page, avec accès au proxy
+ * authentifié. Tout ce qui vient de l'extérieur passe donc par esc().
+ * ========================================================================== */
+"use strict";
+
+/* ═══ Échappement — la seule chose ajoutée au rendu ═══════════════════════ */
+
+function esc(s){
+  return String(s === null || s === undefined ? "" : s)
+    .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;").replace(/'/g, "&#39;");
+}
+
+/* ═══ Le bandeau du bas (snack) ═══════════════════════════════════════════
+   Repris verbatim. Une action annulable le dit sur place, et pendant six
+   secondes — pas dans une boîte qu'il faut acquitter. */
+
+let snackT = null, undoFn = null;
+
+function snack(msg, undo){
+  const el = document.getElementById("snack");
+  if (!el) return;
+  undoFn = undo || null;
+  el.innerHTML = "<span>" + esc(msg) + "</span>"
+    + (undo ? '<button id="snack-undo">Annuler</button>' : "");
+  if (undo) el.querySelector("#snack-undo").onclick = doUndo;
+  el.classList.add("on");
+  clearTimeout(snackT);
+  snackT = setTimeout(() => el.classList.remove("on"), 6000);
+}
+
+function doUndo(){
+  if (undoFn) undoFn();
+  undoFn = null;
+  const el = document.getElementById("snack");
+  if (el) el.classList.remove("on");
+  clearTimeout(snackT);
+}
+
+/* ═══ Les feuilles (sheets) ═══════════════════════════════════════════════ */
+
+function openS(id, html){
+  const bg = document.getElementById(id);
+  if (!bg) return;
+  const body = bg.querySelector(".sheet");
+  if (body && html !== undefined) body.innerHTML = html;
+  bg.classList.add("on");
+}
+function closeS(id){
+  const el = document.getElementById(id);
+  if (el) el.classList.remove("on");
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   LE SCHÉMA
+   ---------------------------------------------------------------------------
+   Décision D1 de la maquette, conservée : le schéma dit OÙ ON EN EST et QUI
+   TRAVAILLE ; la liste, à droite, dit ce qu'il y a dedans. Deux registres,
+   pas deux vues.
+
+   Quatre choses le gouvernent, et elles sont reprises :
+     · une COULEUR par équipe, portée à l'identique par le liseré, le nom et
+       le flux du lien qui en sort — la couleur n'est pas décorative, c'est
+       le seul endroit qui dit qui fait ;
+     · des liens ORTHOGONAUX à coudes arrondis, qu'on suit du doigt ;
+     · le néon ne s'allume que sur ce qui travaille ;
+     · le mouvement ne ment pas : un lien ne coule que si son amont est fini
+       ET son aval en cours.
+
+   Ce qui change par rapport à la maquette : les étapes ne sont plus écrites
+   d'avance. Elles sont fournies par l'appelant — chez nous, la suite réelle
+   des outils appelés par l'agent.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+const NW = 168, NH = 74, RX = 14, NEUTRE = "#9AA0A6";
+
+function Graph(svgId){
+  const G = {
+    steps: [],        // [{n, t, pct, team, auto}]
+    edges: [],        // [[a, b]]
+    teams: {},        // {clef: {n:"NOM COURT", c:"#hex"}}
+    POS: {},
+    VUE: { w: 920, h: 380 },
+    CAM: { x: 0, y: 0, k: 1 },
+    sel: null,
+    onPick: null,     // (n) => void
+    onFiche: null     // (n) => void
+  };
+
+  const byN = (n) => G.steps.find((s) => s.n === n);
+  const coul = (n) => {
+    const s = byN(n);
+    return (s && s.team && G.teams[s.team]) ? G.teams[s.team].c : NEUTRE;
+  };
+
+  function etat(s){
+    if (s.pct >= 100) return "done";
+    if (s.pct > 0)    return "run";
+    return "wait";
+  }
+
+  /* Rangement par couches : la profondeur d'une étape est la plus longue
+     chaîne qui y mène. Repris verbatim, sans la sortie de flux des étapes
+     retirées (elles n'existent plus). */
+  function layout(){
+    const L = {};
+    G.steps.forEach((s) => { L[s.n] = 0; });
+    for (let i = 0; i < G.steps.length; i++){
+      G.edges.forEach(([a, b]) => { if (L[b] < L[a] + 1) L[b] = L[a] + 1; });
+    }
+    const cols = {};
+    G.steps.forEach((s) => { (cols[L[s.n]] = cols[L[s.n]] || []).push(s.n); });
+    const ks = Object.keys(cols).map(Number).sort((a, b) => a - b);
+    const t = {};
+    const large = Math.max(1, ...ks.map((k) => cols[k].length));
+    const M = 22, PAS = NW + 62, GY = NH + 38;
+
+    const W = M * 2 + ks.length * NW + (ks.length - 1) * (PAS - NW);
+    const H = M * 2 + large * GY - (GY - NH);
+    const axe = M + (large * GY - (GY - NH)) / 2;
+    ks.forEach((k, ci) => {
+      const arr = cols[k].sort((x, y) => x - y), h = (arr.length - 1) * GY;
+      arr.forEach((n, i) => { t[n] = { x: M + ci * PAS, y: axe - h / 2 - NH / 2 + i * GY }; });
+    });
+    G.VUE = { w: Math.max(W, 120), h: Math.max(H, 120) };
+    return t;
+  }
+
+  /* Le coude. Trois segments — sortir dans l'axe, traverser à mi-chemin,
+     entrer dans l'axe — avec deux angles arrondis. Aligné, c'est une droite. */
+  function coudeAxe(u1, v1, u2, v2, r){
+    if (Math.abs(v2 - v1) < 2) return "M" + u1 + " " + v1 + " L" + u2 + " " + v1;
+    const mu = (u1 + u2) / 2, dv = v2 > v1 ? 1 : -1;
+    const rr = Math.min(r, Math.abs(v2 - v1) / 2, Math.abs(mu - u1), Math.abs(u2 - mu));
+    return "M" + u1 + " " + v1
+      + " L" + (mu - rr) + " " + v1
+      + " Q" + mu + " " + v1 + " " + mu + " " + (v1 + rr * dv)
+      + " L" + mu + " " + (v2 - rr * dv)
+      + " Q" + mu + " " + v2 + " " + (mu + rr) + " " + v2
+      + " L" + u2 + " " + v2;
+  }
+
+  /* Deux lignes maximum. Au-delà, la liste est là pour ça. */
+  function deuxLignes(t, max){
+    const w = String(t || "").split(" "), l = ["", ""];
+    let k = 0;
+    for (const m of w){
+      if ((l[k] + " " + m).trim().length <= max || !l[k]) l[k] = (l[k] + " " + m).trim();
+      else if (k === 0){ k = 1; l[1] = m; }
+      else { l[1] = l[1].slice(0, max - 1) + "…"; break; }
+    }
+    return l;
+  }
+
+  /* La caméra. Le schéma ne bouge pas : c'est le regard qui se déplace. Tout
+     le dessin vit dans un seul groupe transformé, donc déplacer ou zoomer ne
+     redessine rien — on écrit un attribut. */
+  function camApply(){
+    const g = document.getElementById("gzoom");
+    if (g) g.setAttribute("transform",
+      "translate(" + G.CAM.x + " " + G.CAM.y + ") scale(" + G.CAM.k + ")");
+    const b = document.getElementById("recentrer");
+    if (b) b.classList.toggle("hidden", G.CAM.k === 1 && G.CAM.x === 0 && G.CAM.y === 0);
+  }
+  function camReset(){ G.CAM.x = 0; G.CAM.y = 0; G.CAM.k = 1; camApply(); }
+
+  function draw(){
+    const el = document.getElementById(svgId);
+    if (!el) return;
+    if (!G.steps.length){ el.innerHTML = ""; return; }
+    if (G.POS[G.steps[0].n] === undefined) Object.assign(G.POS, layout());
+
+    el.setAttribute("viewBox", "-12 -12 " + (G.VUE.w + 24) + " " + (G.VUE.h + 24));
+    el.style.aspectRatio = (G.VUE.w + 24) + " / " + (G.VUE.h + 24);
+    const p = [];
+
+    /* Les liens d'abord : ils passent derrière les cartes. */
+    G.edges.forEach(([a, b]) => {
+      const A = G.POS[a], B = G.POS[b];
+      if (!A || !B) return;
+      const d = coudeAxe(A.x + NW, A.y + NH / 2, B.x, B.y + NH / 2, 14);
+      const hot = G.sel !== null && (a === G.sel || b === G.sel);
+      const sa = byN(a), sb = byN(b);
+      const flow = sa && sb && etat(sa) === "done" && etat(sb) === "run";
+      const c = coul(a);
+      if (flow){
+        /* Trois couches pour un lien qui coule : le halo, les tirets qui
+           défilent, et un point qui parcourt réellement le tracé. Le point est
+           ce qui fait la différence — des tirets disent « ça bouge », un point
+           qui avance dit « ceci est en train d'être porté de là à là ». */
+        const pid = "fl" + a + "_" + b;
+        p.push('<path id="' + pid + '" class="edgeglow" stroke="' + c + '" d="' + d + '"/>');
+        p.push('<path class="edge flow" stroke="' + c + '" d="' + d + '"/>');
+        p.push('<circle class="pkh" r="7" fill="' + c + '"><animateMotion dur="2.1s"'
+          + ' repeatCount="indefinite" calcMode="linear" keyPoints="0;1" keyTimes="0;1">'
+          + '<mpath href="#' + pid + '"/></animateMotion></circle>');
+        p.push('<circle class="pk" r="3.2" fill="' + c + '"><animateMotion dur="2.1s"'
+          + ' repeatCount="indefinite" calcMode="linear" keyPoints="0;1" keyTimes="0;1">'
+          + '<mpath href="#' + pid + '"/></animateMotion></circle>');
+      } else {
+        p.push('<path class="edge' + (hot ? " hot" : "") + '" d="' + d + '"/>');
+      }
+    });
+
+    G.steps.forEach((s) => {
+      const P = G.POS[s.n];
+      if (!P) return;
+      const e = etat(s), c = coul(s.n);
+      const eq = s.team && G.teams[s.team] ? G.teams[s.team] : null;
+      const parts = deuxLignes(s.t, 22);
+      const l1 = esc(parts[0]), l2 = esc(parts[1]);
+      const bar = NW - 28;
+      p.push('<g class="node st-' + e + (G.sel === s.n ? " sel" : "") + '" data-n="' + s.n + '">'
+        + '<rect class="glow" x="' + P.x + '" y="' + P.y + '" width="' + NW + '" height="' + NH
+          + '" rx="' + RX + '" stroke="' + c + '"/>'
+        + '<rect class="b" x="' + P.x + '" y="' + P.y + '" width="' + NW + '" height="' + NH
+          + '" rx="' + RX + '" stroke="' + c + '"/>'
+        + (e === "done" ? '<rect class="tint" x="' + P.x + '" y="' + P.y + '" width="' + NW
+            + '" height="' + NH + '" rx="' + RX + '" fill="' + c + '"/>' : "")
+        + '<text class="ti" x="' + (P.x + 14) + '" y="' + (P.y + 25) + '">' + l1 + '</text>'
+        + (l2 ? '<text class="ti" x="' + (P.x + 14) + '" y="' + (P.y + 41) + '">' + l2 + '</text>' : "")
+        + (eq
+            ? '<text class="eq" x="' + (P.x + 14) + '" y="' + (P.y + (l2 ? 59 : 47))
+              + '" fill="' + c + '">' + esc(eq.n) + '</text>'
+            : '<text class="au" x="' + (P.x + 14) + '" y="' + (P.y + (l2 ? 59 : 47))
+              + '">SE FAIT TOUT SEUL</text>')
+        + (e === "run"
+            ? '<rect class="track" x="' + (P.x + 14) + '" y="' + (P.y + NH - 11) + '" width="'
+              + bar + '" height="3.5" rx="2"/>'
+              + '<rect class="fill" x="' + (P.x + 14) + '" y="' + (P.y + NH - 11) + '" width="'
+              + (bar * s.pct / 100) + '" height="3.5" rx="2" fill="' + c + '"/>'
+            : "")
+        + (e === "done"
+            ? '<path class="ok" d="M' + (P.x + NW - 30) + " " + (P.y + NH - 19)
+              + 'l4.5 4.5 8-8" stroke="' + c + '" stroke-width="2.4" fill="none"'
+              + ' stroke-linecap="round" stroke-linejoin="round"/>'
+            : "")
+        + '<g class="nact" transform="translate(' + (P.x + NW - 8) + " " + (P.y + 8) + ')">'
+        + '<circle class="nact-bg" r="12"/><circle cx="-4.6" cy="0" r="1.5"/>'
+        + '<circle cx="0" cy="0" r="1.5"/><circle cx="4.6" cy="0" r="1.5"/>'
+        + "<title>Tout savoir de cette étape</title></g>"
+        + "</g>");
+    });
+
+    el.innerHTML = '<g id="gzoom" transform="translate(' + G.CAM.x + " " + G.CAM.y
+      + ") scale(" + G.CAM.k + ')">' + p.join("") + "</g>";
+  }
+
+  function animateTo(target, ms){
+    ms = ms || 460;
+    const from = {};
+    G.steps.forEach((s) => { from[s.n] = { x: G.POS[s.n].x, y: G.POS[s.n].y }; });
+    const t0 = performance.now();
+    (function frame(t){
+      const k = Math.min(1, (t - t0) / ms);
+      const e = k < 0.5 ? 4 * k * k * k : 1 - Math.pow(-2 * k + 2, 3) / 2;
+      G.steps.forEach((s) => {
+        const n = s.n;
+        if (!target[n] || !from[n]) return;
+        G.POS[n] = { x: from[n].x + (target[n].x - from[n].x) * e,
+                     y: from[n].y + (target[n].y - from[n].y) * e };
+      });
+      draw();
+      if (k < 1) requestAnimationFrame(frame);
+    })(t0);
+  }
+
+  /* Nouvelles données : on relaie doucement plutôt que de tout sauter en
+     place — une carte qui se téléporte fait perdre le fil de ce qu'on suivait. */
+  function setData(steps, edges, teams){
+    const nouveau = steps.some((s) => G.POS[s.n] === undefined)
+      || G.steps.length !== steps.length;
+    G.steps = steps;
+    G.edges = edges || [];
+    G.teams = teams || {};
+    const t = layout();
+    if (nouveau){ Object.assign(G.POS, t); draw(); }
+    else animateTo(t, 240);
+  }
+
+  /* Deux gestes seulement, et aucun bouton : on tire pour déplacer, on roule
+     pour zoomer, AUTOUR DU POINTEUR. Un zoom centré sur la fenêtre fait fuir
+     ce qu'on regardait. Un seuil de quatre pixels sépare le déplacement du
+     clic : sans lui, toute tentative de tirer ouvrirait une fiche. */
+  function init(){
+    const el = document.getElementById(svgId);
+    if (!el) return;
+    let pan = null, bouge = false;
+
+    el.addEventListener("mousedown", (e) => {
+      if (e.button !== 0) return;
+      pan = { x: e.clientX, y: e.clientY, cx: G.CAM.x, cy: G.CAM.y };
+      bouge = false;
+      e.preventDefault();
+    });
+    window.addEventListener("mousemove", (e) => {
+      if (!pan) return;
+      const dx = e.clientX - pan.x, dy = e.clientY - pan.y;
+      if (!bouge && Math.abs(dx) + Math.abs(dy) < 4) return;
+      bouge = true;
+      el.classList.add("pan");
+      // Le pointeur bouge en pixels, le dessin vit en unités de viewBox : sans
+      // ce rapport, le schéma glisse plus vite que la main et le geste colle.
+      const r = el.getBoundingClientRect();
+      if (!r.width) return;
+      const u = (G.VUE.w + 24) / r.width;
+      G.CAM.x = pan.cx + dx * u;
+      G.CAM.y = pan.cy + dy * u;
+      camApply();
+    });
+    window.addEventListener("mouseup", () => { pan = null; el.classList.remove("pan"); });
+
+    el.addEventListener("wheel", (e) => {
+      e.preventDefault();
+      const r = el.getBoundingClientRect();
+      if (!r.width) return;
+      const u = (G.VUE.w + 24) / r.width;
+      const px = (e.clientX - r.left) * u - 12, py = (e.clientY - r.top) * u - 12;
+      const k2 = Math.min(3, Math.max(0.45, G.CAM.k * (e.deltaY < 0 ? 1.12 : 1 / 1.12)));
+      G.CAM.x = px - (px - G.CAM.x) * (k2 / G.CAM.k);
+      G.CAM.y = py - (py - G.CAM.y) * (k2 / G.CAM.k);
+      G.CAM.k = k2;
+      camApply();
+    }, { passive: false });
+
+    el.addEventListener("dblclick", (e) => { if (!e.target.closest("g.node")) camReset(); });
+
+    el.addEventListener("click", (e) => {
+      if (bouge){ bouge = false; return; }   // on tirait, on ne désignait pas
+      const g = e.target.closest("g.node");
+      if (!g) return;
+      const n = +g.dataset.n;
+      if (G.sel !== n){ G.sel = n; draw(); if (G.onPick) G.onPick(n); }
+      if (e.target.closest("g.nact") && G.onFiche) G.onFiche(n);
+    });
+
+    window.addEventListener("resize", () => {
+      if (!G.steps.length) return;
+      clearTimeout(init._t);
+      init._t = setTimeout(() => animateTo(layout(), 240), 90);
+    });
+  }
+
+  return { state: G, setData, draw, init, camReset,
+           etat, byN, coul };
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   LES NOTIFICATIONS
+   ---------------------------------------------------------------------------
+   NKIND est repris tel quel : c'est un vocabulaire visuel, pas une donnée.
+   Une DÉCISION fait sonner le menu et pose une bulle qui NE part pas toute
+   seule ; une information pose une bulle qui s'efface. La différence est le
+   fond de l'affaire — on ne peut pas rater ce qui attend son accord.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+const NKIND = {
+  decision: { ico: "coffre", col: "var(--accent)", bg: "var(--accent-container)", dur: true },
+  panne:    { ico: "eclair", col: "#B3261E",       bg: "#FCE8E6",                 dur: true },
+  livrable: { ico: "doc",    col: "var(--green)",  bg: "#C4EED0",                 dur: false },
+  auto:     { ico: "boucle", col: "var(--muted)",  bg: "var(--surface-hi)",       dur: false }
+};
+
+const Notifs = {
+  list: [],
+  open: false,
+  nid: 0,
+  onAnswer: null,        // (notif, oui) => Promise|void
+
+  attente(){ return this.list.filter((n) => NKIND[n.kind] && NKIND[n.kind].dur); },
+
+  drawBell(){
+    const ic = document.getElementById("bellIc");
+    if (!ic) return;
+    const k = this.attente().length;
+    const dec = this.list.some((n) => n.kind === "decision");
+    ic.innerHTML = svg("cloche", { size: 22, w: 1.6 })
+      + (k ? '<span class="badge' + (dec ? " dec" : "") + '">' + k + "</span>" : "");
+    // Le menu porte un point sur la fenêtre concernée : on sait où aller sans
+    // ouvrir le panneau.
+    document.querySelectorAll(".rail-btn").forEach((b) => {
+      const l = b.querySelector(".lbl");
+      if (!l) return;
+      const has = this.attente().some((n) => n.panel === l.textContent.trim());
+      let d = b.querySelector(".raildot");
+      if (has && !d){ d = document.createElement("span"); d.className = "raildot"; b.appendChild(d); }
+      if (!has && d) d.remove();
+    });
+  },
+
+  toggle(e){
+    if (e) e.stopPropagation();
+    this.open = !this.open;
+    const el = document.getElementById("npanel");
+    if (!el) return;
+    const rw = document.getElementById("railwrap");
+    el.style.left = ((rw ? rw.offsetWidth : 72) + 12) + "px";
+    el.classList.toggle("on", this.open);
+    if (this.open) this.draw();
+  },
+
+  close(){
+    this.open = false;
+    const el = document.getElementById("npanel");
+    if (el) el.classList.remove("on");
+  },
+
+  _row(n){
+    const K = NKIND[n.kind] || NKIND.auto;
+    return '<div class="nrow" data-go="' + esc(n.panel) + '">'
+      + '<span class="nic" style="background:' + K.bg + ";color:" + K.col + '">'
+      + svg(K.ico, { size: 19 }) + "</span>"
+      + '<div style="flex:1;min-width:0">'
+      + '<div class="nt">' + esc(n.titre) + "</div>"
+      + '<div class="nx">' + esc(n.txt) + "</div>"
+      + '<div class="nmeta"><span class="o">' + esc(n.obj) + "</span>·<span>"
+      + esc(n.when) + "</span></div>"
+      + (K.dur
+          ? '<div class="nacts" data-stop="1">'
+            + '<button class="yes" data-yes="' + n.id + '">' + esc(n.oui || "Autoriser") + "</button>"
+            + '<button class="no" data-no="' + n.id + '">' + esc(n.non || "Refuser") + "</button>"
+            + "</div>"
+          : "")
+      + "</div></div>";
+  },
+
+  draw(){
+    const host = document.getElementById("npanel");
+    if (!host) return;
+    const A = this.list.filter((n) => (NKIND[n.kind] || {}).dur);
+    const B = this.list.filter((n) => !(NKIND[n.kind] || {}).dur);
+    host.innerHTML =
+      (A.length ? '<div class="ngroup">À décider · ' + A.length + '<span class="l"></span></div>'
+        + A.map((n) => this._row(n)).join("") : "")
+      + (B.length ? '<div class="ngroup">Récent<span class="l"></span></div>'
+        + B.map((n) => this._row(n)).join("") : "")
+      + (this.list.length ? "" : '<div class="empty" style="padding:40px 20px">'
+        + '<div class="big">Rien à signaler.</div><div>On vous préviendra.</div></div>');
+    this._wire(host);
+  },
+
+  _wire(host){
+    host.querySelectorAll("[data-yes]").forEach((b) => {
+      b.onclick = (e) => { e.stopPropagation(); this.answer(+b.dataset.yes, true); };
+    });
+    host.querySelectorAll("[data-no]").forEach((b) => {
+      b.onclick = (e) => { e.stopPropagation(); this.answer(+b.dataset.no, false); };
+    });
+    host.querySelectorAll(".nrow").forEach((r) => {
+      r.onclick = () => { const p = r.dataset.go; if (p && window.nav){ nav(p); this.toggle(); } };
+    });
+  },
+
+  answer(id, oui){
+    const i = this.list.findIndex((n) => n.id === id);
+    if (i < 0) return;
+    const n = this.list[i];
+    // On retire d'abord pour que l'interface réponde tout de suite, mais on
+    // sait remettre : si le serveur refuse, la demande revient à sa place.
+    this.list.splice(i, 1);
+    this.drawBell(); this.draw();
+    const remettre = () => { this.list.splice(i, 0, n); this.drawBell(); this.draw(); };
+    let p;
+    try { p = this.onAnswer ? this.onAnswer(n, oui) : null; }
+    catch (e){ remettre(); snack("Refusé par le serveur : " + e.message); return; }
+    if (p && typeof p.then === "function"){
+      p.catch((e) => { remettre(); snack("Non transmis : " + e.message); });
+    }
+    snack("« " + n.titre + " » — " + (oui ? "c'est autorisé." : "refusé."));
+  },
+
+  push(n){
+    n.id = ++this.nid;
+    this.list.unshift(n);
+    this.drawBell();
+    const b = document.getElementById("bell");
+    if (b){ b.classList.add("ring"); setTimeout(() => b.classList.remove("ring"), 760); }
+
+    const K = NKIND[n.kind] || NKIND.auto;
+    const host = document.getElementById("toasts");
+    if (!host) return n.id;
+    const el = document.createElement("div");
+    el.className = "toast";
+    el.innerHTML = '<span class="nic" style="background:' + K.bg + ";color:" + K.col + '">'
+      + svg(K.ico, { size: 19 }) + "</span>"
+      + '<div style="flex:1;min-width:0"><div class="nt">' + esc(n.titre) + "</div>"
+      + '<div class="nx">' + esc(n.txt) + "</div>"
+      + '<div class="nmeta"><span class="o">' + esc(n.obj) + "</span></div>"
+      + (K.dur ? '<div class="nacts">'
+          + '<button class="yes" data-yes="' + n.id + '">' + esc(n.oui || "Autoriser") + "</button>"
+          + '<button class="no" data-no="' + n.id + '">' + esc(n.non || "Refuser") + "</button>"
+          + "</div>" : "")
+      + "</div>";
+    el.querySelectorAll("[data-yes]").forEach((x) => {
+      x.onclick = () => { this.answer(+x.dataset.yes, true); el.remove(); };
+    });
+    el.querySelectorAll("[data-no]").forEach((x) => {
+      x.onclick = () => { this.answer(+x.dataset.no, false); el.remove(); };
+    });
+    host.appendChild(el);
+    requestAnimationFrame(() => el.classList.add("on"));
+    if (!K.dur){
+      setTimeout(() => { el.classList.remove("on"); setTimeout(() => el.remove(), 400); }, 5200);
+    }
+    return n.id;
+  },
+
+  /* Retire une demande sans y répondre — le serveur l'a résolue autrement
+     (l'agent a été interrompu, la session est morte). */
+  drop(id){
+    const i = this.list.findIndex((n) => n.id === id);
+    if (i < 0) return;
+    this.list.splice(i, 1);
+    this.drawBell();
+    if (this.open) this.draw();
+  }
+};
+
+/* ═══ Réglages — les rangées, reprises telles quelles ═════════════════════ */
+
+const ligne = (nm, sub, ctl) =>
+  '<div class="srow2"><span class="txt">'
+  + '<span class="nm">' + esc(nm) + "</span>"
+  + '<span class="sub">' + esc(sub) + "</span></span>"
+  + '<span class="ctlz">' + (ctl || "") + "</span></div>";
+
+const sw = (on, id) =>
+  '<div class="sw ' + (on ? "on" : "") + '"' + (id ? ' data-sw="' + esc(id) + '"' : "")
+  + "><i></i></div>";
+
+const titre = (t) => '<div class="seth">' + esc(t) + '<span class="l"></span></div>';
+
+function drawSetNav(sections, sel, onPick){
+  const host = document.getElementById("setnav");
+  if (!host) return;
+  host.innerHTML = sections.map((t, i) =>
+    '<button class="' + (i === sel ? "on" : "") + '" data-i="' + i + '">' + esc(t) + "</button>"
+  ).join("");
+  host.querySelectorAll("button").forEach((b) => {
+    b.onclick = () => onPick(+b.dataset.i);
+  });
+}
+
+/* ═══ Terminal — l'apparence de la fenêtre, sans son contenu inventé ══════ */
+
+const TTHEMES = [
+  { id: "nuit",   nm: "Nuit",   bg: "#1E1E1E", fg: "#E8EAED", ac: "#8AB4F8" },
+  { id: "encre",  nm: "Encre",  bg: "#0B1220", fg: "#CFE0FF", ac: "#7AA2F7" },
+  { id: "papier", nm: "Papier", bg: "#FAF8F5", fg: "#2B2A28", ac: "#0B57D0" },
+  { id: "foret",  nm: "Forêt",  bg: "#10201A", fg: "#D6F0E2", ac: "#5FD3A0" }
+];
+
+const fermer = closeS;   // alias : la maquette nomme ainsi la fermeture
+
+if (typeof module === "object" && module.exports){
+  module.exports = { esc, snack, doUndo, openS, closeS, Graph, Notifs, NKIND,
+                     ligne, sw, titre, drawSetNav, TTHEMES, NW, NH, RX };
+}
+
+</script>
+<script>
+/* ═══ Banc d'essai. ═══ */
+const $ = (id) => document.getElementById(id);
+/* Pas de `esc` ici : ulysse-view.js en déclare déjà un au niveau global, et
+   deux déclarations du même nom dans deux <script> classiques font une
+   SyntaxError qui tue toute la page. On se sert du sien. */
+
+let propose = false, nEtapes = 4, jrnOuvert = false, vue = "both";
+const ouvertes = new Set();
+
+/* Les familles d'outils, verbatim d'ulysse-app.js. */
+const FAMILLES = {
+  lire:     { n:"LECTURE",   c:"#1A73E8" },
+  ecrire:   { n:"ÉCRITURE",  c:"#9334E6" },
+  executer: { n:"EXÉCUTION", c:"#E8710A" },
+  reseau:   { n:"RÉSEAU",    c:"#00838F" }
+};
+
+/* Douze appels d'outil plausibles, dans l'ordre. */
+/* Les quatre familles apparaissent dès les quatre premières étapes : sur une
+   suite qui ne ferait que lire, on ne verrait pas que la couleur porte une
+   information. */
+const OUTILS = [
+  ["fs.list",     "web/",                        "lire",     140],
+  ["shell.run",   "node test_page.js",           "executer", 4310],
+  ["fs.write",    "web/apercu-plan.html",        "ecrire",   210],
+  ["http.get",    "127.0.0.1:9123/api/status",   "reseau",   75],
+  ["fs.read",     "web/CONTRAT-INTERFACE.md",    "lire",     90],
+  ["grep",        "data-role dans ulysse-app.js","lire",     310],
+  ["shell.run",   "python test_serve.py",        "executer", 2180],
+  ["fs.edit",     "web/PASSE-DESIGN-PLAN.md",    "ecrire",   160],
+  ["fs.read",     "web/AUDIT-ENDPOINTS-REEL.md", "lire",     95],
+  ["http.post",   "gateway/webhooks/trigger",    "reseau",   240],
+  ["shell.run",   "node test_page.js",           "executer", 4120],
+  ["fs.write",    "web/REPRISE.md",              "ecrire",   180]
+];
+
+function etapes(){
+  return OUTILS.slice(0, nEtapes).map((o, i) => ({
+    n: i + 1, t: o[0], d: o[1], team: o[2], ms: o[3],
+    result: i === 1 ? "76 vérifications — 76 vertes, 0 rouge" : "",
+    /* La dernière est en cours : c'est l'état qui fait vivre le schéma. */
+    pct: i === nEtapes - 1 ? 50 : 100
+  }));
+}
+
+/* Le vrai moteur de la maquette. Son état interne est exposé par `state` —
+   c'est par lui qu'on impose des positions sans toucher au moteur. */
+const graph = Graph("svg");
+const GS = graph.state;
+graph.init();
+
+/* ── LE RANGEMENT PROPOSÉ : un serpentin ────────────────────────────────
+   Le layout d'origine range par couches. Sur une chaîne, une couche =
+   une étape, donc une seule ligne, aussi large que le nombre d'outils.
+   Ici on replie : on remplit une rangée, puis on redescend et on repart
+   dans l'autre sens — le regard suit le fil sans jamais le perdre. */
+/* NW (168) et NH (74) viennent du moteur — ulysse-view.js les déclare au
+   niveau global. Les redéclarer ici lève une SyntaxError qui tue la page
+   entière, exactement comme pour `esc`. On ne déclare donc que ce qui
+   n'existe pas encore, et sous un préfixe. */
+const P_M = 34, P_PAS = NW + 62, P_GY = NH + 62;
+
+/* Toutes les rangées se lisent de GAUCHE À DROITE, comme un texte.
+
+   Un serpentin — une rangée sur deux à l'envers — économise le trait de
+   retour, mais il fait payer cette économie à chaque lecture : une ligne sur
+   deux se lit à contresens, et on doit vérifier le sens avant de lire.
+   Un texte ne fait pas ça. On garde donc le retour à la ligne, et c'est au
+   TRAIT de se débrouiller pour être lisible (voir retoursChariot()). */
+function serpentin(steps, parRangee){
+  const pos = {};
+  steps.forEach((s, i) => {
+    pos[s.n] = { x: P_M + (i % parRangee) * P_PAS,
+                 y: P_M + Math.floor(i / parRangee) * P_GY };
+  });
+  const cols = Math.min(parRangee, steps.length);
+  const rows = Math.ceil(steps.length / parRangee);
+  return { pos, w: P_M * 2 + cols * NW + (cols - 1) * (P_PAS - NW),
+                h: P_M * 2 + rows * NH + (rows - 1) * (P_GY - NH) };
+}
+
+/* ── LE TRAIT DE RETOUR À LA LIGNE ──────────────────────────────────────
+   Quand l'étape suivante est à gauche de la précédente, le coude du moteur
+   revient en arrière à la hauteur de la carte de départ : il traverse toute
+   la rangée par-derrière, et on ne sait plus d'où il part.
+
+   On le remplace par le tracé qu'on attend : sortir à droite, longer la
+   marge, redescendre dans le couloir entre les deux rangées, revenir à
+   gauche, et entrer par la gauche de la suivante. C'est le retour chariot
+   d'une machine à écrire — un geste que personne n'a besoin d'apprendre.
+
+   On réécrit l'attribut `d` des tracés déjà posés par le moteur : on les
+   retrouve par leur point de départ, qui est unique. Côté produit, c'est
+   `coudeAxe()` qui devra connaître ce cas. */
+function retoursChariot(steps, edges){
+  const svgEl = $("svg");
+  const xs = steps.map((s) => GS.POS[s.n].x);
+  const droite = Math.max(...xs) + NW + 20;
+  const gauche = Math.min(...xs) - 20;
+
+  edges.forEach(([a, b]) => {
+    const A = GS.POS[a], B = GS.POS[b];
+    if (!A || !B || B.x >= A.x) return;              // pas un retour
+    const y1 = A.y + NH / 2, y2 = B.y + NH / 2;
+    const couloir = (A.y + NH + B.y) / 2;
+    const r = 13;
+    const d = "M" + (A.x + NW) + " " + y1
+      + " L" + (droite - r) + " " + y1
+      + " Q" + droite + " " + y1 + " " + droite + " " + (y1 + r)
+      + " L" + droite + " " + (couloir - r)
+      + " Q" + droite + " " + couloir + " " + (droite - r) + " " + couloir
+      + " L" + (gauche + r) + " " + couloir
+      + " Q" + gauche + " " + couloir + " " + gauche + " " + (couloir + r)
+      + " L" + gauche + " " + (y2 - r)
+      + " Q" + gauche + " " + y2 + " " + (gauche + r) + " " + y2
+      + " L" + B.x + " " + y2;
+
+    const prefixe = "M" + (A.x + NW) + " " + y1 + " ";
+    svgEl.querySelectorAll("path").forEach((p) => {
+      const dd = p.getAttribute("d") || "";
+      if (dd.indexOf(prefixe) === 0) p.setAttribute("d", d);
+    });
+  });
+  /* La marge de gauche et de droite doit tenir dans le cadre, sinon le
+     trait de retour sort du champ. */
+  GS.VUE.w = Math.max(GS.VUE.w, droite + 20);
+}
+
+/* ── RANGER AUTOMATIQUEMENT ─────────────────────────────────────────────
+   Combien d'étapes par rangée ? La réponse n'est pas un nombre, c'est une
+   FORME : celle du volet. On essaie toutes les largeurs possibles et on
+   garde celle dont le schéma ressemble le plus au cadre qui l'accueille —
+   c'est celle qui laissera le moins de vide et exigera le moins de zoom.
+
+   Le volet change de forme dès qu'on passe de « Les deux » à « Schéma », ou
+   qu'on redimensionne la fenêtre. C'est là que le bouton sert : il ne
+   « remet pas à zéro », il RANGE pour l'écran qu'on a maintenant. */
+function largeurIdeale(steps){
+  const b = $("paneG").getBoundingClientRect();
+  const cible = (b.width && b.height) ? b.width / b.height : 1.6;
+  let best = 1, ecart = Infinity;
+  for (let c = 1; c <= steps.length; c++){
+    const S = serpentin(steps, c);
+    const e = Math.abs(Math.log((S.w / S.h) / cible));   // log : 2× trop large
+    if (e < ecart){ ecart = e; best = c; }               // pèse comme 2× trop haut
+  }
+  return best;
+}
+
+function ranger(dire){
+  const steps = etapes();
+  if (!steps.length) return;
+  const par = largeurIdeale(steps);
+  const S = serpentin(steps, par);
+  GS.VUE.w = S.w; GS.VUE.h = S.h;
+  Object.assign(GS.POS, S.pos);
+  graph.camReset();
+  bouge = false;
+  graph.draw();
+  colorier();
+  retoursChariot(steps, steps.slice(1).map((s) => [s.n - 1, s.n]));
+  majCam();
+  if (dire) souffle("Rangé pour la forme du volet : "
+    + par + (par > 1 ? " étapes" : " étape") + " par rangée.");
+}
+
+/* ── LES NŒUDS SONT LIBRES ──────────────────────────────────────────────
+   On peut prendre une carte et la poser ailleurs. C'est ce qui fait la
+   différence entre un schéma qu'on regarde et une carte dont on se sert :
+   quand douze étapes se ressemblent, on écarte celle qu'on surveille, on
+   rapproche celles qu'on compare, et on garde SA disposition le temps de
+   comprendre.
+
+   Ce qui rend la chose supportable, c'est de pouvoir tout défaire d'un
+   geste — c'est le bouton « ranger », qui reprend ici tout son sens.
+
+   Le moteur écoute déjà `mousedown` sur le SVG pour déplacer la caméra. On
+   se place donc en CAPTURE, avant lui : si le geste part d'une carte, il
+   est pour la carte, et on l'empêche de descendre jusqu'à la caméra. */
+let bouge = false;
+(function nœudsLibres(){
+  const el = $("svg");
+  let pris = null;
+
+  const unite = () => {
+    const r = el.getBoundingClientRect();
+    return r.width ? (GS.VUE.w + 24) / r.width / GS.CAM.k : 1;
+  };
+
+  el.addEventListener("mousedown", (e) => {
+    if (!propose || e.button !== 0) return;
+    const g = e.target.closest("g.node");
+    if (!g) return;
+    const n = +g.dataset.n;
+    if (!GS.POS[n]) return;
+    e.stopPropagation();                 // la caméra ne doit pas s'en saisir
+    e.preventDefault();
+    pris = { n, x: e.clientX, y: e.clientY,
+             ox: GS.POS[n].x, oy: GS.POS[n].y, seuil: false };
+    el.classList.add("p-prise");
+  }, true);
+
+  window.addEventListener("mousemove", (e) => {
+    if (!pris) return;
+    const dx = e.clientX - pris.x, dy = e.clientY - pris.y;
+    /* Même seuil que le moteur : sans lui, tout clic déplacerait d'un pixel
+       et on ne pourrait plus jamais désigner une carte. */
+    if (!pris.seuil && Math.abs(dx) + Math.abs(dy) < 4) return;
+    pris.seuil = true;
+    const u = unite();
+    GS.POS[pris.n] = { x: Math.round(pris.ox + dx * u),
+                       y: Math.round(pris.oy + dy * u) };
+    const steps = etapes();
+    graph.draw();
+    colorier();
+    retoursChariot(steps, steps.slice(1).map((s) => [s.n - 1, s.n]));
+  });
+
+  window.addEventListener("mouseup", () => {
+    if (!pris) return;
+    if (pris.seuil){ bouge = true; majCam(); }
+    pris = null;
+    el.classList.remove("p-prise");
+  });
+})();
+
+function dessine(){
+  const steps = etapes();
+  const edges = steps.slice(1).map((s) => [s.n - 1, s.n]);
+
+  $("planMeta").textContent = steps.length
+    ? "session 4f2a · en cours" : "aucune session";
+  $("planStop").style.display = steps.length ? "" : "none";
+  $("pTitre").textContent = propose ? "Ce que fait l'agent" : "Plan";
+
+  graph.setData(steps, edges, FAMILLES);
+
+  /* En « Proposé », on impose le serpentin par-dessus le rangement par
+     couches. Le moteur est le même : on ne remplace que les positions. */
+  if (propose && steps.length){
+    /* Le rangement n'est pas un réglage : il se recalcule pour la forme du
+       volet à chaque fois. Le bouton « ranger » ne fait donc rien d'autre
+       que ce que la page fait déjà — il le refait après qu'on a tiré et
+       zoomé, ce qui est précisément le moment où on en a besoin. */
+    const S = serpentin(steps, largeurIdeale(steps));
+    Object.assign(GS.POS, S.pos);
+    GS.VUE.w = S.w; GS.VUE.h = S.h;
+  }
+  graph.draw();
+  if (propose){ colorier(); retoursChariot(steps, edges); }
+
+  /* ── Le volet Détail ── */
+  if (!steps.length){
+    $("steps").innerHTML = propose
+      ? '<div class="p-vide"><div class="empty">'
+        + '<div class="big">Rien encore.</div>'
+        + "<div>Les étapes apparaîtront dès que l'agent utilisera un outil.</div></div>"
+        + '<div class="u-todo" id="uTodo">Rien n\'apparaît alors que l\'agent travaille ? '
+        + '<span class="p-lien" id="uTodoL">Pourquoi</span>'
+        + '<div class="p-repli">Le réglage Hermès <code>display.tool_progress</code> est '
+        + "à <b>off</b> : les événements d'outil ne sont pas émis. Il se change par le "
+        + "RPC <code>config.set</code>.</div></div></div>"
+      : '<div class="empty" style="padding:36px 20px">'
+        + '<div class="big">Rien encore.</div>'
+        + "<div>Les étapes apparaîtront dès que l'agent utilisera un outil.</div></div>"
+        + '<div class="u-todo">Si l\'agent travaille et que rien n\'apparaît, c\'est que '
+        + "le réglage Hermès <code>display.tool_progress</code> est à off. Il se change "
+        + "par le RPC <code>config.set</code>.</div>";
+    const l = $("uTodoL");
+    if (l) l.onclick = () => $("uTodo").classList.toggle("on");
+    majPied(0);
+    majCam();
+    majNote();
+    return;
+  }
+
+  $("steps").innerHTML = steps.map((s) => {
+    const fam = FAMILLES[s.team];
+    return '<div class="exp ' + (ouvertes.has(s.n) ? "open" : "") + '" data-n="' + s.n + '">'
+      + '<div class="exp-h">'
+      + '<button class="exp-t" data-t="' + s.n + '"><span class="n">' + s.n + "</span>"
+      + '<span class="t">' + esc(s.t) + "</span>"
+      + (fam ? '<span class="chip">' + esc(fam.n.toLowerCase()) + "</span>" : "")
+      + "</button>"
+      + (propose
+          ? '<button class="dots" data-act="' + s.n + '" aria-label="Actions de l\'étape">'
+            + svg("points", { size: 18 }) + "</button>"
+          : "")
+      + '<button class="chev" data-t="' + s.n + '" tabindex="-1" aria-hidden="true">'
+      + svg("chevron", { size: 20 }) + "</button></div>"
+      + '<div class="exp-b"><div class="in"><p>' + esc(s.d) + "</p>"
+      + (s.result ? '<pre class="u-raw">' + esc(s.result) + "</pre>" : "")
+      + '<span class="auto-note">' + (s.pct === 100
+          ? "Terminée en " + (s.ms > 1000 ? (s.ms/1000).toFixed(1) + " s" : s.ms + " ms")
+          : "En cours…") + "</span>"
+      + "</div></div>"
+      /* Les actions de l'étape. Elles vivent SOUS la ligne, pas dans un
+         menu flottant : elles appartiennent à l'étape, elles ne survolent
+         pas la liste. `.sactions` vient de la maquette. */
+      + (propose ? '<div class="sactions">'
+          + '<button data-a="fiche|' + s.n + '">' + svg("suivant", { size: 16 })
+            + " Tout savoir</button>"
+          + '<button data-a="fichier|' + s.n + '">' + svg("doc", { size: 16 })
+            + " Ouvrir le fichier</button>"
+          + '<button data-a="copier|' + s.n + '">' + svg("copier", { size: 16 })
+            + " Copier le détail</button>"
+          + '<button data-a="rejouer|' + s.n + '">' + svg("relancer", { size: 16 })
+            + " Rejouer cet outil</button>"
+          + '<button class="regle" data-a="accord|' + s.n + '">'
+            + svg("prise", { size: 16 }) + " Me demander avant « " + esc(s.t)
+            + " »</button>"
+          + "</div>" : "")
+      + "</div>";
+  }).join("")
+  + (jrnOuvert ? '<div class="u-jrn">' + JOURNAL.map((e) =>
+      '<div><span class="h">' + e[0] + '</span><span class="y">' + e[1]
+      + '</span><span class="b">' + esc(e[2]) + "</span></div>").join("") + "</div>" : "");
+
+  $("steps").querySelectorAll("[data-t]").forEach((b) => {
+    b.onclick = () => {
+      const n = +b.dataset.t;
+      if (ouvertes.has(n)) ouvertes.delete(n); else ouvertes.add(n);
+      dessine();
+    };
+  });
+
+  /* Le kebab de l'étape : il ouvre ses actions sous elle. */
+  $("steps").querySelectorAll("[data-act]").forEach((b) => {
+    b.onclick = (e) => {
+      e.stopPropagation();
+      const el = b.closest(".exp");
+      const ouvert = el.classList.contains("exp-acts");
+      $("steps").querySelectorAll(".exp").forEach((x) => x.classList.remove("exp-acts"));
+      el.classList.toggle("exp-acts", !ouvert);
+    };
+  });
+  $("steps").querySelectorAll("[data-a]").forEach((b) => {
+    b.onclick = (e) => {
+      e.stopPropagation();
+      const [a, n] = b.dataset.a.split("|");
+      if (a === "fiche") return fiche(+n);
+      souffle({ fichier: "Ouvrirait le fichier dans l'Établi.",
+                copier:  "Détail copié.",
+                rejouer: "Relancerait cet outil avec les mêmes arguments.",
+                accord:  "Cet outil demanderait votre accord avant de s'exécuter." }[a]);
+    };
+  });
+
+  /* Double-clic sur une étape : sa fiche. Le même geste que le ⋯ du nœud. */
+  $("steps").querySelectorAll(".exp").forEach((el) => {
+    el.ondblclick = (e) => {
+      if (e.target.closest(".sactions")) return;
+      fiche(+el.dataset.n);
+    };
+  });
+
+  majPied(steps.length);
+  majCam();
+  majNote();
+}
+
+/* Un mot qui passe, pour dire ce qu'une action ferait — l'aperçu ne fait
+   rien pour de vrai. */
+let souffleT = null;
+function souffle(t){
+  let el = $("apSouffle");
+  if (!el){
+    el = document.createElement("div");
+    el.id = "apSouffle";
+    el.style.cssText = "position:fixed;left:50%;transform:translateX(-50%);bottom:22px;"
+      + "z-index:900;background:#1F1F1F;color:#fff;font-size:12.5px;padding:9px 18px;"
+      + "border-radius:999px;box-shadow:0 4px 16px rgba(0,0,0,.35);transition:opacity .25s";
+    document.body.appendChild(el);
+  }
+  el.textContent = t;
+  el.style.opacity = "1";
+  clearTimeout(souffleT);
+  souffleT = setTimeout(() => { el.style.opacity = "0"; }, 2600);
+}
+
+/* ── LES NŒUDS PRENNENT LEUR COULEUR ────────────────────────────────────
+   La maquette met la couleur de famille dans le liseré, dans le mot
+   « LECTURE » et dans le lien — mais la carte elle-même reste blanche
+   (`.node .b{fill:var(--bg)}`), et les terminées ne reçoivent qu'un voile
+   à 8 %. Sur une suite d'outils qui lisent tous des fichiers, le schéma
+   paraît monochrome : la couleur est là, elle ne porte pas.
+
+   On remplit donc la carte de sa propre couleur, à faible densité. La règle
+   d'origine est respectée — « un glyphe plein n'est jamais un aplat : c'est
+   sa propre couleur à 18 % » — appliquée cette fois à la carte entière.
+
+   Le moteur ne peut pas le faire en CSS : la couleur de famille arrive en
+   attribut `stroke`, et aucune règle ne sait la lire. Elle doit être posée
+   en `fill` par le dessin. Ici on la relit après coup, ce qui suffit à
+   montrer l'effet ; côté produit, c'est `draw()` qui devra poser le `fill`.
+   ───────────────────────────────────────────────────────────────────── */
+function hexA(h, a){
+  const n = parseInt(h.slice(1), 16);
+  return "rgba(" + ((n >> 16) & 255) + "," + ((n >> 8) & 255) + "," + (n & 255)
+    + "," + a + ")";
+}
+function colorier(){
+  document.querySelectorAll("#svg g.node").forEach((g) => {
+    const b = g.querySelector("rect.b");
+    if (!b) return;
+    const c = b.getAttribute("stroke");
+    if (!c || c[0] !== "#") return;
+    /* Terminée : la couleur pleine et calme. En cours : un peu plus dense,
+       parce que c'est là que le regard doit tomber en premier. */
+    b.setAttribute("fill", hexA(c, g.classList.contains("st-run") ? 0.19 : 0.12));
+  });
+}
+
+const JOURNAL = [
+  ["14:32:07","tool.complete","shell.run terminé"],
+  ["14:32:03","message.delta","Les 76 vérifications passent, y compris"],
+  ["14:31:58","tool.start","shell.run — node test_page.js"],
+  ["14:31:57","status.update","[thinking] je relis le contrat"],
+  ["14:31:55","tool.complete","fs.read terminé"],
+  ["14:31:54","tool.start","fs.read — web/CONTRAT-INTERFACE.md"],
+  ["14:31:52","session.info","claude-opus-5 · C:/…/Projet Ulysse"]
+];
+
+function majPied(total){
+  $("toutbtn").textContent = (ouvertes.size >= total && total) ? "Tout replier" : "Tout déplier";
+  $("voirJrn").innerHTML = (jrnOuvert ? "Masquer le flux brut" : "Voir le flux brut")
+    + (propose ? '<span class="p-cpt">' + JOURNAL.length + " lignes</span>" : "");
+}
+
+/* ── Les gestes du panneau, comme dans le produit ───────────────────────── */
+$("stseg").onclick = (e) => {
+  const b = e.target.closest("[data-v]"); if (!b) return;
+  vue = b.dataset.v;
+  const s = $("studio");
+  s.classList.toggle("max-canvas", vue === "canvas");
+  s.classList.toggle("max-reader", vue === "reader");
+  $("stseg").querySelectorAll("button").forEach((x) =>
+    x.classList.toggle("on", x.dataset.v === vue));
+  /* Le volet vient de changer de forme : on range pour la nouvelle. */
+  if (vue !== "reader") setTimeout(() => { dessine(); if (propose) ranger(false); }, 40);
+};
+/* Idem au redimensionnement de la fenêtre — sans harceler le calcul. */
+let rzT = null;
+window.addEventListener("resize", () => {
+  if (!propose) return;
+  clearTimeout(rzT);
+  rzT = setTimeout(() => ranger(false), 140);
+});
+$("toutbtn").onclick = () => {
+  const st = etapes();
+  if (ouvertes.size >= st.length) ouvertes.clear();
+  else st.forEach((s) => ouvertes.add(s.n));
+  dessine();
+};
+$("voirJrn").onclick = () => { jrnOuvert = !jrnOuvert; dessine(); };
+$("recentrer").onclick = () => graph.camReset();
+
+/* La fiche d'une étape — ouverte par le ⋯ du nœud, par « Tout savoir », ou
+   par un double-clic sur la ligne. Trois chemins, une seule fiche. */
+function fiche(n){
+  const s = etapes().find((x) => x.n === n); if (!s) return;
+  const fam = FAMILLES[s.team];
+  $("ficheBody").innerHTML = '<div class="fhead"><h2>' + esc(s.t) + "</h2>"
+    + '<div class="sub">' + (s.pct === 100 ? "Terminée" : "En cours")
+    + " · " + fam.n.toLowerCase() + "</div></div><p>" + esc(s.d) + "</p>"
+    + (s.result ? '<pre class="u-raw">' + esc(s.result) + "</pre>" : "")
+    + '<div class="sheet-acts"><button class="txt-btn" id="nClose">Fermer</button></div>';
+  $("sNode").classList.add("on");
+  $("nClose").onclick = () => $("sNode").classList.remove("on");
+}
+GS.onFiche = fiche;
+GS.onPick = (n) => { ouvertes.add(n); dessine(); };
+
+/* ── La caméra : l'échelle, et le recentrage par un clic dessus ──────────
+   Le moteur sait déjà zoomer à la molette autour du pointeur et se laisser
+   tirer. Ce qui manquait, c'est de le DIRE : sans échelle affichée, on ne
+   sait pas qu'on peut zoomer, ni de combien on s'est éloigné. */
+function majCam(){
+  $("pCam").style.display = propose ? "flex" : "none";
+  $("pCamK").textContent = Math.round(GS.CAM.k * 100) + " %";
+  if (!$("pCamAuto").innerHTML) $("pCamAuto").innerHTML = svg("noeuds", { size: 17 });
+  /* Le bouton s'allume dès que la caméra n'est plus à plat : on ne cherche
+     pas « comment revenir », on le voit. */
+  const plat = GS.CAM.k === 1 && GS.CAM.x === 0 && GS.CAM.y === 0;
+  $("pCam").classList.toggle("deplace", !plat || bouge);
+}
+function zoom(f){
+  GS.CAM.k = Math.min(3, Math.max(0.45, GS.CAM.k * f));
+  const g = document.getElementById("gzoom");
+  if (g) g.setAttribute("transform",
+    "translate(" + GS.CAM.x + " " + GS.CAM.y + ") scale(" + GS.CAM.k + ")");
+  majCam();
+}
+$("pCamP").onclick = () => zoom(1.15);
+$("pCamM").onclick = () => zoom(1 / 1.15);
+$("pCamK").onclick = () => { graph.camReset(); majCam(); };
+$("pCamAuto").onclick = () => ranger(true);
+/* Une lettre, parce qu'on y revient souvent et qu'on a la main sur la carte. */
+document.addEventListener("keydown", (e) => {
+  if (!propose || (e.key !== "a" && e.key !== "A")) return;
+  /* e.target peut être le document lui-même, qui n'a pas de closest() —
+     et une exception ici tuerait tous les autres écouteurs de la touche. */
+  const t = e.target;
+  if (t && t.closest && t.closest("input,textarea")) return;
+  ranger(true);
+});
+/* La molette du moteur ne nous prévient pas : on relit l'échelle après coup. */
+$("svg").addEventListener("wheel", () => setTimeout(majCam, 0), { passive: true });
+$("svg").addEventListener("mouseup", () => setTimeout(majCam, 0));
+$("sNode").onclick = (e) => { if (e.target.id === "sNode") $("sNode").classList.remove("on"); };
+
+/* ── Les commutateurs de l'aperçu ───────────────────────────────────────── */
+$("apN").onclick = (e) => {
+  const b = e.target.closest("[data-n]"); if (!b) return;
+  $("apN").querySelectorAll("button").forEach((x) => x.classList.remove("on"));
+  b.classList.add("on");
+  nEtapes = +b.dataset.n; ouvertes.clear(); GS.POS = {}; dessine();
+};
+$("apVers").onclick = (e) => {
+  const b = e.target.closest("[data-p]"); if (!b) return;
+  $("apVers").querySelectorAll("button").forEach((x) => x.classList.remove("on"));
+  b.classList.add("on");
+  propose = b.dataset.p === "1";
+  $("propose").media = propose ? "all" : "not all";
+  GS.POS = {}; dessine();
+};
+
+function majNote(){
+  $("apBody").innerHTML = propose
+    ? "<b>Proposé</b> — quatre gestes, dont un seul compte vraiment."
+      + "<h4>Le schéma cesse d'être un ruban</h4>"
+      + "Les étapes réelles sont une <b>chaîne</b> : "
+      + "<code>edges = steps.slice(1).map(s =&gt; [s.n-1, s.n])</code>. "
+      + "Le rangement par couches de la maquette met alors chaque étape dans sa "
+      + "propre couche — une seule ligne, aussi large que le nombre d'outils. "
+      + "À 12 étapes, le schéma fait <b>2760 px de large pour 74 de haut</b>. "
+      + "Repliez-le en serpentin et la même donnée tient dans son cadre. "
+      + "<i>Passez sur 12 étapes et rebasculez Actuel / Proposé.</i>"
+      + "<h4>Le volet devient une carte</h4>"
+      + "<b>Prenez une carte et posez-la ailleurs</b> — les nœuds sont libres. "
+      + "Le bouton <b>ranger</b> (à droite de l'échelle, ou la touche <b>A</b>) "
+      + "remet tout en place et choisit le nombre d'étapes par rangée d'après "
+      + "la forme du volet. Toutes les rangées se lisent de gauche à droite ; "
+      + "le trait de retour longe la marge, comme un retour chariot.<br><br>"
+      + "Le SVG remplissait son volet par son contenu — sur un ruban, il "
+      + "débordait et se faisait couper des deux côtés. Il remplit maintenant "
+      + "le <b>cadre</b>, et le contenu tient dedans. Le zoom molette et le "
+      + "tirer existaient déjà dans le moteur : ils n'étaient pas trouvables. "
+      + "Le fond pointillé, le curseur et l'échelle en bas à droite les disent. "
+      + "<i>Cliquez le pourcentage pour recentrer.</i>"
+      + "<h4>Chaque étape retrouve son ⋯</h4>"
+      + "<code>.dots</code> et <code>.sactions</code> sont dans ulysse.css depuis "
+      + "la maquette — le produit n'a repris ni l'un ni l'autre. Le commentaire "
+      + "d'origine dit : <i>« Le kebab reste visible. Il l'était au survol "
+      + "seulement, et c'est la troisième fois que Raf ne le trouve pas. »</i> "
+      + "Il est donc visible, en gris, et ses actions s'ouvrent <b>sous</b> "
+      + "l'étape. Double-cliquer la ligne ouvre sa fiche."
+      + "<h4>Et trois petites choses</h4><ul>"
+      + "<li>Les deux bandeaux <code>.volet-head</code> disparaissent : la maquette "
+      + "n'en avait pas, et ils renomment ce que le segment vient de nommer. 92 px.</li>"
+      + "<li>L'écran vide met la réserve technique "
+      + "(<code>display.tool_progress</code>) derrière un lien au lieu d'un encadré "
+      + "en pointillés plein écran.</li>"
+      + "<li>« Voir le flux brut » annonce son nombre de lignes.</li></ul>"
+      + "<h4>Une question de mot</h4>"
+      + "Le titre passe de « Plan » à « <b>Ce que fait l'agent</b> » — le titre du "
+      + "volet, que la maquette avait déjà trouvé. Hermès n'annonce pas ce qu'il va "
+      + "faire : il le fait, et l'écran le reflète. Appeler ça un plan promet un "
+      + "avenir qu'on ne montre pas."
+    : "<b>Actuel</b> — l'état du produit."
+      + "<h4>À essayer</h4><ul>"
+      + "<li>Passez sur <b>12 étapes</b> : le schéma devient un ruban illisible.</li>"
+      + "<li>Cliquez le <b>⋯</b> d'un nœud : la fiche de l'étape.</li>"
+      + "<li>« Voir le flux brut », « Tout déplier », et les trois vues du segment.</li>"
+      + "</ul>Puis basculez sur « Proposé ».";
+}
+
+dessine();
+</script>
+</body>
+</html>

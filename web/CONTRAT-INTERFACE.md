@@ -1,0 +1,239 @@
+# Contrat d'interface — ce que le design peut changer, et ce qui casse
+
+Ce fichier existe pour une raison précise : le design se fait ailleurs (Claude
+Cowork), le câblage ici. Sans liste de ce qui porte la logique, une passe de
+design casse le produit sans que rien ne le signale — les pages restent belles
+et ne font plus rien.
+
+**Règle en une phrase :** changez tout ce qui est visuel, ne renommez ni ne
+supprimez les `id` et les `data-*` listés plus bas.
+
+---
+
+## 1. Ce qui est LIBRE (aucune logique ne s'y accroche)
+
+- **`ulysse.css`** — entièrement. C'est aujourd'hui le `<style>` de la maquette,
+  copié au caractère près. Rien dans le JavaScript ne lit ce fichier.
+
+  > Une réserve depuis le 2026-08-08 : `test_page.js` **charge** désormais la
+  > feuille et interroge `getComputedStyle`. Sans elle, une vérification
+  > d'apparence passe aussi bien avec le défaut qu'avec sa correction. Les
+  > valeurs peuvent changer librement ; ce sont les **noms** de quelques
+  > classes de la maquette qui portent maintenant du sens — voir §2.4.
+- **Le bloc `<style>` de `ulysse.html`** — entièrement. Toutes ses règles sont
+  préfixées `u-` pour ne jamais recouvrir la maquette ; gardez cette habitude,
+  ou dites-le si vous la changez.
+- **Tous les textes visibles** — libellés, titres, phrases d'aide, messages.
+- **La structure autour** — ajouter des conteneurs, des wrappers, des sections.
+  Ce qui compte, c'est que les éléments listés en §2 existent toujours et
+  restent atteignables.
+- **Les icônes** — `ulysse-icons.js` est la table de la maquette. En ajouter
+  est sans risque ; en retirer casse les appels `svg("nom")`.
+
+---
+
+## 2. Ce qui PORTE LA LOGIQUE
+
+### 2.1 Les `id` — 88, tous lus par le JavaScript
+
+Renommer ou supprimer l'un d'eux coupe la fonction correspondante, en silence.
+
+**Le premier lancement** — `first` `firstcard`. Ils étaient dans la maquette
+et jamais dans le produit, donc jamais listés. `#first` n'apparaît qu'au
+premier lancement, et le marqueur qui le dit vit **côté `serve.py`**, hors du
+dossier servi : `localStorage` ne survivrait ni à un autre navigateur ni à une
+fenêtre privée, et l'absence des fichiers de mémoire dit autre chose.
+
+**La scène** — `app`. Depuis le 2026-08-08,
+**`#lvl1` n'existe plus**. L'accueil de Discuter *est* l'écran d'entrée — même
+mot-marque, même champ centré, même interrupteur. Neuf `id` sont sortis avec
+lui (`lvl1` `mark` `form1` `q` `plus0` `mic0` `snd0` `jointes0` `modenote0`) ;
+`#composer`, `#reply`, `#plus1`, `#mic1`, `#snd1`, `#jointes1` et `#modenote1`
+faisaient déjà le même travail. **`wait0` et `wait0txt` restent** : le compteur
+n'avait pas de doublure, et il se rejoue en `.wait.inline` dans le fil.
+
+Le mot-marque n'a plus d'`id` : il porte `.u-marque` et rien ne le lit.
+
+**Les panneaux** — `pDiscuter` `pPlan` `pTravaux` `pLivrables` `pProjets`
+`pAutomatisations` `pVestiaire` `pReglages` `pTerminal` `pReperes`.
+`nav()` les compose (`"p" + destination`) : le nom du panneau et l'entrée du
+menu ne peuvent pas diverger. **`#pDiscuter` porte les cinq classes d'état.**
+
+**Le menu** — `railwrap` `railhot` `rail` `railItems` `burger` `bell` `bellIc`
+`dettewrap`
+
+**Discuter** — `work` `thread` `band` `roles` `privchip` `files` `ctlEtabli`
+`wait0` `wait0txt` `languette` `uStock`
+`composer` `reply` `plus1` `mic1` `snd1` `stopBtn` `composerHint`
+`moreBtn` `morePop` `pop` `fileInput` `jointes1` `modenote1`
+`cadreBtn` `cadrePop`
+
+> **`#band` et `#roles` sont DÉPLACÉS, pas recréés.** `#band` vit dans le
+> kebab, `#roles` dans le repli de la gélule « Cadre ». `#uStock` est leur
+> point de départ et leur refuge.
+>
+> ⚠ **`#morePop` est reconstruit en `innerHTML` à chaque ouverture.** Écrire
+> `#band` en dur dedans le détruirait au premier clic. La séquence est :
+> **sortir, réécrire, réinstaller**. Le piège s'est déclenché en test ; une
+> vérification le garde.
+
+**Les filtres** — `travQ` `livQ` `repQ` (et `vq`, déjà là). Quatre panneaux
+sur dix filtrent ; `.search` n'était utilisée que par le Vestiaire, celui qui
+en avait le moins besoin.
+
+**Plan** — `studio` `stseg` `vCanvas` `vReader` `svg` `recentrer` `paneG`
+`steps` `toutbtn` `voirJrn` `planMeta` `planStop`
+
+**Les autres panneaux** — `works` `livrables` `projets` `autos`
+`vgrid` `vdet` `vmeta` `vseg` `vq` `icSearch` `setnav` `setbody`
+`tside` `tmain` `glossary`
+et leurs boutons : `travRefresh` `livRefresh` `projRefresh` `autoRefresh`
+
+**Le flottant** — `npanel` `toasts` `snack` `sNode` `ficheBody` `sFile`
+`fileBody`
+
+**Créés à l'exécution** (ne pas les mettre dans le HTML, mais ne pas non plus
+créer d'`id` qui leur ressemble) : `gzoom` `doorBtn` `densSeg` `livCrumbs`
+`livHome` `livList` `mIncog` `mNew` `mEtabli` `nClose` `fClose` `vAct`
+`etabliClose` `tGo` `tSize` `tCout` `tecran` `tstate` `detteGo` `detteAct` `detteRed`
+
+> ⚠ **`#tecran` porte un terminal VIVANT.** C'est le seul nœud de la page
+> dont le contenu n'appartient pas à la maquette : xterm.js y peint la sortie
+> d'un `hermes --tui` réel, et une session PTY y est ouverte. Or `#tmain` est
+> reconstruit en `innerHTML` à chaque changement de thème ou de taille. Le
+> laisser dans le gabarit **couperait le PTY sous les doigts** de quelqu'un
+> en train de taper. `drawTerm()` fait donc la même séquence que pour `#band` :
+> **sortir** l'écran vers `#uStock`, réécrire `#tmain`, **réinstaller**
+> l'écran à la place du nœud neuf. Une passe de design peut réécrire tout le
+> reste de `#tmain` — mais doit laisser `<div id="tecran">` vide dans le
+> gabarit, et ne jamais y mettre de contenu à elle.
+
+### 2.2 Les attributs `data-*` — c'est par eux que les clics arrivent
+
+| Attribut | Porté par | Ce qu'il déclenche |
+|---|---|---|
+| `data-nav` | boutons du menu | aller à une destination |
+| `data-mode` | boutons `.u-modeseg` | Chat (`pur`) ⇄ Cowork |
+| `data-v` | `#stseg`, `#vseg` | volets du Plan, vues du Vestiaire |
+| `data-dir` / `data-file` | lignes de fichiers | ouvrir un dossier / un fichier |
+| `data-resume` | lignes de Travaux | reprendre une conversation |
+| `data-cwd` | cartes de Projets | choisir le dossier de travail |
+| `data-tog` / `data-fire` | Automatisations | pause/reprise, déclenchement |
+| `data-wh` | webhooks | déclencher une route |
+| `data-open` | `.acard` | déplier une carte |
+| `data-yes` / `data-no` | notifications | répondre depuis la bulle (`once` / `deny`) |
+| `data-ch` | le bloc `.ask` du fil | répondre avec sa **portée** : `once` · `session` · `always` · `deny` |
+| `data-i` | tuiles du Vestiaire | sélectionner |
+| `data-g` | en-têtes de provenance | replier un groupe de compétences |
+| `data-t` | étapes du Plan | déplier une étape |
+| `data-act` | le kebab d'une étape | ouvrir ses actions, sous la ligne |
+| `data-a` | `.acts` d'une ligne, `.sactions` d'une étape | l'action elle-même |
+| `data-cle` | lignes et cartes | l'identité de la ligne, lue par ses actions |
+| `data-cr` | segments du fil d'Ariane | remonter d'un cran |
+| `data-cmd` | aide-mémoire du Terminal, adresses de webhook | copier |
+| `data-z` | `.u-echelle` | zoomer d'un pas |
+| `data-jx` | pastilles de pièce jointe | retirer la pièce |
+| `data-role` | pastilles de rôle | activer un cadre |
+| `data-th` / `data-sz` | Terminal | thème, taille |
+
+### 2.3 Les classes lues par le JavaScript
+
+`on` (l'état actif, partout : scènes, panneaux, segments, pastilles) ·
+`panel` · `rail-btn` · `lbl` · `raildot` · `mini` / `open` (le menu) ·
+`atelier` (l'Établi ouvert, sur `#work`) ·
+`pop` · `sheet` · `sheet-bg` ·
+`u-modeseg` · `u-jointe` · `nrow` · `dette` · `sec` · `wait-fill` · `nm`
+
+**Les cinq classes d'état de Discuter**, posées d'un seul endroit —
+`majEtats()`. Les poser chacune de son côté, c'est les voir se contredire.
+
+| Classe | Sur | Quand |
+|---|---|---|
+| `accueil` | `#pDiscuter` | aucun message n'a encore été envoyé |
+| `cowork` | `#pDiscuter` | l'agent complet (Chat n'en porte pas) |
+| `incog` | `#pDiscuter` | le fil sans mémoire |
+| `hs` | `#pDiscuter` | une brique ne répond plus — c'est elle qui marque le kebab |
+| `atelier` | `#work` | l'Établi est ouvert |
+
+Les classes de la maquette employées pour l'apparence (`.row`, `.pcard`,
+`.acard`, `.tile`, `.exp`, `.srow2`…) peuvent être restylées librement.
+
+### 2.4 Les classes de la maquette que le JavaScript ÉCRIT
+
+Elles ne sont pas lues par le code, mais c'est lui qui les pose dans le HTML
+qu'il fabrique — les renommer dans `ulysse.css` les laisserait sans style,
+sans que rien ne le signale.
+
+| Classe | Écrite par | Ce qu'elle porte |
+|---|---|---|
+| `privnote` | `paintThread()` | la ligne en tête du fil sans mémoire |
+| `privchip` | `paintHint()` | la pastille près du titre |
+| `vdet-head` / `vdet-body` | `drawVDetail()` | la tête figée et le corps qui défile |
+| `vhero` | `drawVDetail()` | l'avatar 52 px et le nom |
+| `ctl` | l'en-tête de l'Établi | la croix qui le referme |
+| `ask` / `opt` / `tick` / `dangerlink` | `accordHTML()` | la demande d'accord dans le fil, et `ask.done` après |
+| `acts` | les quatre listes | les actions d'une ligne, au survol |
+| `dots` / `sactions` / `exp-acts` | `drawPlan()` | le kebab d'une étape et ses actions |
+| `tile` / `sel` | `grilleV()` | une compétence, et celle qui est choisie |
+| `wait` / `inline` | l'accueil | le compteur, rejoué dans le fil |
+| `avert` / `cout` / `tmemo` | Terminal | l'avertissement, le coût, l'aide-mémoire |
+| `u-tscreen` / `u-tecran` / `u-tstate` | Terminal | **à nous** : le cadre de l'écran, l'écran lui-même, et l'état de la session (`repos` / `ouverture` / `ouvert` / `coupe` en classe jointe) |
+| `u-hint` | `#composerHint` | **à nous**, pas à la maquette : voir plus bas |
+
+> `#composerHint` portait `.glegend`, qui est la légende du **schéma du Plan**
+> et vaut `position:absolute`. Dans la sous-barre du composeur elle se
+> détachait du flux et venait se poser par-dessus l'interrupteur. Elle porte
+> désormais `u-hint`, définie dans le `<style>` de la page. `.glegend` reste
+> intacte là où elle a un sens — dans `#paneG`.
+
+---
+
+## 3. Ce qu'il NE FAUT PAS toucher
+
+- **`ulysse-core.js`** — la liaison à Hermès. Chaque appel y est vérifié contre
+  le code source d'Hermès (voir `AUDIT-ENDPOINTS-REEL.md`). Une modification
+  « pour que ça passe » casse le contrat avec le backend.
+- **`serve.py`** — c'est lui qui détient les secrets et tient les frontières
+  (écoute loopback, `Host` et `Origin` vérifiés, signature des webhooks).
+- **Les fichiers de test** — ils sont la preuve que ça marche encore.
+
+---
+
+## 4. Comment vérifier qu'une passe de design n'a rien cassé
+
+```
+cd web
+node test_page.js        # 173 — la page dans un DOM réel : chaque panneau, chaque geste
+python test_serve.py     # 52 — les frontières et le relais
+python test_personas.py  # 100 — 10 personas x 2 scénarios
+python test_reel.py      # 39 — contre le VRAI Hermès (demande la pile lancée)
+```
+
+Deux de ses sections **gardent des défauts déjà corrigés** — « la demande
+d'accord » et « les six réparations ». Ils étaient tous invisibles côté réseau
+**et** côté contrat : la page s'affichait, les identifiants étaient tous là.
+Sans ces vérifications, une passe de design les réintroduit sans bruit.
+
+`test_page.js` est celui qui attrape les dégâts d'une passe de design : il
+monte la vraie page et vérifie que les dix panneaux s'affichent, que la
+bascule répond, que la pièce jointe part, que la demande d'accord sonne.
+
+S'il tombe en rouge après un changement de design, ce n'est pas le test qui a
+tort — c'est qu'un `id` ou un `data-*` de la §2 a disparu.
+
+---
+
+## 5. Ce qu'il reste à faire, côté code (pour mémoire)
+
+- ~~Terminal intégré~~ — **fait.** C'est une **WebSocket** `/api/pty`
+  (`@app.websocket`, web_server.py:15736), pas un POST : elle lance
+  `hermes --tui` derrière un pseudo-terminal. Le rendu est confié à
+  `xterm.js`, **emprunté** à l'installation d'Hermès par `serve.py` (liste
+  fermée `EMPRUNTS`, aucun segment ne vient du client) plutôt que recopié.
+- ~~Dictée~~ — **fait**, `/api/audio/transcribe`
+- Écriture des fichiers de profil — `/api/fs/write-text` existe, non branché
+  tant que les garde-fous d'écriture ne sont pas décidés
+- Création de projet / coffre — `projects.tree` existe
+- ~~Écran de premier lancement (`#first`)~~ — **fait.** Le marqueur vit côté
+  serveur (`serve.py`, hors du dossier servi), jamais dans la page ; il est
+  posé par `POST /ulysse/premier-vu`, même origine exigée.

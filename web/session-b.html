@@ -186,6 +186,16 @@
   .segmented button+button{border-left:1px solid var(--outline)}
   .segmented button.on{background:var(--secondary-container);color:var(--on-secondary-container);font-weight:500}
 
+  /* ---- Vestiaire (selection du role de la session) ---------------------- */
+  .roles{display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:10px 16px;
+    border-top:1px solid var(--outline-var);background:var(--surface)}
+  .roles .hint{font-size:12px;color:var(--muted)}
+  .roles .segwrap{display:flex;gap:8px;flex-wrap:wrap}
+  .rolechip{border:1px solid var(--outline);border-radius:999px;padding:6px 14px;cursor:pointer;
+    font-size:12.5px;background:transparent;color:var(--on-surface-var)}
+  .rolechip:hover{background:var(--surface-1)}
+  .rolechip.on{background:var(--primary);color:#fff;border-color:var(--primary)}
+
   .typing{display:inline-flex;gap:4px;padding:4px 2px}
   .typing i{width:7px;height:7px;border-radius:50%;background:var(--muted);animation:blink 1.2s infinite}
   .typing i:nth-child(2){animation-delay:.2s}
@@ -284,6 +294,10 @@
           <button class="btn tonal small" id="cowork-new">Nouvelle session</button>
         </div>
         <div class="log" id="cowork-log" aria-live="polite"></div>
+        <div class="roles">
+          <span class="hint">Vestiaire — role de la session :</span>
+          <div class="segwrap" id="cowork-roles"></div>
+        </div>
         <div class="composer">
           <textarea id="cowork-input" rows="1"
             placeholder="Decris la tache a faire — l'agent a ses outils (fichiers, shell, recherche)…"></textarea>
@@ -342,6 +356,17 @@
         <div class="pane-body" id="skills-body"></div>
       </section>
 
+      <!-- ============================ WEBHOOKS =========================== -->
+      <section class="pane" id="pane-webhooks">
+        <div class="pane-head">
+          <h2>Webhooks</h2>
+          <span class="hint">GET /api/webhooks (dashboard) — declenchement signe par serve.py vers le gateway.</span>
+          <span class="spacer" style="flex:1"></span>
+          <button class="btn tonal small" id="wh-reload">Recharger</button>
+        </div>
+        <div class="pane-body" id="webhooks-body"></div>
+      </section>
+
     </div>
   </div>
 </div>
@@ -361,11 +386,10 @@
 
 const RAW_CFG = (typeof window.ULYSSE_CONFIG === "object" && window.ULYSSE_CONFIG) || {};
 const CFG = {
-  DASHBOARD_URL: (RAW_CFG.DASHBOARD_URL || "http://127.0.0.1:9122").replace(/\/+$/, ""),
-  SESSION_TOKEN: RAW_CFG.SESSION_TOKEN || "",
-  AUTH_HEADER_STYLE: RAW_CFG.AUTH_HEADER_STYLE || "x-token",
-  PROXY_URL: RAW_CFG.PROXY_URL || "http://127.0.0.1:8645/v1/chat/completions",
-  PROXY_TOKEN: RAW_CFG.PROXY_TOKEN || "ulysse",
+  // M14 : le defaut est l'origine de la page, pas un numero de port ecrit en
+  // dur. Trois endroits mentionnaient trois ports differents (9122, 9123,
+  // 8080) ; la page ne parle de toute facon qu'a serve.py, qui la sert.
+  DASHBOARD_URL: (RAW_CFG.DASHBOARD_URL || location.origin).replace(/\/+$/, ""),
   PROXY_MODEL: RAW_CFG.PROXY_MODEL || "tencent/hy3:free",
   PROXY_MAX_TOKENS: RAW_CFG.PROXY_MAX_TOKENS || 800,
   SESSION_CWD: RAW_CFG.SESSION_CWD || "",
@@ -395,9 +419,19 @@ function fmtBytes(n){
   if (n < 1073741824) return (n / 1048576).toFixed(1) + " Mo";
   return (n / 1073741824).toFixed(2) + " Go";
 }
+/* Hermes date ses reponses de deux facons selon l'endpoint : un nombre
+   (epoch, en secondes ou en millisecondes) ou une chaine ISO 8601 — voir
+   `created_at` dans webhook_subscriptions.json face a `last_active` dans
+   /api/sessions. On accepte les deux plutot que d'afficher un tiret. */
 function fmtWhen(ts){
-  if (!ts) return "—";
-  const d = new Date(ts > 1e12 ? ts : ts * 1000);
+  if (ts === null || ts === undefined || ts === "") return "—";
+  let d;
+  if (typeof ts === "string"){
+    const n = Number(ts);
+    d = Number.isFinite(n) && ts.trim() !== "" ? new Date(n > 1e12 ? n : n * 1000) : new Date(ts);
+  } else {
+    d = new Date(ts > 1e12 ? ts : ts * 1000);
+  }
   if (isNaN(d.getTime())) return "—";
   return d.toLocaleString("fr-FR", { dateStyle: "short", timeStyle: "short" });
 }
@@ -437,7 +471,8 @@ const ICONS = {
   refresh:  "M17.65 6.35A7.958 7.958 0 0 0 12 4c-4.42 0-7.99 3.58-8 8s3.58 8 8 8c3.73 0 6.84-2.55 7.73-6h-2.08A5.99 5.99 0 0 1 12 18c-3.31 0-6-2.69-6-6s2.69-6 6-6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z",
   file:     "M14 2H6c-1.1 0-1.99.9-1.99 2L4 20c0 1.1.89 2 1.99 2H18c1.1 0 2-.9 2-2V8l-6-6zm2 16H8v-2h8v2zm0-4H8v-2h8v2zm-3-5V3.5L18.5 9H13z",
   up:       "M4 12l1.41 1.41L11 7.83V20h2V7.83l5.58 5.59L20 12l-8-8-8 8z",
-  build:    "M22.7 19l-9.1-9.1c.9-2.3.4-5-1.5-6.9-2-2-5-2.4-7.4-1.3L9 6 6 9 1.6 4.7C.4 7.1.9 10.1 2.9 12.1c1.9 1.9 4.6 2.4 6.9 1.5l9.1 9.1c.4.4 1 .4 1.4 0l2.3-2.3c.5-.4.5-1.1.1-1.4z"
+  build:    "M22.7 19l-9.1-9.1c.9-2.3.4-5-1.5-6.9-2-2-5-2.4-7.4-1.3L9 6 6 9 1.6 4.7C.4 7.1.9 10.1 2.9 12.1c1.9 1.9 4.6 2.4 6.9 1.5l9.1 9.1c.4.4 1 .4 1.4 0l2.3-2.3c.5-.4.5-1.1.1-1.4z",
+  webhook:  "M9.4 18.4l.7-2.9-2.9-.7 3.3-8.2 2.2.9-2.1 5.2 4.7 2-2.1 5.2-3.3 8.2-.7 2.9 2.9.7-3.3 8.2-2.2-.9zM12 9.5l1.9 4.7-3.4 1.4-1.4-3.4z"
 };
 function svgIcon(name){
   const ns = "http://www.w3.org/2000/svg";
@@ -449,50 +484,74 @@ function svgIcon(name){
   return svg;
 }
 
-/* --- Banniere d'alerte ---------------------------------------------------- */
+/* --- Banniere d'alerte ----------------------------------------------------
+   Le gabarit est ecrit par nous et peut contenir du HTML ; la partie variable
+   vient du backend ou du WebSocket et ne le peut PAS. Un message d'erreur
+   contenant <img onerror=…> s'executerait sinon dans la page, avec acces au
+   proxy authentifie. Le texte variable passe donc par un noeud texte, jamais
+   par innerHTML.
+   -------------------------------------------------------------------------- */
 const alertBox = $("alert");
 let lastAlert = "";
-function showAlert(html){
+let configAlert = "";   // alerte de configuration : survit aux succes backend
+
+function esc(s){
+  return String(s === null || s === undefined ? "" : s)
+    .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;").replace(/'/g, "&#39;");
+}
+
+function showAlert(html, kind){
   if (html === lastAlert) return;
   lastAlert = html;
+  if (kind === "config") configAlert = html;
   alertBox.innerHTML = '<button class="close" title="Fermer">&times;</button>' + html;
   alertBox.classList.add("show");
-  alertBox.querySelector(".close").onclick = () => { alertBox.classList.remove("show"); lastAlert = ""; };
+  alertBox.querySelector(".close").onclick = () => {
+    alertBox.classList.remove("show");
+    lastAlert = "";
+    if (kind === "config") configAlert = "";   // fermeture explicite = acquittee
+  };
 }
-function hideAlert(){ alertBox.classList.remove("show"); lastAlert = ""; }
+
+/* Alerte dont une partie vient de l'exterieur. `parts` alterne gabarit sur
+   et texte a echapper : safeAlert("<b>Erreur</b> : ", texteBackend). */
+function showAlertText(prefix, untrusted, suffix){
+  showAlert(prefix + esc(shorten(untrusted, 300)) + (suffix || ""));
+}
+
+/* M3 : un /api/status qui repasse au vert ne doit pas effacer un
+   avertissement de CONFIGURATION (jeton absent, file://…) : le backend
+   revenu ne corrige pas un fichier de config incomplet. */
+function hideAlert(){
+  lastAlert = "";
+  if (configAlert){ showAlert(configAlert, "config"); return; }  // on la remet
+  alertBox.classList.remove("show");
+}
 
 function alertFor(err){
   if (err && err.status === 401){
-    showAlert("<b>401 — jeton de session refuse.</b> Le dashboard Hermes est en mode protege : " +
-      "renseigne <code>SESSION_TOKEN</code> dans <code>ulysse-config.js</code> avec la valeur de " +
-      "<code>HERMES_DASHBOARD_SESSION_TOKEN</code> (variable d'environnement du processus " +
-      "<code>hermes dashboard</code>), puis recharge la page.");
+    showAlert("<b>401 — jeton de session refuse.</b> Le proxy local a bien relaye la requete, " +
+      "mais le dashboard a rejete le jeton. Verifie que <code>HERMES_DASHBOARD_SESSION_TOKEN</code> " +
+      "vaut la meme chose pour <code>hermes dashboard</code> et pour <code>serve.py</code>, " +
+      "puis relance <code>serve.py</code> (il lit le jeton au demarrage).");
   } else if (err && err.network){
-    showAlert("<b>Dashboard injoignable</b> a <code>" + CFG.DASHBOARD_URL + "</code>. " +
-      "Verifie que <code>hermes dashboard --port …</code> tourne, et que " +
-      "<code>DASHBOARD_URL</code> dans <code>ulysse-config.js</code> pointe sur le bon port.");
+    showAlert("<b>Serveur Ulysse injoignable.</b> Relance <code>lancer_ulysse.bat</code> : " +
+      "c'est <code>serve.py</code> qui sert cette page et relaie <code>/api/*</code>.");
   } else if (err){
-    showAlert("<b>Erreur backend</b> : " + shorten(err.message || String(err), 300));
+    showAlertText("<b>Erreur backend</b> : ", err.message || String(err));
   }
 }
 
 /* ===========================================================================
-   2. Couche REST — appels /api/* authentifies
+   2. Couche REST — appels /api/* relayes par serve.py
    ---------------------------------------------------------------------------
-   En mode loopback, le dashboard exige le jeton de session sur chaque appel
-   /api/*. Deux formes acceptees : l'en-tete X-Hermes-Session-Token (defaut
-   ici) ou Authorization: Bearer. Sans jeton valide -> HTTP 401.
+   La page n'authentifie RIEN elle-meme, et ne detient aucun secret : elle
+   appelle sa propre origine, et serve.py pose le jeton de session au dernier
+   moment (voir « Frontieres de securite » en tete de serve.py). Un jeton dans
+   le navigateur serait lisible par toute extension et telechargeable par qui
+   sait taper l'URL du fichier de config.
    =========================================================================== */
-
-function authHeaders(){
-  const h = {};
-  if (!CFG.SESSION_TOKEN) return h;
-  const style = CFG.AUTH_HEADER_STYLE;
-  if (style === "bearer" || style === "both") h["Authorization"] = "Bearer " + CFG.SESSION_TOKEN;
-  if (style === "x-token" || style === "both") h["X-Hermes-Session-Token"] = CFG.SESSION_TOKEN;
-  if (!h["Authorization"] && !h["X-Hermes-Session-Token"]) h["X-Hermes-Session-Token"] = CFG.SESSION_TOKEN;
-  return h;
-}
 
 class ApiError extends Error {
   constructor(message, status, network){
@@ -508,7 +567,7 @@ async function api(path, opts){
   try {
     res = await fetch(CFG.DASHBOARD_URL + path, {
       method: opts.method || "GET",
-      headers: Object.assign({}, authHeaders(), opts.headers || {},
+      headers: Object.assign({}, opts.headers || {},
         opts.body ? { "Content-Type": "application/json" } : {}),
       body: opts.body ? JSON.stringify(opts.body) : undefined,
       cache: "no-store"
@@ -516,14 +575,25 @@ async function api(path, opts){
   } catch (e){
     throw new ApiError("connexion impossible : " + e.message, 0, true);
   }
+
+  // Toutes les reponses ne sont pas du JSON : un 204 n'a pas de corps, une
+  // erreur du proxy est du texte, un endpoint peut repondre text/plain. Lire
+  // en texte puis tenter le JSON evite un SyntaxError hors ApiError, que rien
+  // n'attrapait et qui laissait l'onglet dans un etat de chargement infini.
+  const text = res.status === 204 ? "" : await res.text().catch(() => "");
+  let data = null, parsed = false;
+  if (text){
+    try { data = JSON.parse(text); parsed = true; } catch (e){ /* pas du JSON */ }
+  }
+
   if (res.status === 401) throw new ApiError("Unauthorized", 401);
   if (!res.ok){
-    let detail = "";
-    try { const j = await res.json(); detail = j.detail || j.message || ""; } catch (e){ /* corps non JSON */ }
+    const detail = parsed && data ? (data.detail || data.message || data.error || "")
+                                  : shorten(text, 200);
     throw new ApiError("HTTP " + res.status + (detail ? " — " + detail : ""), res.status);
   }
-  if (res.status === 204) return null;
-  return res.json();
+  if (!text) return null;
+  return parsed ? data : { raw: text };
 }
 
 /* ===========================================================================
@@ -533,22 +603,22 @@ async function api(path, opts){
    mode Cowork, et le Studio ecoutent le meme flux. C'est ce qui fait du
    Studio un miroir reel de la session, sans donnee simulee.
 
-   - URL : ws://HOTE/api/ws?token=<jeton>   (le handshake WS ne peut pas
-     porter d'en-tete : en mode loopback Hermes accepte le jeton en query.)
+   - URL : ws://<cette origine>/api/ws — serve.py y ajoute ?token=… avant de
+     rejouer le handshake (le handshake WS ne porte pas d'en-tete, et la page
+     n'a pas le jeton). Il reecrit aussi l'Origin : le dashboard refuse en
+     4403 un handshake dont l'origine ne designe pas son propre hote.
    - Le serveur emet immediatement un evenement 'gateway.ready'.
    - Requetes  : {"jsonrpc":"2.0","id":N,"method":"…","params":{…}}
    - Reponses  : {"jsonrpc":"2.0","id":N,"result":{…}} ou {…,"error":{…}}
    - Evenements: {"jsonrpc":"2.0","method":"event",
                   "params":{"type":"…","session_id":"…","payload":{…}}}
-   - Codes de fermeture : 4401 = auth refusee, 4403 = surface desactivee.
+   - Codes de fermeture : 4401 = auth refusee, 4403 = origine/surface refusee.
    =========================================================================== */
 
 function wsUrl(){
-  const u = new URL(CFG.DASHBOARD_URL);
+  const u = new URL(CFG.DASHBOARD_URL, location.href);
   const proto = u.protocol === "https:" ? "wss:" : "ws:";
-  let url = proto + "//" + u.host + "/api/ws";
-  if (CFG.SESSION_TOKEN) url += "?token=" + encodeURIComponent(CFG.SESSION_TOKEN);
-  return url;
+  return proto + "//" + u.host + "/api/ws";
 }
 
 class HermesLink {
@@ -593,7 +663,12 @@ class HermesLink {
     }
     this.ws = ws;
 
-    ws.onopen = () => { this.retries = 0; /* l'etat passe a "open" sur gateway.ready */ };
+    // C2 : le lien est utilisable des l'ouverture de la socket. Attendre
+    // 'gateway.ready' pour passer en "open" liait tout Cowork a la reception
+    // d'un evenement precis : rate ou emis avant l'attache du handler, ready()
+    // expirait et rpc() refusait tout. gateway.ready reste utile (il porte
+    // change_events), mais comme confirmation, pas comme condition.
+    ws.onopen = () => { this.retries = 0; this._setState("open"); };
 
     ws.onmessage = (ev) => {
       // Le protocole est "newline-delimited" : une trame peut, en theorie,
@@ -624,9 +699,16 @@ class HermesLink {
       }
       if (ev.code === 4403){
         this.giveUp = true;
-        this._setState("denied", "surface Cowork desactivee cote serveur (4403)");
-        showAlert("<b>Cowork indisponible</b> — le dashboard a ferme le WebSocket avec le code 4403 : " +
-          "la surface de chat embarquee est desactivee sur ce serveur.");
+        this._setState("denied", "handshake refuse par le dashboard (4403)");
+        // Le 4403 a deux causes possibles cote Hermes, et la premiere est de
+        // loin la plus frequente : _ws_request_is_allowed() rejette l'origine
+        // ou l'hote du handshake. Ne diagnostiquer que « surface desactivee »
+        // envoyait chercher un probleme inexistant.
+        showAlert("<b>WebSocket refuse (4403).</b> Le dashboard a rejete le handshake. " +
+          "Cause habituelle : l'en-tete <code>Origin</code> ou <code>Host</code> ne designe pas " +
+          "l'hote sur lequel le dashboard est lie. Verifie que la page passe bien par " +
+          "<code>serve.py</code> (c'est lui qui reecrit ces en-tetes) et non en direct sur le " +
+          "port du dashboard.");
         return;
       }
       this._setState("closed", "code " + ev.code);
@@ -721,6 +803,49 @@ const conv = {
 const studioLog = [];   // journal brut des evenements (Studio)
 let turnSeq = 0;
 
+/* ===========================================================================
+   3b. Vestiaire — 6 roles (pas des agents) : cadrent la session Cowork.
+   Choisir un role prefixe le tout premier message avec le cadre correspondant.
+   Le moteur recoit un prompt normal ; rien de fragile cote API.
+   =========================================================================== */
+const ROLES = [
+  { id: "orchestrateur", name: "Orchestrateur",
+    prompt: "Tu agis comme Orchestrateur : coordonne, decoupe la tache en etapes, delegue aux outils pertinents et verifie le resultat avant de conclure." },
+  { id: "generaliste", name: "Generaliste",
+    prompt: "Tu agis comme Generaliste : reponds de facon polyvalente et autonome, sans presupposer de specialisation." },
+  { id: "raisonnement", name: "Raisonnement",
+    prompt: "Tu agis comme Raisonnement : analyse en profondeur, expose ton cheminement etape par etape avant de conclure." },
+  { id: "codage", name: "Codage",
+    prompt: "Tu agis comme expert Codage : lis/ecris les fichiers, teste reellement, et livre du code fonctionnel verifie." },
+  { id: "appel-outil", name: "Appel d'outil",
+    prompt: "Tu agis comme Appel d'outil : privilégie systématiquement les outils et API disponibles plutot que de repondre en texte libre." },
+  { id: "gardefou", name: "Garde-fou",
+    prompt: "Tu agis comme Garde-fou : avant chaque action, signale les risques, les effets irreversibles et demande confirmation si necessaire." }
+];
+let activeRole = null;
+
+function buildRoles(){
+  const host = $("cowork-roles");
+  if (!host) return;
+  clear(host);
+  ROLES.forEach((r) => {
+    const b = el("button", "rolechip", r.name);
+    b.dataset.role = r.id;
+    if (activeRole && activeRole.id === r.id) b.classList.add("on");
+    b.onclick = () => selectRole(r.id);
+    host.appendChild(b);
+  });
+}
+
+function selectRole(id){
+  const r = ROLES.find((x) => x.id === id);
+  if (!r) return;
+  activeRole = (activeRole && activeRole.id === id) ? null : r;  // reclic = desactive
+  Array.prototype.forEach.call(document.querySelectorAll("#cowork-roles .rolechip"), (b) =>
+    b.classList.toggle("on", activeRole && b.dataset.role === activeRole.id));
+  paintCoworkControls();
+}
+
 function newTurn(role, text){
   const t = { key: ++turnSeq, role: role, text: text || "", tools: [], reasoning: "",
               sawDelta: false, state: role === "assistant" ? "streaming" : "done", ts: Date.now() };
@@ -761,12 +886,38 @@ function eventBrief(type, p){
   }
 }
 
+/* --- Chien de garde du tour (C4) -----------------------------------------
+   `conv.running` masque le composer tant qu'un tour est en cours. Il n'est
+   remis a false que par message.complete / error. Si un tour se termine sans
+   emettre l'un des deux — agent tue, session expiree, evenement perdu — le
+   composer reste masque DEFINITIVEMENT : plus moyen d'ecrire, sans erreur ni
+   explication. Le garde-fou est reactive a chaque evenement recu : tant que
+   la session parle, il ne se declenche pas.
+   ------------------------------------------------------------------------- */
+const TURN_SILENCE_MS = 180000;   // 3 min sans le moindre evenement
+let turnWatchdog = null;
+
+function armTurnWatchdog(){
+  clearTimeout(turnWatchdog);
+  if (!conv.running) return;
+  turnWatchdog = setTimeout(() => {
+    if (!conv.running) return;
+    conv.running = false;
+    conv.status = null;
+    pushSystem("Aucun evenement recu depuis 3 minutes : le tour est considere comme " +
+      "termine et la saisie est rendue. Si l'agent travaille encore, sa reponse " +
+      "s'affichera a son arrivee.");
+    paint();
+  }, TURN_SILENCE_MS);
+}
+
 /* --- Reducteur : un evenement du gateway -> etat de la conversation ------- */
 link.onEvent((type, params) => {
   const pl = params.payload || {};
 
   studioLog.push({ t: new Date(), type: type, sid: params.session_id || "", brief: eventBrief(type, params) });
   if (studioLog.length > CFG.STUDIO_LOG_MAX) studioLog.splice(0, studioLog.length - CFG.STUDIO_LOG_MAX);
+  armTurnWatchdog();
 
   switch (type){
     case "message.start":
@@ -794,6 +945,8 @@ link.onEvent((type, params) => {
       t.state = pl.status === "error" ? "error" : "done";
       conv.running = false;
       conv.status = null;
+      conv.approval = null;        // M12 : le tour est clos, plus rien a approuver
+      clearTimeout(turnWatchdog);
       break;
     }
 
@@ -836,6 +989,8 @@ link.onEvent((type, params) => {
       const t = newTurn("error", pl.message || "erreur inconnue");
       t.state = "error";
       conv.running = false;
+      conv.approval = null;
+      clearTimeout(turnWatchdog);
       break;
     }
 
@@ -847,7 +1002,22 @@ link.onEvent((type, params) => {
 });
 
 link.onState((s) => {
-  if (s === "closed" || s === "denied") conv.running = false;
+  if (s === "closed" || s === "denied"){
+    conv.running = false;
+    conv.approval = null;
+    clearTimeout(turnWatchdog);
+    // C3 : la session vivante appartient a la connexion. Le gateway la detruit
+    // a la fermeture du WebSocket ; garder son identifiant faisait envoyer les
+    // prompt.submit suivants a une session morte — le gateway les jetait sans
+    // rien dire, et l'utilisateur attendait une reponse qui ne venait jamais.
+    if (conv.sessionId){
+      pushSystem("Lien interrompu : la session Cowork est fermee. Le prochain message " +
+        "en ouvrira une nouvelle" + (conv.storedId ? " (l'ancienne reste reprenable depuis l'onglet Sessions)." : "."));
+    }
+    conv.sessionId = null;
+    conv.info = null;
+    conv.status = null;
+  }
   paintStatusBand();
   paint();
 });
@@ -861,7 +1031,9 @@ function bubbleFor(turn){
                 : turn.role === "assistant" ? "ai"
                 : turn.role === "error" ? "err" : "sys"));
   if (turn.role === "user" || turn.role === "assistant"){
-    wrap.appendChild(el("div", "who", turn.role === "user" ? "Toi" : "Ulysse"));
+    wrap.appendChild(el("div", "who", turn.role === "user"
+      ? "Toi" + (turn.preamble ? " · cadre « " + turn.preamble + " »" : "")
+      : "Ulysse"));
   }
 
   // Outils : affiches AVANT le texte, dans l'ordre reel d'execution.
@@ -908,6 +1080,13 @@ function bubbleFor(turn){
   return wrap;
 }
 
+/* Le protocole d'approbation ne porte AUCUN identifiant de demande, et c'est
+   voulu : approval.respond ne prend que {session_id, choice} (+ all), et
+   tools/approval.py:2506 resout la file de la session en FIFO — la plus
+   ancienne demande d'abord. Inventer un request_id serait inventer une API
+   qui n'existe pas. La consequence pratique : la boite ne doit se vider
+   qu'APRES l'acquittement du serveur, sinon un rpc en echec laisse l'agent
+   bloque sans que rien ne s'affiche. */
 function approvalNode(){
   const p = conv.approval;
   const box = el("div", "approval");
@@ -921,10 +1100,19 @@ function approvalNode(){
   choices.forEach((c) => {
     const b = el("button", "btn small" + (c === "deny" ? " danger" : " tonal"), label[c] || c);
     b.onclick = async () => {
-      conv.approval = null;
-      paint();
-      try { await link.rpc("approval.respond", { session_id: conv.sessionId, choice: c }); }
-      catch (e){ pushSystem("Reponse d'approbation refusee : " + e.message); }
+      const all = acts.querySelectorAll("button");
+      Array.prototype.forEach.call(all, (x) => { x.disabled = true; });
+      b.textContent = "…";
+      try {
+        await link.rpc("approval.respond", { session_id: conv.sessionId, choice: c }, 20000);
+        conv.approval = null;     // vide seulement apres succes
+        paint();
+      } catch (e){
+        Array.prototype.forEach.call(all, (x) => { x.disabled = false; });
+        b.textContent = label[c] || c;
+        pushSystem("La reponse d'approbation n'est pas passee (" + e.message
+          + "). L'agent attend toujours : reessaie.");
+      }
     };
     acts.appendChild(b);
   });
@@ -988,6 +1176,14 @@ async function ensureSession(){
   if (CFG.SESSION_MODEL) params.model = CFG.SESSION_MODEL;
 
   const res = await link.rpc("session.create", params, 60000);
+  // methods_session.py:127 renvoie {session_id, stored_session_id, info, …}.
+  // On echoue franchement si le champ manque : sans identifiant, chaque
+  // message ouvrirait une session neuve — l'agent perdrait la memoire du fil
+  // sans que rien ne le signale.
+  if (!res || !res.session_id){
+    throw new Error("session.create n'a pas renvoye de session_id (recu : "
+      + shorten(JSON.stringify(res || null), 200) + ")");
+  }
   conv.sessionId = res.session_id;
   conv.storedId = res.stored_session_id || null;
   if (res.info) conv.info = res.info;
@@ -996,7 +1192,17 @@ async function ensureSession(){
 }
 
 async function submitPrompt(text){
+  // Vestiaire : le tout premier message de la session est precede du cadre
+  // de role choisi. Les messages suivants ne le rejouent pas.
+  let full = text;
+  if (activeRole && !conv.sessionId){
+    full = "[Role : " + activeRole.name + "]\n" + activeRole.prompt + "\n\n" + text;
+  }
+  // M7 : le cadre de role part vers le moteur, mais le fil affiche ce que
+  // l'utilisateur a REELLEMENT ecrit. Afficher le preambule comme s'il l'avait
+  // tape lui faisait relire une consigne qu'il n'a pas redigee.
   const t = newTurn("user", text);
+  if (full !== text) t.preamble = activeRole.name;
   t.state = "done";
   conv.running = true;
   conv.status = { kind: "", text: "connexion a l'agent…" };
@@ -1006,8 +1212,8 @@ async function submitPrompt(text){
     const sid = await ensureSession();
     conv.status = { kind: "", text: "l'agent travaille…" };
     // prompt.submit peut ne repondre qu'a la fin du tour : on ne bloque pas
-    // l'interface dessus, l'affichage vit des evenements (message.delta…).
-    link.rpc("prompt.submit", { session_id: sid, text: text }, 0)
+    // l'affichage dessus, l'affichage vit des evenements (message.delta…).
+    link.rpc("prompt.submit", { session_id: sid, text: full }, 0)
       .catch((e) => {
         conv.running = false;
         pushSystem("prompt.submit : " + e.message);
@@ -1042,14 +1248,26 @@ function resetSession(){
   paint();
 }
 
+/* Le composer Discussion est partage par deux modes qui ont chacun leur
+   propre notion d'occupation. M13 : chacun posait `disabled` sur le meme
+   bouton, si bien qu'un tour Cowork termine reactivait le bouton alors qu'un
+   appel proxy etait encore en vol (et inversement). Un drapeau par mode, et
+   une seule fonction qui tranche. */
+let pureBusy = false;
+
 function paintCoworkControls(){
   const send = $("cowork-send"), stop = $("cowork-stop");
   send.style.display = conv.running ? "none" : "";
   stop.style.display = conv.running ? "" : "none";
-  $("disc-send").disabled = (discMode === "cowork" && conv.running);
-  $("cowork-hint").textContent = conv.sessionId
+  $("disc-send").disabled = (discMode === "cowork") ? conv.running : pureBusy;
+
+  // M1 : le role s'affiche dans les DEUX cas. Sans parentheses, le
+  // « + role » ne se rattachait qu'a la branche « aucune session » du
+  // ternaire et disparaissait des qu'une session existait.
+  const roleBit = activeRole ? " · role : " + activeRole.name : "";
+  $("cowork-hint").textContent = (conv.sessionId
     ? "session " + conv.sessionId + (conv.info && conv.info.model ? " · " + conv.info.model : "")
-    : "aucune session — elle sera creee au premier envoi";
+    : "aucune session — elle sera creee au premier envoi") + roleBit;
 }
 
 /* ===========================================================================
@@ -1081,46 +1299,52 @@ function pushPure(role, text, state){
   return t;
 }
 
+/* Le chat pur passe par /proxy/chat sur NOTRE origine : serve.py relaie vers
+   le proxy Hermes et y pose la cle. La page n'en detient aucune, et l'appel
+   reste en meme origine (donc sans preflight). */
 async function sendPure(text){
   pushPure("user", text);
   pureHistory.push({ role: "user", content: text });
   const pending = pushPure("assistant", "", "streaming");
   paintPure();
-  $("disc-send").disabled = true;
+  pureBusy = true;
+  paintCoworkControls();
 
-  try {
-    const res = await fetch(CFG.PROXY_URL, {
-      method: "POST",
-      headers: { "Content-Type": "application/json", "Authorization": "Bearer " + CFG.PROXY_TOKEN },
-      body: JSON.stringify({ model: CFG.PROXY_MODEL, messages: pureHistory, max_tokens: CFG.PROXY_MAX_TOKENS })
-    });
-    pureTurns.splice(pureTurns.indexOf(pending), 1);
-
-    if (res.status === 403){
-      pushPure("system", "Le modele gratuit est temporairement sature (limite atteinte). Reessaie dans quelques secondes.");
-      pureHistory.pop();
-    } else if (!res.ok){
-      pushPure("error", "Erreur du proxy (HTTP " + res.status + "). Verifie que le proxy tourne sur " + CFG.PROXY_URL + ".");
-      pureHistory.pop();
-    } else {
-      const data = await res.json();
-      const content = data.choices && data.choices[0] && data.choices[0].message
-        ? contentToText(data.choices[0].message.content) : "";
-      if (content && content.trim()){
-        pushPure("assistant", content.trim());
-        pureHistory.push({ role: "assistant", content: content.trim() });
-      } else {
-        pushPure("system", "(reponse recue sans texte — reessaie.)");
-        pureHistory.pop();
-      }
-    }
-  } catch (e){
+  const drop = () => {
     const i = pureTurns.indexOf(pending);
     if (i >= 0) pureTurns.splice(i, 1);
-    pushPure("error", "Connexion impossible au proxy (" + CFG.PROXY_URL + ") : " + e.message);
+  };
+
+  try {
+    const data = await api("/proxy/chat", {
+      method: "POST",
+      body: { model: CFG.PROXY_MODEL, messages: pureHistory, max_tokens: CFG.PROXY_MAX_TOKENS }
+    });
+    drop();
+    const content = data && data.choices && data.choices[0] && data.choices[0].message
+      ? contentToText(data.choices[0].message.content) : "";
+    if (content && content.trim()){
+      pushPure("assistant", content.trim());
+      pureHistory.push({ role: "assistant", content: content.trim() });
+    } else {
+      pushPure("system", "(reponse recue sans texte — reessaie.)");
+      pureHistory.pop();
+    }
+  } catch (e){
+    drop();
     pureHistory.pop();
+    if (e.status === 403){
+      pushPure("system", "Le modele gratuit est temporairement sature (limite atteinte). "
+        + "Reessaie dans quelques secondes, ou change PROXY_MODEL dans ulysse-config.js.");
+    } else if (e.status === 502){
+      pushPure("error", "Le proxy Hermes ne repond pas. Lance-le : "
+        + "hermes proxy start --provider nous --port 8645");
+    } else {
+      pushPure("error", "Chat pur : " + e.message);
+    }
   } finally {
-    $("disc-send").disabled = false;
+    pureBusy = false;
+    paintCoworkControls();
     paintPure();
     $("disc-input").focus();
   }
@@ -1133,7 +1357,7 @@ function setDiscMode(mode){
   });
   $("disc-hint").textContent = mode === "cowork"
     ? "WebSocket /api/ws — agent complet, outils actifs, reflete dans le Studio"
-    : "POST " + CFG.PROXY_URL + " — sans outils";
+    : "POST /proxy/chat — relaye vers le proxy Hermes, sans outils";
   $("disc-input").placeholder = mode === "cowork"
     ? "Parle a l'agent (outils actifs)…"
     : "Ecris ton message… (chat pur, sans outils)";
@@ -1477,13 +1701,18 @@ function paintCrumbs(data){
   c.appendChild(el("span", null, p));
 }
 
-/* Decode le data_url base64 renvoye par /api/files/read en texte UTF-8.
-   Renvoie null si le contenu n'est pas du texte lisible. */
+/* Decode le data_url renvoye par /api/files/read en texte UTF-8.
+   Renvoie null si le contenu n'est pas du texte lisible.
+   M5 : une data URL n'est pas forcement en base64 — sans « ;base64, » avant
+   la virgule, la charge utile est en percent-encoding et atob() la casse. */
 function decodeDataUrlText(dataUrl){
   const i = dataUrl.indexOf(",");
   if (i < 0) return null;
+  const meta = dataUrl.slice(0, i);
+  const payload = dataUrl.slice(i + 1);
   try {
-    const bin = atob(dataUrl.slice(i + 1));
+    if (!/;base64$/i.test(meta)) return decodeURIComponent(payload);
+    const bin = atob(payload);
     const bytes = new Uint8Array(bin.length);
     for (let k = 0; k < bin.length; k++) bytes[k] = bin.charCodeAt(k);
     return new TextDecoder("utf-8", { fatal: true }).decode(bytes);
@@ -1491,6 +1720,12 @@ function decodeDataUrlText(dataUrl){
     return null;
   }
 }
+
+/* Au-dela de cette taille, on n'ouvre pas l'apercu : le backend renvoie le
+   fichier ENTIER en base64 (+33 %), la page en garde plusieurs copies en
+   memoire (chaine, binaire, Uint8Array) et l'onglet se fige. Cliquer sur un
+   fichier de 200 Mo ne doit pas coûter l'onglet. */
+const PREVIEW_MAX_BYTES = 2 * 1024 * 1024;
 
 async function previewFile(f){
   const host = $("file-preview");
@@ -1503,6 +1738,16 @@ async function previewFile(f){
   b.appendChild(el("div", "hint", fmtBytes(f.size) + " · " + (f.mime_type || "type inconnu")));
   card.appendChild(b);
   host.appendChild(card);
+
+  if (typeof f.size === "number" && f.size > PREVIEW_MAX_BYTES){
+    b.appendChild(el("div", "empty",
+      "Trop volumineux pour un apercu (" + fmtBytes(f.size) + ", limite "
+      + fmtBytes(PREVIEW_MAX_BYTES) + "). Le chemin ci-dessus reste utilisable "
+      + "dans un message a l'agent."));
+    host.scrollIntoView({ behavior: "smooth", block: "nearest" });
+    return;
+  }
+
   try {
     // /api/files/read renvoie {name, path, size, mime_type, data_url} — le
     // contenu est encode en base64 dans data_url, jamais en clair.
@@ -1705,7 +1950,132 @@ function paintStatusBand(){
     band.appendChild(chip(p.state === "connected" ? "ok" : "warn", k, p.state || ""));
   });
 
-  $("ab-sub").textContent = CFG.DASHBOARD_URL + (CFG.SESSION_TOKEN ? " · jeton fourni" : " · aucun jeton");
+  $("ab-sub").textContent = CFG.DASHBOARD_URL + " · jeton pose par serve.py";
+}
+
+/* ===========================================================================
+   13b. Onglet Webhooks — deux serveurs distincts, un pour lire, un pour agir
+   ---------------------------------------------------------------------------
+   LIRE la liste : GET /api/webhooks sur le DASHBOARD (web_server.py:12486).
+     Retour : {enabled, base_url, subscriptions:[{name, url, prompt, deliver,
+               events, secret_set, enabled, created_at}]}
+     Le gateway :8644 n'expose PAS de GET /webhooks — il n'y route que
+     POST /webhooks/{route_name} (webhook.py:291). Demander la liste au
+     gateway rendait un 404 : c'etait le mauvais serveur.
+
+   DECLENCHER : POST /webhooks/<nom> vers serve.py, qui SIGNE puis relaie au
+     gateway. Le gateway valide un HMAC-SHA256 avant tout (webhook.py:653) et
+     repond 401 sans signature. Le secret est masque par l'API
+     (`secret_set: true` et rien de plus) : la page ne peut pas signer, et
+     c'est voulu. serve.py lit le secret dans webhook_subscriptions.json.
+   =========================================================================== */
+
+let webhookCache = [];
+let webhookMeta = { enabled: null, base_url: "" };
+
+async function loadWebhooks(){
+  const body = $("webhooks-body");
+  clear(body);
+  body.appendChild(el("div", "empty", "Chargement…"));
+  try {
+    const d = await api("/api/webhooks");
+    webhookCache = (d && Array.isArray(d.subscriptions)) ? d.subscriptions : [];
+    webhookMeta = { enabled: d ? d.enabled : null, base_url: (d && d.base_url) || "" };
+    paintWebhooks();
+  } catch (e){
+    clear(body);
+    body.appendChild(el("div", "empty", "Lecture impossible : " + e.message));
+    alertFor(e);
+  }
+}
+
+function paintWebhooks(){
+  const body = $("webhooks-body");
+  clear(body);
+
+  // Le retour de declenchement s'affiche ICI (M11) : le renvoyer dans le fil
+  // Cowork le rendait invisible depuis l'onglet ou l'on vient de cliquer.
+  const report = el("div", "empty");
+  report.style.display = "none";
+  const say = (txt, bad) => {
+    report.textContent = txt;
+    report.style.display = "";
+    report.style.color = bad ? "var(--err, #b3261e)" : "";
+  };
+
+  if (webhookMeta.enabled === false){
+    body.appendChild(el("div", "empty",
+      "La plateforme webhook n'est pas activee cote Hermes. Active-la puis relance le gateway : "
+      + "hermes gateway setup (plateforme « webhook »)."));
+    return;
+  }
+
+  if (!webhookCache.length){
+    body.appendChild(el("div", "empty",
+      "Aucune route webhook declaree. Cree-en une : "
+      + "hermes webhook subscribe <nom> --prompt \"…\""));
+    return;
+  }
+
+  const list = el("div", "list");
+  webhookCache.forEach((w) => {
+    // Le dashboard nomme la route `name`, sans ambiguite. La cascade
+    // id || name || endpoint pouvait produire « /hooks/deploy » comme
+    // identifiant, donc une URL /webhooks/%2Fhooks%2Fdeploy et un 404.
+    const name = w.name;
+    const row = el("div", "row plain");
+    row.appendChild(svgIcon("webhook"));
+    const m = el("div", "main-txt");
+    m.appendChild(el("div", "t", name));
+    const bits = [];
+    if (w.deliver) bits.push("livraison : " + w.deliver);
+    if (w.events && w.events.length) bits.push(w.events.join(", "));
+    bits.push(w.enabled === false ? "desactivee" : "active");
+    bits.push(w.secret_set ? "signature requise" : "sans secret");
+    m.appendChild(el("div", "s", bits.join(" · ")));
+    if (w.prompt) m.appendChild(el("div", "s", shorten(w.prompt, 120)));
+    row.appendChild(m);
+
+    const fire = el("button", "btn small tonal", "Declencher");
+    if (w.enabled === false) fire.disabled = true;
+    fire.onclick = async () => {
+      fire.disabled = true;
+      fire.textContent = "Envoi…";
+      try {
+        // Corps minimal : les variables {payload.x} du prompt de la route y
+        // puisent. serve.py signe ce corps exact avant de le relayer.
+        const r = await api("/webhooks/" + encodeURIComponent(name), {
+          method: "POST",
+          body: { source: "ulysse", declenche_le: new Date().toISOString() }
+        });
+        fire.textContent = "OK";
+        say("« " + name + " » declenche — reponse du gateway : "
+            + shorten(JSON.stringify(r), 200));
+      } catch (e){
+        fire.textContent = "Erreur";
+        say("« " + name + " » : " + e.message, true);
+      } finally {
+        setTimeout(() => { fire.textContent = "Declencher"; fire.disabled = (w.enabled === false); }, 1800);
+      }
+    };
+    row.appendChild(fire);
+    list.appendChild(row);
+  });
+  body.appendChild(list);
+  body.appendChild(report);
+
+  if (webhookMeta.base_url){
+    body.appendChild(el("div", "hint",
+      "Gateway : " + webhookMeta.base_url + " — la signature HMAC est posee par serve.py, "
+      + "le secret ne descend jamais dans le navigateur."));
+  }
+
+  const det = el("details");
+  det.style.marginTop = "14px";
+  det.appendChild(el("summary", null, "reponse brute GET /api/webhooks"));
+  det.appendChild(el("pre", "raw", JSON.stringify(
+    { enabled: webhookMeta.enabled, base_url: webhookMeta.base_url, subscriptions: webhookCache }, null, 2)));
+  body.appendChild(det);
 }
 
 /* ===========================================================================
@@ -1719,7 +2089,8 @@ const DESTS = [
   { id: "sessions",   label: "Sessions",   icon: "history",   onShow: loadSessions },
   { id: "files",      label: "Fichiers",   icon: "folder",    onShow: () => loadFiles(filesPath) },
   { id: "memory",     label: "Memoire",    icon: "memory",    onShow: loadMemory },
-  { id: "skills",     label: "Skills",     icon: "extension", onShow: loadSkills }
+  { id: "skills",     label: "Skills",     icon: "extension", onShow: loadSkills },
+  { id: "webhooks",   label: "Webhooks",   icon: "webhook",   onShow: loadWebhooks }
 ];
 
 let activePane = "discussion";
@@ -1739,8 +2110,13 @@ function buildRail(){
 }
 
 function go(id){
-  const dest = DESTS.find((d) => d.id === id);
-  if (!dest) return;
+  // C1 : une destination inconnue (#top, un ancien lien, une majuscule) ne
+  // doit jamais laisser la page entierement grise — tous les panneaux sont en
+  // display:none et sortir ici n'en rallumait aucun. On tolere la casse, puis
+  // on retombe sur la premiere destination.
+  const wanted = String(id || "").trim().toLowerCase();
+  const dest = DESTS.find((d) => d.id === wanted) || DESTS[0];
+  id = dest.id;
   activePane = id;
   Array.prototype.forEach.call(document.querySelectorAll(".dest"), (b) =>
     b.classList.toggle("active", b.dataset.id === id));
@@ -1800,8 +2176,10 @@ function boot(){
     b.onclick = () => setDiscMode(b.dataset.mode);
   });
   setDiscMode("cowork");
+  buildRoles();
 
   $("sess-reload").onclick = loadSessions;
+  $("wh-reload").onclick = loadWebhooks;
   $("skills-search").addEventListener("input", paintSkills);
   $("btn-refresh").onclick = () => {
     loadStatus();
@@ -1814,22 +2192,18 @@ function boot(){
     if (id && id !== activePane) go(id);
   });
 
-  // Avertissements de configuration
-  if (window.__ULYSSE_CONFIG_MISSING){
-    showAlert("<b>ulysse-config.js introuvable.</b> La page utilise les valeurs par defaut " +
-      "(<code>" + CFG.DASHBOARD_URL + "</code>, sans jeton). Cree le fichier a cote de " +
-      "<code>session-b.html</code> pour renseigner <code>DASHBOARD_URL</code> et " +
-      "<code>SESSION_TOKEN</code>.");
-  } else if (!CFG.SESSION_TOKEN){
-    showAlert("<b>Aucun jeton de session configure.</b> Si le dashboard tourne en mode protege " +
-      "(bind 127.0.0.1), les appels <code>/api/*</code> repondront 401 et le WebSocket se fermera " +
-      "en 4401. Renseigne <code>SESSION_TOKEN</code> dans <code>ulysse-config.js</code> avec la valeur " +
-      "de <code>HERMES_DASHBOARD_SESSION_TOKEN</code>.");
-  }
+  // Avertissements de CONFIGURATION : marques comme tels pour qu'un
+  // /api/status revenu au vert ne les efface pas (M3). Un backend qui
+  // repond ne corrige pas un fichier de config incomplet.
   if (location.protocol === "file:"){
-    showAlert("<b>Page ouverte en <code>file://</code>.</b> Le WebSocket et les appels <code>fetch</code> " +
-      "ont besoin d'une origine http : lance <code>python serve.py</code> dans ce dossier puis ouvre " +
-      "<code>http://127.0.0.1:8080/session-b.html</code>.");
+    showAlert("<b>Page ouverte en <code>file://</code>.</b> Le WebSocket, les appels " +
+      "<code>fetch</code> et l'injection du jeton passent par <code>serve.py</code> : " +
+      "lance <code>lancer_ulysse.bat</code> puis ouvre " +
+      "<code>http://127.0.0.1:8080/</code>.", "config");
+  } else if (window.__ULYSSE_CONFIG_MISSING){
+    showAlert("<b>ulysse-config.js introuvable.</b> La page utilise les valeurs par defaut. " +
+      "Cree le fichier a cote de <code>session-b.html</code> pour renseigner " +
+      "<code>HERMES_URL</code>, <code>WEBHOOK_URL</code> et <code>PROXY_URL</code>.", "config");
   }
 
   // Statut + ouverture du lien Cowork

@@ -1,0 +1,702 @@
+/* ============================================================================
+ * ulysse-core.js — la couche de liaison a Hermes
+ * ----------------------------------------------------------------------------
+ * Un seul endroit ou vit le cablage : REST, WebSocket JSON-RPC, modele de
+ * conversation. Les pages (ulysse.html, session-b.html) n'en sont que des
+ * habillages differents. Chaque appel ci-dessous a ete verifie contre le code
+ * source Hermes installe — voir AUDIT-ENDPOINTS-REEL.md pour la ligne exacte.
+ *
+ * Ce que ce fichier ne fait PAS, volontairement :
+ *   · il ne detient aucun secret. serve.py pose le jeton de session et la
+ *     signature HMAC des webhooks. Un secret dans le navigateur est lisible
+ *     par toute extension installee.
+ *   · il n'invente aucun endpoint. Ce qui n'existe pas cote Hermes n'est pas
+ *     simule : la page l'affiche comme non relie.
+ * ========================================================================== */
+"use strict";
+
+/* ═══ 0. Configuration ════════════════════════════════════════════════════ */
+
+const RAW_CFG = (typeof window.ULYSSE_CONFIG === "object" && window.ULYSSE_CONFIG) || {};
+const CFG = {
+  // La page ne parle qu'a serve.py, qui la sert. Son origine est donc
+  // toujours la bonne cible : pas de port ecrit en dur a maintenir.
+  BASE: (RAW_CFG.DASHBOARD_URL || location.origin).replace(/\/+$/, ""),
+  PROXY_MODEL: RAW_CFG.PROXY_MODEL || "tencent/hy3:free",
+  PROXY_MAX_TOKENS: RAW_CFG.PROXY_MAX_TOKENS || 800,
+  SESSION_CWD: RAW_CFG.SESSION_CWD || "",
+  SESSION_MODEL: RAW_CFG.SESSION_MODEL || "",
+  START_PATH: RAW_CFG.START_PATH || "",
+  STUDIO_LOG_MAX: RAW_CFG.STUDIO_LOG_MAX || 300,
+  // Est-ce le premier lancement ? La page ne peut pas le savoir seule :
+  // c'est serve.py qui l'ajoute a ce fichier au moment de le servir, depuis
+  // un marqueur qui vit hors du dossier publie. Faux par defaut — ne jamais
+  // montrer l'ecran d'accueil parce qu'on n'a pas su.
+  PREMIER: RAW_CFG.PREMIER === true
+};
+
+/* ═══ 1. Couche REST ══════════════════════════════════════════════════════ */
+
+class ApiError extends Error {
+  constructor(message, status, network){
+    super(message);
+    this.status = status || 0;
+    this.network = !!network;
+  }
+}
+
+/* Toutes les reponses ne sont pas du JSON : un 204 n'a pas de corps, une
+   erreur de proxy est du texte. On lit en texte puis on tente le JSON —
+   sinon un SyntaxError s'echappe hors ApiError et l'appelant reste en
+   chargement pour toujours. */
+async function api(path, opts){
+  opts = opts || {};
+  let res;
+  try {
+    res = await fetch(CFG.BASE + path, {
+      method: opts.method || "GET",
+      headers: Object.assign({}, opts.headers || {},
+        opts.body ? { "Content-Type": "application/json" } : {}),
+      body: opts.body ? JSON.stringify(opts.body) : undefined,
+      cache: "no-store"
+    });
+  } catch (e){
+    throw new ApiError("connexion impossible : " + e.message, 0, true);
+  }
+
+  const text = res.status === 204 ? "" : await res.text().catch(() => "");
+  let data = null, parsed = false;
+  if (text){
+    try { data = JSON.parse(text); parsed = true; } catch (e){ /* pas du JSON */ }
+  }
+  if (res.status === 401) throw new ApiError("Unauthorized", 401);
+  if (!res.ok){
+    const detail = parsed && data ? (data.detail || data.message || data.error || "")
+                                  : String(text).slice(0, 200);
+    throw new ApiError("HTTP " + res.status + (detail ? " — " + detail : ""), res.status);
+  }
+  if (!text) return null;
+  return parsed ? data : { raw: text };
+}
+
+/* --- Les appels REST reellement disponibles -------------------------------
+   Chaque methode nomme sa source. Ce qui n'y figure pas n'existe pas. */
+const REST = {
+  // web_server.py:3023 — {version, gateway_running, gateway_state, …}
+  status: () => api("/api/status"),
+  // web_routers/sessions.py:50 — limit borne a 100, order ∈ {created,recent}
+  sessions: (limit, order) =>
+    api("/api/sessions?limit=" + Math.min(Math.max(limit || 20, 1), 100)
+        + "&order=" + (order === "recent" ? "recent" : "created")),
+  // sessions.py:598 — {session_id, messages, pagination}
+  messages: (id, limit) =>
+    api("/api/sessions/" + encodeURIComponent(id) + "/messages?limit="
+        + Math.min(limit || 50, 500)),
+  // sessions.py:633 — DELETE, IDEMPOTENT : une session deja absente renvoie
+  // {ok:true, already_absent:true} plutot qu'un 404. Le contrat de DELETE est
+  // « assure-toi que ce n'est plus la », pas « supprime exactement une fois ».
+  deleteSession: (id) =>
+    api("/api/sessions/" + encodeURIComponent(id), { method: "DELETE" }),
+  // sessions.py:661 — PATCH {title?, archived?, pinned?}. Les trois champs
+  // sont optionnels, mais en envoyer zero est un 400 : le backend refuse une
+  // mise a jour vide plutot que de faire semblant.
+  patchSession: (id, champs) =>
+    api("/api/sessions/" + encodeURIComponent(id), { method: "PATCH", body: champs }),
+  // web_server.py:2354 — {path, parent, entries}
+  files: (path) => api("/api/files" + (path ? "?path=" + encodeURIComponent(path) : "")),
+  // web_server.py:2386 — {name, path, size, mime_type, data_url}
+  readFile: (path) => api("/api/files/read?path=" + encodeURIComponent(path)),
+  // web_server.py:12820 — {active, providers, builtin_files}
+  memory: () => api("/api/memory"),
+  // web_routers/skills.py:395 — une LISTE, pas un objet
+  skills: () => api("/api/skills"),
+  // web_server.py:12486 — {enabled, base_url, subscriptions:[{name,…}]}
+  webhooks: () => api("/api/webhooks"),
+  // Declenchement : serve.py signe en HMAC-SHA256 V2 puis relaie au gateway.
+  // Le gateway refuse toute requete non signee (webhook.py:653).
+  fireWebhook: (name, payload) =>
+    api("/webhooks/" + encodeURIComponent(name), {
+      method: "POST",
+      body: Object.assign({ source: "ulysse", declenche_le: new Date().toISOString() }, payload || {})
+    }),
+  // web_routers/cron.py — automatisations
+  cronJobs: () => api("/api/cron/jobs"),
+  pauseCron: (id) => api("/api/cron/jobs/" + encodeURIComponent(id) + "/pause", { method: "POST" }),
+  resumeCron: (id) => api("/api/cron/jobs/" + encodeURIComponent(id) + "/resume", { method: "POST" }),
+  triggerCron: (id) => api("/api/cron/jobs/" + encodeURIComponent(id) + "/trigger", { method: "POST" }),
+  /* web_server.py:4308 — {data_url, mime_type?} -> {ok, transcript, provider}.
+     Le corps DOIT etre une data-URL en base64 dont le type commence par
+     `audio/` (ou `video/webm`), sous 25 Mo — au-dela c'est un 413.
+
+     Un transcript VIDE n'est pas une erreur : le backend le renvoie avec
+     ok:true quand il n'a entendu que du silence (web_server.py:4390). C'est
+     le seul cas ou une reponse reussie ne rapporte rien, et l'interface doit
+     le dire autrement qu'en echec. */
+  transcribe: (dataUrl, mime) => api("/api/audio/transcribe", {
+    method: "POST",
+    body: { data_url: dataUrl, mime_type: mime || "" }
+  }),
+  // web_server.py — configuration et modeles
+  config: () => api("/api/config"),
+  modelOptions: () => api("/api/model/options"),
+  // web_server.py:14275 — {daily, by_model, by_task, totals, period_days,
+  // skills, tools}. Les cles internes de `totals` varient selon la version :
+  // on les affiche telles quelles plutot que d'en supposer une.
+  usage: (days) => api("/api/analytics/usage?days=" + (days || 30)),
+  // Chat pur, relaye par serve.py vers le proxy Hermes (cle injectee la-bas)
+  pureChat: (messages) => api("/proxy/chat", {
+    method: "POST",
+    body: { model: CFG.PROXY_MODEL, messages: messages, max_tokens: CFG.PROXY_MAX_TOKENS }
+  })
+};
+
+/* ═══ 2. Couche WebSocket — JSON-RPC delimite par newline ═════════════════
+   tui_gateway/ws.py:10 : « newline-delimited JSON-RPC in both directions ».
+   Enveloppe d'evenement (server.py:1566) :
+     {"jsonrpc":"2.0","method":"event",
+      "params":{"type":…,"session_id":…,"payload":{…}}}
+   Codes de fermeture : 4401 = auth refusee, 4403 = origine/surface refusee.
+   ─────────────────────────────────────────────────────────────────────── */
+
+function wsUrl(){
+  const u = new URL(CFG.BASE, location.href);
+  return (u.protocol === "https:" ? "wss:" : "ws:") + "//" + u.host + "/api/ws";
+}
+
+class HermesLink {
+  constructor(){
+    this.ws = null;
+    this.state = "idle";        // idle | connecting | open | closed | denied
+    this.reason = "";
+    this.nextId = 1;
+    this.pending = new Map();
+    this.listeners = new Set();
+    this.stateListeners = new Set();
+    this.retries = 0;
+    this.retryTimer = null;
+    this.giveUp = false;
+  }
+
+  onEvent(fn){ this.listeners.add(fn); }
+  onState(fn){ this.stateListeners.add(fn); }
+
+  _setState(s, reason){
+    this.state = s;
+    this.reason = reason || "";
+    this.stateListeners.forEach((fn) => { try { fn(s, this.reason); } catch (e){ console.error(e); } });
+  }
+
+  connect(){
+    if (this.state === "open" || this.state === "connecting") return;
+    if (this.retryTimer){ clearTimeout(this.retryTimer); this.retryTimer = null; }
+    this.giveUp = false;
+    this._open();
+  }
+
+  _open(){
+    let ws;
+    this._setState("connecting");
+    try { ws = new WebSocket(wsUrl()); }
+    catch (e){ this._setState("closed", e.message); this._scheduleRetry(); return; }
+    this.ws = ws;
+
+    // Le lien est utilisable des l'ouverture de la socket. Conditionner
+    // « open » a la reception de gateway.ready liait tout Cowork a un
+    // evenement precis : rate ou emis trop tot, plus rien ne partait.
+    ws.onopen = () => { this.retries = 0; this._setState("open"); };
+
+    ws.onmessage = (ev) => {
+      // Une trame peut porter plusieurs objets JSON : on decoupe toujours.
+      String(ev.data).split("\n").forEach((line) => {
+        const s = line.trim();
+        if (!s) return;
+        let msg;
+        try { msg = JSON.parse(s); } catch (e){ console.warn("trame WS illisible", s); return; }
+        this._dispatch(msg);
+      });
+    };
+
+    ws.onerror = () => { /* onclose suit toujours */ };
+
+    ws.onclose = (ev) => {
+      this.ws = null;
+      this.pending.forEach((p) => { clearTimeout(p.timer); p.reject(new Error("WebSocket ferme")); });
+      this.pending.clear();
+
+      if (ev.code === 4401){
+        this.giveUp = true;
+        this._setState("denied", "jeton refuse (4401)");
+        return;
+      }
+      if (ev.code === 4403){
+        this.giveUp = true;
+        // Deux causes possibles cote Hermes, et la premiere est de loin la
+        // plus frequente : _ws_request_is_allowed() rejette l'Origin ou le
+        // Host du handshake (web_server.py:14690).
+        this._setState("denied", "handshake refuse : origine ou hote (4403)");
+        return;
+      }
+      this._setState("closed", "code " + ev.code);
+      this._scheduleRetry();
+    };
+  }
+
+  _scheduleRetry(){
+    if (this.giveUp) return;
+    const delays = [1000, 2000, 4000, 8000, 15000, 30000];
+    const d = delays[Math.min(this.retries, delays.length - 1)];
+    this.retries++;
+    if (this.retryTimer) clearTimeout(this.retryTimer);
+    this.retryTimer = setTimeout(() => { this.retryTimer = null; this._open(); }, d);
+  }
+
+  _dispatch(msg){
+    if (msg.id !== undefined && msg.id !== null && this.pending.has(msg.id)){
+      const p = this.pending.get(msg.id);
+      this.pending.delete(msg.id);
+      clearTimeout(p.timer);
+      if (msg.error) p.reject(new Error((msg.error.code || "") + " " + (msg.error.message || "erreur RPC")));
+      else p.resolve(msg.result || {});
+      return;
+    }
+    if (msg.method === "event" && msg.params){
+      this.listeners.forEach((fn) => {
+        try { fn(msg.params.type, msg.params); } catch (e){ console.error(e); }
+      });
+    }
+  }
+
+  rpc(method, params, timeout){
+    return new Promise((resolve, reject) => {
+      if (!this.ws || this.ws.readyState !== WebSocket.OPEN){
+        reject(new Error("WebSocket non connecte"));
+        return;
+      }
+      const id = this.nextId++;
+      const t = timeout === 0 ? null : setTimeout(() => {
+        this.pending.delete(id);
+        reject(new Error("delai depasse sur " + method));
+      }, timeout || 60000);
+      this.pending.set(id, { resolve: resolve, reject: reject, timer: t });
+      try {
+        this.ws.send(JSON.stringify({ jsonrpc: "2.0", id: id, method: method, params: params || {} }) + "\n");
+      } catch (e){
+        this.pending.delete(id);
+        if (t) clearTimeout(t);
+        reject(e);
+      }
+    });
+  }
+
+  ready(timeout){
+    if (this.state === "open") return Promise.resolve();
+    if (this.state === "denied") return Promise.reject(new Error(this.reason));
+    this.connect();
+    return new Promise((resolve, reject) => {
+      const to = setTimeout(() => {
+        this.stateListeners.delete(watch);
+        reject(new Error("le WebSocket ne repond pas"));
+      }, timeout || 15000);
+      const watch = (s, reason) => {
+        if (s === "open"){ clearTimeout(to); this.stateListeners.delete(watch); resolve(); }
+        else if (s === "denied"){ clearTimeout(to); this.stateListeners.delete(watch); reject(new Error(reason)); }
+      };
+      this.stateListeners.add(watch);
+    });
+  }
+}
+
+const link = new HermesLink();
+
+/* ═══ 3. Modele de conversation — alimente UNIQUEMENT par les evenements ══
+   Aucune donnee fictive : ce que le Plan et les Travaux affichent vient du
+   flux, ou n'est pas affiche. C'est la regle STU-1 de endpoints-ulysse.md.
+   ─────────────────────────────────────────────────────────────────────── */
+
+const conv = {
+  sessionId: null,   // session vivante (session.create)
+  storedId: null,    // identifiant persiste (stored_session_id)
+  info: null,        // dernier session.info
+  status: null,      // derniere status.update
+  running: false,
+  approval: null,
+  turns: []
+};
+const studioLog = [];
+let turnSeq = 0;
+
+function newTurn(role, text){
+  const t = { key: ++turnSeq, role: role, text: text || "", tools: [], reasoning: "",
+              sawDelta: false, state: role === "assistant" ? "streaming" : "done", ts: Date.now() };
+  conv.turns.push(t);
+  return t;
+}
+
+function currentAssistantTurn(){
+  for (let i = conv.turns.length - 1; i >= 0; i--){
+    const t = conv.turns[i];
+    if (t.role === "assistant") return t.state === "streaming" ? t : newTurn("assistant");
+    if (t.role === "user") break;
+  }
+  return newTurn("assistant");
+}
+
+function findTool(toolId){
+  for (let i = conv.turns.length - 1; i >= 0; i--){
+    const tools = conv.turns[i].tools;
+    for (let j = tools.length - 1; j >= 0; j--) if (tools[j].id === toolId) return tools[j];
+  }
+  return null;
+}
+
+/* Chien de garde : `running` masque le composer. Sans lui, un tour qui se
+   termine sans message.complete (agent tue, evenement perdu) laisse la
+   saisie bloquee pour de bon, sans erreur ni explication. */
+const TURN_SILENCE_MS = 180000;
+let turnWatchdog = null;
+const coreHooks = { onChange: () => {}, onSystem: () => {}, onChanged: () => {} };
+
+function armTurnWatchdog(){
+  clearTimeout(turnWatchdog);
+  if (!conv.running) return;
+  turnWatchdog = setTimeout(() => {
+    if (!conv.running) return;
+    conv.running = false;
+    conv.status = null;
+    coreHooks.onSystem("Aucun evenement depuis 3 minutes : la saisie est rendue. "
+      + "Si l'agent travaille encore, sa reponse s'affichera a son arrivee.");
+    coreHooks.onChange();
+  }, TURN_SILENCE_MS);
+}
+
+/* --- Reducteur : un evenement du gateway -> etat de la conversation -------
+   Tous les noms d'evenements ci-dessous existent dans tui_gateway/*.py.
+   Les cles de payload aussi (tool_id, name, context, args_text, inline_diff).
+   -------------------------------------------------------------------------- */
+link.onEvent((type, params) => {
+  const pl = params.payload || {};
+  studioLog.push({ t: new Date(), type: type, sid: params.session_id || "", payload: pl });
+  if (studioLog.length > CFG.STUDIO_LOG_MAX) studioLog.splice(0, studioLog.length - CFG.STUDIO_LOG_MAX);
+  armTurnWatchdog();
+
+  switch (type){
+    case "message.start":
+      newTurn("assistant");
+      break;
+
+    case "message.delta": {
+      const t = currentAssistantTurn();
+      t.text += pl.text || "";
+      t.sawDelta = true;
+      break;
+    }
+
+    case "reasoning.delta":
+    case "thinking.delta": {
+      const t = currentAssistantTurn();
+      t.reasoning += pl.text || "";
+      break;
+    }
+
+    // Un aperçu de raisonnement livré d'un bloc (server.py:5498), et non
+    // token par token. Même destination que les deltas : c'est la même
+    // matière, elle arrive juste autrement.
+    case "reasoning.available": {
+      const t = currentAssistantTurn();
+      if (pl.text && t.reasoning.indexOf(pl.text) < 0) t.reasoning += pl.text;
+      break;
+    }
+
+    case "message.complete": {
+      const t = currentAssistantTurn();
+      if (!t.sawDelta && pl.text) t.text = pl.text;   // les deltas ont deja peint
+      t.state = pl.status === "error" ? "error" : "done";
+      conv.running = false;
+      conv.status = null;
+      conv.approval = null;
+      clearTimeout(turnWatchdog);
+      break;
+    }
+
+    case "tool.start": {
+      const t = currentAssistantTurn();
+      t.tools.push({ id: pl.tool_id, name: pl.name || "outil", context: pl.context || "",
+                     args: pl.args_text || "", state: "running", t0: Date.now(), result: "" });
+      break;
+    }
+
+    case "tool.complete": {
+      const tool = findTool(pl.tool_id);
+      if (tool){
+        tool.state = "done";
+        tool.ms = Date.now() - tool.t0;
+        tool.result = pl.inline_diff || pl.result || tool.result || "";
+        if (pl.name) tool.name = pl.name;
+      } else {
+        const t = currentAssistantTurn();
+        t.tools.push({ id: pl.tool_id, name: pl.name || "outil", context: "", state: "done",
+                       t0: Date.now(), ms: 0, result: pl.inline_diff || pl.result || "" });
+      }
+      break;
+    }
+
+    case "status.update":
+      conv.status = { kind: pl.kind || "", text: pl.text || "" };
+      break;
+
+    case "session.info":
+      conv.info = pl;
+      break;
+
+    case "approval.request":
+      conv.approval = pl;
+      break;
+
+    case "error": {
+      const t = newTurn("error", pl.message || "erreur inconnue");
+      t.state = "error";
+      conv.running = false;
+      conv.approval = null;
+      clearTimeout(turnWatchdog);
+      break;
+    }
+
+    // Le backend annonce lui-meme ce qui a bouge — c'est ce que veut dire
+    // `change_events: true` dans le payload de gateway.ready. Les listes
+    // n'ont donc pas a etre sondees : elles se rafraichissent quand elles
+    // changent, et pas toutes les N secondes pour rien.
+    case "sessions.changed":
+      coreHooks.onChanged("sessions");
+      break;
+    case "cron.changed":
+      coreHooks.onChanged("cron");
+      break;
+    case "platforms.changed":
+      coreHooks.onChanged("platforms");
+      break;
+
+    default:
+      break;   // les autres evenements alimentent le journal du Studio
+  }
+  coreHooks.onChange();
+});
+
+link.onState((s) => {
+  if (s === "closed" || s === "denied"){
+    conv.running = false;
+    conv.approval = null;
+    clearTimeout(turnWatchdog);
+    // La session vivante appartient a la connexion : le gateway la detruit a
+    // la fermeture du WebSocket. Garder son identifiant faisait envoyer les
+    // prompts suivants a une session morte, silencieusement.
+    if (conv.sessionId){
+      coreHooks.onSystem("Lien interrompu : la session est fermee. Le prochain message "
+        + "en ouvrira une nouvelle.");
+    }
+    conv.sessionId = null;
+    conv.info = null;
+    conv.status = null;
+  }
+  coreHooks.onChange();
+});
+
+/* ═══ 4. Actions ═════════════════════════════════════════════════════════ */
+
+/* session.create — methods_session.py:14.
+   Params reconnus : cwd, model, cols, title, source, profile, messages…
+   Retour : {session_id, stored_session_id, message_count, messages, info}. */
+async function ensureSession(extra){
+  await link.ready();
+  if (conv.sessionId) return conv.sessionId;
+
+  const params = Object.assign({ cols: 100, source: "ulysse" }, extra || {});
+  if (CFG.SESSION_CWD && !params.cwd) params.cwd = CFG.SESSION_CWD;
+  if (CFG.SESSION_MODEL && !params.model) params.model = CFG.SESSION_MODEL;
+
+  const res = await link.rpc("session.create", params, 60000);
+  if (!res || !res.session_id){
+    throw new Error("session.create n'a pas renvoye de session_id");
+  }
+  conv.sessionId = res.session_id;
+  conv.storedId = res.stored_session_id || null;
+  if (res.info) conv.info = res.info;
+  return conv.sessionId;
+}
+
+/* prompt.submit — methods_prompt.py:67, params {session_id, text}.
+   La reponse peut n'arriver qu'a la fin du tour : on ne bloque pas dessus,
+   l'affichage vit des evenements. */
+async function submitPrompt(text, opts){
+  opts = opts || {};
+  const shown = text;
+  const sent = opts.preamble ? opts.preamble + "\n\n" + text : text;
+
+  const t = newTurn("user", shown);
+  if (opts.preambleLabel) t.preamble = opts.preambleLabel;
+  t.state = "done";
+  conv.running = true;
+  conv.status = { kind: "", text: "connexion a l'agent…" };
+  coreHooks.onChange();
+
+  try {
+    const sid = await ensureSession(opts.session);
+    conv.status = { kind: "", text: "l'agent travaille…" };
+    armTurnWatchdog();
+    link.rpc("prompt.submit", { session_id: sid, text: sent }, 0)
+      .catch((e) => {
+        conv.running = false;
+        coreHooks.onSystem("prompt.submit : " + e.message);
+        coreHooks.onChange();
+      });
+  } catch (e){
+    conv.running = false;
+    const err = newTurn("error", "Impossible d'ouvrir la session : " + e.message);
+    err.state = "error";
+  }
+  coreHooks.onChange();
+}
+
+async function interruptTurn(){
+  if (!conv.sessionId) return;
+  try { await link.rpc("session.interrupt", { session_id: conv.sessionId }, 15000); }
+  catch (e){ coreHooks.onSystem("Interruption : " + e.message); }
+  conv.running = false;
+  coreHooks.onChange();
+}
+
+/* approval.respond — methods_prompt.py:949, params {session_id, choice, all?}.
+   Le protocole ne porte AUCUN identifiant de demande : tools/approval.py:2506
+   resout la file de la session en FIFO. Inventer un request_id serait
+   inventer une API qui n'existe pas. */
+function respondApproval(choice, all){
+  return link.rpc("approval.respond",
+    { session_id: conv.sessionId, choice: choice, all: !!all }, 20000);
+}
+
+/* session.resume — methods_session.py:306. Prend l'identifiant PERSISTE
+   (celui de GET /api/sessions) et renvoie un NOUVEAU session_id vivant. */
+async function resumeSession(storedId){
+  await link.ready();
+  const res = await link.rpc("session.resume", { session_id: storedId, cols: 100 }, 90000);
+  if (!res || !res.session_id) throw new Error("session.resume n'a pas renvoye de session_id");
+  conv.sessionId = res.session_id;
+  conv.storedId = res.session_key || storedId;
+  conv.info = res.info || null;
+  conv.turns = [];
+  (res.messages || []).forEach((m) => {
+    const role = m.role === "user" ? "user" : m.role === "assistant" ? "assistant" : "system";
+    const t = newTurn(role, contentToText(m.content));
+    t.state = "done";
+  });
+  conv.running = !!res.running;
+  coreHooks.onChange();
+  return res;
+}
+
+/* file.attach — methods_prompt.py:640. Le navigateur n'a pas de chemin
+   serveur : il envoie les octets en data URL, le gateway materialise le
+   fichier dans l'espace de la session et renvoie `ref_text` (« @file:… »),
+   la reference que les outils de l'agent savent lire.
+   Une image passe par image.attach : elle devient une tuile de vision,
+   pas un artefact a lire. */
+async function attacherFichier(file){
+  const sid = await ensureSession();
+  const dataUrl = await new Promise((resolve, reject) => {
+    const r = new FileReader();
+    r.onload = () => resolve(r.result);
+    r.onerror = () => reject(new Error("lecture du fichier impossible"));
+    r.readAsDataURL(file);
+  });
+  const image = (file.type || "").indexOf("image/") === 0;
+  const res = await link.rpc(image ? "image.attach" : "file.attach",
+    { session_id: sid, path: file.name, data_url: dataUrl }, 120000);
+  return {
+    name: (res && res.name) || file.name,
+    ref: (res && res.ref_text) || "",
+    image: image,
+    size: file.size
+  };
+}
+
+function resetSession(){
+  conv.sessionId = null;
+  conv.storedId = null;
+  conv.info = null;
+  conv.status = null;
+  conv.running = false;
+  conv.approval = null;
+  conv.turns = [];
+  studioLog.length = 0;
+  clearTimeout(turnWatchdog);
+  coreHooks.onChange();
+}
+
+/* ═══ 5. Utilitaires de format ═══════════════════════════════════════════ */
+
+function contentToText(c){
+  if (typeof c === "string") return c;
+  if (Array.isArray(c)){
+    return c.map((p) => (typeof p === "string" ? p : (p && (p.text || p.content)) || "")).join("");
+  }
+  if (c && typeof c === "object") return c.text || c.content || "";
+  return "";
+}
+
+function shorten(s, n){
+  s = String(s === null || s === undefined ? "" : s);
+  return s.length > n ? s.slice(0, n - 1) + "…" : s;
+}
+
+function fmtBytes(n){
+  if (n === null || n === undefined) return "—";
+  if (n < 1024) return n + " o";
+  if (n < 1048576) return (n / 1024).toFixed(1) + " Ko";
+  if (n < 1073741824) return (n / 1048576).toFixed(1) + " Mo";
+  return (n / 1073741824).toFixed(2) + " Go";
+}
+
+/* Hermes date de deux facons selon l'endpoint : un nombre (epoch en s ou en
+   ms) ou une chaine ISO. On accepte les deux plutot que d'afficher un tiret. */
+function fmtWhen(ts){
+  if (ts === null || ts === undefined || ts === "") return "—";
+  let d;
+  if (typeof ts === "string"){
+    const n = Number(ts);
+    d = Number.isFinite(n) && ts.trim() !== "" ? new Date(n > 1e12 ? n : n * 1000) : new Date(ts);
+  } else {
+    d = new Date(ts > 1e12 ? ts : ts * 1000);
+  }
+  return isNaN(d.getTime()) ? "—" : d.toLocaleString("fr-FR", { dateStyle: "short", timeStyle: "short" });
+}
+
+function fmtDur(ms){
+  if (!ms && ms !== 0) return "";
+  return ms < 1000 ? Math.round(ms) + " ms" : (ms / 1000).toFixed(1) + " s";
+}
+
+/* Une data URL n'est pas forcement en base64 : sans « ;base64 » avant la
+   virgule, la charge est en percent-encoding et atob() la casse. */
+function decodeDataUrlText(dataUrl){
+  const i = String(dataUrl || "").indexOf(",");
+  if (i < 0) return null;
+  const meta = dataUrl.slice(0, i), payload = dataUrl.slice(i + 1);
+  try {
+    if (!/;base64$/i.test(meta)) return decodeURIComponent(payload);
+    const bin = atob(payload);
+    const bytes = new Uint8Array(bin.length);
+    for (let k = 0; k < bin.length; k++) bytes[k] = bin.charCodeAt(k);
+    return new TextDecoder("utf-8", { fatal: true }).decode(bytes);
+  } catch (e){ return null; }
+}
+
+/* Le backend renvoie le fichier ENTIER en base64 (+33 %). Au-dela de cette
+   taille l'onglet se fige : on refuse l'apercu plutot que de le tenter. */
+const PREVIEW_MAX_BYTES = 2 * 1024 * 1024;
+
+if (typeof module === "object" && module.exports){
+  module.exports = { CFG, api, REST, HermesLink, link, conv, studioLog,
+                     ensureSession, submitPrompt, interruptTurn, respondApproval,
+                     resumeSession, resetSession, coreHooks, newTurn,
+                     contentToText, shorten, fmtBytes, fmtWhen, fmtDur,
+                     decodeDataUrlText, PREVIEW_MAX_BYTES, ApiError };
+}

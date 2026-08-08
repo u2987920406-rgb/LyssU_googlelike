@@ -1,38 +1,51 @@
 #!/usr/bin/env python3
-"""Serveur statique + reverse-proxy /api/* pour les pages Ulysse.
+"""Serveur local Ulysse : fichiers statiques + reverse-proxy vers Hermes.
 
 Pourquoi un proxy
 -----------------
-session-b.html appelle le dashboard Hermes avec un en-tete personnalise
-(X-Hermes-Session-Token). Un en-tete personnalise rend la requete « non
-simple » : le navigateur envoie d'abord un preflight OPTIONS. Le dashboard
-Hermes fait passer ce OPTIONS par son gate d'authentification et repond 401,
-donc le navigateur bloque le fetch (« Failed to fetch »). Le WebSocket, lui,
-n'est pas soumis a ce preflight et fonctionnait deja.
+1. CORS. La page appelle le dashboard Hermes avec un en-tete personnalise
+   (X-Hermes-Session-Token), ce qui rend la requete « non simple » : le
+   navigateur envoie d'abord un preflight OPTIONS, que le gate d'auth du
+   dashboard rejette en 401. En servant la page et l'API depuis la MEME
+   origine (127.0.0.1:8080), il n'y a plus de preflight du tout.
 
-La solution ici est de supprimer le cross-origin plutot que de bricoler le
-backend : la page appelle http://127.0.0.1:8080/api/... — la MEME origine que
-la page elle-meme, donc aucun preflight — et ce serveur relaie vers le
-dashboard (127.0.0.1:9123) en injectant lui-meme le jeton de session.
+2. Secrets. Le jeton de session du dashboard et les secrets HMAC des
+   webhooks ne descendent JAMAIS dans le navigateur. C'est ce serveur qui
+   les detient et les injecte au dernier moment.
 
-    navigateur ──(meme origine, sans preflight)──> serve.py :8080
-                                                      │
-                                         + X-Hermes-Session-Token
-                                                      v
-                                          dashboard Hermes :9123
+    navigateur ──(meme origine, sans preflight, sans secret)──> serve.py :8080
+                                                                   │
+                                            + X-Hermes-Session-Token / HMAC
+                                                                   v
+                                       dashboard :9123 · gateway :8644 · proxy :8645
 
 Le code Hermes n'est pas touche.
 
 Ce qui est servi / relaye
 -------------------------
-  /api/ws        -> tunnel WebSocket brut vers le dashboard
-  /api/pty, /api/... -> relais HTTP (methode, corps et en-tetes conserves)
-  tout le reste  -> fichiers statiques du dossier (session-b.html,
-                    discussion.html, ulysse-config.js), Cache-Control: no-store
+  /api/ws            -> tunnel WebSocket brut vers le dashboard
+  /api/...           -> relais HTTP vers le dashboard (jeton injecte)
+  /webhooks/<nom>    -> POST signe HMAC-SHA256 V2 vers le gateway webhook
+  /proxy/chat        -> relais vers hermes proxy (chat pur, cle injectee)
+  tout le reste      -> fichiers statiques du dossier, Cache-Control: no-store
+
+Frontieres de securite (toutes appliquees ici, pas cote page)
+-------------------------------------------------------------
+  · ecoute sur 127.0.0.1 uniquement — jamais 0.0.0.0
+  · en-tete Host verifie (anti DNS-rebinding)
+  · en-tete Origin verifie sur /api/*, /webhooks/*, /proxy/* ET sur le
+    handshake WebSocket — une page hostile ne peut pas ouvrir le canal RPC
+  · aucun en-tete CORS permissif : tout est en meme origine
+  · Origin REECRIT vers le backend avant relais : le dashboard verifie
+    l'origine sur le WS et refuserait un Origin :8080 (close 4403)
+  · ulysse-config.js est servi expurge de ses secrets
 """
 
+import hashlib
+import hmac
 import http.client
 import http.server
+import json
 import os
 import re
 import select
@@ -41,6 +54,7 @@ import socket
 import socketserver
 import ssl
 import sys
+import time
 import urllib.parse
 
 # ===========================================================================
@@ -49,6 +63,12 @@ import urllib.parse
 
 PORT = 8080
 
+# Interface d'ecoute. 127.0.0.1 = accessible depuis CETTE machine uniquement.
+# Ne PAS mettre "" ni "0.0.0.0" : le proxy porte le jeton du dashboard, donc
+# l'exposer au reseau revient a offrir a tout le LAN la lecture du disque et
+# l'execution de commandes, sans aucune authentification.
+HOST = "127.0.0.1"
+
 # Origine du backend Hermes vers lequel /api/* est relaye. Pas de slash final.
 # Laisser "" pour lire la cle HERMES_URL dans ulysse-config.js (recommande :
 # un seul endroit a modifier). Sinon forcer la valeur ici, par ex.
@@ -56,23 +76,100 @@ PORT = 8080
 DASHBOARD_URL = ""
 
 # Jeton de session Hermes injecte dans chaque requete relayee.
-# Laisser None pour lire la cle SESSION_TOKEN dans ulysse-config.js — le jeton
-# n'est ainsi ecrit qu'a un seul endroit, non versionne. Sinon mettre la
-# chaine ici (ex. "ulysse_TEST_999").
+# Ordre de resolution : cette constante > variable d'environnement
+# HERMES_DASHBOARD_SESSION_TOKEN > cle SESSION_TOKEN de ulysse-config.js.
+# La variable d'environnement est preferable : le jeton ne touche alors aucun
+# fichier du dossier web/.
 SESSION_TOKEN = None
 
 # Valeurs de repli si ulysse-config.js est absent ou muet.
 DASHBOARD_URL_FALLBACK = "http://127.0.0.1:9123"
 SESSION_TOKEN_FALLBACK = ""
 
+# Gateway des webhooks (port 8644 par defaut). Le declenchement est signe ici.
+WEBHOOK_URL = ""
+WEBHOOK_URL_FALLBACK = "http://127.0.0.1:8644"
+
+# Proxy Hermes pour le mode « chat pur » (OpenAI-compatible).
+PROXY_URL = ""
+PROXY_URL_FALLBACK = "http://127.0.0.1:8645"
+
 CONFIG_FILE = "ulysse-config.js"
+
+# Le marqueur de premier lancement. Il vit DANS LE HERMES HOME, pas dans le
+# dossier servi : tout ce qui est ici est publie a qui sait taper une URL.
+# Un fichier de plus dans web/ serait aussi un fichier de plus a ignorer dans
+# les verifications de fidelite.
+MARQUEUR = os.path.join(
+    os.environ.get("HERMES_HOME") or os.path.join(
+        os.path.expanduser("~"), "AppData", "Local", "hermes"),
+    "ulysse-premier-vu")
+
+
+def premier_lancement():
+    """Vrai tant que l'ecran d'accueil n'a pas ete vu une premiere fois."""
+    return not os.path.exists(MARQUEUR)
+
+
+# ---------------------------------------------------------------------------
+# Le terminal : xterm.js, EMPRUNTE a Hermes plutot que recopie
+# ---------------------------------------------------------------------------
+# Le dashboard rend /api/pty avec @xterm/xterm — la meme bibliotheque, deja
+# installee sur cette machine par Hermes lui-meme. Ecrire un emulateur ANSI a
+# la main pour une TUI Ink (ecran alternatif, adressage du curseur, couleurs
+# 24 bits, caracteres larges) serait faire semblant.
+#
+# On la SERT depuis la ou elle est, on ne la recopie pas dans web/ : une copie
+# vieillit, et 500 Ko de code emprunte dans le dossier du produit brouillent
+# ce qui est a nous. La liste est FERMEE et les chemins sont absolus — aucun
+# segment ne vient du client, ce qui etait precisement la faille S11.
+
+def _hermes_racine():
+    base = os.environ.get("HERMES_AGENT_PATH")
+    if base:
+        return base
+    return os.path.join(os.path.expanduser("~"), "AppData", "Local", "hermes",
+                        "hermes-agent")
+
+
+def _nm(*bouts):
+    return os.path.abspath(os.path.join(_hermes_racine(), "node_modules", *bouts))
+
+
+EMPRUNTS = {
+    "/xterm/xterm.js":      (_nm("@xterm", "xterm", "lib", "xterm.js"),
+                             "application/javascript"),
+    "/xterm/xterm.css":     (_nm("@xterm", "xterm", "css", "xterm.css"), "text/css"),
+    "/xterm/addon-fit.js":  (_nm("@xterm", "addon-fit", "lib", "addon-fit.js"),
+                             "application/javascript"),
+}
+
+# Cles de ulysse-config.js expurgees avant de servir le fichier au navigateur.
+# La page n'en a pas besoin : c'est le proxy qui authentifie.
+SECRET_CONFIG_KEYS = ("SESSION_TOKEN", "PROXY_TOKEN")
+
+# Seules ces extensions sont servies en statique. Liste BLANCHE, pas noire :
+# ce dossier contient le code du serveur (serve.py, ou la constante
+# SESSION_TOKEN peut etre renseignee), ses tests, et potentiellement tout ce
+# qu'on y depose. Avec une liste noire, le premier fichier d'un type oublie
+# part en clair. Avec une liste blanche, il faut un geste explicite pour
+# publier quoi que ce soit.
+STATIC_SUFFIXES = (".html", ".css", ".js", ".svg", ".png", ".jpg", ".jpeg",
+                   ".gif", ".webp", ".ico", ".woff", ".woff2", ".map")
+
+# Renseignes dans main().
+BACKEND = None
+WEBHOOK_BACKEND = None
+PROXY_BACKEND = None
+ALLOWED_HOSTS = frozenset()
+ALLOWED_ORIGINS = frozenset()
 
 # ===========================================================================
 # Lecture de ulysse-config.js
 # ===========================================================================
 
 # ulysse-config.js est du JavaScript, pas du JSON : on ne l'evalue pas, on y
-# pioche simplement les deux valeurs qui nous interessent. Format attendu :
+# pioche simplement les valeurs qui nous interessent. Format attendu :
 #     CLE: "valeur",
 _VALUE_RE = '(?m)^\\s*%s\\s*:\\s*"([^"]*)"'
 
@@ -83,24 +180,45 @@ def read_config_value(text, key):
     return m.group(1) if m else None
 
 
-def load_config():
-    """Resout (backend, jeton) : constantes du fichier > ulysse-config.js > repli."""
-    backend, token = DASHBOARD_URL, SESSION_TOKEN
-    text = ""
-    if os.path.exists(CONFIG_FILE):
-        with open(CONFIG_FILE, "r", encoding="utf-8", errors="replace") as fh:
-            text = fh.read()
+def read_config_text():
+    if not os.path.exists(CONFIG_FILE):
+        return ""
+    with open(CONFIG_FILE, "r", encoding="utf-8", errors="replace") as fh:
+        return fh.read()
 
+
+def load_config():
+    """Resout (backend, jeton, webhook, proxy) et leur cle d'authentification."""
+    text = read_config_text()
+
+    backend = DASHBOARD_URL
     if not backend:
         # HERMES_URL = le vrai backend, distinct de DASHBOARD_URL qui, cote
         # page, pointe desormais sur ce proxy (127.0.0.1:8080).
         backend = read_config_value(text, "HERMES_URL") or DASHBOARD_URL_FALLBACK
+
+    token = SESSION_TOKEN
+    if token is None:
+        token = os.environ.get("HERMES_DASHBOARD_SESSION_TOKEN")
     if token is None:
         token = read_config_value(text, "SESSION_TOKEN")
-        if token is None:
-            token = SESSION_TOKEN_FALLBACK
+    if token is None:
+        token = SESSION_TOKEN_FALLBACK
 
-    return backend.rstrip("/"), token
+    wh_url = WEBHOOK_URL or read_config_value(text, "WEBHOOK_URL") or WEBHOOK_URL_FALLBACK
+
+    proxy_url = PROXY_URL
+    if not proxy_url:
+        # ulysse-config.js porte l'URL complete de la route chat ; on ne garde
+        # que l'origine, le chemin est ajoute au relais.
+        raw = read_config_value(text, "PROXY_URL") or PROXY_URL_FALLBACK
+        parts = urllib.parse.urlsplit(raw)
+        proxy_url = "%s://%s" % (parts.scheme or "http", parts.netloc)
+    proxy_token = (os.environ.get("HERMES_PROXY_TOKEN")
+                   or read_config_value(text, "PROXY_TOKEN") or "")
+
+    return (backend.rstrip("/"), token, wh_url.rstrip("/"),
+            proxy_url.rstrip("/"), proxy_token)
 
 
 class Backend:
@@ -116,8 +234,18 @@ class Backend:
         self.netloc = parts.netloc
         self.secure = self.scheme == "https"
 
+    @property
+    def origin(self):
+        """Origine a presenter au backend a la place de celle du navigateur."""
+        return "%s://%s" % (self.scheme, self.netloc)
 
-BACKEND = None  # renseigne dans main()
+    def connect(self, timeout=120):
+        if self.secure:
+            return http.client.HTTPSConnection(
+                self.host, self.port, timeout=timeout,
+                context=ssl.create_default_context())
+        return http.client.HTTPConnection(self.host, self.port, timeout=timeout)
+
 
 # En-tetes « hop-by-hop » : propres a une connexion, jamais relayes tels quels.
 HOP_BY_HOP = {
@@ -125,145 +253,407 @@ HOP_BY_HOP = {
     "te", "trailer", "trailers", "transfer-encoding", "upgrade",
 }
 
+# En-tetes d'authentification venant du navigateur : TOUJOURS supprimes, quel
+# que soit le backend vise. Sinon un jeton destine au dashboard partirait vers
+# le gateway webhook, qui n'a rien a en faire.
+CLIENT_AUTH_HEADERS = {"x-hermes-session-token", "authorization", "cookie"}
+
+# ===========================================================================
+# Webhooks — signature HMAC calculee ici, secret jamais expose
+# ===========================================================================
+
+
+def hermes_home():
+    """Racine Hermes ($HERMES_HOME, sinon %LOCALAPPDATA%\\hermes)."""
+    env = os.environ.get("HERMES_HOME")
+    if env:
+        return env
+    local = os.environ.get("LOCALAPPDATA")
+    if local:
+        return os.path.join(local, "hermes")
+    return os.path.join(os.path.expanduser("~"), ".hermes")
+
+
+def webhook_secret(name):
+    """Secret HMAC d'une route webhook, lu dans webhook_subscriptions.json.
+
+    Le dashboard masque ce secret (`secret_set: true` et rien d'autre) : le
+    navigateur ne peut donc pas signer, et il ne doit pas le pouvoir. C'est ce
+    serveur, local, qui lit le fichier et signe.
+    """
+    path = os.path.join(hermes_home(), "webhook_subscriptions.json")
+    try:
+        with open(path, "r", encoding="utf-8") as fh:
+            subs = json.load(fh)
+    except (OSError, ValueError):
+        return None
+    route = subs.get(name) if isinstance(subs, dict) else None
+    if not isinstance(route, dict):
+        return None
+    secret = route.get("secret")
+    return secret if isinstance(secret, str) and secret else None
+
+
+def sign_webhook_v2(secret, body):
+    """En-tetes de signature generique V2 attendus par gateway/platforms/webhook.py.
+
+    Le gateway calcule HMAC-SHA256(secret, b"<timestamp>.<body>") et refuse un
+    horodatage vieux de plus de 300 s (protection contre le rejeu).
+    """
+    ts = str(int(time.time()))
+    signed = ts.encode("ascii") + b"." + body
+    digest = hmac.new(secret.encode("utf-8"), signed, hashlib.sha256).hexdigest()
+    return {"X-Webhook-Timestamp": ts, "X-Webhook-Signature-V2": digest}
+
 
 class Handler(http.server.SimpleHTTPRequestHandler):
-    """Fichiers statiques, plus un reverse-proxy sur /api/*."""
+    """Fichiers statiques, plus un reverse-proxy authentifie."""
+
+    server_version = "Ulysse"
+    sys_version = ""
+
+    # ------------------------------------------------------------------
+    # Frontieres de securite
+    # ------------------------------------------------------------------
+
+    def route(self):
+        """Chemin NORMALISE, sans la query string.
+
+        Deux pieges evites ici :
+          · `self.path` contient la query — comparer dessus fait tomber
+            « /webhooks/x?y=1 » dans le statique.
+          · le chemin peut etre encode ou remonter (« /%2e%2e/config.js ») :
+            SimpleHTTPRequestHandler, lui, le normalise avant de servir. Si
+            l'aiguillage compare la forme brute et le service la forme
+            normalisee, tout controle pose sur un chemin exact se contourne
+            en changeant l'ecriture de l'URL. C'etait le cas de l'expurgation
+            de ulysse-config.js.
+        """
+        raw = urllib.parse.urlsplit(self.path).path
+        raw = urllib.parse.unquote(raw)
+        raw = raw.replace("\\", "/")
+        parts = []
+        for seg in raw.split("/"):
+            if seg in ("", "."):
+                continue
+            if seg == "..":
+                if parts:
+                    parts.pop()
+                continue
+            parts.append(seg)
+        return "/" + "/".join(parts)
+
+    def is_api(self):
+        p = self.route()
+        return p == "/api" or p.startswith("/api/")
+
+    def is_webhook(self):
+        return self.route().startswith("/webhooks/")
+
+    def is_proxy(self):
+        return self.route() == "/proxy/chat"
+
+    def is_relayed(self):
+        return self.is_api() or self.is_webhook() or self.is_proxy()
+
+    def is_websocket(self):
+        return (self.headers.get("Upgrade") or "").lower() == "websocket"
+
+    def host_ok(self):
+        """Anti DNS-rebinding : un nom qui resout vers 127.0.0.1 ne suffit pas.
+
+        Sans ce controle, une page hostile peut faire pointer son propre
+        domaine sur 127.0.0.1 ; le navigateur considere alors ses requetes
+        comme same-origin avec ce serveur et obtient tout /api/*.
+        """
+        host = (self.headers.get("Host") or "").strip().lower()
+        return host in ALLOWED_HOSTS
+
+    def origin_ok(self):
+        """Origine du demandeur. Absente = requete non-navigateur (curl) : OK.
+
+        Presente = c'est un navigateur, et elle doit designer ce serveur. Sans
+        ce controle, n'importe quel onglet ouvert sur un site hostile peut
+        appeler /api/* — le proxy y ajouterait le jeton et lui rendrait la
+        reponse.
+        """
+        origin = (self.headers.get("Origin") or "").strip().lower()
+        if not origin:
+            return True
+        return origin in ALLOWED_ORIGINS
+
+    def guard(self):
+        """Verifie les frontieres avant tout relais. True = requete refusee."""
+        if not self.host_ok():
+            self.send_error(403, "Forbidden", "En-tete Host non autorise.")
+            return True
+        if not self.origin_ok():
+            self.send_error(403, "Forbidden", "Origine non autorisee.")
+            return True
+        return False
 
     # ------------------------------------------------------------------
     # Aiguillage
     # ------------------------------------------------------------------
 
-    def is_api(self):
-        return self.path == "/api" or self.path.startswith("/api/")
-
-    def is_websocket(self):
-        upgrade = (self.headers.get("Upgrade") or "").lower()
-        return upgrade == "websocket"
+    def static_allowed(self):
+        """Le chemin normalise designe-t-il un fichier publiable ?"""
+        p = self.route()
+        if p in ("/", ""):
+            return True
+        name = p.rsplit("/", 1)[-1]
+        # Un segment cache (.faux-home, .git, .env) n'est jamais publie : ces
+        # dossiers-la contiennent precisement ce qu'on ne veut pas donner.
+        if any(seg.startswith(".") for seg in p.split("/") if seg):
+            return False
+        return name.lower().endswith(STATIC_SUFFIXES)
 
     def do_GET(self):
-        if self.is_api():
+        if self.is_relayed():
+            if self.guard():
+                return
             if self.is_websocket():
                 self.proxy_websocket()
             else:
                 self.proxy_http("GET")
             return
+        if self.route() == "/" + CONFIG_FILE:
+            self.serve_redacted_config()
+            return
+        if self.route() in EMPRUNTS:
+            self.serve_emprunt(self.route())
+            return
+        if not self.static_allowed():
+            self.send_error(404, "Not Found")
+            return
+        # On sert le chemin NORMALISE : c'est celui qu'on vient d'autoriser.
+        self.path = self.route()
         super().do_GET()
 
     def do_HEAD(self):
-        if self.is_api():
+        if self.is_relayed():
+            if self.guard():
+                return
             self.proxy_http("HEAD")
             return
+        if not self.static_allowed():
+            self.send_error(404, "Not Found")
+            return
+        self.path = self.route()
         super().do_HEAD()
 
     def do_POST(self):
-        self.proxy_or_405("POST")
+        # La seule route LOCALE en ecriture. Elle ne relaie rien, ne touche a
+        # aucun secret, et n'ecrit qu'un fichier vide hors du dossier servi.
+        if self.route() == "/ulysse/premier-vu":
+            if self.guard():
+                return
+            self.marquer_premier_vu()
+            return
+        self.relay_or_405("POST")
 
     def do_PUT(self):
-        self.proxy_or_405("PUT")
+        self.relay_or_405("PUT")
 
     def do_PATCH(self):
-        self.proxy_or_405("PATCH")
+        self.relay_or_405("PATCH")
 
     def do_DELETE(self):
-        self.proxy_or_405("DELETE")
+        self.relay_or_405("DELETE")
 
     def do_OPTIONS(self):
-        """Preflight CORS traite localement.
+        """Tout est en meme origine : il ne doit plus y avoir de preflight.
 
-        Normalement il n'y en a plus (la page est en meme origine), mais si la
-        page est ouverte depuis une autre origine on repond nous-memes plutot
-        que de relayer le OPTIONS au dashboard — c'est exactement ce OPTIONS
-        que son gate d'auth rejetait en 401.
+        On repond 403 plutot que d'emettre des en-tetes CORS permissifs — un
+        `Access-Control-Allow-Origin` qui reflete l'origine du demandeur
+        annulerait la protection ci-dessus.
         """
-        if not self.is_api():
+        self.send_error(403, "Forbidden",
+                        "Ulysse se sert en meme origine ; aucun CORS n'est accorde.")
+
+    def relay_or_405(self, method):
+        if not self.is_relayed():
             self.send_error(405, "Method Not Allowed")
             return
-        origin = self.headers.get("Origin") or "*"
-        asked = self.headers.get("Access-Control-Request-Headers")
-        self.send_response(204)
-        self.send_header("Access-Control-Allow-Origin", origin)
-        self.send_header("Access-Control-Allow-Methods",
-                         "GET, POST, PUT, PATCH, DELETE, OPTIONS")
-        self.send_header("Access-Control-Allow-Headers",
-                         asked or "Content-Type, X-Hermes-Session-Token, Authorization")
-        self.send_header("Access-Control-Max-Age", "600")
-        self.end_headers()
-
-    def proxy_or_405(self, method):
-        if self.is_api():
-            self.proxy_http(method)
-        else:
-            self.send_error(405, "Method Not Allowed")
+        if self.guard():
+            return
+        if self.is_webhook():
+            self.trigger_webhook()
+            return
+        self.proxy_http(method)
 
     # ------------------------------------------------------------------
-    # Relais HTTP  (/api/sessions, /api/files, /api/health, /api/pty, ...)
+    # Relais HTTP
     # ------------------------------------------------------------------
 
-    def build_upstream_headers(self):
-        """Recopie les en-tetes client, sans les hop-by-hop, avec le jeton."""
+    def read_body(self):
+        length = self.headers.get("Content-Length")
+        if not length:
+            return b""
+        try:
+            return self.rfile.read(int(length))
+        except (ValueError, OSError):
+            return b""
+
+    def build_upstream_headers(self, backend):
+        """Recopie les en-tetes client, expurges, avec l'auth du backend vise."""
         out = {}
         for name, value in self.headers.items():
             low = name.lower()
-            if low in HOP_BY_HOP or low in ("host", "content-length"):
+            if low in HOP_BY_HOP or low in ("host", "content-length", "origin", "referer"):
                 continue
-            # Le jeton appartient au proxy : on ecrase ce que la page envoie.
-            if BACKEND.token and low in ("x-hermes-session-token", "authorization"):
+            # Inconditionnel : le jeton du dashboard n'a rien a faire chez le
+            # gateway webhook, et une valeur venue du navigateur n'a de toute
+            # facon aucune autorite ici.
+            if low in CLIENT_AUTH_HEADERS:
                 continue
             out[name] = value
-        out["Host"] = BACKEND.netloc
-        if BACKEND.token:
-            out["X-Hermes-Session-Token"] = BACKEND.token
+        out["Host"] = backend.netloc
+        # Le dashboard verifie l'Origin sur le WebSocket et le rejette s'il ne
+        # designe pas son propre hote. On presente donc la sienne.
+        out["Origin"] = backend.origin
+        if backend.token:
+            out["X-Hermes-Session-Token"] = backend.token
         return out
 
-    def proxy_http(self, method):
-        body = b""
-        length = self.headers.get("Content-Length")
-        if length:
-            try:
-                body = self.rfile.read(int(length))
-            except (ValueError, OSError):
-                body = b""
+    def send_upstream_response(self, resp, method):
+        """Renvoie la reponse amont sans dupliquer nos propres en-tetes."""
+        # send_response_only (et non send_response) : send_response ajoute
+        # Server et Date, que l'amont a deja envoyes.
+        self.send_response_only(resp.status, resp.reason)
+        for name, value in resp.getheaders():
+            if name.lower() in HOP_BY_HOP:
+                continue
+            self.send_header(name, value)
+        self.end_headers()
+        if method != "HEAD":
+            shutil.copyfileobj(resp, self.wfile)
 
-        headers = self.build_upstream_headers()
+    def proxy_http(self, method):
+        if self.is_proxy():
+            self.proxy_pure_chat()
+            return
+
+        backend = BACKEND
+        body = self.read_body()
+        headers = self.build_upstream_headers(backend)
         if body:
             headers["Content-Length"] = str(len(body))
 
         conn = None
         try:
-            if BACKEND.secure:
-                conn = http.client.HTTPSConnection(
-                    BACKEND.host, BACKEND.port, timeout=120,
-                    context=ssl.create_default_context())
-            else:
-                conn = http.client.HTTPConnection(BACKEND.host, BACKEND.port, timeout=120)
+            conn = backend.connect()
             conn.request(method, self.path, body=body or None, headers=headers)
             resp = conn.getresponse()
         except Exception as exc:  # backend eteint, port ferme, timeout...
             if conn:
                 conn.close()
             self.send_error(502, "Bad Gateway",
-                            "Dashboard Hermes injoignable sur %s (%s)" % (BACKEND.url, exc))
+                            "Backend Ulysse injoignable sur %s (%s)" % (backend.url, exc))
             return
 
         try:
-            self.send_response(resp.status)
-            for name, value in resp.getheaders():
-                if name.lower() in HOP_BY_HOP:
-                    continue
-                self.send_header(name, value)
-            # Meme origine en pratique, mais inoffensif et utile si la page
-            # est ouverte autrement (file://, autre port...).
-            self.send_header("Access-Control-Allow-Origin",
-                             self.headers.get("Origin") or "*")
-            self.end_headers()
-
-            if method != "HEAD":
-                # Copie en flux : marche aussi pour une reponse longue ou
-                # chunkee (http.client a deja dechunke ; Transfer-Encoding a
-                # ete filtre plus haut, le corps se termine a la fermeture).
-                shutil.copyfileobj(resp, self.wfile)
+            self.send_upstream_response(resp, method)
         except (BrokenPipeError, ConnectionResetError):
             pass  # le navigateur a coupe : rien a signaler
+        finally:
+            conn.close()
+
+    # ------------------------------------------------------------------
+    # Chat pur — relais vers le proxy Hermes, cle injectee ici
+    # ------------------------------------------------------------------
+
+    def proxy_pure_chat(self):
+        backend = PROXY_BACKEND
+        body = self.read_body()
+        headers = {
+            "Host": backend.netloc,
+            "Content-Type": "application/json",
+            "Content-Length": str(len(body)),
+            "Accept": "application/json",
+        }
+        if backend.token:
+            headers["Authorization"] = "Bearer " + backend.token
+
+        conn = None
+        try:
+            conn = backend.connect()
+            conn.request("POST", "/v1/chat/completions", body=body, headers=headers)
+            resp = conn.getresponse()
+        except Exception as exc:
+            if conn:
+                conn.close()
+            self.send_error(502, "Bad Gateway",
+                            "Proxy Hermes injoignable sur %s (%s)" % (backend.url, exc))
+            return
+        try:
+            self.send_upstream_response(resp, "POST")
+        except (BrokenPipeError, ConnectionResetError):
+            pass
+        finally:
+            conn.close()
+
+    # ------------------------------------------------------------------
+    # Webhooks — POST /webhooks/<nom>, signe ici
+    # ------------------------------------------------------------------
+
+    def json_error(self, status, message):
+        self.send_json(status, {"error": message})
+
+    def send_json(self, status, obj):
+        payload = json.dumps(obj).encode("utf-8")
+        self.send_response_only(status)
+        self.send_header("Content-Type", "application/json; charset=utf-8")
+        self.send_header("Content-Length", str(len(payload)))
+        self.end_headers()
+        self.wfile.write(payload)
+
+    def trigger_webhook(self):
+        name = urllib.parse.unquote(self.route()[len("/webhooks/"):]).strip("/")
+        # Une route est un identifiant simple (cf. la validation cote dashboard :
+        # ^[a-z0-9][a-z0-9_-]*$). Refuser le reste evite qu'un nom bricole ne
+        # devienne un chemin arbitraire chez le gateway.
+        if not re.match(r"^[a-z0-9][a-z0-9_-]*$", name):
+            self.json_error(400, "Nom de webhook invalide.")
+            return
+
+        secret = webhook_secret(name)
+        if not secret:
+            self.json_error(
+                404,
+                "Aucun secret pour la route « %s » dans webhook_subscriptions.json. "
+                "Cree-la avec : hermes webhook subscribe %s --prompt \"...\"" % (name, name))
+            return
+
+        body = self.read_body()
+        if not body:
+            # Le gateway attend un payload : les variables {payload.x} du prompt
+            # de la route s'y puisent. Un corps vide est un declenchement nu.
+            body = json.dumps({"source": "ulysse"}).encode("utf-8")
+
+        headers = {
+            "Host": WEBHOOK_BACKEND.netloc,
+            "Content-Type": "application/json",
+            "Content-Length": str(len(body)),
+            "User-Agent": "Ulysse/1.0",
+        }
+        headers.update(sign_webhook_v2(secret, body))
+
+        conn = None
+        try:
+            conn = WEBHOOK_BACKEND.connect(timeout=30)
+            conn.request("POST", "/webhooks/" + name, body=body, headers=headers)
+            resp = conn.getresponse()
+        except Exception as exc:
+            if conn:
+                conn.close()
+            self.json_error(502, "Gateway webhook injoignable sur %s (%s)"
+                            % (WEBHOOK_BACKEND.url, exc))
+            return
+        try:
+            self.send_upstream_response(resp, "POST")
+        except (BrokenPipeError, ConnectionResetError):
+            pass
         finally:
             conn.close()
 
@@ -272,12 +662,15 @@ class Handler(http.server.SimpleHTTPRequestHandler):
     # ------------------------------------------------------------------
 
     def ws_path_with_token(self):
-        """Garantit ?token=... dans l'URL : le handshake WS ne porte pas d'en-tete."""
-        if not BACKEND.token:
-            return self.path
+        """Impose ?token=<jeton du proxy> : le handshake WS ne porte pas d'en-tete.
+
+        On ECRASE ce que la page envoie plutot que de le completer — une valeur
+        venue du navigateur n'a aucune autorite, et la page n'a plus le jeton.
+        """
         parts = urllib.parse.urlsplit(self.path)
         query = urllib.parse.parse_qs(parts.query, keep_blank_values=True)
-        if not query.get("token", [""])[0]:
+        query.pop("token", None)
+        if BACKEND.token:
             query["token"] = [BACKEND.token]
         return urllib.parse.urlunsplit(
             ("", "", parts.path, urllib.parse.urlencode(query, doseq=True), parts.fragment))
@@ -302,14 +695,19 @@ class Handler(http.server.SimpleHTTPRequestHandler):
             return
 
         try:
-            # 1. Rejouer le handshake, jeton injecte, Host reecrit.
+            # 1. Rejouer le handshake : Host ET Origin reecrits, jeton injecte.
+            #    L'Origin est decisif — le dashboard verifie que l'origine du
+            #    handshake designe son propre hote (_ws_host_origin_reason) et
+            #    ferme en 4403 sinon. Relayer « http://127.0.0.1:8080 » tuait
+            #    donc tout Cowork, avec un message trompeur cote page.
             lines = ["GET %s HTTP/1.1" % self.ws_path_with_token(),
-                     "Host: %s" % BACKEND.netloc]
+                     "Host: %s" % BACKEND.netloc,
+                     "Origin: %s" % BACKEND.origin]
             for name, value in self.headers.items():
                 low = name.lower()
-                if low == "host":
+                if low in ("host", "origin", "referer"):
                     continue
-                if BACKEND.token and low in ("x-hermes-session-token", "authorization"):
+                if low in CLIENT_AUTH_HEADERS:
                     continue
                 lines.append("%s: %s" % (name, value))
             if BACKEND.token:
@@ -372,8 +770,78 @@ class Handler(http.server.SimpleHTTPRequestHandler):
                     return
 
     # ------------------------------------------------------------------
-    # Statique (comportement d'origine)
+    # Statique
     # ------------------------------------------------------------------
+
+    def serve_redacted_config(self):
+        """Sert ulysse-config.js sans ses secrets.
+
+        Le fichier reste la source unique de configuration, mais le navigateur
+        n'a aucun besoin du jeton de session : c'est le proxy qui authentifie.
+        Le servir en clair reviendrait a le publier a qui sait taper son URL.
+        """
+        text = read_config_text()
+        if not text:
+            self.send_error(404, "Not Found")
+            return
+        for key in SECRET_CONFIG_KEYS:
+            text = re.sub(_VALUE_RE % re.escape(key),
+                          lambda m: m.group(0).replace('"%s"' % m.group(1), '""'),
+                          text)
+        # Le seul renseignement AJOUTE au fichier : est-ce le premier
+        # lancement ? Il ne peut pas venir de la page — `localStorage` ne
+        # survit ni a un autre navigateur ni a une fenetre privee, et le meme
+        # poste reverrait l'ecran indefiniment. Il ne peut pas non plus venir
+        # de l'absence des fichiers de memoire : ca dit « le profil n'est pas
+        # ecrit », qui est autre chose.
+        # On ecrit dans `window.ULYSSE_CONFIG`, que ce fichier declare — et
+        # non dans `CFG`, qui n'existe pas encore : c'est ulysse-core.js qui
+        # le construit, plus tard, a partir de celui-ci.
+        text += "\n/* Ajoute par serve.py — le marqueur vit ici, pas dans la page. */\n"
+        text += "window.ULYSSE_CONFIG.PREMIER = %s;\n" % (
+            "true" if premier_lancement() else "false")
+        payload = text.encode("utf-8")
+        self.send_response_only(200)
+        self.send_header("Content-Type", "application/javascript; charset=utf-8")
+        self.send_header("Content-Length", str(len(payload)))
+        self.send_header("Cache-Control", "no-store")
+        self.end_headers()
+        self.wfile.write(payload)
+
+    def serve_emprunt(self, route):
+        """Sert un fichier EMPRUNTE a Hermes, depuis une liste fermee.
+
+        Aucun segment du chemin ne vient de la requete : `route` a deja ete
+        normalise et compare a une cle de EMPRUNTS. C'est ce qui separe cette
+        route de la faille S11, ou un `/../` du client remontait l'arbre.
+        """
+        chemin, mime = EMPRUNTS[route]
+        try:
+            with open(chemin, "rb") as f:
+                payload = f.read()
+        except OSError:
+            # Hermes installe ailleurs, ou node_modules absent. On le DIT :
+            # un terminal qui ne se charge pas sans explication est pire
+            # qu'un terminal absent.
+            self.send_error(404, "Not Found",
+                            "xterm.js est introuvable dans l'installation Hermes.")
+            return
+        self.send_response_only(200)
+        self.send_header("Content-Type", "%s; charset=utf-8" % mime)
+        self.send_header("Content-Length", str(len(payload)))
+        self.end_headers()
+        self.wfile.write(payload)
+
+    def marquer_premier_vu(self):
+        """Note que l'ecran de premier lancement a ete vu."""
+        try:
+            with open(MARQUEUR, "w", encoding="utf-8") as f:
+                f.write(time.strftime("%Y-%m-%dT%H:%M:%S"))
+            self.send_json(200, {"ok": True})
+        except OSError as e:
+            # Un marqueur qu'on ne peut pas ecrire n'est pas une panne : on
+            # reverra l'ecran une fois de trop, c'est tout. On le dit.
+            self.send_json(200, {"ok": False, "raison": str(e)})
 
     def end_headers(self):
         self.send_header("Cache-Control", "no-store")
@@ -389,27 +857,46 @@ class ThreadingServer(socketserver.ThreadingTCPServer):
 
 
 def main():
-    global BACKEND
+    global BACKEND, WEBHOOK_BACKEND, PROXY_BACKEND, ALLOWED_HOSTS, ALLOWED_ORIGINS
     os.chdir(os.path.dirname(os.path.abspath(__file__)))
 
-    url, token = load_config()
+    url, token, wh_url, proxy_url, proxy_token = load_config()
     backend = Backend(url, token)
+    webhook_backend = Backend(wh_url or WEBHOOK_URL_FALLBACK, "")
+    proxy_backend = Backend(proxy_url or PROXY_URL_FALLBACK, proxy_token)
 
     # Garde-fou : relayer vers soi-meme boucle a l'infini.
-    if backend.port == PORT and backend.host in ("127.0.0.1", "localhost", "::1"):
-        print("Erreur : le backend (%s) est ce serveur lui-meme." % url)
-        print("Corrige HERMES_URL dans %s ou DASHBOARD_URL en tete de serve.py." % CONFIG_FILE)
-        return 1
+    loopback = ("127.0.0.1", "localhost", "::1")
+    for label, target in (("HERMES_URL", backend),
+                          ("WEBHOOK_URL", webhook_backend),
+                          ("PROXY_URL", proxy_backend)):
+        if target.port == PORT and target.host in loopback:
+            print("Erreur : %s (%s) pointe sur ce serveur lui-meme." % (label, target.url))
+            print("Corrige %s dans %s." % (label, CONFIG_FILE))
+            return 1
 
     BACKEND = backend
+    WEBHOOK_BACKEND = webhook_backend
+    PROXY_BACKEND = proxy_backend
+    # Les seuls Host / Origin qui designent ce serveur. Tout le reste est
+    # soit une erreur de configuration, soit une tentative de rebinding.
+    ALLOWED_HOSTS = frozenset({
+        "127.0.0.1:%d" % PORT, "localhost:%d" % PORT, "[::1]:%d" % PORT,
+    })
+    ALLOWED_ORIGINS = frozenset({
+        "http://127.0.0.1:%d" % PORT, "http://localhost:%d" % PORT,
+        "http://[::1]:%d" % PORT,
+    })
 
     shown = (token[:6] + "…" + token[-3:]) if len(token) > 12 else ("(aucun)" if not token else "…")
-    print("Ulysse Session B : http://127.0.0.1:%d/session-b.html" % PORT)
-    print("Ulysse Discussion : http://127.0.0.1:%d/discussion.html" % PORT)
-    print("Proxy /api/*  ->  %s   (jeton %s)" % (backend.url, shown))
-    print("Ctrl+C pour arreter.")
+    base = "http://127.0.0.1:%d" % PORT
+    print("Ulysse            : %s/" % base)
+    print("Proxy /api/*      -> %s   (jeton %s)" % (backend.url, shown))
+    print("Proxy /webhooks/* -> %s   (signature HMAC posee ici)" % webhook_backend.url)
+    print("Proxy /proxy/chat -> %s" % proxy_backend.url)
+    print("Ecoute sur %s uniquement. Ctrl+C pour arreter." % HOST)
 
-    with ThreadingServer(("", PORT), Handler) as httpd:
+    with ThreadingServer((HOST, PORT), Handler) as httpd:
         try:
             httpd.serve_forever()
         except KeyboardInterrupt:
