@@ -2078,6 +2078,12 @@ function ajusterTerm(){
   clearTimeout(ajusterTerm._t);
   ajusterTerm._t = setTimeout(() => {
     try { termFit.fit(); } catch (e){ return; }
+    // ⚠ Repeindre, même quand la taille en cellules n'a pas bougé. xterm.js
+    // ne redessine pas de lui-même quand son conteneur change de dimensions
+    // en pixels ou revient à l'affichage : le contenu reste dans le tampon,
+    // invisible. C'était le cas en arrivant directement sur `#Terminal` — la
+    // TUI tournait, son texte était bien là, et l'écran restait noir.
+    try { term.refresh(0, term.rows - 1); } catch (e){ /* rien à repeindre */ }
     // La séquence de redimensionnement est CONSOMMÉE par le serveur : elle
     // n'atteint jamais le PTY. C'est le contrat d'Hermès, pas une convention
     // qu'on ajoute.
@@ -2104,12 +2110,25 @@ function ouvrirPty(){
       term.focus();
     }
   };
+  // Le premier flot de la TUI est le seul moment où l'on sait qu'il y a
+  // quelque chose à peindre. Si le terminal a été ouvert avant que son
+  // panneau ne soit posé — c'est le cas en arrivant directement sur
+  // `#Terminal` — son rendu s'est initialisé sur une boîte sans dimensions
+  // et ne s'en remet pas seul : le texte s'empile dans le tampon, et l'écran
+  // reste noir. Un ajustement à ce moment-là le remet d'aplomb.
+  let premierFlot = true;
+  const peindreUneFois = () => {
+    if (!premierFlot) return;
+    premierFlot = false;
+    ajusterTerm();
+  };
   ws.onmessage = (e) => {
-    if (typeof e.data === "string"){ term.write(e.data); return; }
+    if (typeof e.data === "string"){ term.write(e.data); peindreUneFois(); return; }
     // Le pont peut envoyer du binaire : on le décode en UTF-8, sinon les
     // accents et les cadres de la TUI ressortent en losanges.
     new Response(e.data).arrayBuffer().then((buf) => {
       term.write(new TextDecoder("utf-8").decode(buf));
+      peindreUneFois();
     });
   };
   ws.onclose = (ev) => {
@@ -2136,18 +2155,59 @@ function fermerPty(){
   majTermEtat();
 }
 
+/* Les quatre états du terminal, posés en UN SEUL endroit.
+
+   `#pTerminal` reçoit une seule classe `u-term-<état>`, et non deux booléens
+   `u-ouvert` / `u-ouverture` : les quatre états s'excluent, et deux booléens
+   rendraient représentable un « en ouverture ET ouvert » qui n'existe pas.
+   C'est la réponse à la question laissée ouverte au §4 de la passe. Même
+   principe que `majEtats()` pour Discuter : une seule chose la pose. */
+const TERM_ETATS = ["repos", "ouverture", "ouvert", "coupe"];
+
+/* La ligne d'état de l'écran. Extraite pour pouvoir être réécrite SEULE :
+   le panneau se dessine souvent avant que `/api/status` n'ait répondu, et
+   elle restait figée sur « Hermès … » pour toute la durée de la visite.
+   La réécrire entière passerait par sortir → réécrire → réinstaller, ce qui
+   est beaucoup de risque pour un numéro de version. */
+function dimTermHTML(){
+  return "<span><b>Hermès</b> " + esc((lastStatus && lastStatus.version) || "…") + "</span>"
+    + (lastStatus && lastStatus.profiles && lastStatus.profiles.length
+        ? "<span><b>profil</b> " + esc(lastStatus.profiles[0]) + "</span>" : "")
+    + "<span><b>rendu</b> xterm.js, emprunté à Hermès</span>";
+}
+
+function majDimTerm(){
+  const d = $("tmain") && $("tmain").querySelector(".dim");
+  if (d) d.innerHTML = dimTermHTML();
+}
+
 function majTermEtat(){
+  const p = $("pTerminal");
+  if (p){
+    const avant = p.className;
+    TERM_ETATS.forEach((e) => p.classList.toggle("u-term-" + e, termEtat === e));
+    // La classe d'état change la MISE EN PAGE : les deux pavés se replient et
+    // l'écran gagne 80 px. Le terminal doit se réajuster, sinon il garde la
+    // taille d'avant et laisse une bande vide. `ajusterTerm` est temporisé,
+    // donc l'appeler ici ne coûte rien.
+    if (p.className !== avant) ajusterTerm();
+  }
+
   const b = $("tGo");
   if (!b) return;
   b.textContent = termEtat === "ouvert" ? "Fermer la session"
     : termEtat === "ouverture" ? "Ouverture…" : "Ouvrir une session";
   b.disabled = termEtat === "ouverture";
-  const p = $("tstate");
-  if (p){
-    p.textContent = termEtat === "ouvert" ? "session ouverte"
+  const s = $("tstate");
+  if (s){
+    // « coupé » n'est pas « aucune session » : l'un dit qu'on n'a rien
+    // ouvert, l'autre que ça s'est interrompu. La pastille les distingue
+    // par la couleur ; le texte doit les distinguer aussi.
+    s.textContent = termEtat === "ouvert" ? "session ouverte"
       : termEtat === "ouverture" ? "connexion…"
+      : termEtat === "coupe" ? "lien coupé"
       : "aucune session";
-    p.className = "tmeta u-tstate " + termEtat;
+    s.className = "tmeta u-tstate " + termEtat;
   }
 }
 
@@ -2184,10 +2244,15 @@ function drawTerm(){
     + "</div></div>"
     // Chaque ligne devient copiable. Elles sont là pour être tapées ; les
     // faire recopier à la main est le seul usage qu'on n'attendait pas d'elles.
+    // Ces six lignes servaient à copier pour aller taper AILLEURS. Il y a
+    // maintenant un terminal juste à côté : elles peuvent y être posées.
+    // Deux gestes, donc — et jamais l'exécution.
     + '<div class="tgrp"><h3>Aide-mémoire</h3><div class="tmemo">'
     + TMEMO.map(([c, q]) => '<div class="u-cmd" data-cmd="' + esc(c) + '" role="button"'
         + ' tabindex="0" title="Cliquer pour copier"><code>' + esc(c) + "</code><span>"
-        + esc(q) + '</span><span class="k">' + svg("copier", { size: 15 })
+        + esc(q) + '</span><span class="k">' + svg("copier", { size: 15 }) + "</span>"
+        + '<span class="u-poser" data-poser="' + esc(c) + '" role="button" tabindex="0"'
+        + ' title="Poser dans le terminal, sans lancer">' + svg("suivant", { size: 15 })
         + "</span></div>").join("")
     + "</div></div>");
 
@@ -2202,37 +2267,48 @@ function drawTerm(){
   H("tmain",
     '<div class="tscreen u-tscreen" style="background:' + T.bg + ";color:" + T.fg
     + ";font-size:" + px + 'px">'
-    + '<div class="tbar"><i style="background:#FF5F57"></i><i style="background:#FEBC2E"></i>'
-    + '<i style="background:#28C840"></i>'
-    + '<span style="margin-left:8px;font-size:11.5px;opacity:.55">hermes — '
-    + esc(T.nm.toLowerCase()) + "</span>"
+    // Les trois pastilles rouge/jaune/verte ont disparu : elles ne fermaient
+    // rien, ne réduisaient rien, sur la seule fenêtre qui mène en dehors de
+    // l'application. La barre garde son rôle et dit ce qui TOURNE, au lieu
+    // du nom du thème — qui nommait la couleur, pas le programme.
+    + '<div class="tbar">'
+    + '<span class="u-quoi">' + svg("terminal", { size: 14 }) + esc(TCMD)
+    + " --tui</span>"
     + '<span class="sp" style="flex:1"></span>'
     + '<span class="tmeta u-tstate repos" id="tstate">aucune session</span></div>'
-    // Tant que /api/status n'a pas répondu, on ne sait pas — et « arrêté »
-    // n'est pas « je ne sais pas ». Le panneau se dessine à la navigation,
-    // souvent avant la première réponse : il annonçait le gateway arrêté
-    // pendant qu'il tournait.
-    + '<div class="dim">Hermès ' + esc((lastStatus && lastStatus.version) || "…")
-    + " · gateway " + (!lastStatus ? "état inconnu"
-        : (lastStatus.gateway_running ? "en marche" : "arrêté"))
-    + "</div>"
+    // Cette ligne annonçait l'état du GATEWAY, qui n'a rien à voir avec un
+    // pseudo-terminal. Elle dit maintenant ce qui concerne CET écran.
+    //
+    // Cowork demandait aussi le dossier de travail. Il n'est exposé nulle
+    // part : /api/status donne `hermes_home`, pas le répertoire où tourne le
+    // dashboard — et c'est celui-là qu'hérite le PTY. L'inventer serait de
+    // la donnée fictive (règle STU-1) ; la TUI l'imprime elle-même sur sa
+    // première ligne, à l'écran juste en dessous.
+    + '<div class="dim">' + dimTermHTML() + "</div>"
     // LE VRAI ÉCRAN. `hermes --tui` tourne derrière, et ce qu'on tape lui
     // arrive. xterm.js le rend — celui d'Hermès, emprunté par serve.py.
     + '<div class="u-tecran" id="tecran"></div></div>'
+
+    // L'avertissement était SOUS l'écran. C'était juste quand on lisait avant
+    // de copier une commande pour aller ailleurs ; depuis qu'on peut taper
+    // directement dans le cadre, il arrivait après le geste qu'il devait
+    // précéder. Il passe donc AVANT le bouton d'ouverture. Session ouverte,
+    // il se replie en une ligne — le titre reste entier, il ne disparaît
+    // jamais. Le texte n'a pas bougé d'un mot : c'était sa place qui était
+    // fausse, pas son ton.
+    + '<div class="avert" style="margin:18px 0 4px"><span class="pt">'
+    + svg("alerte", { size: 17 }) + "</span>"
+    + "<span><b>Les accords que vous donnez dans Ulysse ne s'appliquent pas ici.</b>"
+    + '<span class="u-long"> Ulysse demande votre permission avant d\'écrire, '
+    + "d'envoyer ou de publier ; le terminal, non. Ce qui y est tapé s'exécute. "
+    + "C'est la seule fenêtre de l'application qui mène en dehors d'elle — et c'est "
+    + "pour ça qu'elle vous le dit avant, et pas après.</span></span></div>"
 
     + '<div class="tlaunch"><button class="tbtn" id="tGo">'
     + svg("terminal", { size: 20 }) + "Ouvrir une session</button>"
     + '<button class="ghost-btn" data-cmd="' + esc(TCMD) + '">Copier « '
     + esc(TCMD) + ' »</button>'
     + '<span class="tpath">Pour l\'ouvrir hors d\'Ulysse, dans votre console</span></div>'
-
-    + '<div class="avert" style="margin-top:22px"><span class="pt">'
-    + svg("alerte", { size: 17 }) + "</span>"
-    + "<span><b>Les accords que vous donnez dans Ulysse ne s'appliquent pas ici.</b> "
-    + "Ulysse demande votre permission avant d'écrire, d'envoyer ou de publier ; le "
-    + "terminal, non. Ce qui y est tapé s'exécute. C'est la seule fenêtre de "
-    + "l'application qui mène en dehors d'elle — et c'est pour ça qu'elle vous le dit "
-    + "avant, et pas après.</span></div>"
 
     + '<div class="cout" style="margin-top:16px">💶 <b>Ce que ça coûte.</b> Le terminal '
     + "appelle le même cerveau, facturé de la même façon. Ce qui s'y consomme apparaît "
@@ -2244,7 +2320,13 @@ function drawTerm(){
     + " --tui</b>, derrière un pseudo-terminal ouvert par Hermès "
     + "(<code>/api/pty</code>). Le rendu est confié à <code>xterm.js</code>, "
     + "emprunté à votre installation d'Hermès plutôt que recopié — c'est la "
-    + "même bibliothèque que celle de son propre tableau de bord.</div>");
+    + "même bibliothèque que celle de son propre tableau de bord.</div>"
+
+    // Ce qui remplace les deux pavés repliés : on dit qu'ils sont repliés et
+    // où les retrouver. Replier sans le dire ferait croire à une disparition.
+    + '<div class="u-repli">Le coût et le détail technique sont repliés pendant '
+    + 'la session. <span id="tRepli" role="button" tabindex="0">Voir les '
+    + "dépenses</span></div>");
 
   $("tside").querySelectorAll("[data-th]").forEach((b) => {
     b.onclick = () => { tTheme = b.dataset.th; drawTerm(); };
@@ -2253,8 +2335,15 @@ function drawTerm(){
     b.onclick = () => { tTaille = b.dataset.sz; drawTerm(); };
   });
   if (ecran){
-    const neuf = $("tecran");
-    if (neuf) neuf.parentNode.replaceChild(ecran, neuf);
+    // ⚠ PAS `$("tecran")` ici. Pendant la réécriture, DEUX nœuds portent cet
+    // `id` : le vivant, rangé dans `#uStock`, et le neuf, vide, dans `#tmain`.
+    // `getElementById` rend le PREMIER dans l'ordre du document — et `#uStock`
+    // est déclaré avant le panneau. On récupérait donc le vivant, et
+    // `replaceChild(ecran, ecran)` ne faisait rien : le terminal restait caché
+    // dans le stock pendant que le panneau affichait un div vide. La recherche
+    // doit être limitée au sous-arbre qu'on vient d'écrire.
+    const neuf = $("tmain").querySelector("#tecran");
+    if (neuf && neuf !== ecran) neuf.parentNode.replaceChild(ecran, neuf);
     // Le thème et la taille s'appliquent au terminal VIVANT : on ne le
     // recrée pas pour changer une couleur.
     if (term){
@@ -2268,6 +2357,12 @@ function drawTerm(){
   majTermEtat();
   const c = $("tCout");
   if (c) c.onclick = () => ouvrirReglages(5);
+  const r = $("tRepli");
+  if (r){
+    const voir = () => ouvrirReglages(5);
+    r.onclick = voir;
+    r.onkeydown = (e) => { if (e.key === "Enter" || e.key === " "){ e.preventDefault(); voir(); } };
+  }
   $("tGo").onclick = () => {
     if (termEtat === "ouvert"){ fermerPty(); return; }
     if (!term){ brancherTerminal(); return; }
@@ -2278,6 +2373,31 @@ function drawTerm(){
     el.onclick = prendre;
     el.onkeydown = (e) => { if (e.key === "Enter" || e.key === " "){ e.preventDefault(); prendre(); } };
   });
+  // Le second geste. Il est DANS la ligne de l'aide-mémoire, qui porte déjà
+  // `data-cmd` : sans arrêter la propagation, poser copierait aussi.
+  $("tside").querySelectorAll("[data-poser]").forEach((el) => {
+    const poser = (e) => { e.stopPropagation(); poserDansTerm(el.dataset.poser); };
+    el.onclick = poser;
+    el.onkeydown = (e) => {
+      if (e.key === "Enter" || e.key === " "){ e.preventDefault(); poser(e); }
+    };
+  });
+}
+
+/* Poser une commande dans la ligne du terminal — SANS la lancer.
+   On envoie le texte au PTY, pas de retour chariot : il s'affiche dans
+   l'invite, et c'est à la personne d'appuyer sur Entrée. « Ulysse n'exécute
+   rien que vous n'ayez lancé » est ce que le panneau dit depuis le début, et
+   ça doit rester vrai maintenant qu'il en aurait les moyens. */
+function poserDansTerm(cmd){
+  if (!cmd) return;
+  if (termEtat !== "ouvert" || !termWS || termWS.readyState !== 1){
+    snack("Ouvrez d'abord une session pour y poser une commande.");
+    return;
+  }
+  termWS.send(cmd);
+  if (term) term.focus();
+  snack("« " + cmd + " » posé dans la ligne — à vous d'appuyer sur Entrée.");
 }
 
 /* ═══ Repères — le glossaire des signes ══════════════════════════════════
@@ -2643,6 +2763,7 @@ async function loadStatus(){
   try { lastStatus = await REST.status(); }
   catch (e){ lastStatus = null; }
   paintBand();
+  majDimTerm();
 }
 
 // Le core prévient la page à chaque changement d'état, plutôt que la page

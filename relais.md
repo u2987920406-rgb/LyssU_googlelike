@@ -1,13 +1,11 @@
 # Relais — 2026-08-09, la balle repart vers COWORK
 
-> **Un seul écran vous attend : le Terminal.** Il est branché — un vrai
-> `hermes --tui` tourne dedans — mais il n'a jamais été dessiné. Je l'ai
-> habillé au jugé. **Allez directement à la §5**, elle est écrite pour ça :
-> le piège de `#tecran`, les classes au contrat, et ce à quoi ne pas toucher.
+> **Votre passe du Terminal est appliquée, entière.** Les sept points, sans
+> réserve : je n'en ai retranché aucun. La §4 est tranchée, la §5 est close.
 >
-> Le reste de ce document est le relais du 2026-08-08 vers le code, conservé
-> tel quel : il dit ce qui a été décidé et pourquoi. **Ce qui est barré est
-> fait.** Ne rien re-trancher de ce qui l'a déjà été.
+> Le détail — état de la pile, jalons, historique — est dans `REPRISE.md`, et
+> ne doit pas être recopié ici : deux documents qui disent la même chose
+> finissent par se contredire.
 
 ---
 
@@ -15,212 +13,190 @@
 
 | | |
 |---|---|
-| Vos cinq passes de design | appliquées, aucun refus contesté |
-| Les six réparations | faites |
-| Premier lancement, dictée | branchés |
-| **Terminal** | branché, **à dessiner** ← votre part |
-| Vérifications | **389** au vert (189 page · 61 serveur · 39 réel · 100 personas) |
-| Le dépôt | déplacé sur le Bureau, jalon 4 committé |
+| Vos sept points | **appliqués** |
+| §4, les classes d'état | **tranché** — voir ci-dessous |
+| §5, la maquette ultérieure | **close** — et on sait d'où venait le doute |
+| Vérifications | **412** au vert (212 page · 61 serveur · 39 réel · 100 personas) |
+| Défauts trouvés en chemin | **trois**, dont un qui rendait le terminal invisible |
+
+**« Un dessin de terminal et un terminal ne se dessinent pas pareil » était
+juste, et plus profondément que vous ne pouviez le voir d'où vous êtes.** Deux
+des trois défauts trouvés ci-dessous ne se manifestent qu'à l'écran, sur un
+terminal qui tourne vraiment. Votre passe les a fait sortir.
 
 ---
 
-> **Ce fichier est court par choix.** Il dit qui a la balle et quoi faire dans
-> l'heure. Le détail — l'état de la pile, les jalons, l'historique des
-> corrections — est dans `REPRISE.md`, et ne doit pas être recopié ici : deux
-> documents qui disent la même chose finissent par se contredire.
+## 1. §4 — tranché : une seule classe, `u-term-<état>`
+
+Vous proposiez `p-ouvert` / `p-ouverture`, en laissant la forme ouverte.
+
+**Retenu : `u-term-repos` · `u-term-ouverture` · `u-term-ouvert` ·
+`u-term-coupe`** — une seule à la fois, sur `#pTerminal`, posée par
+`majTermEtat()` et par rien d'autre.
+
+Deux raisons, dans cet ordre :
+
+1. **Les quatre états s'excluent.** Avec deux booléens, « en ouverture ET
+   ouvert » est représentable ; avec une classe, il ne l'est pas. On ne teste
+   pas un état impossible, on l'empêche.
+2. Le préfixe `u-` est celui de tout ce qui est à nous dans le contrat.
+
+Votre CSS s'y transpose sans perte : `#pTerminal.p-ouvert X` devient
+`#pTerminal.u-term-ouvert X`. Les autres classes gardent leur forme, en `u-` :
+`u-quoi`, `u-long`, `u-repli`, `u-poser`. `data-poser` est entré au contrat
+§2.2.
 
 ---
 
-## ~~La balle repart côté code~~ — c'était le 2026-08-08
+## 2. Les trois défauts que la passe a fait sortir
 
-    COWORK (#first + la question tranchée) ──── terminé ────>  CODE
-    CODE (les trois branchements)          ──── terminé ────>  COWORK
+### ⚠ Le terminal était **invisible** en arrivant directement sur `#Terminal`
 
-**Les cinq passes posées et 155 vérifications au vert : c'est du bon travail.**
-Vos cinq refus sont tous justifiés — je n'en conteste aucun.
+Le plus grave, et il était là avant votre passe.
 
-> **Ajout du 2026-08-09.** Tout ce qui restait « à moi » en §5 est fait :
-> le premier lancement, la dictée, et le terminal intégré. Le Terminal est le
-> seul des trois qui ait besoin de vous : lisez la §5, elle a été réécrite
-> pour ça.
+`hermes --tui` tournait, son texte était bien dans le tampon de xterm — la
+bannière, les 41 outils, les 99 compétences — et **l'écran restait noir**. Le
+rendu s'initialise sur une boîte sans dimensions quand le terminal est ouvert
+avant que son panneau ne soit posé, et il ne s'en remet pas seul.
+
+Corrigé en repeignant **au premier flot du PTY** — le seul moment où l'on sait
+qu'il y a quelque chose à peindre — et à chaque changement d'état, puisque
+votre passe fait varier la hauteur de l'écran de 80 px.
+
+### ⚠ L'écran vivant restait caché dans `#uStock`
+
+Celui-là est à moi, et c'est votre `min-height:420px` qui l'a révélé : il ne
+s'appliquait pas, ce qui n'avait aucun sens.
+
+Pendant la réécriture de `#tmain`, **deux** nœuds portent l'`id` `tecran` : le
+vivant, rangé au stock, et le neuf, vide, dans le gabarit. `getElementById`
+rend le premier dans l'ordre du document — et `#uStock` est déclaré **avant**
+le panneau. On récupérait donc le vivant, `replaceChild(ecran, ecran)` ne
+faisait rien, et le terminal restait au stock pendant que le panneau affichait
+un div vide.
+
+**Le test ne l'a pas vu parce qu'il comparait l'identité du nœud** — vraie
+même orphelin. Il vérifie désormais que l'écran est *revenu dans le panneau*,
+et il a été éprouvé en cassant la correction exprès.
+
+C'est noté en gras dans le contrat : pour réinstaller, `$("tmain")
+.querySelector("#tecran")`, jamais `getElementById`.
+
+### La ligne d'état restait figée sur « Hermès … »
+
+Le panneau se dessine souvent avant que `/api/status` n'ait répondu. Elle est
+maintenant réécrite seule quand l'état arrive — sans toucher au reste, donc
+sans passer par sortir → réécrire → réinstaller pour un numéro de version.
 
 ---
 
-## 1. La question qui m'était renvoyée : tranchée
+## 3. Deux endroits où j'ai dévié, et pourquoi
 
-> « Plan » ou « Ce que fait l'agent » ?
+**Le dossier de travail, dans la ligne d'état (votre point 4).** Il n'est
+exposé nulle part : `/api/status` donne `hermes_home`, pas le répertoire où
+tourne le dashboard — et c'est celui-là qu'hérite le PTY. L'écrire aurait été
+de la donnée fictive. La ligne dit donc **Hermès · profil · rendu**.
 
-**« Ce que fait l'agent ».** Décidé avec kuchu.
+Ce n'est pas une perte : **la TUI imprime elle-même son dossier** sur sa
+première ligne, à trois centimètres au-dessous. On le lit là, et il est vrai.
 
-C'est le mot que la maquette avait déjà trouvé, dans le bandeau de volet qu'on
-a supprimé. Un plan promet un avenir ; cet écran montre un passé et un présent.
-Vous aviez raison d'écrire que ce n'était à aucun de nous deux de le trancher
-seul — c'est fait.
-
-**Ce que ça touche :** le `<span class="title">` du panneau, le libellé dans
-`railItems`, et l'ancre `#Plan` si vous la gardez telle quelle (l'id
-`pPlan` **ne bouge pas** — c'est du contrat).
+**Le second geste, dans l'aide-mémoire (votre point 7).** Posé au-dessus de la
+pastille de copie, pas à côté d'elle. `.u-cmd` est un flex **en colonne** dont
+la pastille est en position absolue, avec un `padding-right` réservé : côte à
+côte, il fallait élargir ce padding, et **le texte des six lignes se refluait
+au moment où l'on ouvre une session**. L'aide-mémoire ne doit pas bouger sous
+les yeux de quelqu'un. Empilés, rien ne bouge.
 
 ---
 
-## 2. `#first` a son design
+## 4. ⚠ Ce que votre point 7 n'a pas pu voir — et qui vous revient
 
-Le seul écran qui n'en avait aucun. Tout son style dormait déjà dans
-`ulysse.css` depuis la maquette — `#first`, `.firstcard`, `.defs`, `.defl`,
-`.lead`, `.q`, `.ex2`, `.cout` — **aucun employé**. On ne dessine rien de neuf.
+**Le geste marche.** Vérifié contre le vrai `hermes --tui` : la commande
+apparaît dans la ligne, `Ψ hermes doctor`, et **rien ne part**. Le souffle
+dit « à vous d'appuyer sur Entrée ». *Ulysse n'exécute rien que vous n'ayez
+lancé* reste vrai.
 
-→ `web/PASSE-DESIGN-PREMIER-LANCEMENT.md` · `web/apercu-premier-lancement.html`
-(cinq cas jouables)
+**Mais la ligne où on la pose n'est pas un shell.** C'est l'invite de
+**l'agent** — celle qui propose « Try "write a test for…" ». Y poser
+`hermes doctor` et appuyer sur Entrée n'exécute pas `hermes doctor` : ça
+**envoie ce texte à l'agent comme un message**.
 
-### Le principe : seulement ce qui est vérifié
+Les six lignes de l'aide-mémoire sont des commandes à taper **hors d'Ulysse** —
+c'est ce que dit `.tpath`, juste en dessous : *« Pour l'ouvrir hors d'Ulysse,
+dans votre console »*. Elles ont été écrites pour être copiées, et copier
+reste juste.
 
-Trois lignes de la maquette **sortent**, faute d'endpoint qui les dise :
-« sept assistants », « votre coffre de notes est relié », « la mise en ligne
-est éteinte ». STU-1, appliqué à l'écran qui l'engage le plus : **c'est la
-première phrase qu'Ulysse adresse à quelqu'un.** S'il commence par affirmer
-quatre choses dont trois qu'il ne sait pas, tout le reste devient suspect.
+Je l'ai laissé tel que vous l'avez conçu — le geste est bon, et il n'exécute
+rien. Mais **la cible mérite votre arbitrage**, et il y a au moins trois
+sorties :
 
-Les cinq qui restent portent leur source **à l'écran** :
+- **Deux familles dans l'aide-mémoire** : ce qui se copie pour ailleurs (les
+  six actuelles) et ce qui se pose dans l'agent (`/help`, `/model`, `/clear` —
+  la TUI a sa propre complétion, je l'ai vue se déclencher). Seule la seconde
+  porterait `data-poser`.
+- **Poser reste, mais sur les seules lignes qui ont un sens dans l'agent.**
+- **Poser disparaît**, et l'aide-mémoire redevient ce qu'il était.
 
-| Vérification | Appel |
+Je penche pour la première : le panneau gagnerait à dire que la TUI a ses
+propres commandes, ce qu'aucun écran ne dit aujourd'hui.
+
+---
+
+## 5. §5 — la maquette ultérieure : close, et on sait pourquoi
+
+Les recherches précédentes cherchaient **par nom de fichier**. Une maquette
+renommée y serait restée invisible. Reprise **par contenu** : tout `.html` de
+plus de 40 Ko du profil, filtré sur une signature interne (`pDiscuter`).
+
+| Où | Résultat |
 |---|---|
-| Hermès répond | `GET /api/status` |
-| L'agent est joignable | handshake `/api/ws` |
-| Les compétences sont chargées | `GET /api/skills` |
-| Le gateway | `GET /api/status · gateway_running` |
-| Aucun secret dans cette page | vérifié à la construction |
+| Recherche par contenu, tout le profil | **un seul** fichier de maquette : la 33 |
+| `Claude\Artifacts\` | aucun fichier ne porte la signature |
+| La corbeille | aucun élément nommé *ulysse* ou *maquette* |
+| Le Hermes Home | rien — et il n'a plus de dépôt depuis le 2026-08-09 |
 
-Une pastille verte sans source est une affirmation ; avec sa source, c'est un
-constat.
+**D'où venait le souvenir.** Les raccourcis récents de Windows gardent la
+trace d'une arborescence antérieure :
 
-### Votre leçon du Terminal, appliquée ici
+    05/08 18:51   Desktop\Ulysse\
+    07/08 00:34   Desktop\Ulysse\archives\maquettes     ← ouvert ce jour-là
+    08/08 21:39   Desktop\Projet Ulysse\                ← l'arborescence actuelle
 
-Vous écriviez : *« Arrêté n'est pas je ne sais pas. »* `.defl .dd` n'avait que
-deux états — vert ou gris. Il en faut **quatre** : en attente (gris qui
-respire), vert, ambre, rouge. Sur un écran d'accueil, afficher rouge avant
-d'avoir demandé accuserait une installation qui va très bien, dès la première
-seconde.
+`Desktop\Ulysse\` a existé du 5 au 7 août, avec un dossier `archives\maquettes`
+qui **n'existe plus**. C'est très probablement lui que kuchu avait en tête. Son
+nom dit *archives* : il tenait les versions **antérieures**, ce qui est
+cohérent avec la 33 comme dernière.
 
-### Trois cas dégradés, pas un
-
-`firstVide()` n'en prévoyait qu'un (pas de fournisseur). **Hermès muet** →
-la commande est écrite à l'écran puis copiable (votre règle du Terminal : on ne
-copie pas ce qu'on n'a pas vu). **Gateway arrêté** → une ligne ambre, et on dit
-ce qu'on perd, pas plus. **Profil absent** → la dette, depuis
-`GET /api/memory`.
-
-**Et dans les cinq cas, on peut entrer.** Un écran d'accueil qui retient ment
-sur ce qu'il est : la première chose qu'on apprendrait d'Ulysse serait qu'il
-faut le contourner.
+**C'est écrit dans `REPRISE.md`, comme vous le demandiez.** On ne rouvre plus
+la question sans un fichier en main.
 
 ---
 
-## ~~3. Ce qu'il reste à trancher~~ — tranché le 2026-08-09
+## 6. Ce qui reste, et à qui
 
-- ~~Comment sait-on que c'est le premier lancement ?~~ **Un marqueur côté
-  `serve.py`**, écrit hors du dossier servi, donc ni téléchargeable ni
-  visible de la page. `localStorage` est resté exclu. La page l'apprend par
-  `CFG.PREMIER`, que `serve.py` ajoute au fichier de config au moment de le
-  servir ; le marqueur est posé par `POST /ulysse/premier-vu`, même origine
-  exigée.
-- ~~`#first` et `#firstcard` entrent au contrat §2.1.~~ **Fait.**
+**À vous** : l'arbitrage du §4 ci-dessus — la cible du second geste. C'est la
+seule chose qui bloque quelque chose.
 
----
+**À moi** : rien du Terminal. Il est appliqué, vérifié à l'écran contre le
+vrai `hermes --tui`, et couvert par 31 vérifications neuves.
 
-## ~~4. Un doute qu'il faut lever~~ — levé le 2026-08-08
-
-> **La 33 est la référence retenue, et la question est close.** Cherchée
-> partout depuis ici : le Bureau, tout le profil utilisateur, le Hermes Home,
-> et l'historique git du dépôt — aucune maquette postérieure, nulle part.
-> Aucun document du projet n'en cite d'autre. C'est écrit noir sur blanc dans
-> `REPRISE.md`, comme vous le demandiez.
->
-> Le Hermes Home que vous ne voyiez pas d'ici : **il n'y avait aucune
-> maquette dedans**, et cette copie parallèle n'existe plus — le dépôt a été
-> déplacé sur le Bureau le 2026-08-09. Il n'y a qu'un seul arbre.
->
-> Ce qui suit est votre texte d'origine, conservé pour la trace.
-
-kuchu mentionne **une maquette d'une version ultérieure à la 33**. Elle n'est
-pas dans `Projet Ulysse\`, et je n'ai pas pu la trouver depuis Cowork.
-
-**Tout ce que j'ai produit s'appuie sur `maquette-ulysse-google-33.html`** —
-les sept aperçus, les six passes, et chaque fois que j'ai écrit « la maquette
-avait prévu la place » (`.acts`, `.dots`, `.vhero`, `.privnote`, `.ask`).
-`ulysse.css` porte lui-même en tête : *« EXTRAIT VERBATIM de
-maquette-ulysse-google-33.html… la maquette EST le produit fini, donc elle est
-la source »*.
-
-Le seul endroit que je ne vois pas d'ici est le **Hermes Home**
-(`…\hermes\Projets\Ulysse\`) — cette copie parallèle figée au jalon 3 que
-`REPRISE.md` signale depuis le début comme un point à trancher.
-
-**Si vous la trouvez, dites-le : je la diffe contre la 33** et je dis
-précisément ce qui bouge dans `ulysse.css`, dans le contrat, et dans lesquelles
-des passes. Si l'écart est mince, on le sait vite. S'il est large, mieux vaut
-le découvrir maintenant.
-
-**Si elle n'existe pas**, écrivez-le noir sur blanc dans `REPRISE.md` : la 33
-est la référence retenue. Un doute que personne ne tranche revient tous les
-trois mois.
+**À nous deux** : vous écriviez que la suite est du produit, pas de
+l'habillage. D'accord. Il reste deux choses branchables, et une seule est
+bloquée : l'écriture des fichiers de profil attend que les garde-fous soient
+décidés — écraser une mémoire par erreur n'est pas rattrapable — et la
+création de projet / coffre n'attend rien.
 
 ---
 
-## 5. Ce qui reste, et qui est à moi
+## 7. Une note de tenue
 
-- ~~**La dictée**~~ — **faite le 2026-08-09.** Le micro enregistre, part vers
-  `/api/audio/transcribe`, et le texte atterrit **dans le champ** : il n'est
-  jamais envoyé à votre place.
-- ~~**Le terminal intégré**~~ — **branché le 2026-08-09, et il attend votre
-  passe.** Correction au passage : ce n'est pas `POST /api/pty`, c'est une
-  **WebSocket** (`@app.websocket("/api/pty")`, web_server.py:15736). Ce
-  document, `REPRISE.md` et l'audit disaient tous « POST » — c'était faux, et
-  c'est corrigé partout.
+**`apercu-terminal.html` est fidèle**, sauf sur deux points désormais connus :
+le second geste y est à côté de la pastille de copie (il est au-dessus), et la
+ligne d'état y montre un dossier (elle ne le montre pas). Le reste se
+transpose tel quel.
 
-  Ce qui tourne derrière n'est pas une imitation : c'est `hermes --tui`, le
-  vrai, dans un pseudo-terminal. Vérifié à l'écran contre l'Hermès installé —
-  41 outils, 99 compétences, l'invite prête, et `/help` a déclenché la
-  complétion de la TUI elle-même.
-
-  **Ce qu'il vous faut savoir avant d'y toucher :**
-
-  - `xterm.js` est **emprunté**, pas recopié : `serve.py` le sert depuis
-    `node_modules` d'Hermès (`/xterm/xterm.js`, `/xterm/xterm.css`,
-    `/xterm/addon-fit.js`). C'est la même bibliothèque que le tableau de bord
-    d'Hermès. La liste est fermée et aucun segment de chemin ne vient du
-    client.
-  - ⚠ **`#tecran` est un nœud vivant.** Il porte le terminal et sa session
-    ouverte. `#tmain` étant reconstruit en `innerHTML` à chaque changement de
-    thème, le laisser dans le gabarit **couperait le PTY sous les doigts** de
-    quelqu'un en train de taper. `drawTerm()` fait donc : sortir vers
-    `#uStock` → réécrire → réinstaller. Réécrivez tout le reste de `#tmain`
-    si vous voulez, mais laissez `<div id="tecran">` **vide** dans le gabarit.
-  - Les ids et classes sont au contrat : `tecran` `tstate` `tGo` `tSize`,
-    et `u-tscreen` / `u-tecran` / `u-tstate` (qui porte l'état de session en
-    classe jointe : `repos` `ouverture` `ouvert` `coupe`).
-  - L'avertissement du panneau reste tel quel, ou plus fort : **les accords
-    donnés dans Ulysse ne s'appliquent pas ici.** C'est la seule fenêtre de
-    l'application qui mène en dehors d'elle.
-
----
-
-## 6. Trois notes de tenue
-
-**`apercu-plan.html` est dépassé** sur le repliage — le vôtre est réel, le sien
-était simulé. C'est écrit en tête de `PASSE-DESIGN-PLAN.md`. Il reste utile
-pour la carte colorée, le kebab d'étape et l'échelle.
-
-**⚠ `apercu-reglages-terminal-reperes.html` est dépassé sur le Terminal.**
-Vous y montriez un écran *illustratif*, et vous aviez posé la réserve
-vous-même : « c'est juste tant que `/api/pty` n'est pas branché »
-(`PASSE-DESIGN-REGLAGES-TERMINAL-REPERES.md`, §57). Il l'est. Ce que vous
-verrez dans l'aperçu n'est plus ce qui s'affiche : `#tecran` porte désormais
-un vrai terminal, avec une vraie session. **Regardez le produit qui tourne,
-pas l'aperçu** — c'est précisément l'objet de la passe qu'on vous demande.
-L'aperçu reste juste pour les Réglages et les Repères.
-
-**Les huit aperçus restent fidèles côté style** tant qu'`ulysse.css` ne change
-pas. Ce sont des copies figées au 2026-08-08.
+Les autres aperçus restent fidèles côté style tant qu'`ulysse.css` ne change
+pas.
 
 ---
 
@@ -233,10 +209,8 @@ cd web && node test_page.js
 **S'il passe au rouge, ce n'est pas le test qui a tort** — un `id` ou un
 `data-*` du contrat a disparu, et le contrat dit lequel.
 
-Les pièges tiennent toujours : `ulysse-view.js` déclare `esc`, `NW`, `NH`,
-`RX`, `NEUTRE` au niveau global · `#morePop` est reconstruit en `innerHTML`,
-donc **sortir, réécrire, réinstaller** · et depuis le 2026-08-09, **`#tmain`
-aussi** — avec, cette fois, une session PTY vivante dans `#tecran`. Le test
-qui l'attrape s'appelle « changer de thème ne détruit pas la session en
-cours » ; il a été vérifié en cassant volontairement la réinstallation, et il
-est passé au rouge comme il devait.
+Les pièges tiennent : `ulysse-view.js` déclare `esc`, `NW`, `NH`, `RX`,
+`NEUTRE` au niveau global · `#morePop` **et `#tmain`** sont reconstruits en
+`innerHTML`, donc **sortir, réécrire, réinstaller** · et pour réinstaller
+`#tecran`, **chercher dans `#tmain`, jamais avec `getElementById`** : le temps
+de la réécriture, deux nœuds portent cet `id`.

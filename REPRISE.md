@@ -70,15 +70,43 @@ version ultérieure à la 33**, introuvable depuis là-bas. Cherchée ici :
 | L'historique git du dépôt | aucun fichier de maquette ajouté ni supprimé |
 | Les documents du projet | tous nomment la **33**, aucun n'en cite d'autre |
 
-**La 33 est donc la référence retenue.** Tout ce qui a été produit s'appuie sur
-elle — `ulysse.css` en porte la mention en tête, et les huit aperçus la
-recopient.
+### Repris le 2026-08-09, autrement — et cette fois on sait d'où venait le doute
+
+Les recherches précédentes cherchaient **par nom de fichier**. Une maquette
+renommée y serait restée invisible. Reprise **par contenu** : tout `.html` de
+plus de 40 Ko du profil, filtré sur une signature interne de la maquette
+(`pDiscuter`).
+
+| Où | Résultat |
+|---|---|
+| Recherche par **contenu**, tout le profil | **un seul** fichier de maquette : la 33 |
+| `Claude\Artifacts\` | aucun fichier ne porte la signature |
+| La corbeille | aucun élément nommé *ulysse* ou *maquette* |
+| Le Hermes Home | toujours rien (et il n'a plus de dépôt depuis le 2026-08-09) |
+
+**D'où venait le souvenir.** Les raccourcis récents de Windows gardent la
+trace d'une arborescence antérieure :
+
+    05/08 18:51   Desktop\Ulysse\
+    07/08 00:34   Desktop\Ulysse\archives\maquettes     ← ouvert ce jour-là
+    07/08 08:48   Desktop\Ulysse\FICHE-ULYSSE.md
+    08/08 21:39   Desktop\Projet Ulysse\                ← l'arborescence actuelle
+
+`Desktop\Ulysse\` a existé du 5 au 7 août, avec un dossier
+`archives\maquettes` — **il n'existe plus**. C'est très probablement lui que
+kuchu avait en tête. Son nom dit *archives* : il tenait les versions
+**antérieures**, ce qui est cohérent avec la 33 comme dernière.
+
+**La 33 est la référence retenue. La question est close.** Tout ce qui a été
+produit s'appuie sur elle — `ulysse.css` en porte la mention en tête, et les
+neuf aperçus la recopient.
 
 > Si une version postérieure existe ailleurs (autre poste, pièce jointe,
 > téléchargement effacé), la poser dans `Desktop\Projet Ulysse\` suffit : elle
 > sera diffée contre la 33, et l'écart dit dans `ulysse.css`, dans le contrat
-> et dans les passes concernées. **Tant qu'elle n'apparaît pas, la question
-> est close** — un doute que personne ne tranche revient tous les trois mois.
+> et dans les passes concernées. Mais **on ne rouvre plus la question sans un
+> fichier en main** — un doute que personne ne tranche revient tous les trois
+> mois, et celui-là a déjà coûté trois recherches.
 
 ---
 

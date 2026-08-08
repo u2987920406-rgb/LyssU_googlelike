@@ -107,6 +107,19 @@ créer d'`id` qui leur ressemble) : `gzoom` `doorBtn` `densSeg` `livCrumbs`
 > l'écran à la place du nœud neuf. Une passe de design peut réécrire tout le
 > reste de `#tmain` — mais doit laisser `<div id="tecran">` vide dans le
 > gabarit, et ne jamais y mettre de contenu à elle.
+>
+> ⚠⚠ **Et pour réinstaller, ne pas utiliser `getElementById`.** Le temps de la
+> réécriture, **deux** nœuds portent l'`id` `tecran` : le vivant, rangé dans
+> `#uStock`, et le neuf, vide, dans `#tmain`. `getElementById` rend le premier
+> dans l'ordre du document — et `#uStock` est déclaré **avant** le panneau. On
+> récupérait donc le vivant, `replaceChild(ecran, ecran)` ne faisait rien, et
+> le terminal restait **caché dans le stock** pendant que le panneau affichait
+> un div vide. La recherche doit être limitée au sous-arbre qu'on vient
+> d'écrire : `$("tmain").querySelector("#tecran")`.
+>
+> Le défaut a vécu un jour sans être vu, parce que le test comparait
+> l'**identité** du nœud — vraie même orphelin. Il vérifie désormais que
+> l'écran est **revenu dans le panneau**.
 
 ### 2.2 Les attributs `data-*` — c'est par eux que les clics arrivent
 
@@ -131,6 +144,7 @@ créer d'`id` qui leur ressemble) : `gzoom` `doorBtn` `densSeg` `livCrumbs`
 | `data-cle` | lignes et cartes | l'identité de la ligne, lue par ses actions |
 | `data-cr` | segments du fil d'Ariane | remonter d'un cran |
 | `data-cmd` | aide-mémoire du Terminal, adresses de webhook | copier |
+| `data-poser` | aide-mémoire du Terminal | **poser** la commande dans la ligne du terminal, **sans la lancer** — voir l'encadré ci-dessous |
 | `data-z` | `.u-echelle` | zoomer d'un pas |
 | `data-jx` | pastilles de pièce jointe | retirer la pièce |
 | `data-role` | pastilles de rôle | activer un cadre |
@@ -178,6 +192,8 @@ sans que rien ne le signale.
 | `wait` / `inline` | l'accueil | le compteur, rejoué dans le fil |
 | `avert` / `cout` / `tmemo` | Terminal | l'avertissement, le coût, l'aide-mémoire |
 | `u-tscreen` / `u-tecran` / `u-tstate` | Terminal | **à nous** : le cadre de l'écran, l'écran lui-même, et l'état de la session (`repos` / `ouverture` / `ouvert` / `coupe` en classe jointe) |
+| `u-quoi` / `u-long` / `u-repli` / `u-poser` | Terminal | **à nous**, passe du 2026-08-09 : ce qui tourne dans la barre · la partie longue de l'avertissement, repliée en session · la ligne qui dit ce qui est replié · le second geste de l'aide-mémoire |
+| `u-term-<état>` | **`#pTerminal`** | **à nous** : l'état de session porté par le panneau, **une seule** classe parmi `u-term-repos` · `u-term-ouverture` · `u-term-ouvert` · `u-term-coupe`. Posée par `majTermEtat()`, et par rien d'autre. |
 | `u-hint` | `#composerHint` | **à nous**, pas à la maquette : voir plus bas |
 
 > `#composerHint` portait `.glegend`, qui est la légende du **schéma du Plan**

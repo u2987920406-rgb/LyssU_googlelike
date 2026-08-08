@@ -152,6 +152,7 @@ class FakeTerminal {
     this.options = opts || {};
     this.cols = 80; this.rows = 24;
     this.ecrit = []; this.hote = null; this.donnees = null; this.focus_ = 0;
+    this.repeints = 0;
     FakeTerminal.last = this; FakeTerminal.crees++;
   }
   open(hote){ this.hote = hote; }
@@ -159,6 +160,10 @@ class FakeTerminal {
   onData(fn){ this.donnees = fn; }
   write(s){ this.ecrit.push(s); }
   focus(){ this.focus_++; }
+  /* xterm.js ne redessine pas de lui-même quand son conteneur change de
+     taille en pixels : sans `refresh`, le contenu reste dans le tampon,
+     invisible. On compte les repeints pour pouvoir l'exiger. */
+  refresh(){ this.repeints++; }
   /* Tout ce qui a ete peint, mis bout a bout — pratique pour chercher une
      phrase sans se soucier du decoupage des ecritures. */
   tout(){ return this.ecrit.join(""); }
@@ -1093,12 +1098,21 @@ async function main(){
     .find((b) => !b.classList.contains("on"));
   autre.click();
   await wait(120);
+  // L'identité du nœud NE SUFFIT PAS : pendant la réécriture il en existe
+  // deux qui portent cet `id`, et le vivant peut rester orphelin dans
+  // `#uStock` — même nœud, même session, mais invisible à l'écran. Il faut
+  // vérifier qu'il est REVENU DANS LE PANNEAU.
   check("changer de thème ne détruit pas la session en cours",
     win.document.getElementById("tecran") === ecran
     && FakeTerminal.crees === creesAvant + 1
     && ptyUrls().length === 1 && pty.readyState === 1,
     "écran " + (win.document.getElementById("tecran") === ecran ? "gardé" : "PERDU")
     + ", " + ptyUrls().length + " pont(s)");
+  check("...et l'écran vivant est bien REVENU dans le panneau, pas resté au stock",
+    win.document.getElementById("tmain").contains(ecran)
+    && !win.document.getElementById("uStock").contains(ecran),
+    ecran.parentNode ? "parent : " + (ecran.parentNode.id || ecran.parentNode.className)
+                     : "détaché");
   const fondVoulu = win.eval('TTHEMES.find((t) => t.id === "' + autre.dataset.th + '").bg');
   check("...et le thème s'applique au terminal vivant, sans le recréer",
     !!FakeTerminal.last.options.theme
@@ -1109,9 +1123,12 @@ async function main(){
   // les confondre ferait chercher au mauvais endroit.
   pty.onclose({ code: 4404 });
   await wait(20);
+  // « coupé » n'est pas « aucune session » : l'un dit qu'on n'a rien ouvert,
+  // l'autre que ça s'est interrompu.
   check("une fermeture 4404 nomme sa cause, pas « erreur »",
     /désactivée côté serveur/.test(FakeTerminal.last.tout())
-    && win.document.getElementById("tstate").textContent === "aucune session",
+    && win.document.getElementById("tstate").textContent === "lien coupé"
+    && win.document.getElementById("pTerminal").classList.contains("u-term-coupe"),
     win.document.getElementById("tstate").textContent);
 
   // Le bouton doit vraiment rouvrir — un contrôle qui n'agit pas est
@@ -1142,6 +1159,150 @@ async function main(){
   check("...et aucun pont n'est ouvert pour rien",
     ptyUrls().length === ptysAvant, ptyUrls().length + " vs " + ptysAvant);
   win.Terminal = vraiTerm;
+
+  console.log("\n--- La passe de design du Terminal (2026-08-09) ---");
+
+  // On repart d'un terminal branché, puis on FERME : entrer dans le panneau
+  // ouvre une session, et les vérifications « au repos » se liraient sinon
+  // à l'envers.
+  win.eval("term = null; termFit = null;");
+  win.eval('nav("Discuter"); nav("Terminal")');
+  await wait(120);
+  win.eval("fermerPty()");
+  await wait(20);
+  const ptyD = FakeWS.dernierPty;
+  const panneau = win.document.getElementById("pTerminal");
+  const gcs = (el, prop) => win.getComputedStyle(el).getPropertyValue(prop);
+
+  // 1. La fenêtre enlève son déguisement : trois faux boutons sur la seule
+  //    fenêtre qui mène en dehors de l'application, c'est ce que STU-1
+  //    interdit partout ailleurs.
+  check("1 · les trois fausses pastilles ont disparu de la barre",
+    win.document.querySelectorAll("#tmain .tbar i").length === 0,
+    win.document.querySelectorAll("#tmain .tbar i").length + " pastille(s)");
+  check("1 · la barre dit ce qui tourne, pas le nom du thème",
+    /hermes --tui/.test(win.document.querySelector("#tmain .u-quoi").textContent)
+    && !/nuit|jour|ambre/i.test(win.document.querySelector("#tmain .tbar").textContent),
+    win.document.querySelector("#tmain .tbar").textContent.trim());
+
+  // 2. L'état de session : la seule chose qu'on doit savoir sans y penser.
+  const past = win.document.getElementById("tstate");
+  check("2 · l'état de session est une pastille, plus un murmure",
+    gcs(past, "opacity") === "1" && gcs(past, "border-radius") !== "0px"
+    && past.classList.contains("repos"),
+    "opacité " + gcs(past, "opacity"));
+
+  // 3. Ouvrir et fermer ne sont pas le même geste.
+  check("3 · au repos, le panneau ne porte aucune classe d'ouverture",
+    panneau.classList.contains("u-term-repos")
+    && !panneau.classList.contains("u-term-ouvert"),
+    panneau.className);
+
+  // 4. La ligne d'état parlait du gateway, qui n'a rien à voir avec un PTY.
+  const dim = win.document.querySelector("#tmain .dim");
+  check("4 · la ligne d'état ne parle plus du gateway",
+    !/gateway/i.test(dim.textContent) && /rendu/.test(dim.textContent),
+    dim.textContent.trim());
+  // Et elle n'invente pas le dossier de travail, que l'API n'expose pas.
+  check("4 · ...et n'affiche aucun dossier qu'on ne connaît pas (STU-1)",
+    !/dossier/i.test(dim.textContent), dim.textContent.trim());
+
+  // 5. L'avertissement passe AVANT le premier geste.
+  const avert = win.document.querySelector("#tmain .avert");
+  const lancer = win.document.querySelector("#tmain .tlaunch");
+  check("5 · l'avertissement est au-dessus du bouton d'ouverture",
+    !!(avert.compareDocumentPosition(lancer) & 4),
+    "avert " + (avert.compareDocumentPosition(lancer) & 4 ? "avant" : "APRÈS"));
+
+  // 7. Poser une commande, session fermée : le geste est caché, et refuse.
+  const poseurs = win.document.querySelectorAll("#tside [data-poser]");
+  check("7 · chaque ligne de l'aide-mémoire porte le second geste",
+    poseurs.length === win.document.querySelectorAll("#tside [data-cmd]").length
+    && poseurs.length > 0, poseurs.length + " poseur(s)");
+  check("7 · session fermée, poser est masqué",
+    gcs(poseurs[0], "display") === "none", gcs(poseurs[0], "display"));
+  ptyD.envoye.length = 0;
+  poseurs[0].click();
+  check("7 · ...et cliqué quand même, il refuse au lieu d'envoyer dans le vide",
+    ptyD.envoye.length === 0
+    && /Ouvrez d'abord une session/.test(win.document.getElementById("snack").textContent),
+    win.document.getElementById("snack").textContent);
+
+  // Session ouverte : tout bascule.
+  win.document.getElementById("tGo").click();
+  await wait(80);
+  check("le panneau bascule sur un seul état, jamais deux",
+    Array.from(panneau.classList).filter((c) => /^u-term-/.test(c)).length === 1
+    && panneau.classList.contains("u-term-ouvert"),
+    Array.from(panneau.classList).filter((c) => /^u-term-/.test(c)).join(" "));
+
+  // 5 & 6. La place que le terminal réclame.
+  check("5 · session ouverte, l'avertissement se replie mais son titre reste",
+    gcs(win.document.querySelector("#tmain .avert .u-long"), "display") === "none"
+    && /ne s'appliquent pas ici/.test(
+         win.document.querySelector("#tmain .avert").textContent),
+    win.document.querySelector("#tmain .avert").textContent.trim().slice(0, 50));
+  check("6 · les deux pavés qui n'engagent rien se replient",
+    gcs(win.document.querySelector("#tmain .cout"), "display") === "none"
+    && gcs(win.document.querySelector("#tmain .u-todo"), "display") === "none");
+  check("6 · ...et on dit qu'ils sont repliés, avec où les retrouver",
+    gcs(win.document.querySelector("#tmain .u-repli"), "display") === "block"
+    && !!win.document.getElementById("tRepli"));
+  check("6 · l'écran gagne la place ainsi libérée",
+    gcs(win.document.getElementById("tecran"), "min-height") === "420px",
+    gcs(win.document.getElementById("tecran"), "min-height"));
+
+  // 7. Poser, pour de vrai — et SURTOUT sans lancer.
+  const ptyO = FakeWS.dernierPty;
+  ptyO.envoye.length = 0;
+  const cmdVoulue = poseurs[0].dataset.poser;
+  poseurs[0].click();
+  check("7 · poser envoie la commande dans la ligne du terminal",
+    ptyO.envoye.length === 1 && ptyO.envoye[0] === cmdVoulue,
+    JSON.stringify(ptyO.envoye));
+  // LE point qui compte : « Ulysse n'exécute rien que vous n'ayez lancé. »
+  check("7 · ...et JAMAIS le retour chariot qui la lancerait",
+    ptyO.envoye.every((f) => f.indexOf("\r") < 0 && f.indexOf("\n") < 0),
+    JSON.stringify(ptyO.envoye));
+  check("7 · poser ne copie pas aussi, alors que la ligne porte data-cmd",
+    !/copié/i.test(win.document.getElementById("snack").textContent)
+    && /à vous d'appuyer sur Entrée/.test(win.document.getElementById("snack").textContent),
+    win.document.getElementById("snack").textContent);
+
+  // Le piège, encore : la passe touche à #tmain, la session doit survivre.
+  const ecranO = win.document.getElementById("tecran");
+  const themeAutre = Array.from(win.document.querySelectorAll("#tside [data-th]"))
+    .find((b) => !b.classList.contains("on"));
+  themeAutre.click();
+  await wait(120);
+  check("après la passe, changer de thème ne détruit toujours pas la session",
+    win.document.getElementById("tecran") === ecranO
+    && win.document.getElementById("tmain").contains(ecranO)
+    && panneau.classList.contains("u-term-ouvert")
+    && ptyO.readyState === 1,
+    win.document.getElementById("tmain").contains(ecranO) ? "" : "écran resté au stock");
+
+  // ── Les deux défauts que seul l'écran a montrés ────────────────────────
+  // La TUI tournait, son texte était dans le tampon, et l'écran restait NOIR.
+  // jsdom ne peint rien : il ne pouvait pas le voir. On exige donc le geste.
+  const repeintsAvant = FakeTerminal.last.repeints;
+  win.eval("termEtat = 'repos'; majTermEtat(); termEtat = 'ouvert'; majTermEtat();");
+  await wait(120);
+  check("changer d'état repeint le terminal, pas seulement la mise en page",
+    FakeTerminal.last.repeints > repeintsAvant,
+    FakeTerminal.last.repeints - repeintsAvant + " repeinte(s)");
+
+  // La ligne d'état se dessine souvent AVANT que /api/status ait répondu.
+  // Elle restait figée sur « Hermès … » pour toute la durée de la visite.
+  win.eval("lastStatus = null; majDimTerm()");
+  const dimVide = win.document.querySelector("#tmain .dim").textContent;
+  check("sans état connu, la ligne dit qu'elle ne sait pas encore",
+    /…/.test(dimVide) && !/gateway/i.test(dimVide), dimVide.trim());
+  await win.eval("loadStatus()");
+  await wait(60);
+  const dimPleine = win.document.querySelector("#tmain .dim").textContent;
+  check("...et quand l'état arrive en retard, elle se met à jour toute seule",
+    /0\.20\.0/.test(dimPleine), dimPleine.trim());
 
   console.log("\n--- Aucune erreur JavaScript pendant tout ça ---");
   check("la console est restée propre", errors.length === 0, errors.slice(0, 3).join(" | "));

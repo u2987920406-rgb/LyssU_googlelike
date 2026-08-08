@@ -410,9 +410,87 @@
 .u-tscreen{display:flex;flex-direction:column;min-height:0}
 .u-tecran{flex:1;min-height:340px;margin-top:10px}
 .u-tecran .xterm{height:100%}
-.u-tstate{font-size:11.5px;opacity:.55}
-.u-tstate.ouvert{color:var(--green);opacity:.95}
-.u-tstate.ouverture{color:var(--amber);opacity:.95}
+
+/* ── Passe de design du 2026-08-09 ────────────────────────────────────────
+   Le fond de l'affaire, en une phrase : UN DESSIN DE TERMINAL ET UN
+   TERMINAL NE SE DESSINENT PAS PAREIL. Tant que l'écran était une image,
+   chaque choix de la maquette était juste. Depuis que `hermes --tui` tourne
+   dedans, six d'entre eux décrivent un autre objet.
+
+   L'état de session vit sur `#pTerminal`, en UNE classe `u-term-<état>`
+   posée par `majTermEtat()` — la même fonction qui écrit `#tstate`. Une
+   seule chose la pose, et les quatre états s'excluent par construction :
+   avec deux booléens, « en ouverture ET ouvert » serait représentable. */
+
+/* 1. La fenêtre enlève son déguisement. Les trois pastilles ne ferment
+      rien, ne réduisent rien — sur la seule fenêtre qui mène dehors. La
+      barre garde son rôle et dit ce qui tourne, au lieu du nom du thème. */
+#pTerminal .tbar i{display:none}
+#pTerminal .u-quoi{display:flex;align-items:center;gap:8px;font-size:11.5px;
+  opacity:.62;font-family:ui-monospace,Menlo,monospace}
+#pTerminal .u-quoi svg{width:14px;height:14px;flex:none}
+
+/* 2. L'état de session cesse d'être la chose la plus discrète. C'est la
+      seule qu'on doit savoir sans y penser : est-ce que ce que je tape
+      part quelque part ? Couleurs en dur — le cadre est sombre, et le vert
+      du thème clair (#188038) y serait illisible. */
+.u-tstate{font-size:11.5px;opacity:1;display:inline-flex;align-items:center;
+  gap:7px;padding:3px 11px 3px 9px;border-radius:var(--radius-pill);
+  background:rgba(255,255,255,.09)}
+.u-tstate::before{content:"";width:6px;height:6px;border-radius:50%;
+  background:currentColor;flex:none}
+.u-tstate.repos{color:#9AA0A6}
+.u-tstate.ouverture{color:#FEBC2E}
+.u-tstate.ouverture::before{animation:u-bat 1.2s ease-in-out infinite}
+.u-tstate.ouvert{color:#28C840}
+.u-tstate.coupe{color:#FF5F57}
+
+/* 3. Ouvrir et fermer ne sont pas le même geste. Le bouton reste unique —
+      c'est le contrat — mais plein quand il ouvre, contour quand il ferme,
+      et rouge au survol à ce moment-là seulement. */
+#pTerminal.u-term-ouvert #tGo{background:transparent;color:var(--muted);
+  border:1px solid var(--outline-var)}
+#pTerminal.u-term-ouvert #tGo:hover{background:#FCE8E6;color:#B3261E;
+  border-color:#F2B8B5;opacity:1}
+#pTerminal.u-term-ouverture #tGo{opacity:.55}
+
+/* 4. La ligne d'état parlait du gateway, qui n'a rien à voir avec un
+      pseudo-terminal. Elle dit maintenant ce qui concerne cet écran. */
+#pTerminal .dim{display:flex;column-gap:14px;row-gap:2px;flex-wrap:wrap;
+  font-size:11.5px;line-height:1.5}
+#pTerminal .dim b{font-weight:500;opacity:.9}
+
+/* 5. L'avertissement passe avant le premier geste. Il était sous l'écran :
+      juste quand on lisait avant de copier une commande, faux depuis qu'on
+      peut taper directement. Session ouverte, il se replie en une ligne —
+      le titre reste, entier. Il ne disparaît jamais. */
+#pTerminal.u-term-ouvert .avert{padding:9px 14px}
+#pTerminal.u-term-ouvert .avert .u-long{display:none}
+
+/* 6. Un terminal vivant a besoin de place. Session ouverte, les deux pavés
+      qui n'engagent rien se replient : +80 px pour l'écran. */
+#pTerminal.u-term-ouvert .cout,
+#pTerminal.u-term-ouvert .u-todo{display:none}
+#pTerminal.u-term-ouvert .u-tecran{min-height:420px}
+.u-repli{display:none;font-size:var(--font-size-xs);color:var(--faint);
+  margin-top:14px}
+#pTerminal.u-term-ouvert .u-repli{display:block}
+.u-repli span{color:var(--accent);cursor:pointer}
+
+/* 7. L'aide-mémoire a changé d'usage : il y a un terminal juste à côté.
+      Deux gestes — copier, et POSER dans la ligne. Jamais l'exécution :
+      on insère sans valider, c'est à la personne d'appuyer sur Entrée. */
+#pTerminal .u-cmd .k{opacity:.55}
+#pTerminal .u-cmd:hover .k{opacity:1}
+/* `.u-cmd` est un flex EN COLONNE, et sa pastille de copie est en position
+   absolue avec un `padding-right` réservé pour elle. Un second geste posé
+   dans le flux tombait donc en bas à gauche, sous la description. Il se
+   place comme sa voisine : à gauche d'elle, sur la même ligne. */
+.u-poser{position:absolute;right:2px;top:22px;color:var(--accent);opacity:0;
+  transition:opacity .14s ease;display:none;cursor:pointer}
+#pTerminal.u-term-ouvert .u-cmd .u-poser{display:grid}
+#pTerminal.u-term-ouvert .u-cmd:hover .u-poser{opacity:1}
+#pTerminal .u-cmd .u-poser:focus-visible{opacity:1}
 
 /* La dictée. Le micro dit dans quel état il est — on ne laisse pas quelqu'un
    se demander si ça enregistre. */
