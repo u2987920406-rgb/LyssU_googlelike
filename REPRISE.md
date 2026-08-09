@@ -13,7 +13,7 @@
   (tout le visuel) et ce qui porte la logique (88 `id`, 25 `data-*`, les
   cinq classes d'état). Décidé le 2026-08-08 : le design en dialogue ici prenait
   trop de temps.
-- **Ce qu'on fait au retour** : `cd web && node test_page.js`. 352 vérifications
+- **Ce qu'on fait au retour** : `cd web && node test_page.js`. 368 vérifications
   sur la vraie page dans un DOM réel. **S'il passe au rouge, ce n'est pas le
   test qui a tort** — un `id` ou un `data-*` du contrat a disparu, et le
   contrat dit lequel. Ne jamais adapter `ulysse-core.js` pour faire passer un
@@ -64,8 +64,8 @@ dictée, terminal intégré, 4 suites de tests dont une contre le VRAI Hermès.
 Au 2026-08-08 au soir : elle est **côté Cowork**. Les six réparations ET les
 cinq passes de design sont appliquées.
 
-1. kuchu revient de Cowork → `node test_page.js` (**352** vérifications ;
-   les quatre suites font **604** : 352 page · 99 serveur · 53 réel · 100 personas)
+1. kuchu revient de Cowork → `node test_page.js` (**368** vérifications ;
+   les quatre suites font **620** : 368 page · 99 serveur · 53 réel · 100 personas)
 2. ~~Appliquer les cinq passes~~ — **FAIT le 2026-08-08** : la passe
    d'accord, les trois décisions, et le style des cinq panneaux.
    La dette des Repères est éteinte (43 signes sur 43).
@@ -135,6 +135,17 @@ cinq passes de design sont appliquées.
    `projects.project_sessions` : `repos` annonçait « freeB » là où le travail
    a lieu dans `freeB\hermes-bridge`, et manquait `Projet Ulysse\web`.
    **Le panneau Projets est complet.**
+7. **Le rail** — trois défauts corrigés le 2026-08-09
+   (`web/PASSE-DESIGN-RAIL.md`) :
+   - **`nav()` ouvre les coulisses** — on pouvait être sur un écran qu'aucun
+     bouton du rail ne désignait, par quatre chemins réels ;
+   - **une panne est une notification** — l'état d'Hermès n'était lisible que
+     depuis Discuter, angle mort pour les neuf autres panneaux ;
+   - **la dette ne s'affiche plus partout** — seulement là où on lit la
+     réponse vague (Discuter) et où on la répare (Réglages).
+   ⚠ Et un quatrième, invisible depuis Cowork : `Notifs.drawBell()` RETIRAIT
+   la marque de la porte aussitôt posée, parce qu'elle parcourait tous les
+   `.rail-btn`. Elle ne gouverne plus que les `[data-nav]`.
 6. **Où le fil travaille** — branché le 2026-08-09
    (`web/PASSE-DESIGN-LIEU.md`). Une gélule dans la barre de Discuter.
    **Le lieu vient de la SESSION** : `conv.info` porte `cwd` ET `project`.

@@ -203,10 +203,20 @@ conversations. Rien n'est perdu dans l'opération. »*
 Elle n'existe que s'il y a quelque chose dedans, et elle est repliée par
 défaut : on ne l'ouvre que si on la cherche.
 
-> ⚠ **SUPPOSÉ** : que `repos` de `projects.tree` donne cette liste, ou qu'on
-> puisse la calculer depuis les `cwd` des sessions du projet. Si ni l'un ni
-> l'autre, **cette section n'est pas affichable** — et alors la promesse du
-> §8.1 tombe avec elle. Les deux tiennent ensemble.
+> ~~⚠ **SUPPOSÉ**~~ — **tranché le 2026-08-09, et c'est la seconde branche.**
+>
+> **Ce n'est PAS `repos`** : il donne les **racines git**, pas les dossiers de
+> travail. Mesuré — il aurait proposé « ranger *freeB* » là où kuchu travaille
+> un cran plus bas (`freeB\hermes-bridge`), et il aurait **manqué
+> `Projet Ulysse\web` entièrement, avec ses 58 sessions**, parce que ce n'est
+> pas une racine git.
+>
+> C'est **`projects.project_sessions`** qui porte la vérité.
+>
+> Sans le « ou » de la phrase supposée, on aurait branché `repos` et personne
+> n'aurait vu que `web` manquait. **C'est la troisième fois de suite qu'un
+> « supposé » se révèle faux par sa première branche et juste par la
+> seconde.**
 
 ### 8.3 Ce que ça ouvre, et que je ne dessine pas
 

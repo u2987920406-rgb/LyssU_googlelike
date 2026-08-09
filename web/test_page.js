@@ -394,6 +394,122 @@ async function main(){
   check("les coulisses s'ouvrent sur les 6 autres destinations",
     opened.length === 11, opened.length + " boutons");
 
+  /* ── ON NE PEUT PLUS ÊTRE QUELQUE PART SANS QUE LE MENU LE DISE ─────────
+     `nav()` allumait le panneau et redessinait le rail, mais n'ouvrait
+     jamais les coulisses : sur une destination de niveau 3 avec la porte
+     fermée, AUCUN bouton n'était actif. Quatre chemins réels y menaient,
+     dont l'ancre d'URL et « Voir la mémoire » depuis la dette.
+     Signalé par Cowork le 2026-08-09.
+
+     On passe PAR LE GESTE : refermer la porte, puis naviguer. */
+  win.toggleCoulisses({ stopPropagation(){} });     // on referme
+  check("Rail · la porte se referme à la main", !win.eval("coulisses"));
+  win.nav("Vestiaire");
+  await wait(40);
+  check("Rail · entrer derrière la porte l'OUVRE — plus d'écran sans bouton actif",
+    win.eval("coulisses")
+    && !!win.document.querySelector('#railItems .rail-btn.on[data-nav="Vestiaire"]'),
+    win.eval("coulisses") ? "ouverte" : "restée fermée");
+
+  // On peut la refermer à la main : le problème revient, sans être un bug.
+  // La porte porte alors la marque des notifications — on n'en dessine pas
+  // un deuxième pour dire la même chose.
+  win.toggleCoulisses({ stopPropagation(){} });
+  await wait(40);
+  check("Rail · refermée sur un panneau de derrière, la porte porte la marque",
+    !!win.document.querySelector("#doorBtn .raildot")
+    && !win.document.querySelector("#railItems .rail-btn.on"),
+    win.document.querySelector("#doorBtn .raildot") ? "marquée" : "sans marque");
+  win.toggleCoulisses({ stopPropagation(){} });
+  await wait(40);
+  check("Rail · ...et la marque s'en va dès qu'on ouvre : le bouton actif se voit",
+    !win.document.querySelector("#doorBtn .raildot")
+    && !!win.document.querySelector('#railItems .rail-btn.on[data-nav="Vestiaire"]'));
+  win.nav("Discuter");
+  await wait(40);
+  check("Rail · sur un panneau de niveau 2, la porte n'est pas marquée",
+    !win.document.querySelector("#doorBtn .raildot"));
+
+  /* ⚠ LE PIÈGE DE LA PASTILLE PARTAGÉE. Cowork a choisi `.raildot` pour ne
+     pas dessiner un deuxième signe disant la même chose — bonne intention.
+     Mais `drawBell()` parcourait TOUS les `.rail-btn` et RETIRAIT les points
+     qu'elle ne reconnaissait pas : la pastille de la porte était effacée
+     aussitôt posée. La boucle ne gouverne plus que les DESTINATIONS. */
+  win.nav("Vestiaire");
+  win.toggleCoulisses({ stopPropagation(){} });
+  await wait(40);
+  win.eval("Notifs.drawBell()");
+  check("Rail · la cloche ne reprend PAS la pastille de la porte",
+    !!win.document.querySelector("#doorBtn .raildot"),
+    win.document.querySelector("#doorBtn .raildot") ? "toujours là" : "effacée");
+  win.nav("Discuter");
+  await wait(40);
+
+  /* ── UNE PANNE EST UNE NOTIFICATION ────────────────────────────────────
+     `NKIND` définit quatre genres et seul `decision` était jamais poussé :
+     le vocabulaire existait en entier, le produit en employait un quart.
+     Or l'état d'Hermès concerne les DIX panneaux — il n'était lisible que
+     dans le bandeau du kebab de Discuter. */
+  // Ce bloc pousse une bulle qui NE PART PAS toute seule et remplace l'état
+  // mémoire : on met les deux de côté, et on rend tout à la fin.
+  win.eval("window.__av = { st: lastStatus, mem: memoireEtat };");
+  const avantP = win.eval("Notifs.list.length");
+  win.eval("lastStatus = null; majPanne();");
+  await wait(40);
+  check("Panne · une panne devient une notification, visible de partout",
+    win.eval("Notifs.list.length") === avantP + 1
+    && win.eval('Notifs.list[0].kind') === "panne",
+    win.eval('Notifs.list[0] && Notifs.list[0].kind'));
+  check("Panne · ...elle ne part pas toute seule — c'est ce qu'on veut d'une panne",
+    win.eval('NKIND.panne.dur') === true);
+  check("Panne · ...et le badge de la cloche passe en rouge",
+    !!win.document.querySelector("#bellIc .badge.r-panne"));
+  // ⚠ Une panne ne s'AUTORISE pas : pas de boutons. `dur` dit qu'elle ne
+  //   part pas seule, pas qu'on ait quelque chose à répondre.
+  check("Panne · ...sans boutons : une panne ne s'autorise pas",
+    !win.document.querySelector("#toasts .nacts"),
+    win.document.querySelector("#toasts .nacts") ? "des boutons" : "aucun");
+
+  // Elle ne se répète pas : loadStatus tourne en boucle, et une cloche qui
+  // sonne toutes les dix secondes cesse d'être écoutée.
+  win.eval("majPanne(); majPanne();");
+  await wait(40);
+  check("Panne · ...et elle ne sonne qu'une fois, pas à chaque sondage",
+    win.eval("Notifs.list.filter(function(n){return n.kind==='panne';}).length") === 1,
+    win.eval("Notifs.list.filter(function(n){return n.kind==='panne';}).length") + "");
+
+  win.eval("lastStatus = { version: '0.20.0' }; majPanne();");
+  await wait(40);
+  check("Panne · quand Hermès revient, la notification s'en va",
+    win.eval("Notifs.list.filter(function(n){return n.kind==='panne';}).length") === 0);
+
+  /* ── LA DETTE N'A PAS À ÊTRE PARTOUT ───────────────────────────────────
+     `#dettewrap` vit dans `.stage` : elle s'affichait sur les dix panneaux
+     et poussait le contenu de chacun. Dans le Terminal, elle parle d'autre
+     chose que ce qu'on est venu faire. */
+  win.eval("memoireEtat = { manquants: ['USER.md'] };");
+  win.nav("Discuter");
+  await wait(40);
+  check("Dette · elle reste où on LIT la réponse vague",
+    /USER\.md/.test(win.document.getElementById("dettewrap").textContent),
+    win.document.getElementById("dettewrap").textContent.slice(0, 40));
+  win.nav("Reglages");
+  await wait(40);
+  check("Dette · ...et où on la RÉPARE",
+    /USER\.md/.test(win.document.getElementById("dettewrap").textContent));
+  win.nav("Terminal");
+  await wait(40);
+  check("Dette · mais pas dans le Terminal, où elle parle d'autre chose",
+    win.document.getElementById("dettewrap").textContent.trim() === "",
+    win.document.getElementById("dettewrap").textContent.slice(0, 40) || "vide");
+
+  // On rend tout : l'état, la mémoire, et la bulle restée à l'écran — une
+  // bulle `dur` ne s'efface pas d'elle-même, c'est tout son intérêt.
+  win.eval("lastStatus = __av.st; memoireEtat = __av.mem; majPanne();"
+    + " document.getElementById('toasts').innerHTML = '';");
+  win.nav("Discuter");
+  await wait(40);
+
   console.log("\n--- Chaque panneau s'affiche vraiment ---");
   const PANES = ["Discuter", "Plan", "Travaux", "Livrables", "Projets",
                  "Automatisations", "Vestiaire", "Reglages", "Terminal", "Reperes"];

@@ -44,7 +44,8 @@ supprimez les `id` et les `data-*` listés plus bas.
   > (`j-ic` `j-vide` `j-auto` `j-rien` `j-home` `j-champ` `j-in` `j-chemin`
   > `j-etat` `j-cols` `j-col` `j-trois` `j-acts`) portent le nom donné par
   > `PASSE-DESIGN-PROJETS.md` §6, et `apercu-projets.html` les emploie.
-  > Même chose pour `j-dedans` / `j-sous` (les dossiers absorbés) et pour
+  > Même chose pour `r-porte` / `r-panne` (le rail), pour
+  > `j-dedans` / `j-sous` (les dossiers absorbés) et pour
   > `l-lieu` / `l-pop` (`PASSE-DESIGN-LIEU.md` §6,
   > `apercu-lieu.html`), avec `projet` `dossier` `attente` `change` en
   > classe jointe.
@@ -105,6 +106,26 @@ menu ne peuvent pas diverger. **`#pDiscuter` porte les cinq classes d'état.**
 > `#band` en dur dedans le détruirait au premier clic. La séquence est :
 > **sortir, réécrire, réinstaller**. Le piège s'est déclenché en test ; une
 > vérification le garde.
+
+> ⚠ **`nav()` OUVRE les coulisses** quand la destination est de niveau 3.
+> Sans ça, on était sur un écran qu'aucun bouton du rail ne désignait —
+> quatre chemins réels y menaient, dont l'ancre d'URL. Et la porte porte la
+> marque `.raildot` quand le panneau actif est derrière elle et qu'on l'a
+> refermée à la main.
+>
+> ⚠ **`Notifs.drawBell()` ne gouverne que les boutons `[data-nav]`.** Elle
+> RETIRE les `.raildot` qu'elle ne reconnaît pas : sur `.rail-btn` tout court,
+> elle effaçait la marque de la porte aussitôt posée. La boucle ne concerne
+> que les **destinations** ; la porte n'en est pas une.
+>
+> ⚠ **Une notification n'affiche ses boutons que si elle a un `oui`.**
+> `NKIND[…].dur` dit qu'une bulle ne part pas toute seule — pas qu'on ait
+> quelque chose à répondre. Une **panne** ne part pas seule et **ne
+> s'autorise pas**.
+>
+> ⚠ **La dette ne s'affiche que sur Discuter et Réglages** (`DETTE_PANNEAUX`).
+> Elle vit dans `.stage` : sans ce filtre elle pousse le contenu des dix
+> panneaux, et dans le Terminal elle parle d'autre chose.
 
 **Les filtres** — `travQ` `livQ` `repQ` (et `vq`, déjà là). Quatre panneaux
 sur dix filtrent ; `.search` n'était utilisée que par le Vestiaire, celui qui

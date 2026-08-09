@@ -8,6 +8,16 @@ Aperçu : `apercu-lieu.html` (autonome, cinq cas × actuel/proposé).
 
 ---
 
+> ⚠ **CORRIGÉ le 2026-08-09 (v2).** `projects.for_cwd` **ne doit pas être
+> appelé** : `conv.info` porte déjà `project` — `{id, slug, name,
+> primary_path}`, ou `null` hors de tout projet. Le §0 et le §5 sont réécrits
+> en conséquence.
+>
+> La raison, du code : *« une session ne peut pas se tromper sur elle-même »*.
+> Ce qu'une source dit d'elle-même vaut mieux qu'une question posée à son
+> sujet. Le §2 tient entièrement — seule sa source change, et elle est
+> meilleure.
+
 ## 0. Ce qui est constaté, et ce qui est supposé
 
 *(Nouvelle habitude, prise après la v1 des projets : marquer la différence.)*
@@ -20,15 +30,18 @@ Aperçu : `apercu-lieu.html` (autonome, cinq cas × actuel/proposé).
 - `conv.info.cwd` existe et n'est lu qu'à un seul endroit — l'objet d'une
   notification d'accord (`ulysse-app.js:3398`).
 
-**Supposé**, et à vérifier avant d'appliquer :
+~~**Supposé**~~ — **tranché le 2026-08-09**, et les deux suppositions étaient
+mauvaises pour la même raison : je cherchais l'information au mauvais endroit.
 
-- que `projects.for_cwd` rende le projet **ou rien**, sans erreur, pour un
-  `cwd` quelconque ;
-- qu'il distingue un **vrai projet** d'un **dossier déduit**, comme le fait
-  `projects.tree` avec `isAuto`.
+- `projects.for_cwd` **ne dit pas « je ne sais pas »** : pour un dossier qu'il
+  ne trouve pas, il *remplace silencieusement* la demande par le dossier
+  courant du serveur et répond sur celui-là. Le piège reste épinglé dans
+  `test_reel.py`, pour le prochain qui s'en servira.
+- **`conv.info` porte déjà `project`** : `{id, slug, name, primary_path}`, ou
+  `null`. C'est la bonne source, et il n'y a aucun appel à faire.
 
-Si la seconde est fausse, la gélule ne peut pas porter les trois espèces — et
-c'est tout le §2 qui tombe.
+Il ne manque que la **couleur** — elle vient de `projects.list`, lu une fois.
+Et une couleur qui manque ne cache rien : le nom est déjà là.
 
 ---
 
@@ -100,16 +113,35 @@ Même règle que les pastilles de `#first`, et que votre correction du Terminal 
 
 ## 5. Ce que le code doit faire
 
-1. Appeler `projects.for_cwd` avec `conv.info.cwd` à l'ouverture de session, et
-   à chaque `session.info`.
+1. ~~Appeler `projects.for_cwd`~~ — **non.** Lire `conv.info.project`, qui
+   arrive avec la session. Aucun appel, aucun cache, aucune comparaison de
+   `cwd`.
 2. Poser la gélule dans la barre de titre de Discuter, à côté de `#privchip`.
 3. **Comparer `CFG.SESSION_CWD` et `conv.info.cwd`** — c'est ce qui déclenche
    le quatrième état, et ça ne demande aucun appel.
 4. Ne rien afficher d'affirmatif tant que `session.info` n'est pas revenu.
 
-> **Le point 3 ne dépend d'aucune vérification.** Même si `projects.for_cwd`
-> ne rendait pas ce qu'on suppose, l'écart entre les deux dossiers reste vrai
-> et reste invisible. Il peut être branché seul.
+> **Le point 3 ne dépend d'aucune vérification** — et c'est heureux, parce que
+> le reste, si.
+
+### ⚠ Et le quatrième état n'était pas atteignable
+
+Constaté à l'écran le 2026-08-09 : **« Travailler ici » appelait
+`resetSession()` avant de poser le dossier**, ce qui vidait `conv.turns`. La
+conversation en cours disparaissait **sans un mot** — et comme le fil s'en
+allait, il ne restait rien dont le dossier puisse diverger.
+
+L'état ambre du §3 était donc **inatteignable**, et mon aperçu le montrait
+quand même : je le posais dans un tableau de scénarios sans vérifier qu'on
+pouvait y arriver.
+
+**Un aperçu qui montre un état inatteignable est un aperçu qui ment**,
+exactement comme un bouton qui ne fait rien. D'où la règle que j'applique
+depuis : **écrire, pour chaque état, par quel geste on y arrive.** Si le geste
+n'existe pas, ça se voit en l'écrivant.
+
+Corrigé côté code : « Travailler ici » garde le fil, et la fermeture devient un
+choix nommé — « Ouvrir un fil là-bas ».
 
 ---
 
@@ -120,6 +152,11 @@ côté d'éléments existants.
 
 **Classes nouvelles**, préfixées `l-` : `l-lieu` (avec `projet` / `dossier` /
 `aucun` / `attente` / `change` en classe jointe), `l-pop`.
+
+**Et la gélule disparaît en mode Chat.** Aucune session ne s'y ouvre : `cwd` ne
+viendra jamais, et « dossier en attente » annoncerait indéfiniment un dossier
+qui n'arrive pas. Un lieu de travail n'a de sens que là où quelque chose
+travaille.
 
 `#privchip` et `#moreBtn` restent à leur place. La gélule se glisse entre les
 deux, avant le `.sep`.

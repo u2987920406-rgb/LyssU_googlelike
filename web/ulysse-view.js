@@ -599,11 +599,25 @@ const Notifs = {
     if (!ic) return;
     const k = this.attente().length;
     const dec = this.list.some((n) => n.kind === "decision");
+    // Une PANNE passe le badge en rouge — meme signal, autre gravite. Elle
+    // prime sur la decision : quand plus rien ne repond, ce n'est plus le
+    // moment d'autoriser quoi que ce soit.
+    const panne = this.list.some((n) => n.kind === "panne");
+    const cl = panne ? " r-panne" : (dec ? " dec" : "");
     ic.innerHTML = svg("cloche", { size: 22, w: 1.6 })
-      + (k ? '<span class="badge' + (dec ? " dec" : "") + '">' + k + "</span>" : "");
+      + (k ? '<span class="badge' + cl + '">' + k + "</span>" : "");
     // Le menu porte un point sur la fenêtre concernée : on sait où aller sans
     // ouvrir le panneau.
-    document.querySelectorAll(".rail-btn").forEach((b) => {
+    //
+    // ⚠ `[data-nav]` et non `.rail-btn` seul. Cette boucle RETIRE les points
+    // qu'elle ne reconnaît pas — et la porte des coulisses en porte un aussi,
+    // pour dire « le panneau actif est derrière moi ». Sans ce filtre, la
+    // pastille de la porte était effacée aussitôt posée : `drawRail` l'écrit,
+    // `drawBell` la reprend. Constaté le 2026-08-09.
+    //
+    // La règle qui en sort : cette boucle ne gouverne que les DESTINATIONS.
+    // La porte n'en est pas une, et ce qu'elle signale ne la regarde pas.
+    document.querySelectorAll(".rail-btn[data-nav]").forEach((b) => {
       const l = b.querySelector(".lbl");
       if (!l) return;
       const has = this.attente().some((n) => n.panel === l.textContent.trim());
@@ -640,7 +654,12 @@ const Notifs = {
       + '<div class="nx">' + esc(n.txt) + "</div>"
       + '<div class="nmeta"><span class="o">' + esc(n.obj) + "</span>·<span>"
       + esc(n.when) + "</span></div>"
-      + (K.dur
+      // `K.dur && n.oui` et non `K.dur` seul : `dur` dit qu'une bulle NE PART
+      // PAS toute seule ; ça ne veut pas dire qu'on a quelque chose a
+      // repondre. Une PANNE ne part pas toute seule et ne s'autorise pas —
+      // elle n'a donc pas de boutons. Ajoute le 2026-08-09, quand le genre
+      // `panne` est devenu le deuxieme genre reellement pousse.
+      + (K.dur && n.oui
           ? '<div class="nacts" data-stop="1">'
             + '<button class="yes" data-yes="' + n.id + '">' + esc(n.oui || "Autoriser") + "</button>"
             + '<button class="no" data-no="' + n.id + '">' + esc(n.non || "Refuser") + "</button>"
@@ -714,7 +733,7 @@ const Notifs = {
       + '<div style="flex:1;min-width:0"><div class="nt">' + esc(n.titre) + "</div>"
       + '<div class="nx">' + esc(n.txt) + "</div>"
       + '<div class="nmeta"><span class="o">' + esc(n.obj) + "</span></div>"
-      + (K.dur ? '<div class="nacts">'
+      + (K.dur && n.oui ? '<div class="nacts">'
           + '<button class="yes" data-yes="' + n.id + '">' + esc(n.oui || "Autoriser") + "</button>"
           + '<button class="no" data-no="' + n.id + '">' + esc(n.non || "Refuser") + "</button>"
           + "</div>" : "")

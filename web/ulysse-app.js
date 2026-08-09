@@ -63,10 +63,19 @@ function nav(id){
   const wanted = String(id || "").trim().toLowerCase();
   const p = PANELS.find((x) => x.id.toLowerCase() === wanted) || PANELS[0];
   current = p.id;
+  /* ⚠ ON PEUT ÊTRE QUELQUE PART SANS QUE LE MENU LE DISE.
+     Si la destination est de niveau 3 et que les coulisses sont repliées,
+     AUCUN bouton du rail n'est actif : on est sur un écran que le menu ne
+     désigne pas. Quatre chemins y mènent, tous réels — l'ancre d'URL, « Voir
+     la mémoire » depuis la dette, « Dépenses » depuis le Terminal, ou les
+     avoir refermées à la main. Signalé par Cowork le 2026-08-09.
+     La porte s'ouvre donc quand on entre derrière elle. */
+  if (p.n === 3) coulisses = true;
   document.querySelectorAll(".panel").forEach((e) => e.classList.remove("on"));
   $("p" + p.id).classList.add("on");
   document.documentElement.style.setProperty("--tint", p.tint);
   drawRail();
+  majDette();
   if (LIFE[p.id] && LIFE[p.id].onEnter){
     try { LIFE[p.id].onEnter(); } catch (e){ console.error(e); }
   }
@@ -105,14 +114,28 @@ function drawRail(){
     + '<span class="ic">' + svg(p.ico, { size: 22, w: 1.6 }) + "</span>"
     + '<span class="lbl">' + esc(p.lbl) + "</span></button>";
 
+  /* La porte porte une marque quand le panneau actif est DERRIÈRE elle et
+     qu'elle est fermée. `nav()` l'ouvre désormais — mais on peut la refermer
+     à la main, et alors le problème revient sans être un bug.
+
+     La marque est `.raildot`, celle des notifications : on ne dessine pas un
+     deuxième signe pour dire la même chose, « il y a quelque chose
+     là-dedans ». Elle disparaît dès qu'on ouvre — le bouton actif se voit
+     alors tout seul. */
+  const derriere = !coulisses
+    && PANELS.some((p) => p.n === 3 && p.id === current);
+
   H("railItems",
     PANELS.filter((p) => p.n === 2).map(item).join("")
     + '<div class="rail-div"></div>'
-    + '<button class="rail-btn" id="doorBtn" aria-label="Les coulisses"'
+    + '<button class="rail-btn r-porte" id="doorBtn" aria-label="Les coulisses"'
+    + ' aria-expanded="' + (coulisses ? "true" : "false") + '"'
     + ' style="color:' + (coulisses ? "var(--muted)" : "var(--faint)") + '">'
     + '<span class="ic" style="transform:rotate(' + (coulisses ? 180 : 0) + "deg);"
     + 'transition:transform .24s cubic-bezier(.2,0,0,1)">' + svg("chevron", { size: 22, w: 1.6 })
-    + "</span><span class=\"lbl\">Les coulisses</span></button>"
+    + "</span><span class=\"lbl\">Les coulisses</span>"
+    + (derriere ? '<span class="raildot"></span>' : "")
+    + "</button>"
     + (coulisses ? PANELS.filter((p) => p.n === 3).map(item).join("") : ""));
 
   $("railItems").querySelectorAll("[data-nav]").forEach((b) => {
@@ -159,9 +182,22 @@ function memManquants(d){
   return memFichiersApi(d).filter((f) => f.vide).map((f) => f.nom);
 }
 
+/* Où la dette a un objet. Elle vit dans `.stage` : sans ce filtre elle
+   s'affiche sur les DIX panneaux et pousse le contenu de chacun. Elle est
+   juste — un profil vide rend les réponses vagues — mais dans le Terminal ou
+   les Repères, elle parle d'autre chose que ce qu'on est venu faire.
+     · Discuter — c'est là qu'on lit la réponse vague ;
+     · Réglages — c'est là qu'on la répare.
+   Signalé par Cowork le 2026-08-09. */
+const DETTE_PANNEAUX = ["Discuter", "Reglages"];
+
 function majDette(){
   const w = $("dettewrap");
   if (!w) return;
+  if (current && DETTE_PANNEAUX.indexOf(current) < 0){
+    w.innerHTML = "";
+    return;
+  }
   if (!memoireEtat || !memoireEtat.manquants || !memoireEtat.manquants.length){
     w.innerHTML = "";
     return;
@@ -4217,10 +4253,54 @@ const TCMD_LANCEMENT = "lancer_ulysse.bat";
 
 let lastStatus = null;
 
+/* ── UNE PANNE EST UNE NOTIFICATION ─────────────────────────────────────
+   `NKIND` définit quatre genres — décision, panne, livrable, auto — et seul
+   `decision` était poussé : le vocabulaire existait en entier, le produit en
+   employait un quart.
+
+   Or l'état d'Hermès concerne les DIX panneaux. Il n'était lisible que dans
+   le bandeau du kebab de Discuter : juste pour Discuter, angle mort pour les
+   neuf autres. Depuis le Vestiaire, si le lien tombait, rien ne le disait.
+
+   On ne crée pas un nouveau point qui veille : la cloche EST le lieu de ce
+   qui ne va pas, elle est visible de partout, et `NKIND.panne.dur` vaut déjà
+   `true` — une panne ne part donc pas toute seule.
+
+   ⚠ On ne pousse rien tant qu'on n'a pas CONSTATÉ la panne : `lastStatus`
+   null, c'est-à-dire une requête qui a échoué. Et on ne la pousse qu'UNE
+   fois : `loadStatus` tourne en boucle, et une cloche qui sonne toutes les
+   dix secondes pour la même panne cesse d'être écoutée. */
+let pannePoussee = null;
+
+function majPanne(){
+  const enPanne = !lastStatus;
+  if (enPanne && pannePoussee === null){
+    pannePoussee = Notifs.push({
+      kind: "panne",
+      titre: "Hermès est injoignable",
+      txt: "La page ne reçoit plus de réponse. Les panneaux montrent le dernier "
+         + "état connu, pas l'état actuel.",
+      obj: "Toute l'application",
+      // Pas de boutons : une panne ne s'autorise pas. Elle ne part pas toute
+      // seule (`dur`), et elle s'en va quand Hermès revient — pas quand on
+      // clique. Le seul geste utile est écrit en dessous.
+      renvoi: "Relancez lancer_ulysse.bat si ça dure."
+    });
+    return;
+  }
+  // Revenue : on la retire, plutôt que de laisser une panne résolue sonner
+  // dans la cloche. `drop` est l'API prévue pour ça.
+  if (!enPanne && pannePoussee !== null){
+    Notifs.drop(pannePoussee);
+    pannePoussee = null;
+  }
+}
+
 async function loadStatus(){
   try { lastStatus = await REST.status(); }
   catch (e){ lastStatus = null; }
   paintBand();
+  majPanne();
   majDimTerm();
 }
 

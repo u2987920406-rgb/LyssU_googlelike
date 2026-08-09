@@ -848,6 +848,25 @@
 .j-acts{display:flex;align-items:center;gap:10px;margin-top:24px}
 .j-acts .sp{flex:1}
 
+/* ═══ Le rail ════════════════════════════════════════════════════════════
+   Préfixe `r-`, donné par `PASSE-DESIGN-RAIL.md` §6 — même raison que `j-`
+   et `l-` : `apercu-rail.html` l'emploie.
+
+   ── La porte porte une marque quand le panneau actif est DERRIÈRE elle.
+   `nav()` l'ouvre désormais, mais on peut la refermer à la main — et alors
+   on est de nouveau quelque part que le menu ne désigne pas, sans que ce
+   soit un bug. La marque est `.raildot`, celle des notifications : on ne
+   dessine pas un deuxième signe pour dire « il y a quelque chose
+   là-dedans ». */
+.r-porte{position:relative}
+.r-porte .raildot{right:14px}
+.railwrap.mini:not(.open) .r-porte .raildot{right:22px}
+
+/* ── Une PANNE passe le badge de la cloche en rouge. Même signal, autre
+   gravité — et elle prime sur la décision : quand plus rien ne répond, ce
+   n'est plus le moment d'autoriser quoi que ce soit. */
+.badge.r-panne{background:#B3261E;animation:none}
+
 /* ── LES DOSSIERS ABSORBÉS, DANS LEUR PARENT ────────────────────────────
    Une ligne repliable au pied de la carte : on ne l'ouvre que si on la
    cherche, et elle n'existe que s'il y a quelque chose dedans. C'est le
