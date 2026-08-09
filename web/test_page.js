@@ -251,6 +251,37 @@ async function main(){
   const lien = '<link rel="stylesheet" href="ulysse.css">';
   if (html.indexOf(lien) < 0) throw new Error("ulysse.html ne charge plus ulysse.css");
   check("« ulysse.css » est bien référencé par la page", true);
+
+  /* ⚠ LES DIX APERCUS RECOPIENT LA FEUILLE, ils ne la lient pas — il faut
+     qu'ils s'ouvrent d'un double-clic, seuls. Autant de copies que de fichiers,
+     donc autant d'occasions de diverger EN SILENCE : Cowork retouche la feuille et les
+     resynchronise, puis je touche la feuille ici et les dix se figent sur
+     l'etat d'avant. Personne ne le voit — un apercu ne casse pas, il ment.
+
+     Cowork a demande, le 2026-08-09 : « dis-le-moi quand tu y touches ». Une
+     garantie qui repose sur quelqu'un qui pense a le dire finit par ceder.
+     Celle-ci se mesure : la copie est identique OCTET POUR OCTET, donc on la
+     compare. Quand ce test tombe, la reparation tient en une commande —
+     `python resync_apercus.py`. */
+  /* ⚠ On compare le BLOC ENTIER, pas une inclusion. Ecrit d'abord en
+     `vu.indexOf(CSS) >= 0`, ce test laissait passer un apercu qui porte la
+     feuille PLUS des regles en trop — et c'est la divergence la PLUS
+     probable : quelqu'un ajoute une regle dans un apercu pour voir, et elle
+     y reste. Le trou s'est montre tout seul : apres avoir resynchronise sur
+     une feuille d'essai puis retire l'essai, les dix gardaient la ligne en
+     trop et le test les disait a jour.
+     `</style>` ne parait jamais dans la feuille : la borne est sure. */
+  for (const f of fs.readdirSync(DIR).filter((n) => /^apercu-.*\.html$/.test(n)).sort()){
+    const vu = fs.readFileSync(path.join(DIR, f), "utf8");
+    const d = vu.indexOf(CSS.slice(0, 200));
+    const fin = d < 0 ? -1 : vu.indexOf("</style>", d);
+    check("« " + f + " » porte la feuille COURANTE, pas une copie figée",
+      d >= 0 && fin >= 0 && vu.slice(d, fin) === CSS,
+      d < 0 ? "la feuille n'y est plus reconnaissable"
+            : "elle a divergé (" + (fin - d) + " octets contre " + CSS.length
+              + ") — `python resync_apercus.py`");
+  }
+
   html = html.replace(lien, "<style>\n" + CSS + "\n</style>");
 
   const dom = new JSDOM(html, {
@@ -972,6 +1003,39 @@ async function main(){
     && fc.querySelectorAll(".dd.f-ko").length === 0,
     fc.querySelectorAll(".dd.f-att").length + " en attente, "
     + fc.querySelectorAll(".dd.f-ko").length + " en rouge");
+
+  /* ── Les quatre écarts voulus — voir `web/ECARTS-MAQUETTE.md` ────────────
+     La maquette porte quatre fois la MÊME coquille : un espacement vertical
+     posé sur un `span`, qui n'en prend pas. Corrigés par Cowork le
+     2026-08-09, et inscrits au registre.
+
+     Le registre et les commentaires disent POURQUOI. Ils n'empêchent rien :
+     la prochaine extraction verbatim de la maquette restaurerait la coquille
+     en silence — c'est le risque que leur propre document nomme. Ces
+     vérifications l'empêchent.
+
+     On sonde avec de vrais `span`. Un `div` serait bloc de toute façon, et la
+     vérification passerait aussi bien avec le défaut qu'avec sa correction. */
+  const sonde = win.document.createElement("div");
+  sonde.innerHTML =
+      '<div class="srow2"><span class="txt"><span class="nm">n</span>'
+    + '<span class="sub">s</span></span></div>'
+    + '<div class="defl"><span class="dn">n</span><span class="dt">t</span></div>'
+    + '<div class="dryline"><span class="dn">n</span><span class="dt">t</span></div>'
+    + '<div class="fhead"><span class="nm">n</span><span class="fp">p</span>'
+    + '<span class="sub">s</span></div>';
+  win.document.body.appendChild(sonde);
+  // `gcs` n'est déclaré que plus bas, avec les vérifications du Terminal.
+  const affichage = (el) => win.getComputedStyle(el).getPropertyValue("display");
+  [["srow2", "nm"], ["srow2", "sub"],
+   ["defl", "dn"], ["defl", "dt"],
+   ["dryline", "dn"], ["dryline", "dt"],
+   ["fhead", "nm"], ["fhead", "fp"], ["fhead", "sub"]].forEach(([p, e]) => {
+    const el = sonde.querySelector("." + p + " ." + e);
+    check("écart · « ." + p + " ." + e + " » est un bloc, sa marge s'applique",
+      !!el && affichage(el) === "block", el ? affichage(el) : "absent");
+  });
+  sonde.remove();
   await wait(30);
   check("les quatre appels partent en parallèle",
     ["/api/status", "/api/skills", "/api/memory"]

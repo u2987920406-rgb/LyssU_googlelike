@@ -3,19 +3,34 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Aperçu — Vestiaire</title>
+<title>Aperçu — créer un projet</title>
 
 <!-- ═══════════════════════════════════════════════════════════════════════
-     APERÇU DE DESIGN — panneau « Vestiaire »
-     Les 6 rôles et les compétences réelles d'Hermès (99 en production ; 42
-     ici, avec les mêmes provenances). Aucun backend.
+     APERÇU DE DESIGN — la création de projet / coffre
 
-     PAGE AUTONOME : ulysse.css et ulysse-icons.js sont recopiés plus bas.
+     Demandé pour le prochain branchement : `projects.tree` existe côté
+     Hermès, et c'est le dernier gros morceau non branché. C'est donc le bon
+     moment — la leçon des garde-fous d'écriture : **décider avant de coder.**
+
+     ⚠ CE QUE LE RELEVÉ A TROUVÉ D'ABORD, ET QUI CHANGE TOUT :
+
+     Le produit n'appelle PAS `projects.tree`. `drawProjets()` groupe les
+     sessions par `cwd` — il montre des dossiers de travail, pas des projets.
+     Il y a donc **deux notions incompatibles** dans le produit :
+
+       · celle qu'on affiche : un regroupement déduit, sans existence propre ;
+       · celle qu'Hermès a : un objet avec id, label, path, color, icon, repos.
+
+     **On ne peut pas créer un objet dans une liste qui ne le montre pas.**
+     Brancher `projects.tree` doit donc précéder la création. Cet aperçu
+     dessine l'après.
+
+     PAGE AUTONOME : ulysse.css et ulysse-icons.js recopiés plus bas.
      ═══════════════════════════════════════════════════════════════════════ -->
 
 <!-- ─────────────────────────────────────────────────────────────────────
-     PAGE AUTONOME. ulysse.css et ulysse-icons.js sont RECOPIÉS ci-dessous,
-     pas liés. Copies figées au 2026-08-08.
+     PAGE AUTONOME. ulysse.css et ulysse-icons.js sont RECOPIÉS ci-dessous.
+     `resync_apercus.py` les tient à jour ; `test_page.js` le vérifie.
      ───────────────────────────────────────────────────────────────────── -->
 <style>
 /* ══ ulysse.css, recopié ══ */
@@ -1592,16 +1607,12 @@ svg.graph *{cursor:inherit}
 </style>
 
 <style>
-.u-load{color:var(--faint);font-size:var(--font-size-sm);padding:18px 0}
 .u-todo{border:1px dashed var(--outline-var);border-radius:var(--radius-card);
   padding:18px;color:var(--muted);font-size:var(--font-size-sm);max-width:620px;
   line-height:1.6;margin:12px 0}
 .u-todo b{color:var(--text);font-weight:500}
 .u-todo code{background:var(--surface);border-radius:6px;padding:1px 6px;
   font-size:var(--font-size-xs)}
-.u-raw{white-space:pre-wrap;word-break:break-word;background:var(--surface);
-  border-radius:var(--radius-md);padding:12px;font-size:var(--font-size-xs);
-  max-height:380px;overflow:auto}
 
 /* ── Habillage de l'aperçu ─────────────────────────────────────────────── */
 body{overflow:auto}
@@ -1610,15 +1621,15 @@ body{overflow:auto}
 .ap-bar .t{font-weight:500;margin-right:auto}
 .ap-bar .t span{color:#9AA0A6;font-weight:400}
 .ap-seg{display:flex;border:1px solid #5F6368;border-radius:999px;overflow:hidden}
-.ap-seg button{padding:5px 14px;font-size:12.5px;color:#DADCE0}
+.ap-seg button{padding:5px 13px;font-size:12.5px;color:#DADCE0}
 .ap-seg button+button{border-left:1px solid #5F6368}
 .ap-seg button.on{background:#D3E3FD;color:#041E49;font-weight:500}
-.ap-frame{position:relative;height:calc(100vh - 46px);min-height:640px;
+.ap-frame{position:relative;height:calc(100vh - 46px);min-height:680px;
   border-top:1px solid var(--outline-var);display:flex;overflow:hidden}
 .ap-frame .stage{flex:1;min-width:0;position:relative;display:flex;flex-direction:column}
 .ap-frame .panel{position:absolute;inset:0;display:flex;flex-direction:column}
-.ap-note{position:fixed;right:16px;bottom:16px;z-index:800;max-width:345px;
-  max-height:62vh;overflow:auto;background:#1F1F1F;color:#E8EAED;border-radius:14px;
+.ap-note{position:fixed;right:16px;bottom:16px;z-index:800;max-width:350px;
+  max-height:64vh;overflow:auto;background:#1F1F1F;color:#E8EAED;border-radius:14px;
   padding:15px 17px;font-size:12.5px;line-height:1.55;box-shadow:0 4px 20px rgba(0,0,0,.4)}
 .ap-note b{color:#8AB4F8;font-weight:500}
 .ap-note h4{font-size:12.5px;color:#fff;margin:12px 0 5px}
@@ -1626,113 +1637,87 @@ body{overflow:auto}
 .ap-note li{margin-bottom:6px}
 .ap-note code{background:#3C4043;border-radius:4px;padding:1px 5px;font-size:11.5px}
 .ap-note .x{position:absolute;top:8px;right:11px;color:#9AA0A6;cursor:pointer}
-</style>
 
-<!-- ═══════════════════════════════════════════════════════════════════════
-     LA PROPOSITION. Débranchée par défaut.
-     ═══════════════════════════════════════════════════════════════════════ -->
-<style id="propose" media="not all">
+/* ═══════════════════════════════════════════════════════════════════════
+   CE QUI S'AJOUTE — préfixé `j-`, rien qui recouvre la maquette.
+   ═══════════════════════════════════════════════════════════════════════ */
 
-/* ── 1. LE VOLET DE DÉTAIL CESSE D'ÊTRE COUPÉ ────────────────────────────
-   C'est un vrai défaut, pas un goût. `ulysse.css` prévoit deux enfants pour
-   ce volet :
+/* La pastille de projet : couleur ET icône, celles que `projects.tree`
+   donne. Reprise de la passe des listes. */
+.j-ic{width:30px;height:30px;flex:none;border-radius:9px;display:grid;
+  place-items:center}
+.j-ic.gros{width:44px;height:44px;border-radius:12px}
 
-     .vdet     { display:flex; flex-direction:column; overflow:hidden }
-     .vdet-head{ height:46px }
-     .vdet-body{ flex:1; overflow-y:auto; padding:0 18px 18px }
+/* ── LE CHOIX DU DOSSIER EST LE SEUL QUI ENGAGE ──────────────────────────
+   Un nom se change. Une couleur se change. **Le dossier, non** : c'est là
+   que l'agent écrira, et ce qui y est déjà y restera. C'est donc le seul
+   champ qui mérite d'être montré en entier, vérifié, et commenté. */
+.j-champ{margin-bottom:20px}
+.j-champ .lb{display:block;font-weight:500;margin-bottom:3px}
+.j-champ .ai{display:block;font-size:var(--font-size-xs);color:var(--muted);
+  margin-bottom:9px;line-height:1.5}
+.j-in{display:flex;align-items:center;gap:10px;background:var(--surface);
+  border-radius:var(--radius-md);padding:11px 14px}
+.j-in input{flex:1;font-size:15px;min-width:0}
+.j-in .ic{color:var(--muted);flex:none;display:grid}
+.j-chemin{font-family:ui-monospace,Menlo,monospace;font-size:12.5px;
+  word-break:break-all;color:var(--text)}
 
-   Le produit écrit le contenu DIRECTEMENT dans #vdet. Trois conséquences,
-   toutes visibles :
-     · aucun padding — le texte colle aux bords du volet ;
-     · `overflow:hidden` sans `.vdet-body` — un texte long est COUPÉ, et
-       rien ne défile ;
-     · le `<h2>` n'est stylé que par `.sheet h2` ; hors d'une feuille, il
-       prend la taille par défaut du navigateur (2em ≈ 32 px) dans un volet
-       de 330 px.
+/* Ce que le dossier contient déjà. On ne le devine pas, on le dit. */
+.j-etat{display:flex;gap:10px;align-items:flex-start;margin-top:10px;
+  font-size:var(--font-size-xs);line-height:1.55}
+.j-etat .pt{flex:none;display:grid;margin-top:1px}
+.j-etat.vide{color:var(--muted)} .j-etat.vide .pt{color:var(--green)}
+.j-etat.plein{color:#5F4200} .j-etat.plein .pt{color:var(--amber)}
 
-   On rétablit les deux enfants, et la tête reprend `.vhero`, qui existe
-   depuis la maquette et n'a jamais servi. */
-#pVestiaire .p-only{display:block}
-#pVestiaire #vdet>.p-direct{display:none}
+/* Les couleurs proposées — six, celles des familles d'outils du Plan. */
+.j-cols{display:flex;gap:8px;flex-wrap:wrap}
+.j-col{width:30px;height:30px;border-radius:9px;position:relative}
+.j-col.on{box-shadow:0 0 0 2px var(--bg),0 0 0 4px var(--accent)}
 
-/* ── 2. QUARANTE-DEUX TUILES À PLAT NE SONT PAS UNE LISTE ────────────────
-   La maquette montrait six agents : une grille suffisait. Hermès en
-   déclare 99. À plat, sans ordre autre que celui du serveur, on ne cherche
-   plus — on fait défiler jusqu'à tomber dessus.
+/* Les trois choses qu'un projet possède, montrées AVANT de le créer : on
+   sait ce qu'on fabrique. */
+.j-trois{display:grid;gap:2px;margin-top:6px}
+.j-trois .r{display:flex;gap:11px;align-items:flex-start;padding:9px 0;
+  border-bottom:1px solid var(--surface)}
+.j-trois .r:last-child{border-bottom:none}
+.j-trois .ic{flex:none;color:var(--muted);display:grid;margin-top:1px}
+.j-trois .nm{font-weight:500;font-size:var(--font-size-sm)}
+.j-trois .tx{font-size:var(--font-size-xs);color:var(--muted);line-height:1.5;
+  margin-top:1px}
 
-   Les compétences portent déjà leur `provenance` (le champ existe, le
-   détail l'affiche). On s'en sert pour grouper : chaque origine devient une
-   section repliable, avec son compte. On garde exactement les mêmes
-   tuiles, les mêmes `data-i` : c'est un rangement, pas un autre écran.
-
-   Les rôles restent à plat — ils sont six, et six choses ne se rangent
-   pas. */
-#pVestiaire .p-grp{grid-column:1/-1;display:flex;align-items:center;gap:10px;
-  padding:14px 2px 2px;font-size:13px;color:var(--muted);font-weight:500;
-  letter-spacing:.2px;cursor:pointer}
-#pVestiaire .p-grp:first-child{padding-top:2px}
-#pVestiaire .p-grp .l{flex:1;height:1px;background:rgba(31,31,31,.08)}
-#pVestiaire .p-grp .n{color:var(--faint);font-weight:400}
-#pVestiaire .p-grp .c{color:var(--muted);display:grid;place-items:center;
-  transition:transform .2s ease}
-#pVestiaire .p-grp.plie .c{transform:rotate(-90deg)}
-
-/* ── 3. LE FILTRE NE DOIT PAS LAISSER UNE SÉLECTION FANTÔME ──────────────
-   `vSel` est un INDEX dans la liste filtrée, et il n'est jamais remis à
-   zéro. On filtre, la liste se réduit, l'index pointe ailleurs — ou
-   au-delà — et le volet de détail montre autre chose que ce qui est
-   surligné. C'est du JS, pas du CSS : voir la passe de main.
-   Ici on marque simplement le compte pour qu'il se voie. */
-#pVestiaire #vmeta .p-f{color:var(--accent)}
-
-/* ── 4. LA RÉSERVE TECHNIQUE SORT DU PREMIER PLAN ────────────────────────
-   « Activer ou désactiver une compétence passera par POST /api/skills/toggle,
-   non branché tant que… » occupe un tiers du volet, en permanence, sur
-   chacune des 99 compétences. La réserve est juste et doit rester — mais
-   au pied, en une ligne, pas en encadré au milieu du détail. */
-#pVestiaire #vdet .u-todo{border:none;padding:0;margin:18px 0 0;
-  font-size:var(--font-size-xs);color:var(--faint)}
+.j-acts{display:flex;align-items:center;gap:10px;margin-top:24px}
+.j-acts .sp{flex:1}
 </style>
 </head>
 <body>
 
 <div class="ap-bar">
-  <span class="t">Aperçu — panneau <b>Vestiaire</b>
-    <span>· 6 rôles, 42 compétences, aucun backend</span></span>
+  <span class="t">Aperçu — <b>créer un projet</b>
+    <span>· avant que le code ne le branche</span></span>
 
-  <div class="ap-seg" id="apVue">
-    <button data-m="roles" class="on">Rôles</button>
-    <button data-m="skills">Compétences</button>
-  </div>
-  <div class="ap-seg" id="apVers">
-    <button data-v="0" class="on">Actuel</button>
-    <button data-v="1">Proposé</button>
+  <div class="ap-seg" id="apCas">
+    <button data-c="vide" class="on">Aucun projet</button>
+    <button data-c="liste">La liste</button>
+    <button data-c="neuf">Nouveau — dossier vide</button>
+    <button data-c="occupe">Nouveau — dossier occupé</button>
+    <button data-c="suppr">Supprimer</button>
   </div>
 </div>
 
 <div class="ap-frame">
   <div class="stage">
-
-    <div class="panel on" id="pVestiaire">
-      <div class="topbar"><span class="title">Vestiaire</span>
-        <div class="seg" id="vseg">
-          <button data-v="roles" class="on">Rôles</button>
-          <button data-v="skills">Compétences</button>
-        </div>
-        <span class="sep"></span>
-        <label class="search"><span id="icSearch"></span>
-          <input id="vq" placeholder="Filtrer…"></label></div>
-      <div class="vest">
-        <div class="vmain">
-          <div class="vmeta" id="vmeta"></div>
-          <div class="vgrid" id="vgrid"></div>
-        </div>
-        <div class="vdet" id="vdet"></div>
-      </div>
+    <div class="panel on" id="pProjets">
+      <div class="topbar"><span class="title">Projets</span><span class="sep"></span>
+        <button class="trashbtn" id="trashBtn"></button>
+        <button class="ghost-btn" id="newProj"></button></div>
+      <div class="body"><div class="body-in" id="projets"></div></div>
     </div>
-
   </div>
 </div>
+
+<div class="sheet-bg" id="sProj"><div class="sheet" id="projBody"></div></div>
+<div class="snack" id="snack"></div>
 
 <div class="ap-note" id="apNote">
   <span class="x" onclick="document.getElementById('apNote').style.display='none'">✕</span>
@@ -1808,25 +1793,70 @@ const I={
    r:"Met à la corbeille. Ne détruit pas : l'objet y reste, et la corbeille vit là où vivent les objets qu'elle recueille."},
  point:{circle:true,nm:"marqueur d'état",
    r:"Vert : terminé. Orange : en cours. Gris : en attente. Trois états, pas plus."},
+ /* Deux signes AJOUTÉS à la maquette, parce que le produit a gagné deux
+    pouvoirs qu'elle n'avait pas : `PATCH /api/sessions/{id}` sait épingler et
+    archiver. Ajouter une icône est sans risque ; en retirer casserait un
+    appel svg(). */
+ epingle:{raw:`<path d="M9 3h6M12 3v6.2a4 4 0 0 1-1.2 2.9L8.6 14.3h6.8l-2.2-2.2A4 4 0 0 1 12 9.2"/>
+   <path d="M12 14.3V21"/>`,nm:'épingler',
+   r:"Sort une conversation du fil du temps. Elle reste en tête quel que soit son âge — c'est la seule chose qui empêche une liste de devenir un journal."},
+ boite:{raw:`<path d="M3 8.5h18v10.5a1.5 1.5 0 0 1-1.5 1.5h-15A1.5 1.5 0 0 1 3 19z"/>
+   <rect x="2.2" y="3.8" width="19.6" height="4.7" rx="1.2"/><path d="M10 12.5h4"/>`,
+   nm:'archiver',
+   r:"Range sans jeter. Une conversation archivée sort de la liste et se retrouve quand on la demande — c'est ce qui permet de ne pas avoir à décider si on supprime."},
  /* service */
- micro:{d:'M12 2a3 3 0 0 1 3 3v6a3 3 0 0 1-6 0V5a3 3 0 0 1 3-3zM5 11a7 7 0 0 0 14 0M12 18v4'},
- envoi:{d:'M5 12h13M13 6l6 6-6 6'},
- coche:{d:'M4 12l6 6L20 6',w:3.4},
- chat:{d:'M4 6a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2h-6l-5 4v-4H6a2 2 0 0 1-2-2z'},
- atelier:{d:'M3 21h18M5 21V9l7-5 7 5v12M9 21v-6h6v6'},
- fichier:{d:'M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8zM14 3v5h5'},
- lien:{d:'M10 13a5 5 0 0 0 7 0l2-2a5 5 0 0 0-7-7l-1 1M14 11a5 5 0 0 0-7 0l-2 2a5 5 0 0 0 7 7l1-1'},
- regler:{tune:true},
- copier:{d:'M9 9h10v10H9zM5 15V5h10'},
- power:{d:'M12 3v9M6.5 6.5a8 8 0 1 0 11 0'},
+ micro:{d:'M12 2a3 3 0 0 1 3 3v6a3 3 0 0 1-6 0V5a3 3 0 0 1 3-3zM5 11a7 7 0 0 0 14 0M12 18v4',
+   nm:'parler',
+   r:"Dicte à la place d'écrire. Non branché à ce jour : Hermès expose /api/audio/transcribe, l'interface reste à faire — le bouton le dit plutôt que de faire semblant."},
+ envoi:{d:'M5 12h13M13 6l6 6-6 6',
+   nm:'envoyer',
+   r:"Part vers l'agent. C'est le seul geste de l'écran qui engage un tour de travail ; il porte l'accent, et rien d'autre autour du champ ne le porte."},
+ coche:{d:'M4 12l6 6L20 6',w:3.4,
+   nm:"c’est fait",
+   r:"Confirme après coup, jamais avant. Sur un accord donné, il garde la trace de ce qui a été autorisé."},
+ chat:{d:'M4 6a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2h-6l-5 4v-4H6a2 2 0 0 1-2-2z',
+   nm:'discuter',
+   r:"La conversation nue — le modèle répond, il n'agit pas. À distinguer de la bulle du menu, qui désigne la destination."},
+ atelier:{d:'M3 21h18M5 21V9l7-5 7 5v12M9 21v-6h6v6',
+   nm:"l’Établi",
+   r:"Les fichiers déjà sur la machine, ouverts à côté du fil. Il s'ouvre à côté, il ne pousse rien."},
+ fichier:{d:'M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8zM14 3v5h5',
+   nm:'fichier',
+   r:"Un fichier ordinaire, dans une liste. Le contour seul : c'est du contenu, pas une destination."},
+ lien:{d:'M10 13a5 5 0 0 0 7 0l2-2a5 5 0 0 0-7-7l-1 1M14 11a5 5 0 0 0-7 0l-2 2a5 5 0 0 0 7 7l1-1',
+   nm:'lien',
+   r:"Renvoie ailleurs sans quitter ce qu'on fait. Réservé à ce qui pointe hors d'Ulysse."},
+ regler:{tune:true,
+   nm:'réglages',
+   r:"La destination où l'on change ce qui vaut pour toutes les conversations, pas pour celle-ci."},
+ copier:{d:'M9 9h10v10H9zM5 15V5h10',
+   nm:'copier',
+   r:"Prend une valeur pour la coller ailleurs. Ne modifie rien : c'est le seul geste de la barre d'actions qui ne touche à rien."},
+ power:{d:'M12 3v9M6.5 6.5a8 8 0 1 0 11 0',
+   nm:'arrêter',
+   r:"Coupe pour de bon. Réservé à ce qui ne se rattrape pas par un simple retour."},
  /* destinations */
- bulle:{fillable:'M4 6a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2h-6l-5 4v-4H6a2 2 0 0 1-2-2z'},
- eclair:{fillable:'M13 2 4 14h7l-1 8 9-12h-7z'},
- doc:{fillable:'M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z'},
- dossier:{fillable:'M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z'},
- equipe:{people:true},
- noeuds:{nodes:true},
- boussole:{fillable:'M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18zm3.5 5.5-2 5-5 2 2-5z'},
+ bulle:{fillable:'M4 6a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2h-6l-5 4v-4H6a2 2 0 0 1-2-2z',
+   nm:'Discuter',
+   r:"La destination du fil en cours. Pleine quand on y est, en contour sinon — la même règle pour les dix entrées du menu."},
+ eclair:{fillable:'M13 2 4 14h7l-1 8 9-12h-7z',
+   nm:'Travaux',
+   r:"Les conversations déjà menées. L'éclair dit le travail fait, pas la vitesse."},
+ doc:{fillable:'M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z',
+   nm:'Livrables',
+   r:"Ce qui a été produit et qu'on peut emporter. Un livrable est un fichier qu'on montre à quelqu'un d'autre."},
+ dossier:{fillable:'M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z',
+   nm:'Projets',
+   r:"Le regroupement réel qu'Hermès connaît : le dossier de travail. Il ne prétend pas être autre chose."},
+ equipe:{people:true,
+   nm:'Vestiaire',
+   r:"Les rôles et les compétences — ce qu'on peut endosser. Trois silhouettes, parce qu'aucune n'est la bonne à elle seule."},
+ noeuds:{nodes:true,
+   nm:'Plan',
+   r:"Ce que fait l'agent, étape par étape. Des nœuds reliés : c'est une suite, pas une liste."},
+ boussole:{fillable:'M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18zm3.5 5.5-2 5-5 2 2-5z',
+   nm:'Repères',
+   r:"Le sens de chaque signe de l'interface. On y vient avec un dessin en tête, pas pour le lire en entier."},
  points:{raw:`<circle cx="12" cy="5.6" r="1.7" fill="currentColor" stroke="none"/>
    <circle cx="12" cy="12" r="1.7" fill="currentColor" stroke="none"/>
    <circle cx="12" cy="18.4" r="1.7" fill="currentColor" stroke="none"/>`,nm:'agir sur',
@@ -1864,301 +1894,298 @@ function svg(k,{size=24,fill=false,w=2}={}){
 <script>
 /* ═══ Banc d'essai. ═══ */
 const $ = (id) => document.getElementById(id);
-const H = (id, html) => { const n = $(id); if (n) n.innerHTML = html; };
+const H = (id, h) => { const n = $(id); if (n) n.innerHTML = h; };
 const ech = (s) => String(s).replace(/[&<>"]/g, (c) =>
   ({ "&":"&amp;", "<":"&lt;", ">":"&gt;", '"':"&quot;" }[c]));
 
-let propose = false, vMode = "roles", vSel = 0, vFiltre = "", actif = null;
-const plies = new Set();
+let cas = "vide", couleur = "#1A73E8", corbeille = false;
 
-/* Les six rôles, verbatim d'ulysse-app.js. */
-const ROLES = [
-  { id:"orchestrateur", name:"Orchestrateur", role:"Coordonne et vérifie",
-    prompt:"Tu agis comme Orchestrateur : coordonne, découpe la tâche en étapes, délègue aux outils pertinents et vérifie le résultat avant de conclure." },
-  { id:"generaliste", name:"Généraliste", role:"Polyvalent, sans spécialité",
-    prompt:"Tu agis comme Généraliste : réponds de façon polyvalente et autonome, sans présupposer de spécialisation." },
-  { id:"raisonnement", name:"Raisonnement", role:"Analyse en profondeur",
-    prompt:"Tu agis comme Raisonnement : analyse en profondeur, expose ton cheminement étape par étape avant de conclure." },
-  { id:"codage", name:"Codage", role:"Lit, écrit et teste le code",
-    prompt:"Tu agis comme expert Codage : lis et écris les fichiers, teste réellement, et livre du code fonctionnel vérifié." },
-  { id:"appel-outil", name:"Appel d'outil", role:"Branche les outils et les API",
-    prompt:"Tu agis comme Appel d'outil : privilégie systématiquement les outils et API disponibles plutôt que de répondre en texte libre." },
-  { id:"gardefou", name:"Garde-fou", role:"Signale les risques avant d'agir",
-    prompt:"Tu agis comme Garde-fou : avant chaque action, signale les risques, les effets irréversibles, et demande confirmation si nécessaire." }
+/* Ce que `projects.tree` renvoie réellement : id, label, path, color, icon,
+   sessionCount, lastActive, repos, previewSessions. Rien de plus — pas de
+   taille de coffre (constaté le 2026-08-08). */
+const PROJETS = [
+  { id:"p1", label:"Projet Ulysse", color:"#1A73E8", icon:"coffre",
+    path:"%USERPROFILE%/Desktop/Projet Ulysse", sessions:4, quand:"il y a 3 minutes" },
+  { id:"p2", label:"Migration des factures", color:"#9334E6", icon:"doc",
+    path:"%USERPROFILE%/Documents/Factures", sessions:11, quand:"hier, 18 h 40" }
 ];
 
-/* Des compétences plausibles, avec les provenances qu'Hermès renvoie. */
-const SKILLS = (() => {
-  const mk = (prov, noms) => noms.map((n) => ({
-    name: n[0], description: n[1], provenance: prov,
-    path: prov.replace(/[: ]/g, "-") + "/" + n[0] + "/SKILL.md",
-    enabled: n[2] !== false
-  }));
-  return [].concat(
-    mk("anthropic-skills", [
-      ["docx", "Créer, lire et modifier des documents Word."],
-      ["xlsx", "Ouvrir et produire des classeurs."],
-      ["pptx", "Construire et lire des présentations."],
-      ["pdf", "Lire, fusionner, remplir et produire des PDF."],
-      ["skill-creator", "Créer et mesurer des compétences."],
-      ["schedule", "Créer une tâche qui se relance seule."],
-      ["morning", "Le brief du matin, en page."],
-      ["explain-usage", "Où sont passés les jetons de la session."]
-    ]),
-    mk("hermes-core", [
-      ["fs", "Lire et écrire dans le dossier de travail."],
-      ["shell", "Exécuter une commande et lire sa sortie."],
-      ["grep", "Chercher un motif dans une arborescence."],
-      ["http", "Appeler une adresse et lire la réponse."],
-      ["cron", "Planifier, lister, déclencher les tâches."],
-      ["webhook", "Poser et déclencher une route signée."],
-      ["memory", "Lire et tenir les fichiers de mémoire."],
-      ["approval", "Demander un accord avant d'agir."],
-      ["session", "Ouvrir, reprendre et clore une session."],
-      ["pty", "Un terminal réel, attaché à la session.", false]
-    ]),
-    mk("projet:Ulysse", [
-      ["contrat-interface", "Vérifier qu'une passe de design n'a rien cassé."],
-      ["audit-endpoints", "Confronter un appel au code source d'Hermès."],
-      ["test-personas", "Rejouer les dix personas sur deux scénarios."],
-      ["faux-hermes", "Monter une pile de test avec les vrais contrôles."],
-      ["relire-maquette", "Comparer le produit à la maquette Google-33."]
-    ]),
-    mk("personnel", [
-      ["notes", "Poser et retrouver des notes courtes."],
-      ["relire", "Relire un texte sans en changer la voix."],
-      ["resume-hebdo", "Récapituler la semaine en une page."],
-      ["photos", "Recadrer et alléger un lot d'images.", false],
-      ["factures", "Extraire les montants d'un lot de PDF."]
-    ]),
-    mk("plugin:ms-office-suite", [
-      ["convert", "Passer d'un format bureautique à un autre."],
-      ["template", "Appliquer un modèle de document."],
-      ["merge", "Fusionner plusieurs documents en un."],
-      ["split", "Découper un document en plusieurs."]
-    ]),
-    mk("plugin:web", [
-      ["fetch", "Récupérer une page et en extraire le texte."],
-      ["screenshot", "Photographier une page rendue.", false],
-      ["crawl", "Parcourir un site et en dresser le plan.", false],
-      ["feed", "Suivre un flux et signaler les nouveautés."]
-    ]),
-    mk("plugin:données", [
-      ["csv", "Nettoyer et recouper des tableaux."],
-      ["sqlite", "Interroger une base locale."],
-      ["chart", "Tracer une série et la commenter."],
-      ["diff", "Comparer deux jeux de données."],
-      ["sample", "Tirer un échantillon reproductible."],
-      ["schema", "Déduire la structure d'un fichier de données."]
-    ])
-  );
-})();
+const POUBELLE = [
+  { id:"p9", label:"Essai de janvier", color:"#9AA0A6", icon:"dossier",
+    path:"%USERPROFILE%/Documents/Essai", sessions:2, quand:"supprimé il y a 4 jours" }
+];
 
-function liste(){
-  const q = vFiltre.toLowerCase().trim();
-  if (vMode === "roles"){
-    return ROLES.filter((r) => !q || (r.name + " " + r.role).toLowerCase().includes(q));
-  }
-  return SKILLS.filter((s) => !q
-    || (s.name + " " + s.description + " " + s.provenance).toLowerCase().includes(q));
+const COULEURS = ["#1A73E8","#9334E6","#E8710A","#00838F","#D96570","#188038"];
+
+/* ── LA PHRASE DE LA MAQUETTE, ENFIN AFFICHÉE ────────────────────────────
+   `.warnbox` est dans ulysse.css depuis la maquette et n'a JAMAIS servi.
+   Elle porte pourtant la décision de conception la plus lourde du produit :
+   la mémoire est cloisonnée par projet, sauf le profil, qui descend partout.
+
+   ⚠ Elle ne doit être affichée QUE si le cloisonnement est réel côté
+   Hermès. Une phrase qui promet un cloisonnement inexistant est le pire des
+   mensonges de ce produit : elle porte sur ce qui sort d'un projet. */
+function warnbox(){
+  return '<div class="warnbox">' + svg("coffre", { size: 22 })
+    + "<span>Chaque projet a <b>son propre coffre</b>, <b>son bac à sable</b> et "
+    + "<b>sa mémoire</b>. Qui vous êtes descend dans chacun ; ce qu'un projet "
+    + "apprend n'en sort jamais tout seul.</span></div>";
 }
 
-/* ── Une tuile, identique dans les deux versions ─────────────────────────── */
-function tuile(x, i){
-  const S = i === vSel ? " sel" : "";
-  if (vMode === "roles"){
-    const on = actif && actif.id === x.id;
-    return '<div class="tile' + S + '" data-i="' + i + '">'
-      + '<div class="hd"><span class="av" style="background:var(--accent-container);'
-      + 'color:var(--on-accent-container)">' + ech(x.name[0]) + "</span>"
-      + '<span class="tn">' + ech(x.name) + "</span>"
-      + '<span class="dot" style="background:' + (on ? "var(--green)" : "var(--grey)")
-      + '"></span></div>'
-      + '<div class="rl">' + ech(x.role) + "</div>"
-      + '<div class="ft"><span class="chip">' + (on ? "cadre actif" : "au repos")
-      + "</span></div></div>";
-  }
-  const off = x.enabled === false;
-  return '<div class="tile' + S + '" data-i="' + i + '">'
-    + '<div class="hd"><span class="av" style="background:var(--surface-hi);color:var(--muted)">'
-    + ech(x.name[0]) + "</span>"
-    + '<span class="tn">' + ech(x.name) + "</span>"
-    + '<span class="dot" style="background:' + (off ? "var(--grey)" : "var(--green)")
-    + '"></span></div>'
-    + '<div class="rl">' + ech(x.description) + "</div>"
-    + '<div class="ft"><span class="chip">' + (off ? "désactivée" : "active")
-    + "</span></div></div>";
+function carte(p, gone){
+  return '<div class="pcard' + (gone ? " gone" : "") + '">'
+    + '<div class="top">'
+    + '<span class="j-ic" style="background:' + p.color + '22;color:' + p.color + '">'
+    + svg(p.icon, { size: 17 }) + "</span>"
+    + '<span class="nm">' + ech(p.label) + "</span>"
+    + '<span class="chip">' + p.sessions + " session" + (p.sessions > 1 ? "s" : "")
+    + "</span><span class=\"sp\"></span>"
+    + '<span class="meta">' + ech(p.quand) + "</span>"
+    + (gone
+        ? '<div class="acts" style="opacity:1">'
+          + '<button class="dangerlink" data-a="purger">Effacer définitivement</button>'
+          + '<button class="txt-btn" data-a="remettre">Remettre</button></div>'
+        : '<div class="acts">'
+          + '<button data-a="regler" title="Régler">' + svg("regler", { size: 19 })
+          + "</button>"
+          + '<button data-a="copier" title="Copier le chemin">'
+          + svg("copier", { size: 19 }) + "</button>"
+          + '<button class="danger" data-a="supprimer" title="Supprimer">'
+          + svg("corbeille", { size: 19 }) + "</button></div>")
+    + "</div>"
+    + '<div class="iso">'
+    + "<span>" + svg("bac", { size: 17 }) + " Bac à sable — " + ech(p.path) + "</span>"
+    + "<span>" + svg("boussole", { size: 17 }) + " Mémoire — " + p.sessions
+    + " séance" + (p.sessions > 1 ? "s" : "") + " · " + ech(p.quand) + "</span>"
+    + (gone ? "" : '<span class="relaunch"><button class="rbtn" data-a="ouvrir">'
+        + svg("relancer", { size: 18 }) + "Travailler ici</button></span>")
+    + "</div></div>";
 }
 
 function dessine(){
-  const L = liste();
-  if (vSel >= L.length) vSel = 0;      // (le produit ne fait PAS ça — cf. note)
+  H("trashBtn", svg("corbeille", { size: 20 })
+    + "Corbeille" + (POUBELLE.length ? " · " + POUBELLE.length : ""));
+  $("trashBtn").classList.toggle("on", corbeille);
+  H("newProj", svg("plus", { size: 20 }) + "Nouveau projet");
+  $("newProj").style.display = corbeille ? "none" : "";
 
-  const filtre = vFiltre.trim();
-  $("vmeta").innerHTML = vMode === "roles"
-    ? ROLES.length + " rôles · " + (actif ? "« " + ech(actif.name) + " » actif" : "aucun actif")
-    : SKILLS.length + " compétences · " + SKILLS.filter((s) => s.enabled !== false).length
-      + " actives"
-      + (filtre && propose ? ' · <span class="p-f">' + L.length + " correspondent</span>" : "");
-
-  if (!L.length){
-    H("vgrid", '<div class="empty" style="grid-column:1/-1">'
-      + '<div class="big">Rien ne correspond.</div>'
-      + "<div>Videz le filtre pour tout revoir.</div></div>");
-    H("vdet", "");
-    majNote();
-    return;
-  }
-
-  /* ACTUEL : toutes les tuiles à plat, dans l'ordre du serveur.
-     PROPOSÉ (compétences) : groupées par provenance, chaque groupe repliable. */
-  if (!propose || vMode === "roles"){
-    H("vgrid", L.map(tuile).join(""));
+  if (corbeille){
+    H("projets", POUBELLE.length
+      ? '<div class="trashnote">' + svg("corbeille", { size: 20 })
+        + "<span>Les projets supprimés restent ici <b>trente jours</b>. Leur dossier "
+        + "n'est pas touché — tant qu'ils sont là, tout revient.</span></div>"
+        + POUBELLE.map((p) => carte(p, true)).join("")
+      : '<div class="empty"><div class="big">La corbeille est vide.</div>'
+        + "<div>Rien n'attend d'être effacé.</div></div>");
+  } else if (cas === "vide"){
+    /* L'état vide d'un écran qui SAIT créer n'est pas le même que celui d'un
+       écran qui attend : il propose le geste, il ne le décrit pas. */
+    H("projets", warnbox()
+      + '<div class="empty" style="padding:36px 24px">'
+      + '<div class="big">Aucun projet pour l\'instant.</div>'
+      + "<div>Un projet range ce qui va ensemble : un dossier, ses conversations, "
+      + "et ce qu'Ulysse en retient.</div>"
+      + '<div style="margin-top:20px"><button class="validate" data-a="nouveau">'
+      + "Créer un projet</button></div></div>");
   } else {
-    const grp = new Map();
-    L.forEach((x, i) => {
-      if (!grp.has(x.provenance)) grp.set(x.provenance, []);
-      grp.get(x.provenance).push([x, i]);
-    });
-    let h = "";
-    grp.forEach((arr, prov) => {
-      const plie = plies.has(prov);
-      const actives = arr.filter(([x]) => x.enabled !== false).length;
-      h += '<div class="p-grp' + (plie ? " plie" : "") + '" data-g="' + ech(prov) + '">'
-        + '<span class="c">' + svg("chevron", { size: 18 }) + "</span>"
-        + "<span>" + ech(prov) + "</span>"
-        + '<span class="n">' + arr.length + (actives < arr.length
-            ? " · " + (arr.length - actives) + " désactivée"
-              + (arr.length - actives > 1 ? "s" : "") : "") + "</span>"
-        + '<span class="l"></span></div>'
-        + (plie ? "" : arr.map(([x, i]) => tuile(x, i)).join(""));
-    });
-    H("vgrid", h);
-    $("vgrid").querySelectorAll("[data-g]").forEach((g) => {
-      g.onclick = () => {
-        const k = g.dataset.g;
-        if (plies.has(k)) plies.delete(k); else plies.add(k);
-        dessine();
-      };
-    });
+    H("projets", warnbox() + PROJETS.map((p) => carte(p, false)).join(""));
   }
 
-  $("vgrid").querySelectorAll("[data-i]").forEach((t) => {
-    t.onclick = () => { vSel = +t.dataset.i; dessine(); };
+  $("projets").querySelectorAll("[data-a]").forEach((b) => {
+    b.onclick = (e) => { e.stopPropagation(); action(b.dataset.a); };
   });
-  detail(L[vSel]);
+  $("newProj").onclick = () => action("nouveau");
+  $("trashBtn").onclick = () => { corbeille = !corbeille; dessine(); };
+
+  if (cas === "neuf") feuilleNouveau(false);
+  else if (cas === "occupe") feuilleNouveau(true);
+  else if (cas === "suppr") feuilleSuppr();
+  else fermer();
+
   majNote();
 }
 
-function detail(x){
-  if (!x){ H("vdet", ""); return; }
+/* ── LA FEUILLE DE CRÉATION ──────────────────────────────────────────────
+   Trois champs, et un seul qui engage. */
+function feuilleNouveau(occupe){
+  const chemin = occupe
+    ? "%USERPROFILE%/Documents/Factures 2026"
+    : "%USERPROFILE%/Desktop/Nouveau projet";
 
-  /* Le corps, identique dans les deux versions. */
-  let corps;
-  if (vMode === "roles"){
-    const on = actif && actif.id === x.id;
-    corps = "<p>" + ech(x.prompt) + "</p>"
-      + '<div class="u-todo">Un rôle <b>cadre</b> la session : il est envoyé en tête du '
-      + "premier message. Il ne remplace pas l'agent, il lui dit comment travailler.</div>"
-      + '<div class="sheet-acts"><button class="txt-btn" id="vAct">'
-      + (on ? "Retirer ce cadre" : "Utiliser ce cadre") + "</button></div>";
-  } else {
-    corps = "<p>" + ech(x.description) + "</p>"
-      + '<pre class="u-raw">' + ech(x.path) + "</pre>"
-      + '<div class="u-todo">Activer ou désactiver une compétence depuis Ulysse passera par '
-      + "<code>POST /api/skills/toggle</code>, qui existe déjà. Non branché tant que "
-      + "l'effet sur les sessions en cours n'est pas tranché.</div>";
-  }
+  feuille("Nouveau projet",
+    /* 1 · Le nom. Il se change ; on n'en fait pas une affaire. */
+    '<div class="j-champ"><span class="lb">Comment l\'appeler</span>'
+    + '<div class="j-in">' + '<span class="ic">' + svg("doc", { size: 18 }) + "</span>"
+    + '<input id="jNom" value="Factures 2026" autocomplete="off"></div></div>'
 
-  const titre = vMode === "roles" ? x.name : x.name;
-  const sous = vMode === "roles" ? x.role
-    : (x.enabled === false ? "désactivée" : "active") + " · " + x.provenance;
+    /* 2 · Le dossier. LE choix qui engage — et le seul qu'on ne peut pas
+       défaire sans conséquence. */
+    + '<div class="j-champ"><span class="lb">Où il travaille</span>'
+    + '<span class="ai">C\'est là qu\'Ulysse lira et écrira. Ce dossier ne '
+    + "changera plus : les conversations du projet y renverront.</span>"
+    + '<div class="j-in"><span class="ic">' + svg("dossier", { size: 18 }) + "</span>"
+    + '<span class="j-chemin" style="flex:1">' + ech(chemin) + "</span>"
+    + '<button class="btn-pick" data-a="choisir">Choisir…</button></div>'
 
-  if (!propose){
-    /* ACTUEL : tout est écrit DIRECTEMENT dans #vdet. Pas de .vdet-body,
-       donc pas de padding et pas de défilement — et un <h2> sans style. */
-    H("vdet", '<div class="p-direct"><div class="fhead"><h2>' + ech(titre) + "</h2>"
-      + '<div class="sub">' + ech(sous) + "</div></div>" + corps + "</div>");
-  } else {
-    /* PROPOSÉ : les deux enfants que ulysse.css attend, et .vhero pour la
-       tête — elle existe depuis la maquette et n'a jamais servi. */
-    H("vdet", '<div class="vdet-head"><span class="vt">'
-      + (vMode === "roles" ? "Le rôle" : "La compétence") + "</span></div>"
-      + '<div class="vdet-body">'
-      + '<div class="vhero"><span class="av" style="width:52px;height:52px;font-size:20px;'
-      + "background:" + (vMode === "roles" ? "var(--accent-container);color:var(--on-accent-container)"
-                                           : "var(--surface-hi);color:var(--muted)") + '">'
-      + ech(titre[0]) + "</span>"
-      + '<span><span class="n">' + ech(titre) + "</span>"
-      + '<div class="sub" style="font-size:13px;color:var(--muted);margin-top:2px">'
-      + ech(sous) + "</div></span></div>"
-      + corps + "</div>");
-  }
+    /* Ce que le dossier contient déjà. On ne le devine pas : on le dit, et
+       on dit ce que ça implique. */
+    + (occupe
+        ? '<div class="j-etat plein"><span class="pt">' + svg("alerte", { size: 16 })
+          + "</span><span><b>Ce dossier contient déjà 340 fichiers.</b> Ulysse "
+          + "pourra les lire, et écrire à côté. Rien n'est effacé — mais un dossier "
+          + "occupé est un dossier où une erreur se voit moins.</span></div>"
+        : '<div class="j-etat vide"><span class="pt">' + svg("coche", { size: 16 })
+          + "</span><span>Ce dossier est vide. Il sera créé s'il n'existe pas "
+          + "encore.</span></div>")
+    + "</div>"
 
-  const b = $("vAct");
-  if (b) b.onclick = () => {
-    actif = (actif && actif.id === x.id) ? null : x;
-    dessine();
-  };
+    /* 3 · La couleur. Elle sert à reconnaître, pas à décorer — c'est elle
+       qu'on verra dans la liste et dans le menu. */
+    + '<div class="j-champ"><span class="lb">Sa couleur</span>'
+    + '<span class="ai">Pour le reconnaître d\'un coup d\'œil. Elle se change.</span>'
+    + '<div class="j-cols">' + COULEURS.map((c) =>
+        '<button class="j-col' + (c === couleur ? " on" : "") + '"'
+        + ' style="background:' + c + '" data-col="' + c + '"'
+        + ' aria-label="couleur"></button>').join("") + "</div></div>"
+
+    /* Ce qu'on fabrique, dit avant de le fabriquer. */
+    + '<div class="seth">Ce que ce projet aura<span class="l"></span></div>'
+    + '<div class="j-trois">'
+    + trois("bac", "Un bac à sable", "Le dossier ci-dessus. L'agent y travaille, "
+        + "et n'en sort pas de lui-même.")
+    + trois("coffre", "Un coffre", "Ce que le projet produit et garde. "
+        + "Il ne voit pas celui d'un autre projet.")
+    + trois("boussole", "Une mémoire", "Ce qu'Ulysse retient de ce projet-ci. "
+        + "Qui vous êtes y descend ; ce qu'il apprend ici n'en sort pas.")
+    + "</div>"
+
+    + '<div class="j-acts">'
+    + '<button class="validate" data-a="creer">Créer le projet</button>'
+    + '<span class="sp"></span>'
+    + '<button class="txt-btn" data-a="fermer">Annuler</button></div>');
 }
 
-/* ── Les gestes du panneau ──────────────────────────────────────────────── */
-$("vseg").onclick = (e) => {
-  const b = e.target.closest("[data-v]"); if (!b) return;
-  vMode = b.dataset.v; vSel = 0;
-  $("vseg").querySelectorAll("button").forEach((x) =>
-    x.classList.toggle("on", x.dataset.v === vMode));
-  $("apVue").querySelectorAll("button").forEach((x) =>
-    x.classList.toggle("on", x.dataset.m === vMode));
-  dessine();
-};
-$("vq").oninput = () => { vFiltre = $("vq").value; dessine(); };
+function trois(ic, nm, tx){
+  return '<div class="r"><span class="ic">' + svg(ic, { size: 18 }) + "</span>"
+    + '<span><span class="nm">' + ech(nm) + "</span>"
+    + '<span class="tx">' + ech(tx) + "</span></span></div>";
+}
 
-$("apVue").onclick = (e) => {
-  const b = e.target.closest("[data-m]"); if (!b) return;
-  $("vseg").querySelector('[data-v="' + b.dataset.m + '"]').click();
-};
-$("apVers").onclick = (e) => {
-  const b = e.target.closest("[data-v]"); if (!b) return;
-  $("apVers").querySelectorAll("button").forEach((x) => x.classList.remove("on"));
-  b.classList.add("on");
-  propose = b.dataset.v === "1";
-  $("propose").media = propose ? "all" : "not all";
-  dessine();
+/* ── SUPPRIMER : la doctrine de la maquette, appliquée ───────────────────
+   « Ce qui porte des données va à la corbeille, et y reste. » Un projet
+   porte des données. Il ne part donc pas sur place avec un Annuler de six
+   secondes : il va à la corbeille, trente jours.
+
+   Et **son dossier n'est pas touché** — c'est la seule chose qui compte
+   vraiment, et c'est ce qu'on dit en premier. */
+function feuilleSuppr(){
+  feuille("Supprimer « Migration des factures » ?",
+    '<div class="j-trois" style="margin-top:14px">'
+    + trois("corbeille", "Le projet va à la corbeille",
+        "Il y reste trente jours. Tout revient tant qu'il y est.")
+    + trois("dossier", "Votre dossier n'est pas touché",
+        "%USERPROFILE%/Documents/Factures reste exactement comme il est. Ulysse "
+        + "ne supprime aucun de vos fichiers.")
+    + trois("chat", "Les conversations restent dans Travaux",
+        "Elles perdent leur rattachement au projet, pas leur contenu.")
+    + "</div>"
+    + '<div class="j-acts">'
+    + '<button class="validate" data-a="confirmer" style="background:#B3261E">'
+    + "Mettre à la corbeille</button>"
+    + '<span class="sp"></span>'
+    + '<button class="txt-btn" data-a="fermer">Annuler</button></div>');
+}
+
+function feuille(titre, corps){
+  H("projBody", "<h2>" + ech(titre) + "</h2>" + corps);
+  $("sProj").classList.add("on");
+  $("projBody").querySelectorAll("[data-col]").forEach((b) => {
+    b.onclick = () => { couleur = b.dataset.col; dessine(); };
+  });
+  $("projBody").querySelectorAll("[data-a]").forEach((b) => {
+    b.onclick = () => action(b.dataset.a);
+  });
+}
+
+function action(a){
+  if (a === "fermer") return fermer();
+  if (a === "nouveau"){ cas = "neuf"; majSeg(); return dessine(); }
+  if (a === "supprimer"){ cas = "suppr"; majSeg(); return dessine(); }
+  if (a === "creer"){
+    fermer(); cas = "liste"; majSeg(); dessine();
+    return snack("Projet créé. Il est prêt à recevoir sa première conversation.");
+  }
+  if (a === "confirmer"){
+    fermer(); cas = "liste"; majSeg(); dessine();
+    return snack("Mis à la corbeille — il y reste trente jours.",
+      () => snack("Remis."));
+  }
+  const dit = { choisir:"Ouvrirait le sélecteur de dossier du système.",
+    regler:"Ouvrirait les réglages du projet.", copier:"Chemin copié.",
+    ouvrir:"Ouvrirait Discuter, dans ce dossier.",
+    purger:"Demanderait une seconde fois — c'est le seul écran qui le fait.",
+    remettre:"Projet remis." };
+  snack(dit[a] || a);
+}
+
+function fermer(){ $("sProj").classList.remove("on"); }
+$("sProj").onclick = (e) => { if (e.target.id === "sProj") fermer(); };
+
+let snackT = null, undoFn = null;
+function snack(msg, undo){
+  const el = $("snack");
+  undoFn = undo || null;
+  el.innerHTML = "<span>" + ech(msg) + "</span>"
+    + (undo ? '<button id="snack-undo">Annuler</button>' : "");
+  if (undo) el.querySelector("#snack-undo").onclick = () => {
+    if (undoFn) undoFn(); undoFn = null; el.classList.remove("on");
+  };
+  el.classList.add("on");
+  clearTimeout(snackT);
+  snackT = setTimeout(() => el.classList.remove("on"), 6000);
+}
+
+function majSeg(){
+  $("apCas").querySelectorAll("button").forEach((b) =>
+    b.classList.toggle("on", b.dataset.c === cas));
+}
+$("apCas").onclick = (e) => {
+  const b = e.target.closest("[data-c]"); if (!b) return;
+  cas = b.dataset.c; corbeille = false; majSeg(); dessine();
 };
 
 function majNote(){
-  $("apBody").innerHTML = propose
-    ? "<b>Proposé</b> — un défaut réel, et un rangement."
-      + "<h4>Le volet de détail était coupé</h4>"
-      + "<code>ulysse.css</code> prévoit <code>.vdet-head</code> + "
-      + "<code>.vdet-body</code> (padding, défilement). Le produit écrit dans "
-      + "<code>#vdet</code> directement — donc <b>pas de padding</b>, "
-      + "<b>overflow:hidden sans défilement</b>, et un <code>&lt;h2&gt;</code> "
-      + "à la taille par défaut du navigateur dans un volet de 330 px. "
-      + "<i>Comparez : choisissez « Orchestrateur » en Actuel puis en Proposé.</i>"
-      + "<h4>Quarante-deux tuiles à plat</h4>"
-      + "La maquette montrait six agents — une grille suffisait. Hermès en déclare "
-      + "<b>99</b>. Elles portent déjà leur <code>provenance</code> : chaque origine "
-      + "devient une section repliable, avec son compte. Mêmes tuiles, mêmes "
-      + "<code>data-i</code> : c'est un rangement, pas un autre écran. "
-      + "Les rôles restent à plat — ils sont six."
-      + "<h4>Et deux détails</h4><ul>"
-      + "<li>Le compte de ce que le filtre retient s'affiche.</li>"
-      + "<li>La réserve sur <code>POST /api/skills/toggle</code> passe au pied, "
-      + "en une ligne : elle occupait un tiers du volet, sur chacune des 99.</li></ul>"
-    : "<b>Actuel</b> — l'état du produit."
-      + "<h4>À regarder</h4><ul>"
-      + "<li>Le <b>volet de droite</b> : le texte colle aux bords, et le titre est "
-      + "démesuré. Choisissez un rôle : le prompt est long, essayez de le lire "
-      + "jusqu'au bout.</li>"
-      + "<li>Passez sur <b>Compétences</b> : 42 tuiles à plat, sans ordre.</li>"
-      + "<li>Tapez un filtre puis effacez-le, en ayant sélectionné une tuile loin "
-      + "dans la liste.</li></ul>"
-      + "Puis basculez sur « Proposé ».";
+  $("apBody").innerHTML =
+    "<b>Créer un projet</b> — dessiné avant que le code ne le branche."
+    + "<h4>⚠ Ce que le relevé a trouvé d'abord</h4>"
+    + "<b>Le produit n'appelle pas <code>projects.tree</code>.</b> "
+    + "<code>drawProjets()</code> groupe les sessions par <code>cwd</code> : il "
+    + "montre des <i>dossiers de travail</i>, pas des projets. Il y a donc deux "
+    + "notions incompatibles — celle qu'on affiche (déduite, sans existence propre) "
+    + "et celle qu'Hermès a (un objet avec id, label, path, color, icon).<br><br>"
+    + "<b>On ne peut pas créer un objet dans une liste qui ne le montre pas.</b> "
+    + "Brancher <code>projects.tree</code> doit précéder la création."
+    + "<h4>La phrase de la maquette, enfin affichée</h4>"
+    + "<code>.warnbox</code> est dans ulysse.css depuis le début et n'a "
+    + "<b>jamais servi</b>. Elle porte pourtant la décision la plus lourde du "
+    + "produit : <i>« ce qu'un projet apprend n'en sort jamais tout seul »</i>. "
+    + "⚠ Ne l'afficher que si ce cloisonnement est réel côté Hermès — une phrase "
+    + "qui promet un cloisonnement inexistant porte sur ce qui <b>sort</b> d'un "
+    + "projet."
+    + "<h4>Un seul champ engage</h4>"
+    + "Le nom se change, la couleur se change. <b>Le dossier, non</b> : c'est là "
+    + "que l'agent écrira. C'est donc le seul qu'on montre en entier, et le seul "
+    + "dont on dit ce qu'il contient déjà. <i>Comparez « dossier vide » et "
+    + "« dossier occupé ».</i>"
+    + "<h4>On dit ce qu'on fabrique</h4>"
+    + "Les trois choses qu'un projet possède sont listées <b>avant</b> de le créer. "
+    + "On ne découvre pas un coffre après coup."
+    + "<h4>Supprimer suit la doctrine</h4>"
+    + "<i>« Ce qui porte des données va à la corbeille, et y reste. »</i> Trente "
+    + "jours. Et ce qu'on dit en premier est ce qui compte le plus : <b>votre "
+    + "dossier n'est pas touché</b>.";
 }
 
-$("icSearch").innerHTML = svg("recherche", { size: 18 });
 dessine();
 </script>
 </body>

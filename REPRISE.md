@@ -13,13 +13,20 @@
   (tout le visuel) et ce qui porte la logique (88 `id`, 25 `data-*`, les
   cinq classes d'état). Décidé le 2026-08-08 : le design en dialogue ici prenait
   trop de temps.
-- **Ce qu'on fait au retour** : `cd web && node test_page.js`. 263 vérifications
+- **Ce qu'on fait au retour** : `cd web && node test_page.js`. 283 vérifications
   sur la vraie page dans un DOM réel. **S'il passe au rouge, ce n'est pas le
   test qui a tort** — un `id` ou un `data-*` du contrat a disparu, et le
   contrat dit lequel. Ne jamais adapter `ulysse-core.js` pour faire passer un
   changement de design.
 - **Ce qu'on ne touche pas côté design** : `ulysse-core.js` (câblage vérifié
   contre le code source d'Hermès) et `serve.py` (secrets + frontières).
+- **`ulysse.css` n'est plus purement verbatim depuis le 2026-08-09.** Les
+  écarts voulus sont au registre `web/ECARTS-MAQUETTE.md`, avec un commentaire
+  à chaque endroit du CSS et une vérification qui les tient. La règle :
+  **la maquette est la source pour les décisions, pas pour les coquilles.**
+- **Après toute retouche de `ulysse.css` : `python resync_apercus.py`.** Les
+  dix aperçus RECOPIENT la feuille (ils s'ouvrent seuls, sans serveur) — donc
+  dix occasions de diverger en silence. Le test le voit, le script répare.
 
 ---
 
@@ -36,8 +43,8 @@ dictée, terminal intégré, 4 suites de tests dont une contre le VRAI Hermès.
 Au 2026-08-08 au soir : elle est **côté Cowork**. Les six réparations ET les
 cinq passes de design sont appliquées.
 
-1. kuchu revient de Cowork → `node test_page.js` (**263** vérifications ;
-   les quatre suites font **498** : 263 page · 96 serveur · 39 réel · 100 personas)
+1. kuchu revient de Cowork → `node test_page.js` (**283** vérifications ;
+   les quatre suites font **529** : 283 page · 96 serveur · 45 réel · 100 personas)
 2. ~~Appliquer les cinq passes~~ — **FAIT le 2026-08-08** : la passe
    d'accord, les trois décisions, et le style des cinq panneaux.
    La dette des Repères est éteinte (43 signes sur 43).
@@ -59,7 +66,24 @@ cinq passes de design sont appliquées.
    ⚠ Ce refus ne vaut que pour ce qui passe par Ulysse : **Hermès n'a aucune
    frontière d'écriture par chemin contre l'agent** (`agent/file_safety.py` se
    dit lui-même « not a security boundary »).
-5. Puis : création de projet / coffre (`projects.tree` existe)
+5. **Création de projet / coffre** — dessinée le 2026-08-09
+   (`web/PASSE-DESIGN-PROJETS.md`), **pas encore branchée**. L'API d'Hermès est
+   complète : `projects.create/list/get/update/add_folder/remove_folder/
+   set_primary/archive/delete/set_active/for_cwd` (`tui_gateway/server.py`).
+   Trois faits vérifiés contre Hermès en marche, et qui contraignent l'écran :
+   - **`create` n'écrit rien sur le disque.** Il désigne un dossier existant,
+     il n'en fabrique pas.
+   - **La mémoire n'est PAS cloisonnée par projet** — un seul `MEMORY.md` et
+     un seul `USER.md` dans `<hermes_home>/memories`
+     (`agent/learning_mutations.py:30`). Ce qu'un projet apprend va dans le
+     même fichier que tout le reste.
+   - **`archive` est réversible et n'expire jamais** : un drapeau, posé à un
+     seul endroit, retiré à un seul autre. Aucune purge, aucune échéance.
+   ⚠ Et `projects.tree` mêle **trois espèces** : le vrai projet, le dossier
+   **déduit** (`isAuto`, dont l'id est le chemin) et `__no_project__`
+   (`isNoProject`). Les deux dernières n'ont ni nom propre, ni couleur, ni
+   identifiant à soi — leur offrir « renommer » ou « supprimer » serait
+   afficher une commande qui n'agit pas. En attente d'arbitrage côté design.
 
 ---
 

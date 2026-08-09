@@ -20,6 +20,20 @@ supprimez les `id` et les `data-*` listés plus bas.
   > d'apparence passe aussi bien avec le défaut qu'avec sa correction. Les
   > valeurs peuvent changer librement ; ce sont les **noms** de quelques
   > classes de la maquette qui portent maintenant du sens — voir §2.4.
+
+  > **Depuis le 2026-08-09, la feuille n'est plus purement verbatim** — et
+  > c'est écrit : `web/ECARTS-MAQUETTE.md` tient le registre des écarts
+  > voulus, avec un commentaire `── ÉCART VOULU no N ──` à chaque endroit du
+  > CSS. Quatre à ce jour, tous la même coquille : un espacement vertical posé
+  > sur un `span`. **La maquette est la source pour les décisions, pas pour les
+  > coquilles.** Neuf vérifications les tiennent, sinon la prochaine extraction
+  > verbatim les restaurerait en silence.
+
+  > ⚠ **Les dix `apercu-*.html` RECOPIENT la feuille** — ils s'ouvrent seuls,
+  > sans serveur. Dix copies, dix occasions de diverger sans bruit. Le test le
+  > voit, et `python resync_apercus.py` répare. **Après toute retouche de
+  > `ulysse.css`, lancez-le.** Il recopie la feuille et rien d'autre : le
+  > gabarit et les notes d'un aperçu restent à vous.
 - **Le bloc `<style>` de `ulysse.html`** — entièrement. Toutes ses règles sont
   préfixées `u-` pour ne jamais recouvrir la maquette ; gardez cette habitude,
   ou dites-le si vous la changez.

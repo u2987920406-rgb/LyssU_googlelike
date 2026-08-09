@@ -385,7 +385,75 @@ def main():
               "HTTP %d — %s" % (st, raw[:160]))
         note("HTTP %d — %s" % (st, raw[:140]))
 
-    # --- 8. Les frontières tiennent-elles sur le vrai montage ? -----------
+    # --- 8. Les projets : ce sur quoi la passe à venir s'appuie -----------
+    #
+    # La passe « créer un projet » (web/PASSE-DESIGN-PROJETS.md) repose sur des
+    # faits que ces vérifications épinglent. Sans elles, ils dériveraient en
+    # silence à la prochaine mise à jour d'Hermès, et l'écran promettrait
+    # quelque chose que le produit ne fait plus.
+    print("\n── Les projets, tels qu'Hermès les rend ──")
+
+    # Le WebSocket du tour d'agent est refermé plus haut : on en ouvre un,
+    # comme le ferait la page en arrivant sur le panneau des projets.
+    wsp = WS()
+    check("le WebSocket se rouvre pour les projets", wsp.status == 101,
+          "HTTP %d" % wsp.status)
+
+    arbre = wsp.rpc("projects.tree", {}) or {}
+    projets = arbre.get("projects")
+    check("« projects.tree » répond depuis la PAGE, même origine, sans rien "
+          "à construire côté serveur",
+          isinstance(projets, list) and len(projets) > 0,
+          str(type(projets).__name__))
+
+    # ⚠ LE FAIT QUI CHANGE LE DESSIN. L'arbre ne contient pas que des projets :
+    # il mêle trois espèces, et deux d'entre elles n'ont ni nom propre, ni
+    # couleur, ni identifiant a soi. Leur proposer « renommer », « colorer » ou
+    # « supprimer » serait afficher des commandes qui n'agissent pas — STU-1.
+    if isinstance(projets, list) and projets:
+        especes = {"vrai": 0, "auto": 0, "sans-projet": 0}
+        for p in projets:
+            if p.get("isNoProject"):
+                especes["sans-projet"] += 1
+            elif p.get("isAuto"):
+                especes["auto"] += 1
+            else:
+                especes["vrai"] += 1
+        check("...et chaque entrée se dit ce qu'elle est : « isAuto » et "
+              "« isNoProject » sont TOUJOURS là",
+              all("isAuto" in p and "isNoProject" in p for p in projets),
+              str(sorted(projets[0].keys())))
+        check("...l'arbre mêle des espèces qu'on ne peut pas traiter pareil",
+              especes["auto"] + especes["sans-projet"] > 0,
+              "%d vrai(s) · %d déduit(s) · %d sans-projet" %
+              (especes["vrai"], especes["auto"], especes["sans-projet"]))
+
+    # `projects.list` ne rend QUE les vrais projets — ceux qu'on a créés.
+    # C'est la seule liste où « créer » et « supprimer » ont un sens.
+    vrais = (wsp.rpc("projects.list", {}) or {}).get("projects")
+    check("« projects.list » est une AUTRE liste : les projets réels seulement",
+          isinstance(vrais, list)
+          and len(vrais) <= len([p for p in (projets or []) if not p.get("isAuto")
+                                 and not p.get("isNoProject")]) + len(vrais),
+          "%s réel(s) contre %s entrée(s) dans l'arbre"
+          % (len(vrais) if isinstance(vrais, list) else "?",
+             len(projets) if isinstance(projets, list) else "?"))
+
+    # La question qui pouvait tout arrêter. Elle ne l'arrête pas.
+    # Un projet absent est REFUSÉ par une erreur JSON-RPC, pas par un objet
+    # vide : c'est la bonne façon: on ne peut pas confondre « pas de projet »
+    # avec « un projet sans nom ». L'écran devra donc traiter le refus, pas
+    # seulement lire un champ manquant.
+    try:
+        inconnu = wsp.rpc("projects.get", {"id": "__ulysse_inexistant__"})
+        refus, detail = False, json.dumps(inconnu, ensure_ascii=False)[:90]
+    except RuntimeError as exc:
+        refus, detail = True, str(exc)[:90]
+    wsp.close()
+    check("« projects.get » sur un projet absent REFUSE, il n'invente pas",
+          refus, detail)
+
+    # --- 9. Les frontières tiennent-elles sur le vrai montage ? -----------
     print("\n── Les frontières, sur la pile réelle ──")
     c = HTTPConnection("127.0.0.1", PORT, timeout=10)
     try:

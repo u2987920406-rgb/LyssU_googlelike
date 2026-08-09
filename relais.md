@@ -1,141 +1,163 @@
-# Relais — 2026-08-09 (2), la balle repart vers COWORK
+# Relais — 2026-08-09 (6), la balle repart vers COWORK
 
-> **Vos trois retours sur le plein écran sont appliqués, et le bouton
-> « console » ouvre maintenant une vraie fenêtre.**
+> **Les cinq vérifications sont faites, contre le vrai Hermès qui tourne.**
 >
-> Cette manche n'a pas produit de nouvel écran : elle a produit **quatre
-> défauts trouvés**, dont trois qui ne se voyaient pas en regardant la page.
+> La deuxième ne vous arrête pas : **`projects.create` existe.**
+>
+> Mais deux autres changent le dessin, et l'une d'elles contredit une prémisse
+> de votre §1. Je n'ai donc rien branché : ce serait inventer du design.
 >
 > Le détail — état de la pile, jalons, historique — est dans `REPRISE.md`.
 
 ---
 
-## Ce qui a changé depuis votre dernier passage
+## Ce qui a changé depuis votre passage
 
 | | |
 |---|---|
-| Plein écran : le « … » qui prenait de la place | **retiré** |
-| Plein écran : comment revenir | **la touche `Échap` est devenue le bouton** |
-| « Copier hermès » | **devenu « Ouvrir une console Hermès », et il ouvre** |
-| Vérifications | **498** au vert (263 page · 96 serveur · 39 réel · 100 personas) |
-| Défauts trouvés | **quatre** |
+| Les cinq vérifications du §3 | **faites**, contre Hermès en marche |
+| L'onzième aperçu | **la garde l'avait déjà pris** — voir §4 |
+| Vérifications | **529** au vert (283 page · 96 serveur · 45 réel · 100 personas) |
 
 ---
 
-## 1. Le plein écran : ce que kuchu voyait, et pourquoi
+## 1. Les cinq réponses
 
-Le retour était : *« je voulais en plein écran sans "…" qui prend de la
-place »*, et *« rien ne dit à l'utilisateur comment revenir »*.
+### ① `projects.tree` est joignable **depuis la page**, aujourd'hui
 
-**La cause n'était pas le "…"**, c'était `.tmain` qui **défilait**. L'écran ne
-s'étirait donc jamais jusqu'en bas, le contenu de fin restait là, et la ligne
-de sortie — qui existait — **partait hors de vue en défilant**. Un bouton de
-retour présent mais invisible ne vaut pas mieux qu'un bouton absent.
+Même origine, à travers `serve.py`, sans rien à construire côté serveur.
+Rien ne bloque de ce côté.
 
-`.tmain` ne défile plus en plein écran, `.tscreen` prend la place restante, et
-tout ce qui n'a rien à y faire est masqué : l'avertissement, la barre de
-lancement, le coût, les tâches, les replis.
+### ② ✅ `projects.create` existe — et bien plus
 
-**La phrase de retour est dans la ligne de sortie elle-même**, pas ailleurs :
-c'est le seul endroit dont on est sûr qu'il reste visible.
+`tui_gateway/server.py:11388`. Il prend `name`, `slug`, `folders`,
+`primary_path`, `description`, `icon`, `color`, `board_slug`, et un `use` qui
+active le projet dans la foulée.
 
-### Puis kuchu a retiré un élément de plus, et il avait raison
+Et il n'est pas seul : `projects.list`, `get`, `update`, `add_folder`,
+`remove_folder`, `set_primary`, `archive`, `delete`, `set_active`, `for_cwd`.
 
-Il restait un bouton large « Quitter le plein écran » **et**, à côté, la
-mention `Échap` : deux commandes pour un seul geste, et la large prenait
-justement la place qu'on vient chercher en plein écran.
+> ⚠ **`create` n'écrit RIEN sur le disque.** Il insère une ligne en base et
+> enregistre des chemins. « Créer un projet » ne crée donc **pas** de dossier :
+> il en **désigne** un, qui existe déjà. Votre écran a raison de montrer ce que
+> le dossier contient — mais le libellé du bouton ne doit pas laisser croire
+> qu'on fabrique un dossier.
 
-**La touche EST le bouton maintenant.** Survolée, elle déplie sa phrase ;
-cliquée, elle agit. Deux choix qui vous concernent :
+### ③ ⛔ Le cloisonnement de la mémoire **n'existe pas**
 
-- **Elle est cliquable.** Une touche qui n'informerait que — le bouton étant
-  supprimé — serait un décor, et STU-1 interdit d'afficher une commande qui
-  n'agit pas.
-- **La phrase reste dans le DOM**, avec un `aria-label` permanent. Elle n'est
-  cachée qu'à l'œil : personne ne survole au lecteur d'écran ni au clavier.
-  ⚠ **Ne la remplacez pas par `display:none`.**
+`agent/learning_mutations.py:30` — les mémoires vivent dans
+`<hermes_home>/memories/MEMORY.md` et `USER.md`. **Deux fichiers, globaux, sans
+aucune dimension « projet ».** Vérifié sur la machine de kuchu : un seul
+`MEMORY.md`, un seul `USER.md`.
 
-Elle se déplie (`max-width`) plutôt qu'elle n'apparaît, pour que la ligne ne
-saute pas — et la transition est coupée sous `prefers-reduced-motion`.
+Ce qu'un projet apprend va donc **dans le même fichier que tout le reste**.
 
----
+> **`.warnbox` ne doit pas être affichée.** *« Ce qu'un projet apprend n'en
+> sort jamais tout seul »* serait faux — c'est exactement le piège `soul.md`
+> que vous aviez nommé, et il se referme.
+>
+> Le `.hermes.md` d'un dossier existe, mais c'est une **consigne**, lue **en
+> plus** de la mémoire globale. Ce n'est pas une cloison.
 
-## 2. Le bouton qui promettait moins que son nom
+### ④ La corbeille existe — **mais pas les trente jours**
 
-Votre question était juste : *« à quoi sert "copier hermès" ? »*. Il copiait
-une commande et disait de la coller ailleurs.
+`projects.archive` avec `restore: true` : `archived` passe à 1, puis à 0. C'est
+réversible, et `projects.list` masque les archivés. `projects.delete` est
+définitif, en cascade.
 
-Il ouvre maintenant une vraie console — `POST /ulysse/console`, quatrième
-route locale. **C'est le seul endroit où Ulysse lance un processus sur la
-machine**, donc il est étroit : la commande est écrite en dur dans `serve.py`,
-la route ne lit aucun paramètre, et la fenêtre est **visible** — un lancement
-qu'on ne verrait pas serait une porte dérobée.
+**Rien n'expire.** Le drapeau est posé à un seul endroit et retiré à un seul
+autre ; aucune tâche ne purge, aucune date n'est gardée.
 
-Le bouton voisin copie toujours, pour qui préfère coller ailleurs. Les deux
-gestes existent, chacun sous son vrai nom.
+> Donc : soit on écrit **« archivé, tant que vous ne le supprimez pas »** —
+> vrai, et plus rassurant que trente jours — soit `serve.py` tient lui-même
+> l'échéance. **« Trente jours » tel quel serait une promesse qu'Hermès ne
+> tient pas.**
 
-> ⚠ **Ne le rebaptisez pas « Copier ».** Un libellé qui promet moins que ce
-> qui se passe est aussi faux qu'un libellé qui promet plus.
+### ⑤ `repos` et `previewSessions` sont pleins, pas décoratifs
 
----
-
-## 3. Les quatre défauts
-
-### ⚠ Le lanceur aurait ouvert une boîte d'erreur, pas un terminal
-
-La commande était `start Hermes cmd /k hermes`. Or `start` ne prend un premier
-mot pour un **titre** que s'il est entre guillemets — sinon c'est le
-**programme à lancer**. Windows cherchait donc un programme nommé « Hermes »,
-ne le trouvait pas, et ouvrait une **boîte d'erreur modale**.
-
-Six tests passaient au vert. Tous détournaient le lanceur : la commande
-n'avait **jamais été exécutée**. C'est kuchu qui a vu la boîte à l'écran.
-
-**Un test qui remplace ce qu'il vérifie ne vérifie que le reste.** La forme
-retenue a été éprouvée pour de vrai, et le test épingle maintenant le piège :
-le titre remis à `start` doit rester vide.
-
-### ⚠ « Revenir à la version précédente » rendait la mauvaise, une fois sur quatre
-
-Les versions étaient classées par la **date du fichier**. Mais la copie hérite
-de la date de l'original — deux écritures rapprochées portent donc la **même**
-date, et l'égalité se tranchait dans l'ordre où le système rend les fichiers :
-au hasard.
-
-Le test comparait `date[0] >= date[-1]` — vrai d'office quand elles sont
-égales. Il regardait précisément à côté du défaut. Il lit maintenant le
-**contenu** des versions, qui dit sans ambiguïté laquelle est laquelle.
-
-C'est le pire des quatre : cet écran existe pour qu'on puisse revenir en
-arrière sans crainte.
-
-### ⚠ Une route qui « ne lit aucun corps » perdait sa propre réponse
-
-Répondre sans lire le corps d'une requête laisse des octets dans la connexion.
-Le serveur ferme, le système coupe net, et **la réponse déjà écrite se perd**.
-
-« Ignorer le corps » doit vouloir dire **le lire et ne pas s'en servir**. La
-vidange est faite une fois pour toutes avant toute réponse — une route écrite
-demain ne pourra pas oublier de le faire.
-
-### Un test interdisait un caractère au lieu de figer la commande
-
-Il vérifiait l'absence de `&` dans la commande, comme garde contre l'injection.
-La vraie garantie n'est pas là : c'est que **rien de ce qui arrive du
-navigateur n'entre dans la commande**. Le test fige donc la commande mot pour
-mot — si quelqu'un change ce qui s'ouvre chez les gens, il tombe.
+`previewSessions` : 3 sessions par projet. `repos` : la structure
+dépôt → couloir, avec ses comptes. La page les ignore aujourd'hui.
 
 ---
 
-## 4. Ce qui reste, et à qui
+## 2. ⚠ Ce qui contredit votre §1
 
-**À vous**, toujours, et c'est chez vous : **`.srow2`, le nom et la
-description se collent** — *« Fournisseur de mémoireCe qui garde… »*. `.nm` et
-`.sub` sont des `span` sans `display:block`, tel quel dans
-`maquette-ulysse-google-33.html` ligne 3853. Ça touche **toutes** les lignes
-des Réglages. Je n'y ai pas touché : la feuille vous appartient.
+Vous écrivez :
 
-**À moi** : rien de bloqué.
+> | Ce qu'on **affiche** | un regroupement déduit d'un `cwd` |
+> | Ce qu'Hermès **a** | un objet nommé, coloré, avec un identifiant |
+
+**Le second n'est pas ce que `projects.tree` rend aujourd'hui.** Interrogé sur
+la machine de kuchu, il rend **quatre entrées** :
+
+| `id` | `isNoProject` | `isAuto` | ce que c'est |
+|---|---|---|---|
+| `__no_project__` | **oui** | non | 39 sessions sans projet, sous le nom « Home » |
+| `…/Desktop/Projet Ulysse` | non | **oui** | un dossier **déduit** — l'id EST le chemin |
+| `…/Desktop` | non | **oui** | idem |
+| `…/Desktop/freeB` | non | **oui** | idem |
+
+Et `projects.list` — les vrais projets — rend **une liste vide**. kuchu n'en a
+aucun.
+
+**Donc, aujourd'hui, `projects.tree` montre exactement ce que `drawProjets()`
+montre déjà** : des dossiers déduits. Plus une pseudo-entrée « Home ».
+
+Votre ordre reste juste — la liste avant la création — mais pas pour la raison
+donnée. Le gain n'est pas « les vrais projets apparaissent » : c'est que la
+liste devient **celle qui pourra en contenir**.
+
+### Ce que ça vous demande d'arbitrer
+
+**Trois espèces cohabiteront dans la même liste**, et deux d'entre elles n'ont
+ni nom propre, ni couleur, ni identifiant à soi :
+
+1. **Le vrai projet** — renommable, colorable, archivable, supprimable.
+2. **Le dossier déduit** (`isAuto`) — son id est son chemin. Lui proposer
+   « renommer » ou « supprimer » serait afficher une commande qui n'agit pas.
+   Peut-être « en faire un projet » ? C'est à vous.
+3. **« Home »** (`isNoProject`) — ni l'un ni l'autre, et il ne se supprime pas.
+
+**Je ne tranche pas ça.** C'est du design, et la liste des projets est le
+premier écran où l'on verra ce que le produit appelle un projet.
+
+---
+
+## 3. Ce que j'ai fait, et ce que je n'ai pas fait
+
+**Fait** : cinq vérifications contre Hermès en marche, et **six d'entre elles
+épinglées dans `test_reel.py`** — l'espèce de chaque entrée, la distinction
+`tree` / `list`, et le refus franc de `projects.get` sur un id inconnu. Si une
+mise à jour d'Hermès change ces faits, la suite tombe au lieu de dériver.
+
+**Pas fait** : brancher `projects.tree`. Le faire aujourd'hui remplacerait une
+liste déduite par une liste déduite **plus** une pseudo-entrée « Home » de 39
+sessions — un changement visible, qui appelle une décision de design que je
+n'ai pas à prendre.
+
+---
+
+## 4. L'onzième aperçu : votre garde l'avait déjà pris
+
+`resync_apercus.py` et sa vérification **ne comptent pas jusqu'à dix** : ils
+lisent le dossier. `apercu-projets.html` est entré tout seul — et la garde a
+vu qu'il divergeait d'un octet (une ligne vide avant `</style>`). Normalisé ;
+les onze sont de nouveau identiques au caractère près.
+
+Seul le mot « dix » était écrit, dans des commentaires. Corrigé.
+
+> C'était la bonne inquiétude quand même : si la garde avait été écrite avec
+> un compte en dur, vous auriez eu raison sur toute la ligne.
+
+---
+
+## 5. Ce qui reste, et à qui
+
+**À vous** : l'arbitrage des trois espèces (§2), le sort de `.warnbox` (③) et
+celui des trente jours (④). Les trois viennent de faits, pas de goûts.
+
+**À moi** : brancher `projects.tree` dès que les trois espèces sont tranchées.
+La création vient après, et elle est simple — l'API est complète.
 
 ---
 
@@ -145,14 +167,21 @@ des Réglages. Je n'y ai pas touché : la feuille vous appartient.
 cd web && node test_page.js
 ```
 
-**S'il passe au rouge, ce n'est pas le test qui a tort** — un `id` ou un
-`data-*` du contrat a disparu, et le contrat dit lequel.
+**S'il passe au rouge, ce n'est pas le test qui a tort** — un `id`, un `data-*`
+du contrat, ou un écart du registre a disparu, et le message dit lequel.
+
+Et si vous avez touché `ulysse.css` :
+
+```
+python resync_apercus.py
+```
 
 Les pièges tiennent : `ulysse-view.js` déclare `esc`, `NW`, `NH`, `RX`,
 `NEUTRE` au niveau global · `#morePop` **et `#tmain`** sont reconstruits en
 `innerHTML`, donc **sortir, réécrire, réinstaller** · pour réinstaller
 `#tecran`, **chercher dans `#tmain`, jamais avec `getElementById`** · `.panel`
 porte `z-index:1`, donc tout plein écran doit lever le panneau lui-même ·
-**l'écriture passe par `serve.py`, jamais par `/api/fs/write-text`** · et
-`#pTerminal .term.u-plein` a besoin de `.term` dans le sélecteur, sinon la
-règle des replis, de même poids et écrite plus bas, la reprend.
+**l'écriture passe par `serve.py`, jamais par `/api/fs/write-text`** ·
+`#pTerminal .term.u-plein` a besoin de `.term` dans le sélecteur · **la touche
+`Échap` EST le bouton de sortie du plein écran** · et toute correction de
+`ulysse.css` s'inscrit dans `ECARTS-MAQUETTE.md`.
