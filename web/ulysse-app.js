@@ -355,6 +355,8 @@ function paintHint(){
       + 'aria-label="Fil sans mémoire" style="color:var(--text);display:flex">'
       + svg("incognito", { size: 17 }) + "</span>" : "");
 
+  majLieu();
+
   // Le nombre de fichiers rangés, sur la languette de l'Établi. Un volet
   // fermé qui ne laisse rien derrière lui ne se rouvre pas.
   const lg = $("languette");
@@ -1380,6 +1382,157 @@ async function drawLivrables(){
     drawLivListe();
   } catch (e){
     H("livrables", '<div class="u-todo">Lecture impossible : ' + esc(e.message) + "</div>");
+  }
+}
+
+/* ═══ Où ce fil travaille ════════════════════════════════════════════════
+   La barre de titre ne disait RIEN du dossier de travail. « Travailler ici »
+   posait `CFG.SESSION_CWD`, affichait un message six secondes, et plus rien
+   après — puis le fil annonçait « j'ai écrit dans ulysse.html ». Où ça ?
+
+   ⚠ ET LE CAS QUE PERSONNE N'AVAIT VU. `CFG.SESSION_CWD` est le dossier de la
+   PROCHAINE session ; `conv.info.cwd` celui de la session EN COURS. Cliquer
+   « Travailler ici » pendant qu'un fil est ouvert change le premier, pas le
+   second. On croyait avoir déménagé, on écrivait encore à l'ancienne adresse.
+
+   Ce cas-là ne demande AUCUN appel : c'est une comparaison entre deux
+   variables que la page a déjà.
+   ─────────────────────────────────────────────────────────────────────── */
+
+/* Ce que `projects.for_cwd` a répondu, par dossier. Un cache, parce que la
+   barre se redessine à chaque frappe et que la réponse, elle, ne bouge pas. */
+const LIEU_CONNU = new Map();
+
+function memeChemin(a, b){
+  const n = (x) => String(x || "").replace(/[\\/]+$/, "").replace(/\\/g, "/").toLowerCase();
+  return n(a) === n(b);
+}
+
+/* ⚠ `projects.for_cwd` NE DIT PAS « je ne sais pas ». Mesuré sur Hermès en
+   marche le 2026-08-09 : pour un dossier qui n'existe pas — ou pour aucun
+   `cwd` du tout — il REMPLACE silencieusement la demande par le dossier
+   courant du serveur, et répond sur celui-là. Interrogé sur
+   « D:/nulle-part-du-tout », il a rendu le projet du dossier d'Ulysse.
+
+   Il rend heureusement le `cwd` sur lequel il a répondu. On le compare donc
+   à celui qu'on a demandé, et on jette la réponse si elle porte sur autre
+   chose. Sans cette comparaison, la gélule dirait « vous êtes dans Desktop »
+   d'un fil qui travaille ailleurs — le mensonge exact que cet écran existe
+   pour empêcher. */
+async function lieuDe(chemin){
+  if (!chemin) return null;
+  if (LIEU_CONNU.has(chemin)) return LIEU_CONNU.get(chemin);
+  if (link.state !== "open") return null;
+  let rep = null;
+  try {
+    const d = await link.rpc("projects.for_cwd", { cwd: chemin });
+    rep = (d && memeChemin(d.cwd, chemin)) ? (d.project || null) : null;
+  } catch (e){
+    rep = null;                       // on ne sait pas — on ne dira donc rien
+  }
+  LIEU_CONNU.set(chemin, rep);
+  return rep;
+}
+
+function geluleLieu(){
+  const enCours = (conv.info && conv.info.cwd) || null;
+  const prochain = CFG.SESSION_CWD || null;
+
+  // Tant que la session n'est pas ouverte, on ignore où elle ira.
+  if (!enCours){
+    return '<button class="l-lieu attente" id="lieuBtn">'
+      + '<span class="ic"></span><span class="nm">dossier en attente</span></button>';
+  }
+
+  const p = LIEU_CONNU.get(enCours) || null;
+  const nom = p ? (p.name || nomDeChemin(enCours)) : nomDeChemin(enCours);
+  const ic = p && p.color
+    ? '<span class="ic" style="background:' + esc(p.color) + '">'
+      + svg(p.icon || "dossier", { size: 12 }) + "</span>"
+    : '<span class="ic">' + svg("dossier", { size: 12 }) + "</span>";
+
+  // Deux dossiers à la fois : le seul moment où la gélule prend de la place,
+  // et le seul où il le faut.
+  if (prochain && !memeChemin(prochain, enCours)){
+    return '<button class="l-lieu change" id="lieuBtn">'
+      + ic + '<span class="nm">' + esc(nom) + "</span>"
+      + '<span class="fl">' + svg("suivant", { size: 14 }) + "</span>"
+      + '<span class="nm suite">' + esc(nomDeChemin(prochain)) + "</span></button>";
+  }
+  return '<button class="l-lieu ' + (p ? "projet" : "dossier") + '" id="lieuBtn">'
+    + ic + '<span class="nm">' + esc(nom) + "</span></button>";
+}
+
+function repliLieu(){
+  const enCours = (conv.info && conv.info.cwd) || null;
+  const prochain = CFG.SESSION_CWD || null;
+
+  if (!enCours){
+    return '<div class="pop l-pop" id="lieuPop">'
+      + '<div class="tt">La session s’ouvrira au premier message. Son dossier '
+      + "sera celui que vous avez choisi dans Projets, ou celui d’Hermès.</div>"
+      + '<div class="acts"><button class="btn-pick" data-lieu="projets">'
+      + "Voir les Projets</button></div></div>";
+  }
+  if (prochain && !memeChemin(prochain, enCours)){
+    return '<div class="pop l-pop" id="lieuPop">'
+      + '<div class="tt"><b>Ce fil travaille encore ici :</b></div>'
+      + '<div class="ch">' + esc(enCours) + "</div>"
+      + '<div class="tt" style="margin-top:12px"><b>Le prochain s’ouvrira ici :</b></div>'
+      + '<div class="ch">' + esc(prochain) + "</div>"
+      + '<div class="tt">Un fil ne change pas de dossier en cours de route — '
+      + "l’agent y a déjà lu et écrit.</div>"
+      + '<div class="acts"><button class="btn-pick" data-lieu="nouveau">'
+      + "Ouvrir un fil là-bas</button>"
+      + '<button class="quiet-link" data-lieu="annuler">Rester ici</button></div></div>';
+  }
+  const p = LIEU_CONNU.get(enCours) || null;
+  return '<div class="pop l-pop" id="lieuPop">'
+    + '<div class="tt">' + (p
+        ? "Ce fil appartient à un projet. Ce qu’Ulysse y écrit reste dans son dossier."
+        : "Ce dossier n’est pas rangé en projet. Il n’a ni nom propre, ni couleur.")
+    + "</div>"
+    + '<div class="ch">' + esc(enCours) + "</div>"
+    + '<div class="acts">'
+    + (p ? "" : '<button class="btn-pick" data-lieu="ranger">En faire un projet</button>')
+    + '<button class="quiet-link" data-lieu="projets">Voir dans Projets</button>'
+    + "</div></div>";
+}
+
+function majLieu(){
+  const hote = $("lieuSlot");
+  if (!hote) return;
+  H("lieuSlot", geluleLieu() + repliLieu());
+  const pop = $("lieuPop"), bouton = $("lieuBtn");
+  if (bouton) bouton.onclick = (e) => {
+    e.stopPropagation();
+    if (pop) pop.classList.toggle("on");
+  };
+  hote.querySelectorAll("[data-lieu]").forEach((b) => {
+    b.onclick = (e) => {
+      e.stopPropagation();
+      if (pop) pop.classList.remove("on");
+      const q = b.dataset.lieu;
+      if (q === "projets") return nav("Projets");
+      if (q === "ranger") return ouvrirRanger((conv.info && conv.info.cwd) || "");
+      if (q === "annuler"){
+        // « Rester ici » remet le dossier de la prochaine session sur celui du
+        // fil ouvert : c'est ce que « rester » veut dire, et sans ça le
+        // prochain fil partirait quand même ailleurs.
+        CFG.SESSION_CWD = (conv.info && conv.info.cwd) || "";
+        majLieu();
+        return snack("Le prochain fil s’ouvrira dans le même dossier que celui-ci.");
+      }
+      if (q === "nouveau"){ resetSession(); accordRepondu = null; majLieu(); }
+    };
+  });
+
+  // L'appel part APRÈS le dessin : la barre ne doit pas attendre le réseau.
+  // Quand la réponse arrive, on redessine — et seulement si elle apprend
+  // quelque chose, sinon on repeindrait la barre à chaque frappe.
+  const enCours = (conv.info && conv.info.cwd) || null;
+  if (enCours && !LIEU_CONNU.has(enCours)){
+    lieuDe(enCours).then(() => { if (current === "Discuter") majLieu(); });
   }
 }
 

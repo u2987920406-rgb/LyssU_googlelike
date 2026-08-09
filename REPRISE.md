@@ -13,7 +13,7 @@
   (tout le visuel) et ce qui porte la logique (88 `id`, 25 `data-*`, les
   cinq classes d'état). Décidé le 2026-08-08 : le design en dialogue ici prenait
   trop de temps.
-- **Ce qu'on fait au retour** : `cd web && node test_page.js`. 299 vérifications
+- **Ce qu'on fait au retour** : `cd web && node test_page.js`. 308 vérifications
   sur la vraie page dans un DOM réel. **S'il passe au rouge, ce n'est pas le
   test qui a tort** — un `id` ou un `data-*` du contrat a disparu, et le
   contrat dit lequel. Ne jamais adapter `ulysse-core.js` pour faire passer un
@@ -64,8 +64,8 @@ dictée, terminal intégré, 4 suites de tests dont une contre le VRAI Hermès.
 Au 2026-08-08 au soir : elle est **côté Cowork**. Les six réparations ET les
 cinq passes de design sont appliquées.
 
-1. kuchu revient de Cowork → `node test_page.js` (**299** vérifications ;
-   les quatre suites font **543** : 299 page · 99 serveur · 45 réel · 100 personas)
+1. kuchu revient de Cowork → `node test_page.js` (**308** vérifications ;
+   les quatre suites font **556** : 308 page · 99 serveur · 49 réel · 100 personas)
 2. ~~Appliquer les cinq passes~~ — **FAIT le 2026-08-08** : la passe
    d'accord, les trois décisions, et le style des cinq panneaux.
    La dette des Repères est éteinte (43 signes sur 43).
@@ -110,8 +110,24 @@ cinq passes de design sont appliquées.
    ⚠ **`projects.create` n'a jamais été appelé pour de vrai** : le lancer
    créerait un projet dans la liste de kuchu. Vérifié en jsdom seulement, et
    c'est dit plutôt qu'oublié.
+   ✅ **`projects.create` est prouvé contre le vrai Hermès** : kuchu a cliqué
+   le bouton le 2026-08-09, le projet « Desktop » existe. Effet de bord à
+   connaître : un projet posé sur un dossier PARENT absorbe ses sous-dossiers
+   (`project_for_path` réclame tout le sous-arbre) — « Projet Ulysse » et
+   « freeB » ont disparu de l'arbre en tant que dossiers déduits.
    Restent à brancher : l'explorateur de dossiers (qui débloquerait « ranger »
    depuis la barre) et `projects.archive`.
+6. **Où le fil travaille** — branché le 2026-08-09
+   (`web/PASSE-DESIGN-LIEU.md`). Une gélule dans la barre de Discuter.
+   ⚠ **`projects.for_cwd` ne dit PAS « je ne sais pas ».** Pour un dossier
+   inexistant — ou sans `cwd` — il remplace silencieusement la demande par le
+   dossier courant du serveur et répond sur celui-là. Il rend le `cwd` sur
+   lequel il a répondu : **on le compare, et on jette la réponse si elle porte
+   sur autre chose.**
+   ⚠ **`CFG.SESSION_CWD` n'est pas `conv.info.cwd`** : le premier est le
+   dossier de la PROCHAINE session, le second celui de la session EN COURS.
+   « Travailler ici » pendant qu'un fil est ouvert ne change que le premier.
+   Cet écart est un état à part entière, montré en ambre.
 
 ---
 

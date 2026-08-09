@@ -847,6 +847,52 @@
 
 .j-acts{display:flex;align-items:center;gap:10px;margin-top:24px}
 .j-acts .sp{flex:1}
+
+/* ═══ Où ce fil travaille ════════════════════════════════════════════════
+   Préfixe `l-`, donné par `PASSE-DESIGN-LIEU.md` §6 — même raison que `j-`
+   pour les projets : `apercu-lieu.html` l'emploie, renommer casserait la
+   correspondance entre l'aperçu et le produit.
+
+   La gélule reprend les signes arbitrés dans la passe des projets : un vrai
+   projet porte SA couleur, un dossier déduit est gris et vide. On ne
+   réapprend pas un vocabulaire d'un écran à l'autre. */
+.l-lieu{display:inline-flex;align-items:center;gap:7px;margin-left:12px;
+  height:28px;padding:0 12px 0 8px;border-radius:var(--radius-pill);
+  font-size:12.5px;background:var(--surface);color:var(--muted);
+  max-width:280px;transition:background .14s ease}
+.l-lieu:hover{background:var(--surface-hi);color:var(--text)}
+.l-lieu .ic{width:18px;height:18px;flex:none;border-radius:5px;display:grid;
+  place-items:center}
+.l-lieu .nm{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.l-lieu.projet .ic{color:#fff}
+.l-lieu.dossier .ic{background:var(--surface-hi);color:var(--muted)}
+/* Tant qu'on ne sait pas, on ne dit pas. « Je ne sais pas » n'est pas
+   « nulle part » — même règle que les pastilles du premier lancement. */
+.l-lieu.attente{color:var(--faint)}
+.l-lieu.attente .ic{background:var(--outline-var);animation:l-pulse 1.4s ease-in-out infinite}
+@keyframes l-pulse{0%,100%{opacity:1}50%{opacity:.4}}
+
+/* ── LE CAS QUI N'EXISTAIT NULLE PART : DEUX DOSSIERS À LA FOIS ──────────
+   `CFG.SESSION_CWD` est le dossier de la PROCHAINE session ; `conv.info.cwd`
+   celui de la session EN COURS. Cliquer « Travailler ici » pendant qu'un fil
+   est ouvert change le premier, pas le second — et rien ne le disait. On
+   croyait avoir déménagé, on écrivait encore à l'ancienne adresse. */
+.l-lieu.change{background:#FEF7E0;color:#5F4200;padding-right:8px}
+.l-lieu .fl{color:var(--amber);flex:none;display:grid}
+.l-lieu .suite{color:#5F4200;font-weight:500}
+@media (prefers-reduced-motion:reduce){
+  .l-lieu.attente .ic{animation:none}
+}
+
+/* Le repli : le chemin entier, et où aller. Cent caractères de chemin ne
+   tiennent pas dans une barre de titre. */
+.l-pop{position:absolute;top:44px;left:0;right:auto;bottom:auto;min-width:300px;
+  max-width:420px;padding:14px 16px}
+.l-pop .ch{font-family:ui-monospace,Menlo,monospace;font-size:12px;
+  word-break:break-all;color:var(--text);background:var(--surface);
+  border-radius:var(--radius-sm);padding:9px 12px;margin:8px 0 4px}
+.l-pop .tt{font-size:var(--font-size-xs);color:var(--muted);line-height:1.55}
+.l-pop .acts{display:flex;gap:8px;margin-top:12px;opacity:1}
 </style>
 </head>
 <body>
@@ -905,6 +951,10 @@
       <div class="topbar">
         <span class="title">Discuter</span>
         <span class="privchip" id="privchip"></span>
+        <!-- Où ce fil travaille. La barre de titre décrit l'écran, et le
+             dossier fait partie de ce qu'il est. Rempli par `majLieu()` ;
+             vide tant qu'on ne sait rien, jamais rempli en dur. -->
+        <span class="u-lieuwrap" id="lieuSlot" style="position:relative"></span>
         <span class="sep"></span>
         <span style="position:relative">
           <button class="icon-btn" id="moreBtn" aria-label="Autres options"></button>

@@ -1,0 +1,2126 @@
+<!DOCTYPE html>
+<html lang="fr" data-d="epure">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Aperçu — où Discuter travaille</title>
+
+<!-- ═══════════════════════════════════════════════════════════════════════
+     APERÇU DE DESIGN — le lieu de travail dans Discuter (`projects.for_cwd`)
+
+     LE RELEVÉ, D'ABORD :
+
+     La barre de titre de Discuter ne dit **rien** du dossier où l'agent
+     travaille. On choisit « Travailler ici » dans Projets, un snack le dit
+     six secondes, on va dans Discuter — et plus rien.
+
+     C'est le même défaut que la demande d'accord invisible, et il est plus
+     grave : là, l'agent **écrit**.
+
+     ⚠ CE QUI EST SUPPOSÉ, et qu'il faut vérifier avant d'appliquer :
+       · que `projects.for_cwd` rende le projet, ou rien, sans erreur ;
+       · qu'il distingue un vrai projet d'un dossier déduit comme le fait
+         `projects.tree` (`isAuto`).
+     Le reste de cette passe est constaté.
+
+     PAGE AUTONOME : ulysse.css et ulysse-icons.js recopiés plus bas.
+     ═══════════════════════════════════════════════════════════════════════ -->
+
+<!-- ─────────────────────────────────────────────────────────────────────
+     PAGE AUTONOME. ulysse.css et ulysse-icons.js sont RECOPIÉS ci-dessous.
+     `resync_apercus.py` les tient à jour ; `test_page.js` le vérifie.
+     ───────────────────────────────────────────────────────────────────── -->
+<style>
+/* ══ ulysse.css, recopié ══ */
+/* ============================================================================
+ * ulysse.css — le systeme visuel d'Ulysse
+ * ----------------------------------------------------------------------------
+ * EXTRAIT VERBATIM de maquette-ulysse-google-33.html (bloc <style>, lignes
+ * 8-1545). Rien n'a ete redessine : la maquette EST le produit fini, donc
+ * elle est la source, pas une inspiration.
+ *
+ * Les commentaires d'origine sont conserves — ils expliquent les decisions
+ * (les deux vitesses du menu, le retrait de backdrop-filter, la densite de la
+ * pastille active). Les relire evite de « corriger » ce qui etait voulu.
+ *
+ * Ce qui est AJOUTE pour le produit vit dans ulysse-app.css, jamais ici :
+ * ce fichier doit rester diffable avec la maquette.
+ * ========================================================================== */
+
+/* ═══════════════════════════════════════════════════════════════════
+   Quatrième passe. Ajouts :
+   · Vestiaire   — les agents, les équipes, et les trois fantômes.
+   · Projets     — chacun son coffre, chacun son bac à sable.
+   · Incognito   — le fil sans mémoire.
+   · Chat/Atelier— la bascule, avec un établi qui s'ouvre à droite.
+   · « + »       — ouvrir ou ajouter des fichiers.
+   · Le menu se déplie AU SURVOL, sans clic (façon Cowork).
+   ═══════════════════════════════════════════════════════════════════ */
+:root{
+  --bg:#FFFFFF;--sidebar:#F8FAFD;--surface:#F0F4F9;--surface-hi:#E9EEF6;
+  --outline:#747775;--outline-var:#C4C7C5;
+  --text:#1F1F1F;--muted:#5F6368;--faint:#9AA0A6;
+  --accent:#0B57D0;--accent-hover:#0842A0;
+  --accent-container:#D3E3FD;--on-accent-container:#041E49;
+  --green:#188038;--amber:#E37400;--grey:#C4C7C5;--violet:#9B72CB;
+  --hover-bg:rgba(31,31,31,.06);
+  --radius-sm:8px;--radius-md:12px;--radius-card:16px;--radius-lg:28px;--radius-pill:999px;
+  --space-2:8px;--space-3:12px;--space-4:16px;
+  --font-size-xs:12px;--font-size-sm:14px;
+  --font-ui:"Google Sans","Product Sans",Roboto,Arial,system-ui,sans-serif;
+  --elev-1:0 1px 2px rgba(0,0,0,.30),0 1px 3px 1px rgba(0,0,0,.15);
+  --elev-2:0 1px 2px rgba(0,0,0,.30),0 2px 6px 2px rgba(0,0,0,.15);
+  --elev-3:0 4px 8px 3px rgba(0,0,0,.15),0 1px 3px rgba(0,0,0,.30);
+  --tint:rgba(66,133,244,.10);
+  /* La pastille de l'élément actif : la densité la plus faible, avec
+     une dominante bleue à peine perceptible — l'entre-deux entre le
+     gris franc et le bleuté de Google.
+     Variante strictement neutre, si on veut : #F4F4F4. */
+  --pill:#F1F4FA;
+}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%}
+body{font-family:var(--font-ui);font-size:16px;line-height:1.5;background:var(--bg);
+  color:var(--text);-webkit-font-smoothing:antialiased;overflow:hidden}
+button{font:inherit;color:inherit;background:none;border:none;cursor:pointer;text-align:left}
+input{font:inherit;color:inherit;background:none;border:none;outline:none}
+.scene{position:fixed;inset:0;opacity:0;pointer-events:none;transition:opacity .3s cubic-bezier(.2,0,0,1)}
+.scene.on{opacity:1;pointer-events:auto}
+.hidden{display:none!important}
+.wash{position:absolute;inset:0;pointer-events:none;z-index:0;
+  background:radial-gradient(130% 65% at 50% -12%, var(--tint) 0%, transparent 60%);
+  transition:background .55s ease}
+
+/* ═══ Niveau 1 ═══ */
+#lvl1{display:flex;flex-direction:column;align-items:center;justify-content:flex-start;
+  overflow-y:auto;padding:28px 20px 36px}
+#lvl1 .mark{margin-top:auto}
+#lvl1 .composer,#lvl1 .lvl1-foot{margin-bottom:auto}
+#lvl1 .wash{background:
+  radial-gradient(60% 45% at 28% 8%, rgba(66,133,244,.14) 0%, transparent 62%),
+  radial-gradient(55% 45% at 62% 2%, rgba(155,114,203,.15) 0%, transparent 60%),
+  radial-gradient(50% 40% at 82% 14%, rgba(217,101,112,.12) 0%, transparent 62%)}
+.mark{position:relative;z-index:1;font-size:36px;font-weight:500;letter-spacing:-.6px;
+  margin-bottom:40px;background:linear-gradient(74deg,#4285F4 0%,#9B72CB 46%,#D96570 100%);
+  -webkit-background-clip:text;background-clip:text;color:transparent;transition:opacity .5s ease}
+.composer{position:relative;z-index:1;width:min(720px,calc(100vw - 48px));display:flex;
+  align-items:center;gap:6px;background:var(--surface);border-radius:var(--radius-lg);
+  padding:8px 8px 8px 12px;transition:background .2s ease,box-shadow .2s ease}
+.composer:focus-within{background:var(--bg);box-shadow:var(--elev-2)}
+.composer input{flex:1;font-size:16px;padding:12px 6px}
+.composer input::placeholder{color:var(--muted)}
+.icon-btn{width:44px;height:44px;flex:none;border-radius:var(--radius-pill);display:grid;
+  place-items:center;color:var(--muted);transition:background .15s ease,color .15s ease}
+.icon-btn:hover{background:var(--hover-bg);color:var(--text)}
+.icon-btn.sm{width:36px;height:36px}
+.send{background:var(--accent-container);color:var(--on-accent-container)}
+.send:hover{background:#BFD8FB;color:var(--on-accent-container)}
+.wait{position:relative;z-index:1;width:min(720px,calc(100vw - 48px));margin-top:32px;
+  opacity:0;transition:opacity .3s ease}
+.wait.on{opacity:1}
+.wait.inline{width:auto;max-width:420px;margin-top:18px}
+.wait-row{display:flex;justify-content:space-between;align-items:baseline;
+  font-size:var(--font-size-sm);color:var(--muted);margin-bottom:var(--space-2)}
+.wait-bar{height:4px;background:var(--accent-container);border-radius:var(--radius-pill);overflow:hidden}
+.wait-fill{height:100%;width:0;background:var(--accent);border-radius:var(--radius-pill);
+  transition:width .9s linear}
+
+/* ═══════════ LE MENU — déplié au survol, sans clic ═══════════
+   La bande de 72 px est elle-même la zone sensible. Le menu passe
+   PAR-DESSUS le contenu au lieu de le pousser : rien ne bouge
+   derrière, c'est ce qui rend le survol supportable. */
+#app{display:flex}
+.railwrap{position:relative;z-index:60;width:240px;flex:none;transition:width .26s cubic-bezier(.2,0,0,1)}
+.railwrap.mini{width:72px}
+.rail{position:absolute;top:0;bottom:0;left:0;height:100vh;
+  width:240px;display:flex;flex-direction:column;
+  padding:10px 8px;transition:width .26s cubic-bezier(.2,0,0,1),box-shadow .26s ease,background .26s ease}
+.railwrap.mini .rail{width:72px}
+
+/* ── Deux défauts, deux causes différentes ────────────────────────
+   1 · « Je vois la fenêtre du fond à travers le menu. »
+   La cause n'était pas la couleur : c'était `backdrop-filter`. Il
+   crée un contexte de composition qui, dans certains moteurs, laisse
+   passer ce qu'il est censé flouter. Le flou est retiré. Un menu qui
+   passe par-dessus du texte n'a pas besoin d'être joli, il a besoin
+   d'être ILLISIBLE au travers.
+
+   2 · « Le menu s'ouvre tout seul quand je passe à côté. »
+   La cause : les libellés du menu replié sont en `opacity:0` mais
+   toujours là, en `nowrap`, et ils DÉBORDENT bien au-delà des 72 px
+   visibles. Un élément invisible reçoit le survol comme les autres.
+   D'où `overflow:hidden` au repos, et plus de survol fantôme.
+
+   Et le déclenchement passe en JavaScript, avec deux délais
+   différents : 140 ms sur la lisière gauche — on y va exprès — et
+   520 ms sur la bande des icônes — on ne fait souvent que la
+   traverser. Un menu qui s'ouvre quand on passe est un menu qui
+   s'ouvre par erreur.
+   ─────────────────────────────────────────────────────────────── */
+.railhot{position:absolute;left:0;top:0;bottom:0;width:18px;z-index:2}
+.railwrap.mini:not(.open) .rail{overflow:hidden}
+.railwrap.mini:not(.open) .lbl,
+.railwrap.mini:not(.open) .rail-note{pointer-events:none}
+.railwrap.mini.open .rail{width:240px;
+  background:#FFFFFF;
+  box-shadow:var(--elev-3);
+  border-right:1px solid var(--outline-var);
+  border-radius:0 var(--radius-card) var(--radius-card) 0}
+/* Le fond en tant qu'élément, pas en tant que propriété. */
+.rail{isolation:isolate}
+.railbg{position:absolute;top:0;left:0;width:100%;height:100vh;z-index:-1;
+  background:#FFFFFF;opacity:0;
+  border-radius:0 var(--radius-card) var(--radius-card) 0;
+  transition:opacity .2s ease;pointer-events:none}
+.railwrap.mini.open .railbg{opacity:1}
+.railwrap:not(.mini) .railbg{opacity:0}
+/* Les enfants passent au-dessus du fond. */
+.rail-top,#railItems,.rail-sep,.rail-note,.rail-div,.bellbtn{position:relative;z-index:1}
+.rail-top{display:flex;align-items:center;height:48px;padding-left:0;margin-bottom:6px}
+.rail-top .icon-btn{width:38px;height:38px;margin-left:8px;flex:none}
+/* ── Le menu ──────────────────────────────────────────────────────
+   Monochrome, sans exception : les icônes ne prennent JAMAIS de
+   couleur, ni au repos, ni au survol, ni actives.
+
+   L'état actif se dit par DEUX signaux faibles qui se cumulent —
+   variante 13 de la planche d'essai :
+     · une pastille de fond très pâle, sur toute la ligne ;
+     · un décalage de 5 px vers la droite.
+
+   Pourquoi deux. À ce niveau de pâleur, la pastille seule se devine
+   plus qu'elle ne se voit ; le décalage la rend certaine. Et deux
+   signaux faibles pèsent moins qu'un signal fort — c'est justement ce
+   qu'on cherchait. En menu replié, la pastille tient seule.
+
+   La couleur ne survit qu'à deux endroits dans l'application : le
+   lavis de fond de chaque fenêtre, et les marqueurs d'état. */
+.rail-btn{position:relative;height:46px;border-radius:var(--radius-pill);display:flex;
+  align-items:center;gap:14px;padding:0 16px;color:var(--faint);
+  transition:background .2s ease,color .2s ease,transform .2s cubic-bezier(.2,0,0,1);
+  width:100%}
+.rail-btn .ic{flex:none;display:grid;place-items:center;width:22px}
+.rail-btn .lbl{font-size:15px;white-space:nowrap;color:var(--muted);opacity:1;
+  transition:opacity .16s ease,color .2s ease}
+.railwrap.mini .rail-btn .lbl{opacity:0}
+.railwrap.mini.open .rail-btn .lbl{opacity:1}
+.rail-btn:hover{background:var(--hover-bg);color:var(--text)}
+.rail-btn:hover .lbl{color:var(--text)}
+.rail-btn.on{background:var(--pill);color:var(--text);transform:translateX(5px)}
+.rail-btn.on .lbl{color:var(--text);font-weight:500}
+/* Replié, le décalage n'a plus de place : la pastille tient seule. */
+.railwrap.mini:not(.open) .rail-btn.on{transform:none}
+.rail-div{height:1px;background:var(--outline-var);margin:8px 16px}
+.rail-sep{flex:1}
+.rail-note{font-size:var(--font-size-xs);color:var(--faint);padding:6px 18px;white-space:nowrap;
+  opacity:0;transition:opacity .16s ease}
+.railwrap:not(.mini) .rail-note,.railwrap.mini.open .rail-note{opacity:1}
+
+.stage{flex:1;min-width:0;position:relative;display:flex;flex-direction:column}
+.panel{position:absolute;inset:0;display:none;flex-direction:column;z-index:1}
+.panel.on{display:flex}
+.topbar{position:relative;z-index:2;height:64px;flex:none;display:flex;align-items:center;
+  gap:var(--space-3);padding:0 var(--space-4)}
+.topbar .title{font-size:22px;font-weight:400}
+.topbar .sep{flex:1}
+.validate{background:var(--accent);color:#fff;height:40px;padding:0 24px;
+  border-radius:var(--radius-pill);font-size:14px;font-weight:500;
+  transition:background .15s ease,box-shadow .15s ease}
+.validate:hover{background:var(--accent-hover);box-shadow:var(--elev-1)}
+.ghost-btn{height:40px;padding:0 18px;border-radius:var(--radius-pill);
+  border:1px solid var(--outline);font-size:14px;font-weight:500;display:flex;
+  align-items:center;gap:8px;transition:background .15s ease}
+.ghost-btn:hover{background:var(--hover-bg)}
+
+/* Bouton segmenté M3 — sert au Chat/Atelier ET au Schéma/Liste. */
+.seg{display:flex;border:1px solid var(--outline);border-radius:var(--radius-pill);overflow:hidden}
+.seg button{padding:7px 16px;font-size:14px;font-weight:500;display:flex;align-items:center;gap:7px;
+  transition:background .15s ease}
+.seg button:hover{background:var(--hover-bg)}
+.seg button+button{border-left:1px solid var(--outline)}
+.seg button.on{background:var(--accent-container);color:var(--on-accent-container)}
+
+/* ═══════════ INCOGNITO ═══════════
+   La fenêtre entière change de teint. Ce n'est pas décoratif :
+   c'est le seul moyen qu'on ne s'y trompe pas. */
+/* ═══ Le mode privé, en trois signes faibles ═══
+   Un bandeau noir criait. Trois signaux discrets mais PERMANENTS
+   valent mieux qu'un seul très fort : la teinte du fond, une pastille
+   près du titre, et une ligne entre deux filets en tête de fil.
+   Aucun n'est spectaculaire ; ensemble, on ne peut pas s'y tromper. */
+#pDiscuter.incog{--tint:rgba(95,99,104,.11)}
+#pDiscuter.incog .thread{background:#FAFAFB}
+#pDiscuter.incog .msg.you p{background:#ECECEF}
+#pDiscuter.incog .composer{background:#EFEFF2}
+#pDiscuter.incog .composer:focus-within{background:var(--bg)}
+.privchip{display:none;align-items:center;gap:6px;font-size:13px;color:var(--muted);
+  background:rgba(95,99,104,.12);border-radius:var(--radius-pill);padding:5px 13px 5px 10px}
+#pDiscuter.incog .privchip{display:inline-flex}
+.privnote{display:none;align-items:center;justify-content:center;gap:9px;
+  max-width:720px;margin:0 auto 24px;padding:11px 0;color:var(--muted);font-size:13.5px;
+  border-top:1px solid var(--outline-var);border-bottom:1px solid var(--outline-var)}
+#pDiscuter.incog .privnote{display:flex}
+#incogBtn.on{background:rgba(95,99,104,.14);color:var(--text)}
+
+/* ═══ Discuter ═══ */
+.work{position:relative;z-index:1;flex:1;display:flex;min-height:0;gap:var(--space-2);
+  padding:0 var(--space-4) 0 0}
+.thread{flex:1;min-width:0;overflow-y:auto;padding:0 24px 8px;transition:background .3s ease}
+.thread-in{max-width:720px;margin:0 auto}
+.msg{margin-bottom:26px;animation:rise .4s cubic-bezier(.2,0,0,1) both}
+@keyframes rise{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+.msg.you{display:flex;justify-content:flex-end}
+.msg.you p{background:var(--surface);border-radius:20px;padding:12px 20px;max-width:80%}
+.msg.ulysse p{line-height:1.65}
+.msg.ulysse p+p{margin-top:var(--space-3)}
+/* L'établi — n'existe qu'en mode Atelier. */
+.etabli{flex:0 0 340px;background:var(--sidebar);border-radius:var(--radius-card);
+  display:none;flex-direction:column;overflow:hidden}
+.work.atelier .etabli{display:flex}
+.etabli-head{height:46px;flex:none;display:flex;align-items:center;gap:8px;padding:0 8px 0 18px}
+.etabli-head .vt{font-size:var(--font-size-sm);color:var(--muted);font-weight:500;flex:1}
+.etabli-body{flex:1;overflow-y:auto;padding:0 12px 12px}
+.file{display:flex;align-items:center;gap:12px;background:var(--bg);border-radius:var(--radius-md);
+  padding:12px 14px;margin-bottom:6px;font-size:15px}
+.file .fs{font-size:var(--font-size-xs);color:var(--muted);margin-left:auto}
+.drop{border:2px dashed var(--outline-var);border-radius:var(--radius-md);padding:22px;
+  text-align:center;color:var(--muted);font-size:var(--font-size-sm);margin-top:8px}
+
+.ask{margin-top:18px;background:var(--surface);border-radius:var(--radius-card);padding:20px;
+  animation:rise .4s cubic-bezier(.2,0,0,1) both}
+.ask .q{font-weight:500;margin-bottom:4px}
+.ask .hint{font-size:var(--font-size-sm);color:var(--muted);margin-bottom:16px}
+.opt{width:100%;display:flex;align-items:center;gap:14px;background:var(--bg);
+  border-radius:var(--radius-md);padding:14px 18px;margin-bottom:8px;
+  transition:background .15s ease,box-shadow .15s ease}
+.opt:hover{background:var(--surface-hi);box-shadow:var(--elev-1)}
+.opt .tick{width:22px;height:22px;flex:none;border-radius:50%;border:2px solid var(--outline);
+  display:grid;place-items:center;color:transparent;transition:all .18s ease}
+.opt.pick{background:var(--accent-container);color:var(--on-accent-container)}
+.opt.pick .tick{border-color:var(--accent);background:var(--accent);color:#fff}
+.ask .free{display:flex;align-items:center;gap:var(--space-2);margin-top:14px;background:var(--bg);
+  border-radius:var(--radius-pill);padding:6px 6px 6px 18px}
+.ask .free input{flex:1;font-size:15px;padding:8px 0}
+.ask.done{background:transparent;padding:0}
+.ask.done .q,.ask.done .hint,.ask.done .free,.ask.done .opt{display:none}
+.ask.done .opt.pick{display:flex;background:var(--surface);color:var(--text);box-shadow:none;margin:0}
+.ask.done .opt.pick .tick{border-color:var(--green);background:var(--green)}
+.plan-card{margin-top:22px;background:var(--surface);border-radius:var(--radius-card);
+  overflow:hidden;transition:background .2s ease,box-shadow .2s ease;
+  animation:rise .4s cubic-bezier(.2,0,0,1) both}
+.plan-card:hover{background:var(--surface-hi);box-shadow:var(--elev-1)}
+.plan-card button{width:100%;display:flex;align-items:center;justify-content:space-between;
+  gap:var(--space-4);padding:20px 24px}
+.plan-card .t{font-weight:500}
+.plan-card .s{font-size:var(--font-size-sm);color:var(--muted)}
+.plan-card .go{color:var(--accent);flex:none;display:flex;align-items:center;gap:6px;
+  font-size:var(--font-size-sm);font-weight:500}
+.foot{position:relative;z-index:1;padding:12px 24px 20px}
+.foot .composer{margin:0 auto}
+
+/* Le menu du « + ». */
+.pop{position:absolute;bottom:74px;left:0;min-width:250px;background:var(--bg);
+  border-radius:var(--radius-md);box-shadow:var(--elev-3);padding:8px;z-index:40;display:none}
+.pop.on{display:block}
+.pop button{width:100%;display:flex;align-items:center;gap:14px;padding:11px 14px;
+  border-radius:var(--radius-sm);font-size:15px;transition:background .14s ease}
+.pop button:hover{background:var(--hover-bg)}
+.pop .sub{font-size:var(--font-size-xs);color:var(--muted);display:block}
+.pop-sep{height:1px;background:var(--outline-var);margin:6px 10px}
+
+/* ═══ Studio ═══ */
+.studio{position:relative;z-index:1;flex:1;display:flex;min-height:0;gap:var(--space-2);
+  padding:0 var(--space-4) var(--space-2) 0}
+.volet{min-width:0;position:relative;background:var(--sidebar);border-radius:var(--radius-card);
+  display:flex;flex-direction:column;overflow:hidden;transition:flex-grow .3s cubic-bezier(.2,0,0,1)}
+/* D1 : le schéma prend deux tiers, la liste un tiers.
+   Le visuel porte l'avancée, le texte porte le contenu. */
+#vCanvas{flex:2}#vReader{flex:1}
+.studio.max-canvas #vReader{display:none}
+.studio.max-reader #vCanvas{display:none}
+.volet-head{flex:none;height:46px;display:flex;align-items:center;gap:var(--space-2);padding:0 8px 0 18px}
+.volet-head .vt{font-size:var(--font-size-sm);color:var(--muted);font-weight:500}
+.volet-head .sp{flex:1}
+.ctl{display:flex;gap:2px;opacity:0;transform:translateX(4px);
+  transition:opacity .16s ease,transform .16s ease}
+.volet:hover .ctl,.etabli:hover .ctl{opacity:1;transform:none}
+.ctl button{width:32px;height:32px;border-radius:var(--radius-sm);display:grid;place-items:center;
+  color:var(--muted);transition:background .14s ease,color .14s ease}
+.ctl button:hover{background:var(--hover-bg);color:var(--text)}
+.ctl button.danger:hover{background:#FCE8E6;color:#B3261E}
+/* Le segmenté du Studio : une position, pas une action. Il se pose
+   à côté du titre, jamais du côté du bouton qui engage. */
+.stseg{margin-left:16px;height:34px}
+.stseg button{padding:0 15px;font-size:13.5px}
+.reader-foot .sp{flex:1;min-width:0}
+.reader-foot{flex-wrap:wrap;row-gap:4px}
+/* La fiche d'étape sur un écran étroit : les intitulés passent
+   au-dessus de leur valeur au lieu de rogner les deux. */
+@media (max-width:640px){
+  .fl{flex-direction:column;gap:3px}
+  .fk{flex:none}
+  .fiche{padding:18px 16px 14px}
+  .sheet-acts{justify-content:stretch}
+  .sheet-acts .validate{margin-left:auto}
+}
+/* Le volet du schéma. Deux pièges corrigés ici :
+
+   1 · `height:100%` sur un SVG dont le parent n'a pas de hauteur
+       définie ne résout rien : le SVG retombe sur sa hauteur
+       intrinsèque de 150 px et le dessin est réduit de moitié. D'où
+       `aspect-ratio`, qui déduit la hauteur de la largeur — une
+       largeur, elle, est toujours définie.
+
+   2 · Un schéma à quatre colonnes ne tient pas dans une colonne de
+       400 px : le texte tombe à 6 px. La réponse n'est pas de rétrécir
+       le texte, c'est de CHANGER DE SENS — voir `orientation()`. */
+.canvas-body{flex:1;min-height:0;display:flex;align-items:center;justify-content:center;
+  padding:0 var(--space-4) var(--space-4);overflow:hidden}
+svg.graph{width:100%;height:auto;max-height:100%}
+/* ═══ Le schéma — des cartes, une couleur par équipe ═══════════
+   D1 amendée le 6 août. Les perles étaient trop maigres : on ne
+   reconnaissait pas une étape sans lire la légende. Retour à des
+   cartes, mais sous trois conditions qui n'existaient pas avant :
+
+     · une COULEUR par équipe — c'est elle qui dit qui travaille,
+       et elle se retrouve à l'identique dans le liseré, dans le
+       texte de l'équipe et dans le flux du lien ;
+     · des liens RIGIDES, à angles arrondis. Une courbe libre se
+       croise et se lit mal ; un coude se suit du doigt ;
+     · le néon ne brille QUE sur ce qui travaille. Partout ailleurs
+       il est posé à 22 % — présent, pas allumé.
+
+   La règle tient toujours :
+     « Ce qui bouge est ce qui travaille. Rien d'autre ne bouge. »
+   ═══════════════════════════════════════════════════════════════ */
+.node{cursor:pointer}
+.node .b{fill:var(--bg);stroke-width:1.7;transition:fill .18s ease}
+/* Le halo. Un rectangle flouté sous la carte, à la couleur de
+   l'équipe : le liseré néon, sans filtre SVG à déclarer. */
+.node .glow{fill:none;stroke-width:3;filter:blur(5px);opacity:.22;
+  transition:opacity .25s ease}
+.node.st-run .glow{animation:neon 2.1s ease-in-out infinite}
+@keyframes neon{0%,100%{opacity:.3}50%{opacity:.95}}
+.node:hover .glow{opacity:.5}
+.node:hover .b{fill:var(--surface)}
+
+.node .ti{font-family:var(--font-ui);fill:var(--text);font-size:13px;font-weight:500}
+.node .eq{font-family:var(--font-ui);font-size:10.5px;letter-spacing:.3px;font-weight:600}
+.node .au{font-family:var(--font-ui);font-size:10.5px;fill:var(--faint);letter-spacing:.3px}
+.node .track{fill:var(--outline-var);opacity:.55}
+.node .fill{transition:none}
+
+/* Fini : une pellicule de la couleur d'équipe, posée sur le blanc.
+   (Un attribut fill="" sur la balise serait écrasé par la règle CSS
+   ci-dessus — d'où un calque séparé plutôt qu'une couleur inline.) */
+.node .tint{opacity:.08;pointer-events:none}
+/* Sélection : le liseré s'épaissit, la couleur ne change pas —
+   sinon on perdrait l'information d'équipe en désignant. */
+.node.sel .b{stroke-width:3}
+.node.sel .glow{opacity:.6}
+/* Retirée : plus d'équipe, plus de couleur, plus de néon. */
+.node.st-off .b{fill:var(--surface);stroke:var(--outline-var);stroke-dasharray:6 5;stroke-width:1.4}
+.node.st-off .glow{display:none}
+.node.st-off .ti{opacity:.42;text-decoration:line-through}
+.node .badge{stroke:var(--bg);stroke-width:2}
+/* Le point d'entrée de la fiche. Il ne peuple pas le schéma : il
+   attend d'être cherché. Une carte au repos ne porte que ce qu'elle
+   raconte. */
+.nact{opacity:0;cursor:pointer;transition:opacity .16s ease}
+.node:hover .nact,.node.sel .nact{opacity:1}
+.nact-bg{fill:var(--bg);stroke:var(--outline-var);stroke-width:1.2}
+.nact circle:not(.nact-bg){fill:var(--muted);stroke:none}
+.nact:hover .nact-bg{fill:var(--surface)}
+.nact:hover circle:not(.nact-bg){fill:var(--text)}
+
+/* Les liens : orthogonaux, coudes arrondis. */
+.edge{stroke:var(--outline-var);stroke-width:1.8;fill:none;stroke-linejoin:round;
+  stroke-linecap:round;transition:stroke .18s ease}
+.edge.hot{stroke:var(--accent)}
+/* Le flux prend la couleur de l'équipe qui l'émet : on voit d'où
+   part le travail, pas seulement qu'il part. */
+.edge.flow{stroke-width:2.6;stroke-dasharray:7 11;animation:flow 1.2s linear infinite}
+@keyframes flow{to{stroke-dashoffset:-18}}
+.edgeglow{fill:none;stroke-width:5;filter:blur(4px);opacity:.35}
+/* Le point porté, et son halo. */
+.pk{opacity:.95}
+.pkh{opacity:.3;filter:blur(3px)}
+@media (prefers-reduced-motion:reduce){.pk,.pkh{display:none}}
+
+@media (prefers-reduced-motion:reduce){
+  .node.st-run .glow{animation:none;opacity:.8}
+  .edge.flow{animation:none;stroke-dasharray:none}
+}
+/* La légende du schéma. Une seule ligne, qui enseigne la règle
+   sans la réciter : on comprend en regardant. */
+.glegend{position:absolute;left:var(--space-4);right:120px;
+  bottom:var(--space-3);z-index:2;pointer-events:none;
+  display:flex;align-items:center;gap:9px;font-size:var(--font-size-xs);
+  line-height:1.4;color:var(--faint)}
+.glegend i{width:7px;height:7px;border-radius:50%;background:var(--amber);
+  animation:halo2 2.4s ease-out infinite}
+@keyframes halo2{0%,100%{opacity:1}50%{opacity:.3}}
+.reader-body{flex:1;min-height:0;overflow-y:auto;padding:0 22px 20px}
+/* ── Quand le volet se resserre ────────────────────────────────
+   Le Détail peut occuper 300 px comme 900. Rien n'y est en largeur
+   fixe : ce qui ne tient pas passe à la ligne plutôt que de sortir
+   du cadre. */
+@media (max-width:900px){
+  .reader-body{padding:0 14px 16px}
+  .exp-b .in{padding-left:14px}
+  .sactions button{padding:0 11px;font-size:13.5px}
+}
+
+/* Développer / replier — sert au plan ET au vestiaire. */
+.exp{border-bottom:1px solid var(--outline-var)}
+.exp:last-child{border-bottom:none}
+/* Trois pièces dans la ligne du titre : ce qui ouvre, ce qui agit,
+   et la flèche. Le kebab était dans le CORPS de l'étape — donc
+   invisible tant qu'elle était fermée, et rogné par le débordement
+   quand elle était ouverte. Il est maintenant là où on le cherche :
+   sur la ligne, avec le titre.
+
+     Une commande enfermée dans ce qu'elle commande n'est pas une
+     commande.
+*/
+.exp-h{width:100%;display:flex;align-items:center;gap:4px;padding:15px 0;
+  transition:opacity .2s ease}
+.exp-t{flex:1;min-width:0;display:flex;align-items:center;gap:12px;
+  padding:0;background:none;text-align:left}
+.exp-h .n{color:var(--muted);font-size:var(--font-size-sm);flex:none;width:14px}
+.exp-h .t{font-weight:500;flex:1;min-width:0;overflow-wrap:anywhere}
+.exp-h .chev{color:var(--muted);flex:none;width:32px;height:32px;
+  display:grid;place-items:center;border-radius:var(--radius-pill);
+  transition:transform .24s cubic-bezier(.2,0,0,1),background .14s ease}
+.exp-h .chev:hover{background:var(--hover-bg)}
+.exp.open .exp-h .chev{transform:rotate(180deg)}
+/* ── Quatrième version de ce dépliement, et la première qui ne peut
+   pas se tromper. ────────────────────────────────────────────────
+   Successivement : `max-height` avec un plafond (rognait le kebab),
+   puis `grid-template-rows: 0fr→1fr` (laissait passer une ligne).
+   Trois passes, trois défauts, tous du même genre : **une hauteur
+   déduite, et ce qui dépasse découpé.**
+
+   Ici, plus de hauteur du tout. Le corps est là, ou il n'est pas là.
+
+     Après trois tentatives sur le même point, ce n'est plus la
+     technique qu'il faut corriger, c'est le choix d'en avoir une.
+
+   On perd l'animation du dépliement. C'est le prix, et il est juste :
+   aucune règle de la charte ne la promettait, et quatre passes de
+   correction ont coûté plus cher qu'elle ne valait. */
+.exp-b{display:none}
+.exp.open .exp-b{display:block}
+.exp-b .in{padding:0 0 16px 26px}
+.exp-b p{color:var(--muted);line-height:1.6;font-size:15px}
+.exp.dim{opacity:.36}
+.auto-note{display:inline-block;margin-top:10px;font-size:var(--font-size-sm);
+  color:var(--on-accent-container);background:var(--accent-container);
+  border-radius:var(--radius-sm);padding:4px 12px}
+.quiet{position:relative;z-index:1;padding:10px 30px;font-size:var(--font-size-sm);
+  color:var(--muted);display:flex;align-items:center;gap:var(--space-2);flex:none}
+.dot{width:8px;height:8px;border-radius:50%;flex:none}
+
+/* ═══ Listes génériques ═══ */
+.body{position:relative;z-index:1;flex:1;overflow-y:auto;padding:0 24px 24px}
+.body-in{max-width:840px;margin:0 auto}
+.sec-h{display:flex;align-items:center;gap:12px;margin:24px 0 10px}
+.sec-h h3{font-size:var(--font-size-sm);color:var(--muted);font-weight:500}
+.sec-h .l{flex:1;height:1px;background:var(--outline-var)}
+.row{display:flex;align-items:center;gap:16px;background:var(--surface);
+  border-radius:var(--radius-md);padding:14px 18px;margin-bottom:8px;
+  transition:background .16s ease}
+.row:hover{background:var(--surface-hi)}
+.row .nm{font-weight:500}
+.row .meta{font-size:var(--font-size-sm);color:var(--muted)}
+.row .sp{flex:1}
+.bar{height:4px;width:110px;background:var(--surface-hi);border-radius:var(--radius-pill);
+  overflow:hidden;flex:none}
+.bar i{display:block;height:100%;border-radius:var(--radius-pill)}
+.av{width:38px;height:38px;flex:none;border-radius:50%;display:grid;place-items:center;
+  font-weight:600;font-size:15px}
+.chip{font-size:var(--font-size-xs);padding:3px 10px;border-radius:var(--radius-pill);
+  background:var(--bg);color:var(--muted);white-space:nowrap}
+.chip.b{background:var(--accent-container);color:var(--on-accent-container)}
+.acts{display:flex;gap:2px;opacity:0;transition:opacity .16s ease}
+.row:hover .acts,.pcard:hover .acts{opacity:1}
+.acts button{width:32px;height:32px;border-radius:var(--radius-sm);display:grid;place-items:center;
+  color:var(--muted);transition:background .14s ease,color .14s ease}
+.acts button:hover{background:var(--hover-bg);color:var(--text)}
+.empty{text-align:center;padding:48px 24px;color:var(--muted)}
+.empty .big{font-size:20px;color:var(--text);font-weight:500;margin-bottom:6px}
+.set{display:flex;align-items:center;justify-content:space-between;gap:24px;padding:18px 4px;
+  border-bottom:1px solid var(--outline-var)}
+.set:last-child{border-bottom:none}
+.set .sub{font-size:var(--font-size-sm);color:var(--muted)}
+.sw{width:52px;height:32px;border-radius:var(--radius-pill);background:var(--outline-var);
+  position:relative;flex:none;cursor:pointer;transition:background .2s ease}
+.sw i{position:absolute;top:6px;left:6px;width:20px;height:20px;border-radius:50%;background:#fff;
+  transition:transform .2s cubic-bezier(.2,0,0,1),width .2s,height .2s,top .2s}
+.sw.on{background:var(--accent)}
+.sw.on i{transform:translateX(20px);width:24px;height:24px;top:4px}
+
+/* ═══ Projets ═══ */
+.pcard{background:var(--surface);border-radius:var(--radius-card);padding:18px 20px;
+  margin-bottom:10px;transition:background .16s ease,box-shadow .16s ease}
+.pcard:hover{background:var(--surface-hi);box-shadow:var(--elev-1)}
+.pcard .top{display:flex;align-items:center;gap:12px;margin-bottom:12px}
+.pcard .nm{font-weight:500;font-size:17px}
+.pcard .sp{flex:1}
+.iso{display:flex;gap:8px;flex-wrap:wrap}
+.iso span{display:flex;align-items:center;gap:7px;font-size:var(--font-size-sm);
+  color:var(--muted);background:var(--bg);border-radius:var(--radius-pill);padding:5px 14px}
+.warnbox{background:#FEF7E0;color:#5F4200;border-radius:var(--radius-md);padding:14px 18px;
+  font-size:15px;margin-bottom:16px;display:flex;gap:12px;align-items:flex-start}
+
+
+/* Le schéma n'a plus d'outils : rien à ranger, rien à basculer. */
+svg.graph{cursor:grab}
+svg.graph.pan{cursor:grabbing}
+svg.graph *{cursor:inherit}
+.node,.node *{cursor:pointer}
+.recentrer{position:absolute;right:var(--space-4);bottom:var(--space-3);z-index:3;
+  height:30px;padding:0 14px;border-radius:var(--radius-pill);background:var(--bg);
+  box-shadow:var(--elev-1);font-size:13px;font-weight:500;color:var(--muted)}
+.recentrer:hover{background:var(--surface);color:var(--text)}
+/* Le schéma se regarde, la liste se manipule. Un diagramme
+   d'avancement n'est pas un éditeur : on n'y déplace rien. */
+
+/* ═══ Terminal CLI — un lanceur, pas un émulateur ═══════════════
+   Ulysse n'exécute rien ici. Il ouvre le terminal natif d'Hermès et
+   se retire. C'est la seule fenêtre de l'application qui mène en
+   dehors d'elle, et elle le dit. */
+.term{position:relative;z-index:1;flex:1;display:flex;min-height:0;gap:var(--space-2);
+  padding:0 var(--space-4) var(--space-2) 0}
+.tside{flex:0 0 300px;background:var(--sidebar);border-radius:var(--radius-card);
+  overflow-y:auto;padding:18px}
+.tmain{flex:1;min-width:0;overflow-y:auto;padding:2px 2px 18px}
+.tmeta{font-size:var(--font-size-sm);color:var(--faint)}
+.tgrp{margin-bottom:24px}
+.tgrp h3{font-size:11.5px;letter-spacing:.5px;font-weight:600;color:var(--muted);
+  text-transform:uppercase;margin-bottom:12px}
+.tswatch{display:flex;gap:10px;flex-wrap:wrap}
+.tsw{width:44px;height:36px;border-radius:9px;cursor:pointer;position:relative;
+  box-shadow:inset 0 0 0 1px rgba(0,0,0,.14);transition:transform .14s ease}
+.tsw:hover{transform:translateY(-2px)}
+.tsw.on{box-shadow:inset 0 0 0 1px rgba(0,0,0,.14),0 0 0 2px var(--bg),0 0 0 4px var(--accent)}
+.tskill{display:flex;align-items:flex-start;gap:10px;padding:9px 0;
+  border-top:1px solid var(--outline-var);font-size:13.5px;line-height:1.45}
+.tskill:first-of-type{border-top:none}
+.tskill .sw{flex:none;margin-top:1px;transform:scale(.8);transform-origin:left center}
+.tskill code{font-family:var(--font-mono,ui-monospace,Menlo,monospace);font-size:12.5px;
+  color:var(--muted);display:block;margin-top:2px}
+.tskill.off{opacity:.5}
+.tmemo{font-size:13px;line-height:1.7}
+.tmemo div{display:flex;gap:10px;padding:4px 0}
+.tmemo code{font-family:ui-monospace,Menlo,monospace;font-size:12.5px;background:var(--surface);
+  padding:1px 7px;border-radius:5px;flex:none}
+.tmemo span{color:var(--muted)}
+
+/* L'aperçu. Sombre, parce qu'un terminal est sombre — et parce que
+   ce contraste dit qu'on quitte Ulysse. */
+.tscreen{background:#1B1B1F;border-radius:var(--radius-card);padding:20px 22px;
+  font-family:ui-monospace,Menlo,Consolas,monospace;font-size:13px;line-height:1.75;
+  color:#E3E3E6;box-shadow:var(--elev-2);min-height:230px;position:relative;overflow:hidden}
+.tscreen .dim{opacity:.5}
+.tscreen .pr{font-weight:600}
+.tscreen .cur{display:inline-block;width:8px;height:15px;vertical-align:-3px;
+  animation:blink 1.15s steps(2,start) infinite}
+@keyframes blink{to{visibility:hidden}}
+.tbar{display:flex;align-items:center;gap:8px;margin-bottom:14px}
+.tbar i{width:11px;height:11px;border-radius:50%;display:block}
+.tlaunch{display:flex;align-items:center;gap:14px;margin-top:18px;flex-wrap:wrap}
+.tbtn{height:46px;padding:0 26px;border-radius:var(--radius-pill);background:var(--text);
+  color:var(--bg);font-size:15px;font-weight:500;display:flex;align-items:center;gap:10px;
+  transition:opacity .14s ease}
+.tbtn:hover{opacity:.88}
+.tpath{font-family:ui-monospace,Menlo,monospace;font-size:12.5px;color:var(--faint)}
+
+/* ═══ Vestiaire — grille + détail, plus de cascade ═══ */
+.vest{position:relative;z-index:1;flex:1;display:flex;min-height:0;gap:var(--space-2);
+  padding:0 var(--space-4) var(--space-2) 0}
+.vmain{flex:1;min-width:0;display:flex;flex-direction:column}
+.vmeta{font-size:var(--font-size-sm);color:var(--muted);padding:0 4px 10px}
+.vgrid{flex:1;min-height:0;overflow-y:auto;display:grid;
+  grid-template-columns:repeat(auto-fill,minmax(212px,1fr));gap:10px;align-content:start;padding:2px}
+.tile{background:var(--surface);border-radius:var(--radius-card);padding:16px;cursor:pointer;
+  display:flex;flex-direction:column;gap:9px;min-height:132px;
+  transition:background .16s ease,box-shadow .16s ease}
+.tile:hover{background:var(--surface-hi);box-shadow:var(--elev-1)}
+.tile.sel{background:var(--accent-container);color:var(--on-accent-container)}
+.tile .hd{display:flex;align-items:center;gap:10px}
+.tile .tn{font-weight:500;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.tile .rl{font-size:var(--font-size-sm);color:var(--muted);line-height:1.4;flex:1}
+.tile.sel .rl{color:var(--on-accent-container);opacity:.75}
+.tile .ft{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+.stack{display:flex;align-items:center}
+.stack .av{width:28px;height:28px;font-size:12px;margin-left:-9px;box-shadow:0 0 0 2px var(--surface)}
+.stack .av:first-child{margin-left:0}
+.tile:hover .stack .av,.tile.sel .stack .av{box-shadow:0 0 0 2px var(--surface-hi)}
+.vdet{flex:0 0 330px;background:var(--sidebar);border-radius:var(--radius-card);
+  display:flex;flex-direction:column;overflow:hidden}
+.vdet-head{height:46px;flex:none;display:flex;align-items:center;gap:8px;padding:0 8px 0 18px}
+.vdet-head .vt{font-size:var(--font-size-sm);color:var(--muted);font-weight:500;flex:1}
+.vdet-body{flex:1;overflow-y:auto;padding:0 18px 18px}
+.vhero{display:flex;align-items:center;gap:14px;padding:6px 0 16px}
+.vhero .av{width:52px;height:52px;font-size:20px}
+.vhero .n{font-weight:500;font-size:18px}
+.search{display:flex;align-items:center;gap:8px;background:var(--surface);
+  border-radius:var(--radius-pill);padding:0 16px;height:40px;width:210px}
+.search input{flex:1;font-size:14px;min-width:0}
+
+
+/* ═══════════ DIRE NON — trou 10 ═══════════
+   Le refus n'est pas UN bouton, c'est un dégradé. Retirer une étape,
+   la reprendre à la main, reprendre le plan entier. Et la validation
+   n'est plus un clic : elle annonce ce qui devient irréversible. */
+.dirty{display:flex;align-items:center;gap:8px;font-size:14px;color:var(--muted);
+  background:var(--surface);border-radius:var(--radius-pill);padding:5px 6px 5px 16px}
+.dirty b{color:var(--text);font-weight:500}
+.dirty button{font-size:14px;font-weight:500;color:var(--accent);padding:5px 12px;
+  border-radius:var(--radius-pill);transition:background .14s ease}
+.dirty button:hover{background:var(--hover-bg)}
+
+/* ═══ Le détail se lit, il ne se manipule qu'à la demande ═══════
+   Trois boutons par étape, sur douze étapes, faisaient trente-six
+   objets à côté d'un texte qu'on venait lire. Les actions ne
+   disparaissent pas — elles attendent d'être demandées.
+
+     Ce qu'on vient faire ici, c'est COMPRENDRE. Agir vient après,
+     et ne doit pas encombrer avant.
+
+   Le point de sortie est un bouton nommé (survol et lecteur
+   d'écran), jamais une icône muette pour une action irréversible :
+   « Retirer » garde son mot une fois le pli ouvert. */
+/* Le kebab reste visible. Il l'était au survol seulement, et c'est
+   la troisième fois que Raf ne le trouve pas.
+
+     Une commande qu'il faut découvrir pour s'en servir n'est pas
+     discrète, elle est cachée.
+
+   Un glyphe gris de 32 px par ligne coûte infiniment moins cher que
+   les trois boutons qu'il remplace — l'encombrement qu'on voulait
+   retirer, c'étaient eux. */
+.dots{flex:none;width:32px;height:32px;border-radius:var(--radius-pill);
+  display:grid;place-items:center;color:var(--faint);
+  transition:background .14s ease,color .14s ease}
+.dots:hover{background:var(--hover-bg);color:var(--text)}
+.exp.exp-acts .dots{background:var(--surface);color:var(--text)}
+.exp.rem .dots{display:none}
+.dots:hover{background:var(--hover-bg);color:var(--text)}
+.exp.exp-acts .dots{color:var(--text);background:var(--surface)}
+/* Même traitement, même raison : présentes ou absentes, jamais
+   à moitié. Un plafond de 120 px suffisait à trois boutons sur une
+   ligne — et les coupait dès qu'ils passaient à deux lignes dans un
+   volet étroit. */
+.sactions{display:none;gap:6px;flex-wrap:wrap;margin-top:14px}
+.exp.exp-acts .sactions{display:flex}
+/* Une étape retirée n'a qu'un seul geste possible : le défaire.
+   Le cacher derrière un menu serait cacher la sortie. */
+.exp.rem .sactions{display:flex}
+.sactions button{display:flex;align-items:center;gap:7px;height:34px;padding:0 14px;
+  min-width:0;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+  border-radius:var(--radius-pill);border:1px solid var(--outline-var);
+  font-size:14px;font-weight:500;color:var(--muted);
+  transition:background .14s ease,color .14s ease,border-color .14s ease}
+.sactions button:hover{background:var(--hover-bg);color:var(--text)}
+.sactions button.danger:hover{background:#FCE8E6;color:#B3261E;border-color:#F2B8B5}
+.exp.rem .exp-h .t{text-decoration:line-through;color:var(--muted)}
+
+.node.off .b{fill:var(--surface);stroke-dasharray:5 4;stroke-width:1.4}
+.node.off .num,.node.off .cap{opacity:.4}
+.node.off .cap{text-decoration:line-through}
+
+/* Feuille modale M3 : rayon 28, fond assombri, deux actions à droite. */
+.sheet-bg{position:fixed;inset:0;background:rgba(0,0,0,.32);z-index:60;
+  display:none;place-items:center;padding:24px}
+.sheet-bg.on{display:grid}
+.sheet{background:var(--bg);border-radius:var(--radius-lg);padding:26px 26px 20px;
+  width:min(560px,100%);max-height:88vh;overflow-y:auto;box-shadow:var(--elev-3);
+  animation:rise .28s cubic-bezier(.2,0,0,1) both}
+.sheet h2{font-size:22px;font-weight:400;margin-bottom:6px}
+.sheet .sub{color:var(--muted);font-size:15px;margin-bottom:18px}
+.sheet .free{display:flex;align-items:center;gap:8px;margin-top:12px;background:var(--surface);
+  border-radius:var(--radius-pill);padding:6px 6px 6px 18px}
+.sheet .free input{flex:1;font-size:15px;padding:9px 0}
+.sheet-acts{display:flex;justify-content:flex-end;gap:8px;margin-top:22px;
+  align-items:center;flex-wrap:wrap}
+
+/* Montrer l'écart plutôt que le décrire. Deux lignes côte à côte :
+   ce qu'on obtient sans profil, ce qu'on obtient avec. C'est le seul
+   argument qui n'a pas besoin d'être cru. */
+.ex2{display:flex;flex-direction:column;gap:7px;margin:12px 0 10px}
+.exl{position:relative;padding:9px 13px 9px 15px;border-radius:0 8px 8px 0;
+  background:var(--bg);border-left:3px solid var(--outline-var);
+  font-size:13.5px;line-height:1.5;color:var(--muted)}
+.exl b{color:var(--text);font-weight:600}
+.exl i{color:var(--faint)}
+.exl.on{border-left-color:var(--accent);color:var(--text)}
+
+/* ═══ La fiche d'une étape ═══════════════════════════════════════
+   Un peu plus large qu'une feuille de décision : elle n'attend pas
+   une réponse, elle répond. */
+.fiche{width:min(600px,100%);padding:22px 24px 18px}
+.fhd{display:flex;align-items:flex-start;gap:14px}
+.fnum{flex:none;width:34px;height:34px;border-radius:50%;display:grid;place-items:center;
+  font-weight:600;font-size:15px;color:var(--c);
+  box-shadow:inset 0 0 0 2px var(--c);background:color-mix(in srgb,var(--c) 9%,transparent)}
+.ftt{flex:1;min-width:0;display:flex;flex-direction:column;gap:3px}
+.fti{font-size:20px;line-height:1.25}
+.fsub{display:flex;align-items:center;gap:10px;flex-wrap:wrap;font-size:12px}
+.feq,.fau{letter-spacing:.4px;font-weight:600}
+.fau{color:var(--faint)}
+.fet{padding:2px 9px;border-radius:var(--radius-pill);background:var(--surface);color:var(--muted)}
+.fet-run{background:#FEF7E0;color:#7A5900}
+.fet-done{background:#E6F4EA;color:#0B5F2A}
+.fet-off{text-decoration:line-through}
+.fx{flex:none;width:34px;height:34px;border-radius:50%;display:grid;place-items:center;
+  color:var(--muted)}
+.fx:hover{background:var(--hover-bg);color:var(--text)}
+.fbar{height:4px;border-radius:2px;background:var(--outline-var);margin:16px 0 0;overflow:hidden}
+.fbar i{display:block;height:100%;border-radius:2px}
+.fdesc{margin-top:16px;color:var(--text);line-height:1.55}
+.fgrid{margin-top:6px}
+.fl{display:flex;gap:16px;padding:11px 0;border-top:1px solid var(--outline-var);
+  font-size:14px;line-height:1.5}
+.fk{flex:0 0 152px;color:var(--muted)}
+.fv{flex:1;min-width:0}
+.fmanque{color:#B3261E}
+.fsv.ko{color:#B3261E;font-weight:500}
+.fdeh{color:#7A5900;background:#FEF7E0;padding:2px 8px;border-radius:6px}
+.frec{color:var(--muted);font-size:13px}
+/* Les étapes voisines sont cliquables : on circule dans le plan
+   sans repasser par le schéma. */
+.pastille{display:inline-flex;align-items:center;height:28px;padding:0 12px;
+  border-radius:var(--radius-pill);background:var(--surface);font-size:13px;
+  margin:2px 4px 2px 0;transition:background .14s ease}
+.pastille:hover{background:var(--surface-hi)}
+.danger-txt{color:#B3261E}
+.danger-txt:hover{background:#FCE8E6}
+.txt-btn{height:40px;padding:0 20px;border-radius:var(--radius-pill);font-size:14px;
+  font-weight:500;color:var(--accent);transition:background .14s ease}
+.txt-btn:hover{background:var(--accent-bg)}
+.lockline{display:flex;gap:14px;align-items:flex-start;padding:14px 0;
+  border-bottom:1px solid var(--outline-var)}
+.lockline:last-of-type{border-bottom:none}
+.lockline .k{font-weight:500}
+.lockline .v{color:var(--muted);font-size:15px}
+.irrev{background:#FEF7E0;color:#5F4200;border-radius:var(--radius-md);padding:14px 18px;
+  font-size:15px;margin-top:16px;display:flex;gap:12px;align-items:flex-start}
+
+
+/* ═══ Supprimer sans détruire ═══
+   Deux régimes, et un seul principe : rien ne disparaît d'un geste.
+   · Ce qui se refait (un agent, une équipe) part sur place, avec un
+     « Annuler » qui reste six secondes sous les yeux.
+   · Ce qui porte des données (un projet et son coffre) va à la
+     corbeille, et y reste.
+   La destruction définitive n'existe qu'à un seul endroit, et se
+   confirme. C'est le seul écran de l'application qui demande deux fois. */
+.snack{position:fixed;left:50%;bottom:26px;transform:translateX(-50%) translateY(18px);
+  background:#322F35;color:#F4EFF4;border-radius:var(--radius-sm);padding:0 8px 0 18px;
+  min-height:48px;display:flex;align-items:center;gap:18px;font-size:14px;
+  box-shadow:var(--elev-3);z-index:80;opacity:0;pointer-events:none;
+  transition:opacity .22s ease,transform .22s cubic-bezier(.2,0,0,1)}
+.snack.on{opacity:1;transform:translateX(-50%);pointer-events:auto}
+.snack button{color:#D3E3FD;font-weight:500;padding:9px 12px;border-radius:var(--radius-sm)}
+.snack button:hover{background:rgba(255,255,255,.09)}
+.trashbtn{display:flex;align-items:center;gap:8px;height:40px;padding:0 16px;
+  border-radius:var(--radius-pill);font-size:14px;font-weight:500;color:var(--muted);
+  transition:background .15s ease,color .15s ease}
+.trashbtn:hover{background:var(--hover-bg);color:var(--text)}
+.trashbtn.on{background:var(--surface);color:var(--text)}
+.pcard.gone{opacity:.6}
+.pcard.gone .nm{text-decoration:line-through}
+.dangerlink{color:#B3261E;font-weight:500;font-size:14px;padding:7px 14px;
+  border-radius:var(--radius-pill);transition:background .14s ease}
+.dangerlink:hover{background:#FCE8E6}
+.trashnote{display:flex;gap:12px;align-items:flex-start;background:var(--surface);
+  border-radius:var(--radius-md);padding:14px 18px;font-size:15px;color:var(--muted);
+  margin-bottom:16px}
+
+
+/* ═══════════ NOTIFICATIONS ═══════════
+   Une règle, et tout en découle :
+
+     Ce qui demande une décision ne disparaît JAMAIS tout seul.
+     Ce qui informe ne reste JAMAIS.
+
+   D'où deux véhicules. La bulle passagère en haut à droite pour ce
+   qui informe ; le compteur du menu, qui bat doucement, pour ce qui
+   attend une réponse. Le second ne s'éteint que par une réponse. */
+.bellbtn{position:relative;height:46px;border-radius:var(--radius-pill);display:flex;
+  align-items:center;gap:14px;padding:0 16px;color:var(--faint);width:100%;
+  transition:background .2s ease,color .2s ease}
+.bellbtn:hover{background:var(--hover-bg);color:var(--text)}
+.bellbtn .lbl{font-size:15px;white-space:nowrap;color:var(--muted);transition:opacity .16s ease}
+.railwrap.mini .bellbtn .lbl{opacity:0}
+.railwrap.mini.open .bellbtn .lbl{opacity:1}
+.bellbtn .ic{flex:none;width:22px;display:grid;place-items:center;position:relative}
+.badge{position:absolute;top:6px;left:24px;min-width:18px;height:18px;padding:0 5px;
+  border-radius:var(--radius-pill);background:var(--amber);color:#fff;font-size:11px;
+  font-weight:500;display:grid;place-items:center;line-height:1}
+.badge.dec{background:var(--accent);animation:ring 2.6s ease-out infinite}
+@keyframes ring{0%{box-shadow:0 0 0 0 rgba(11,87,208,.5)}
+  70%{box-shadow:0 0 0 9px rgba(11,87,208,0)}100%{box-shadow:0 0 0 0 rgba(11,87,208,0)}}
+@keyframes shake{0%,100%{transform:rotate(0)}14%{transform:rotate(-13deg)}
+  28%{transform:rotate(11deg)}42%{transform:rotate(-8deg)}56%{transform:rotate(6deg)}
+  70%{transform:rotate(-3deg)}}
+.bellbtn.ring .ic svg{animation:shake .72s ease}
+.raildot{width:6px;height:6px;border-radius:50%;background:var(--accent);
+  margin-left:auto;flex:none}
+
+.npanel{position:fixed;bottom:22px;width:394px;max-height:72vh;overflow-y:auto;
+  background:var(--bg);border-radius:var(--radius-card);box-shadow:var(--elev-3);
+  padding:8px;z-index:70;display:none}
+.npanel.on{display:block;animation:rise .24s cubic-bezier(.2,0,0,1) both}
+.ngroup{font-size:var(--font-size-xs);color:var(--muted);font-weight:500;
+  padding:12px 14px 6px;display:flex;align-items:center;gap:8px}
+.ngroup .l{flex:1;height:1px;background:var(--outline-var)}
+.nrow{display:flex;gap:12px;padding:12px 14px;border-radius:var(--radius-md);
+  transition:background .14s ease;cursor:pointer}
+.nrow:hover{background:var(--surface)}
+.nic{width:36px;height:36px;border-radius:50%;display:grid;place-items:center;flex:none}
+.nt{font-weight:500;font-size:15px}
+.nx{font-size:14px;color:var(--muted);line-height:1.45;margin-top:2px}
+.nmeta{font-size:var(--font-size-xs);color:var(--faint);margin-top:6px;
+  display:flex;gap:7px;align-items:center;flex-wrap:wrap}
+.nmeta .o{color:var(--muted);font-weight:500}
+.nacts{display:flex;gap:6px;margin-top:11px}
+.nacts button{height:34px;padding:0 16px;border-radius:var(--radius-pill);font-size:14px;
+  font-weight:500;transition:background .14s ease}
+.nacts .yes{background:var(--accent);color:#fff}
+.nacts .yes:hover{background:var(--accent-hover)}
+.nacts .no{border:1px solid var(--outline-var);color:var(--muted)}
+.nacts .no:hover{background:var(--hover-bg);color:var(--text)}
+
+.toasts{position:fixed;top:16px;right:16px;z-index:75;display:flex;flex-direction:column;
+  gap:10px;width:352px;pointer-events:none}
+.toast{background:var(--bg);border-radius:var(--radius-card);box-shadow:var(--elev-3);
+  padding:14px 16px;display:flex;gap:12px;pointer-events:auto;
+  transform:translateX(24px) scale(.97);opacity:0;
+  transition:transform .34s cubic-bezier(.2,0,0,1),opacity .28s ease}
+.toast.on{transform:none;opacity:1}
+
+/* ═══════════ AUTOMATISATIONS ═══════════
+   Ce ne sont pas des travaux : un travail a un début et une fin, une
+   automatisation tourne en boucle. Et surtout, elle n'a AUCUN agent
+   derrière — c'est une mécanique, pas un jugement (décision 5). */
+.arow{display:flex;gap:16px;align-items:flex-start;background:var(--surface);
+  border-radius:var(--radius-card);padding:16px 20px;margin-bottom:8px;
+  transition:background .16s ease}
+.arow:hover{background:var(--surface-hi)}
+.arow .amain{flex:1;min-width:0}
+.arow .an{font-weight:500}
+.arow .aq{font-size:var(--font-size-sm);color:var(--muted);margin-top:3px}
+.arow .ameta{display:flex;gap:8px;align-items:center;margin-top:9px;flex-wrap:wrap}
+.nomind{display:inline-flex;align-items:center;gap:7px;font-size:var(--font-size-xs);
+  color:var(--muted);background:var(--bg);border-radius:var(--radius-pill);padding:4px 12px}
+
+
+/* ═══════════ RÉGLER UNE AUTOMATISATION ═══════════
+   Deux horaires distincts, et c'est la nuance qui compte :
+   QUAND ça tourne, et QUAND vous recevez le résultat. Une sauvegarde
+   peut tourner à 3 h du matin et ne vous être livrée que le lundi. */
+.acard{background:var(--surface);border-radius:var(--radius-card);margin-bottom:8px;
+  overflow:hidden;transition:background .16s ease}
+.acard:hover{background:var(--surface-hi)}
+.acard.open{background:var(--surface-hi)}
+.ahead{display:flex;gap:16px;align-items:flex-start;padding:16px 20px;cursor:pointer}
+.ahead .chev{color:var(--muted);flex:none;display:grid;place-items:center;margin-top:2px;
+  transition:transform .24s cubic-bezier(.2,0,0,1)}
+.acard.open .ahead .chev{transform:rotate(180deg)}
+.abody{max-height:0;overflow:hidden;transition:max-height .34s cubic-bezier(.2,0,0,1)}
+.acard.open .abody{max-height:620px}
+.abody .in{padding:4px 20px 20px 20px;border-top:1px solid var(--outline-var);margin-top:2px}
+.srow{display:flex;align-items:center;gap:16px;padding:15px 0;
+  border-bottom:1px solid var(--outline-var)}
+.srow:last-child{border-bottom:none}
+.srow .sk{width:168px;flex:none;font-weight:500;font-size:15px}
+.srow .sk .sub{display:block;font-weight:400;font-size:var(--font-size-xs);color:var(--muted)}
+.srow .sv{flex:1;display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.day{width:34px;height:34px;border-radius:50%;border:1px solid var(--outline-var);
+  font-size:13px;font-weight:500;color:var(--muted);display:grid;place-items:center;
+  transition:background .14s ease,color .14s ease,border-color .14s ease}
+.day:hover{background:var(--hover-bg)}
+.day.on{background:var(--accent-container);color:var(--on-accent-container);border-color:transparent}
+.tinput{height:38px;border-radius:var(--radius-sm);border:1px solid var(--outline-var);
+  padding:0 12px;background:var(--bg);font-size:15px;color:var(--text)}
+.btn-pick{height:34px;padding:0 15px;border-radius:var(--radius-pill);
+  border:1px solid var(--outline-var);font-size:14px;font-weight:500;color:var(--muted);
+  transition:background .14s ease,color .14s ease,border-color .14s ease}
+.btn-pick:hover{background:var(--hover-bg)}
+.btn-pick.on{background:var(--accent-container);color:var(--on-accent-container);border-color:transparent}
+.nextline{display:flex;align-items:center;gap:10px;margin-top:16px;font-size:14px;
+  color:var(--on-accent-container);background:var(--accent-container);
+  border-radius:var(--radius-sm);padding:10px 15px}
+
+/* ═══════════ RELANCER UN PROJET ═══════════
+   Le menu vit dans l'encart du projet, pas dans une barre d'outils
+   au loin : on relance là où on lit l'état. */
+.relaunch{position:relative;margin-left:auto}
+.rbtn{display:flex;align-items:center;gap:8px;height:36px;padding:0 16px;
+  border-radius:var(--radius-pill);border:1px solid var(--outline-var);
+  font-size:14px;font-weight:500;transition:background .14s ease}
+.rbtn:hover{background:var(--hover-bg)}
+.rmenu{position:absolute;right:0;top:44px;min-width:288px;background:var(--bg);
+  border-radius:var(--radius-md);box-shadow:var(--elev-3);padding:8px;z-index:30;display:none}
+.rmenu.on{display:block;animation:rise .2s cubic-bezier(.2,0,0,1) both}
+.rmenu button{width:100%;display:flex;gap:12px;align-items:flex-start;padding:11px 14px;
+  border-radius:var(--radius-sm);font-size:15px;transition:background .14s ease}
+.rmenu button:hover{background:var(--hover-bg)}
+.rmenu .sub{font-size:var(--font-size-xs);color:var(--muted);display:block;margin-top:2px}
+.rmenu .sep{height:1px;background:var(--outline-var);margin:6px 10px}
+
+
+/* ═══════════════════════════════════════════════════════════════════
+   LE DÉGRAISSAGE
+
+   Douze passes d'ajouts, aucune de retrait : il fallait s'y attendre.
+   Rien n'est supprimé ici — pas une information, pas une fonction.
+   C'est l'emballage qui part.
+
+   Trois principes, et un seul en fait le tour :
+
+     UN FOND SIGNALE UN OBJET. UNE LISTE N'EST PAS UN OBJET.
+
+   1. Les pastilles redeviennent du texte. Une pastille, c'est un
+      fond + un rayon + deux marges pour UN mot. Le même mot en gris
+      se lit aussi vite et pèse trois fois moins.
+   2. Les bandeaux d'explication perdent leur fond. Ils disent quelque
+      chose d'utile une fois ; ils n'ont pas à occuper un bloc coloré
+      à chaque visite.
+   3. Les listes perdent leur carte. Un filet suffit à séparer deux
+      lignes ; un fond gris par ligne, c'est un emballage plus lourd
+      que son contenu.
+
+   Ce qui GARDE son fond : ce sur quoi on agit — la boîte de réponse,
+   la carte du plan, les tuiles d'agent, les options. Un objet qu'on
+   clique a le droit d'avoir une surface.
+   ═══════════════════════════════════════════════════════════════════ */
+
+/* 1 · Les pastilles redeviennent du texte */
+[data-d="epure"] .chip{background:none;color:var(--muted);padding:0;font-size:13px}
+[data-d="epure"] .chip.b{color:var(--accent)}
+[data-d="epure"] .chip+.chip::before{content:'·';margin-right:9px;color:var(--outline-var)}
+[data-d="epure"] .nomind{background:none;padding:0;color:var(--faint);font-size:12.5px}
+[data-d="epure"] .nomind svg{display:none}
+[data-d="epure"] .iso span{background:none;padding:0;font-size:13px}
+[data-d="epure"] .iso{gap:20px}
+[data-d="epure"] .auto-note{background:none;padding:0;color:var(--muted);font-size:13.5px}
+[data-d="epure"] .nextline{background:none;padding:10px 0 0;color:var(--muted)}
+[data-d="epure"] .nextline svg{display:none}
+[data-d="epure"] .nextline b{color:var(--text);font-weight:500}
+
+/* 2 · Les bandeaux d'explication perdent leur fond */
+[data-d="epure"] .warnbox,[data-d="epure"] .trashnote{background:none;padding:0 2px;
+  color:var(--muted);font-size:13.5px;margin-bottom:20px;gap:0}
+[data-d="epure"] .warnbox svg,[data-d="epure"] .trashnote svg{display:none}
+[data-d="epure"] .warnbox b,[data-d="epure"] .trashnote b{color:var(--text);font-weight:500}
+
+/* 3 · Les listes perdent leur carte, gardent un filet */
+[data-d="epure"] .row,[data-d="epure"] .acard,[data-d="epure"] .pcard{
+  background:none;border-radius:0;box-shadow:none;margin-bottom:0;
+  border-bottom:1px solid rgba(31,31,31,.07)}
+[data-d="epure"] .row:hover,[data-d="epure"] .acard:hover,
+[data-d="epure"] .pcard:hover,[data-d="epure"] .acard.open{background:var(--surface)}
+[data-d="epure"] .row{padding:15px 14px}
+[data-d="epure"] .pcard{padding:17px 14px}
+[data-d="epure"] .ahead{padding:15px 14px}
+[data-d="epure"] .abody .in{border-top:none;padding:0 14px 18px}
+
+/* 4 · Le Studio : une seule surface au lieu de deux volets posés */
+[data-d="epure"] .volet,[data-d="epure"] .etabli,[data-d="epure"] .vdet{background:none}
+[data-d="epure"] #vReader,[data-d="epure"] .vdet,[data-d="epure"] .etabli{
+  border-left:1px solid rgba(31,31,31,.09);border-radius:0}
+[data-d="epure"] .studio,[data-d="epure"] .vest,[data-d="epure"] .work{gap:0}
+
+/* 5 · Les barres se resserrent — le titre est déjà dans le menu */
+[data-d="epure"] .topbar{height:54px}
+[data-d="epure"] .topbar .title{font-size:19px}
+[data-d="epure"] .volet-head,[data-d="epure"] .etabli-head,
+[data-d="epure"] .vdet-head{height:38px}
+[data-d="epure"] .sec-h{margin:22px 0 4px}
+
+/* 6 · Ce qui garde un fond s'allège, mais le garde */
+[data-d="epure"]{--surface:#F6F8FA;--surface-hi:#EFF2F6}
+[data-d="epure"] .plan-card:hover,[data-d="epure"] .opt:hover,
+[data-d="epure"] .tile:hover{box-shadow:none}
+[data-d="epure"] .tile{min-height:122px}
+
+/* 7 · Plus de fond pour les fichiers de l'établi */
+[data-d="epure"] .file{background:none;border-bottom:1px solid rgba(31,31,31,.07);
+  border-radius:0;margin:0;padding:12px 4px}
+
+/* L'interrupteur — hors produit, comme la note du bas. */
+.zz-mort-densbtn,.zz-mort-replay{position:fixed;bottom:6px;z-index:90;font-size:11.5px;color:var(--faint);
+  padding:4px 11px;border-radius:var(--radius-pill);border:1px solid var(--outline-var);
+  background:var(--bg);opacity:.55;transition:opacity .14s ease,background .14s ease}
+.zz-mort-densbtn:hover,.zz-mort-replay:hover{opacity:1;background:var(--surface)}
+.zz-mort-densbtn{right:16px}
+
+
+/* ═══════════════════════════════════════════════════════════════════
+   L'ESSAI À BLANC
+
+   Le moteur sait déjà le faire : `dispatch_once(conn, dry_run=True)`.
+   Le pont web l'expose même en paramètre d'URL. Il ne manquait qu'un
+   bouton — et une façon de montrer le résultat.
+
+   Le principe : l'essai annote le plan lui-même. On ne lit pas un
+   rapport à côté, on voit sur le schéma ce qui passerait et ce qui
+   coincerait. Le diagnostic est au même endroit que l'objet.
+
+   Trois verdicts, pas plus — c'est la même échelle que les marqueurs
+   d'état, et ce n'est pas un hasard : vert, orange, rouge.
+   ═══════════════════════════════════════════════════════════════════ */
+.drybar{display:flex;align-items:center;gap:14px;flex:none;padding:10px 16px 12px 0;
+  font-size:14px;color:var(--muted);animation:rise .3s cubic-bezier(.2,0,0,1) both}
+.drybar .cnt{display:flex;align-items:center;gap:7px}
+.drybar .cnt b{color:var(--text);font-weight:500}
+.drybar .sp{flex:1}
+.drybar .lnk{color:var(--accent);font-weight:500;padding:6px 12px;
+  border-radius:var(--radius-pill);font-size:14px;transition:background .14s ease}
+.drybar .lnk:hover{background:var(--accent-bg)}
+/* L'essai à blanc pose une pastille SUR la perle : elle s'ajoute
+   à l'état d'avancement au lieu de le remplacer. */
+.node.dpret .badge{fill:var(--green)}
+.node.daccord .badge{fill:var(--amber)}
+.node.dbloque .badge{fill:#B3261E}
+/* Un blocage l'emporte sur la couleur d'équipe : c'est la seule
+   chose qui compte à ce moment-là. */
+.node.dbloque .b{stroke:#B3261E!important;stroke-width:2.4}
+.dline{display:flex;gap:9px;align-items:flex-start;margin-top:9px;font-size:14px;
+  line-height:1.45}
+.dline .dd{width:8px;height:8px;border-radius:50%;flex:none;margin-top:6px}
+.dline.pret{color:var(--muted)}
+.dline.accord{color:#5F4200}
+.dline.bloque{color:#B3261E}
+.dline a{color:var(--accent);font-weight:500;cursor:pointer;text-decoration:none}
+.dryline{display:flex;gap:12px;align-items:flex-start;padding:13px 0;
+  border-bottom:1px solid rgba(31,31,31,.08)}
+.dryline:last-of-type{border-bottom:none}
+.dryline .dd{width:9px;height:9px;border-radius:50%;flex:none;margin-top:7px}
+/* ── ÉCART VOULU no 3 — même coquille (voir ECARTS-MAQUETTE.md). */
+.dryline .dn{display:block;font-weight:500}
+.dryline .dt{display:block;font-size:14px;color:var(--muted);margin-top:2px}
+.calme{background:var(--surface);border-radius:var(--radius-md);padding:13px 16px;
+  font-size:14px;color:var(--muted);margin-top:16px}
+[data-d="epure"] .calme{background:none;padding:13px 0 0;
+  border-top:1px solid rgba(31,31,31,.08)}
+
+
+/* ═══════════ LES QUATRE RETRAITS ═══════════
+   Aucune fonction supprimée : tout reste atteignable, plus loin.
+   C'est le geste qu'on n'avait jamais fait — décider ce qui ne
+   s'affiche PAS tout de suite. */
+
+/* Les commandes de volet flottent au lieu d'occuper un en-tête.
+   Deux barres de décor en moins. */
+.ctl.float{position:absolute;top:var(--space-3);z-index:3}
+.ctl.float.gauche{left:var(--space-3)}
+.ctl.float.droite{right:var(--space-3)}
+[data-d="epure"] .volet{padding-top:8px}
+.reader-body{padding-top:12px}
+.canvas-body{padding-top:6px}
+.reader-foot{flex:none;padding:12px 22px 16px}
+.quiet-link{font-size:14px;color:var(--muted);padding:7px 12px;
+  border-radius:var(--radius-pill);transition:background .14s ease,color .14s ease}
+/* Le premier seul se recale sur la marge du texte ; les suivants
+   gardent leur cible intacte. Deux zones de clic qui se recouvrent
+   de 8 px, c'est une action prise pour une autre — et l'une des
+   deux refuse le plan. */
+.reader-foot .quiet-link:first-child{margin-left:-12px}
+.quiet-link:hover{background:var(--hover-bg);color:var(--text)}
+
+/* Le verrou en deux temps : l'essai à blanc d'abord, toujours. */
+.lockwait{margin:18px 0 4px}
+.lockwait .wait-row{display:flex;justify-content:space-between;align-items:baseline;
+  font-size:var(--font-size-sm);color:var(--muted);margin-bottom:var(--space-2)}
+.lockwait .wait-bar{height:4px;background:var(--accent-container);
+  border-radius:var(--radius-pill);overflow:hidden}
+.lockwait .wait-fill{height:100%;width:0;background:var(--accent);
+  border-radius:var(--radius-pill);transition:width .28s linear}
+
+
+/* ═══════════════════════════════════════════════════════════════════
+   LE PREMIER LANCEMENT
+
+   La règle « défauts sensés » suppose qu'il y ait des défauts. Il n'y
+   en avait aucun : ni fournisseur, ni roster de profils. Et l'écran nu
+   de la décision 7 suppose que tout soit déjà réglé.
+
+   La réponse n'est pas un assistant de configuration en six écrans.
+   C'est le contraire : **une seule question**, celle qu'Ulysse ne peut
+   pas trancher seul — la clé. Tout le reste, il l'installe, et il le
+   DIT une fois, pour qu'on sache que ça existe.
+
+   Et c'est là qu'on parle d'argent, parce que c'est le seul moment
+   honnête pour le faire : au moment où on donne la clé.
+   ═══════════════════════════════════════════════════════════════════ */
+#first{display:flex;flex-direction:column;align-items:center;justify-content:flex-start;
+  overflow-y:auto;padding:28px 20px 36px}
+#first .mark{margin-top:auto}
+#first .firstcard{margin-bottom:auto}
+#first .wash{background:
+  radial-gradient(60% 45% at 28% 8%, rgba(66,133,244,.14) 0%, transparent 62%),
+  radial-gradient(55% 45% at 62% 2%, rgba(155,114,203,.15) 0%, transparent 60%),
+  radial-gradient(50% 40% at 82% 14%, rgba(217,101,112,.12) 0%, transparent 62%)}
+.firstcard{position:relative;z-index:1;width:min(560px,calc(100vw - 48px));
+  animation:rise .4s cubic-bezier(.2,0,0,1) both}
+.firstcard h2{font-size:26px;font-weight:400;letter-spacing:-.3px;margin-bottom:6px}
+.firstcard .lead{font-size:17px;margin-bottom:16px}
+.firstcard .q{color:var(--muted);font-size:15px;line-height:1.6;margin-bottom:22px}
+.keyform{display:flex;align-items:center;gap:6px;background:var(--surface);
+  border-radius:var(--radius-lg);padding:8px 8px 8px 22px;
+  transition:background .2s ease,box-shadow .2s ease}
+.keyform:focus-within{background:var(--bg);box-shadow:var(--elev-2)}
+.keyform input{flex:1;font-size:16px;padding:12px 0}
+.keyform button{background:var(--accent);color:#fff;height:44px;padding:0 22px;
+  border-radius:var(--radius-pill);font-size:14px;font-weight:500;flex:none}
+.keyform button:hover{background:var(--accent-hover)}
+.kerr{display:flex;gap:9px;align-items:flex-start;margin-top:12px;color:#B3261E;
+  font-size:14px;line-height:1.45;animation:rise .24s cubic-bezier(.2,0,0,1) both}
+.kerr .dd{width:8px;height:8px;border-radius:50%;background:#B3261E;flex:none;margin-top:6px}
+.provs{display:flex;gap:8px;flex-wrap:wrap;margin-top:18px;align-items:center;
+  font-size:14px;color:var(--muted)}
+.provs a{color:var(--accent);font-weight:500;cursor:pointer;padding:5px 12px;
+  border-radius:var(--radius-pill);transition:background .14s ease}
+.provs a:hover{background:var(--accent-bg)}
+.cout{margin-top:20px;padding-top:16px;border-top:1px solid rgba(31,31,31,.09);
+  font-size:14px;color:var(--muted);line-height:1.55}
+.cout b{color:var(--text);font-weight:500}
+.defs{margin:6px 0 22px}
+.defl{display:flex;gap:12px;align-items:flex-start;padding:11px 0;
+  border-bottom:1px solid rgba(31,31,31,.07)}
+.defl:last-child{border-bottom:none}
+.defl .dd{width:8px;height:8px;border-radius:50%;background:var(--green);
+  flex:none;margin-top:7px}
+.defl .dd.off{background:var(--grey)}
+/* ── ÉCART VOULU no 2 — même coquille que `.srow2` (voir ECARTS-MAQUETTE.md).
+   Elle ne se voyait pas : le premier lancement n'a jamais été branché. */
+.defl .dn{display:block;font-weight:500}
+.defl .dt{display:block;font-size:14px;color:var(--muted);margin-top:2px}
+.zz-mort-replay{right:152px}
+.zz-mort-replay.b{right:342px}
+
+
+/* ═══════════════════════════════════════════════════════════════════
+   LES RÉGLAGES
+
+   Deux colonnes : les sections à gauche, une seule à la fois à droite.
+   C'est la même géométrie que le Vestiaire — pas de grammaire neuve.
+
+   Une règle de rédaction, partout : **le nom dit quoi, la ligne
+   dessous dit pourquoi**. Un réglage dont on ne comprend pas la
+   conséquence n'est pas un réglage, c'est un piège.
+
+   Et un mot bannï de la surface : « MCP ». On dit « vos services ».
+   Le sigle n'apparaît qu'une fois, en gris, pour ceux qui le
+   cherchent.
+   ═══════════════════════════════════════════════════════════════════ */
+.setwrap{position:relative;z-index:1;flex:1;display:flex;min-height:0}
+.setnav{flex:0 0 214px;padding:4px 12px 12px 0;display:flex;flex-direction:column;gap:2px}
+.setnav button{height:42px;border-radius:var(--radius-pill);padding:0 18px;
+  font-size:15px;color:var(--muted);display:flex;align-items:center;
+  transition:background .16s ease,color .16s ease}
+.setnav button:hover{background:var(--hover-bg);color:var(--text)}
+.setnav button.on{background:var(--pill);color:var(--text);font-weight:500;
+  transform:translateX(5px)}
+.setbody{flex:1;min-width:0;overflow-y:auto;padding:0 8px 32px 8px}
+.setbody-in{max-width:660px}
+.seth{font-size:13px;color:var(--muted);font-weight:500;letter-spacing:.2px;
+  margin:26px 0 2px;display:flex;align-items:center;gap:12px}
+.seth:first-child{margin-top:2px}
+.seth .l{flex:1;height:1px;background:rgba(31,31,31,.08)}
+.setintro{color:var(--muted);font-size:14.5px;line-height:1.55;margin:8px 0 4px}
+.srow2{display:flex;align-items:center;gap:22px;padding:17px 2px;
+  border-bottom:1px solid rgba(31,31,31,.07)}
+.srow2:last-child{border-bottom:none}
+.srow2 .txt{flex:1;min-width:0}
+/* ── ÉCART VOULU no 1 (2026-08-09) — voir ECARTS-MAQUETTE.md ──────────────
+   `ligne()` émet deux `span` collés : `<span class="nm">…</span><span
+   class="sub">…</span>`. Sans `display:block`, ils se suivent sur la même
+   ligne — « Fournisseur de mémoireCe qui garde… » — et le `margin-top:2px`
+   ci-dessous ne s'applique pas, un inline n'ayant pas de marge verticale.
+
+   Ce `margin-top` est justement la preuve de l'intention : il n'a de sens
+   que sur un bloc. La maquette porte la même coquille ; on ne la recopie
+   pas. **La maquette est la source pour les décisions, pas pour les
+   coquilles.** */
+.srow2 .nm{display:block;font-weight:500}
+.srow2 .sub{display:block;font-size:14px;color:var(--muted);margin-top:2px;
+  line-height:1.5}
+.srow2 .ctlz{flex:none;display:flex;align-items:center;gap:8px}
+.tag{font-size:13px;color:var(--muted);white-space:nowrap}
+.tag.ok{color:var(--green)}
+.tag.no{color:var(--faint)}
+.btn-mini{height:34px;padding:0 16px;border-radius:var(--radius-pill);font-size:14px;
+  font-weight:500;border:1px solid var(--outline-var);color:var(--muted);
+  transition:background .14s ease,color .14s ease}
+.btn-mini:hover{background:var(--hover-bg);color:var(--text)}
+.btn-mini.prim{background:var(--accent);color:#fff;border-color:transparent}
+.btn-mini.prim:hover{background:var(--accent-hover);color:#fff}
+.qui{font-size:12.5px;color:var(--faint);margin-top:5px}
+.avert{display:flex;gap:12px;align-items:flex-start;background:#FEF7E0;color:#5F4200;
+  border-radius:var(--radius-md);padding:13px 17px;font-size:14.5px;margin:6px 0 14px}
+[data-d="epure"] .avert{background:none;padding:0;color:var(--muted);
+  margin-bottom:18px}
+[data-d="epure"] .avert svg{display:none}
+.euro{font-size:26px;font-weight:400;letter-spacing:-.5px}
+
+
+/* ═══════════════════════════════════════════════════════════════════
+   LES TROIS FICHIERS
+
+   Hermès en tient trois, et ils ne sont pas de même nature — c'est
+   toute la question de leur présentation :
+
+     user.md    — VOUS écrivez, Ulysse lit.
+     soul.md    — livré avec le produit, modifiable, mais c'est son
+                  caractère et ses limites : y toucher change ce qu'il
+                  fait.
+     memory.md  — ULYSSE écrit, vous relisez.
+
+   D'où une règle : **un fichier que la machine écrit sur vous doit
+   être lisible et effaçable par vous.** C'est le seul des trois qui
+   ait un bouton « Oublier ».
+
+   Et les noms de fichiers restent en gris, sous le nom en français.
+   Personne ne cherche « user.md » : on cherche « ce qu'il sait de
+   moi ».
+   ═══════════════════════════════════════════════════════════════════ */
+.fbloc{border-bottom:1px solid rgba(31,31,31,.07);padding:20px 2px}
+.fbloc:last-of-type{border-bottom:none}
+.fhead{display:flex;align-items:flex-start;gap:16px}
+.fhead .txt{flex:1;min-width:0}
+/* ── ÉCART VOULU no 4 — même coquille (voir ECARTS-MAQUETTE.md).
+   Les trois marges verticales ci-dessous n'ont de sens que sur des blocs. */
+.fhead .nm{display:block;font-weight:500;font-size:16px}
+.fhead .fp{display:block;font-size:12.5px;color:var(--faint);
+  font-family:ui-monospace,Menlo,monospace;margin-top:1px}
+.fhead .sub{display:block;font-size:14px;color:var(--muted);margin-top:7px;
+  line-height:1.55}
+.fqui{display:inline-flex;align-items:center;gap:7px;font-size:12.5px;color:var(--muted);
+  background:var(--surface);border-radius:var(--radius-pill);padding:4px 12px;margin-top:10px}
+[data-d="epure"] .fqui{background:none;padding:4px 0;color:var(--faint)}
+.fqui-vide{color:#B3261E}
+.edit{width:100%;min-height:280px;background:var(--surface);border-radius:var(--radius-md);
+  padding:16px 18px;font-family:ui-monospace,Menlo,"SF Mono",monospace;font-size:13.5px;
+  line-height:1.65;color:var(--text);resize:vertical;border:1px solid transparent}
+.edit:focus{outline:none;background:var(--bg);border-color:var(--outline-var)}
+.inconnu{display:inline-flex;align-items:center;gap:8px;height:32px;padding:0 14px;
+  border-radius:var(--radius-pill);background:#FEF7E0;color:#5F4200;font-size:13.5px;
+  font-weight:500;transition:background .14s ease}
+.inconnu:hover{background:#FBE9B7}
+
+
+/* ═══════════════════════════════════════════════════════════════════
+   LA DETTE DE PROFIL
+
+   L'installeur livre tout branché — y compris un user.md rempli. Mais
+   ce profil est celui de QUELQU'UN D'AUTRE. Et un profil d'emprunt est
+   plus dangereux qu'un profil vide : vide, Ulysse répond de façon
+   floue et ça se voit. Emprunté, il répond avec assurance à côté, et
+   ça ne se voit pas.
+
+   D'où trois états, pas deux :
+     absent  — rien du tout ;
+     exemple — rempli, mais pas par vous (état livré) ;
+     à vous  — vous l'avez écrit ou modifié.
+
+   Les deux premiers portent une dette. Elle ne bloque rien, ne
+   s'efface jamais toute seule, et **s'aggrave avec l'usage** — parce
+   qu'une approximation répétée coûte plus qu'une approximation isolée.
+   Un bandeau plein qu'on peut réduire, jamais fermer.
+   ═══════════════════════════════════════════════════════════════════ */
+.panelwrap{position:relative;flex:1;min-height:0}
+.dette{position:relative;z-index:4;flex:none;display:flex;align-items:center;gap:14px;
+  margin:0 var(--space-4) 0 0;padding:11px 18px;border-radius:var(--radius-md);
+  background:#FEF7E0;color:#5F4200;font-size:14.5px;line-height:1.45;
+  animation:rise .3s cubic-bezier(.2,0,0,1) both}
+.dette.rouge{background:#FCE8E6;color:#8C1D18}
+.dette .ic{flex:none;display:grid;place-items:center;opacity:.75}
+.dette .tx{flex:1;min-width:0}
+.dette b{font-weight:600}
+.dette .act{flex:none;display:flex;gap:6px}
+.dette .act button{height:32px;padding:0 15px;border-radius:var(--radius-pill);
+  font-size:14px;font-weight:500;transition:background .14s ease}
+.dette .act .go{background:#5F4200;color:#FEF7E0}
+.dette.rouge .act .go{background:#8C1D18;color:#FCE8E6}
+.dette .act .go:hover{opacity:.88}
+.dette .act .later{color:inherit;opacity:.72}
+.dette .act .later:hover{background:rgba(0,0,0,.07);opacity:1}
+/* Réduite : elle reste, mais elle ne prend plus la parole. */
+.dette.mini{padding:7px 14px;font-size:13.5px;cursor:pointer;
+  margin-bottom:0;align-self:flex-start}
+.dette.mini .act,.dette.mini .plus{display:none}
+.dette.mini:hover{filter:brightness(.97)}
+.dettewrap{padding:0 0 10px var(--space-4);display:flex;flex-direction:column}
+
+
+/* ═══════════════════════════════════════════════════════════════════
+   LES AVERTISSEMENTS, INTÉGRÉS
+
+   Les aplats ambre et rouge détonnaient — ils venaient d'un autre
+   monde que le reste de l'interface. Même erreur que l'icône noire :
+   on avait pris « important » pour « saturé ».
+
+   La règle est la même, et elle vaut maintenant partout :
+
+       UN AVERTISSEMENT, C'EST UN FILET DE COULEUR SUR UNE SURFACE
+       NEUTRE. JAMAIS UN APLAT COLORÉ.
+
+   La surface reste celle de l'application, le texte reste noir, et
+   seul un trait de 3 px porte la couleur. La gravité se lit à sa
+   teinte, pas à la surface qu'elle occupe. Un aplat crie une fois ;
+   un filet tient toute la journée.
+   ═══════════════════════════════════════════════════════════════════ */
+.dette{background:var(--surface);color:var(--text);
+  border-left:3px solid var(--amber);border-radius:0 var(--radius-md) var(--radius-md) 0}
+.dette.rouge{border-left-color:#B3261E}
+.dette .ic{color:var(--amber);opacity:1}
+.dette.rouge .ic{color:#B3261E}
+.dette .act .go{background:var(--text);color:var(--bg)}
+.dette.rouge .act .go{background:var(--text);color:var(--bg)}
+.dette .act .later{color:var(--muted);opacity:1}
+.dette.mini{background:var(--surface)}
+
+.avert,.irrev,.warnbox{background:var(--surface);color:var(--text);
+  border-left:3px solid var(--amber);border-radius:0 var(--radius-md) var(--radius-md) 0}
+
+.warnbox{border-left-color:var(--outline-var)}
+.warnbox svg{color:var(--muted)}
+[data-d="epure"] .avert,[data-d="epure"] .warnbox{background:none;border-left:none;
+  color:var(--muted);padding-left:0}
+[data-d="epure"] .dette{background:none;padding-left:14px}
+.fqui.fvide{background:var(--surface)!important;color:var(--amber)}
+
+
+/* ═══════════════════════════════════════════════════════════════════
+   LE ROUGE, AU BON ENDROIT
+
+   L'aplat criait, le filet seul ne disait plus rien. La bonne mesure
+   est entre les deux, et elle tient en deux marques :
+
+     · un POINT de couleur, avant le texte — il annonce la gravité ;
+     · le MOT qui compte, en gras, souligné de rouge, cliquable — il
+       porte l'action.
+
+   Le reste de la phrase est noir sur surface neutre. Le rouge
+   n'occupe donc que deux endroits minuscules, mais les deux seuls
+   qui comptent : ce dont il s'agit, et où aller.
+
+       LA COULEUR NE COLORE PAS LE MESSAGE — ELLE DÉSIGNE LE MOT.
+   ═══════════════════════════════════════════════════════════════════ */
+.pt{width:9px;height:9px;border-radius:50%;flex:none;margin-top:7px;background:var(--amber)}
+.pt.rouge{background:#B3261E}
+.lienr{font-weight:600;color:var(--text);cursor:pointer;
+  border-bottom:2px solid #B3261E;padding-bottom:1px;white-space:nowrap;
+  transition:background .14s ease}
+.lienr:hover{background:rgba(179,38,30,.10)}
+.liena{border-bottom-color:var(--amber)}
+.liena:hover{background:rgba(227,116,0,.12)}
+.dette{border-left:none;border-radius:var(--radius-md);align-items:flex-start;
+  padding:13px 16px}
+.dette .ic{display:none}
+.dette.mini{align-items:center;padding:8px 14px}
+.dette.mini .pt{margin-top:0}
+.avert,.irrev,.warnbox{border-left:none;border-radius:var(--radius-md)}
+.avert .pt svg,.irrev .pt svg,.dette .pt svg{display:block}
+
+
+/* ═══════════════════════════════════════════════════════════════════
+   PRÉVENIR, SANS CRIER — la forme finale
+
+   Trois marques, et pas une de plus :
+
+     · un TRIANGLE jaune, 17 px, en tête — la forme universelle de
+       l'alerte, reconnue même sans savoir lire ;
+     · le MOT surligné en jaune, gras, souligné — il se voit comme un
+       surligneur sur du papier, donc on devine qu'on peut cliquer
+       dessus avant même de survoler ;
+     · un BOUTON, à droite — parce qu'un lien dans une phrase peut
+       être manqué, et qu'on n'a pas le droit de faire dépendre le
+       rattrapage d'un détail typographique.
+
+   Le rouge ne subsiste que sur 2 px de soulignement, quand c'est
+   grave. Le reste est jaune, et le jaune n'occupe qu'un mot.
+   ═══════════════════════════════════════════════════════════════════ */
+.pt{width:auto;height:auto;border-radius:0;background:none!important;margin-top:1px;
+  display:grid;place-items:center;flex:none}
+.lienr{font-weight:600;color:var(--text);cursor:pointer;
+  background:rgba(249,171,0,.28);border-radius:3px;padding:1px 5px;
+  border-bottom:2px solid var(--amber);
+  transition:background .14s ease,border-color .14s ease}
+.lienr:hover{background:rgba(249,171,0,.52)}
+.lienr.rouge{border-bottom-color:#B3261E}
+.liena{border-bottom-color:var(--amber)}
+.liena:hover{background:rgba(249,171,0,.52)}
+.dette .act{align-self:flex-start}
+.dette .act .go{background:var(--text);color:var(--bg);font-weight:500}
+
+
+/* ═══════════════════════════════════════════════════════════════════
+   ALERTER ET AGIR SONT DEUX CHOSES
+
+   Le mot surligné en jaune ne se lisait pas comme un lien — il se
+   lisait comme une notion importante. Normal : le surlignage dit
+   « retenez ça », pas « cliquez ici ». Deux messages différents dans
+   une seule marque, donc aucun des deux.
+
+   On les sépare :
+     · le TRIANGLE jaune alerte ;
+     · le LIEN agit, et il a tous les signes d'un lien — la couleur
+       d'action de l'application, un soulignement, une graisse
+       moyenne, la typo à chasse fixe du nom de fichier, et une
+       flèche sortante.
+
+   Quatre signaux qui disent tous « clic ». Aucun ne dit « important » :
+   c'est le triangle qui s'en charge.
+   ═══════════════════════════════════════════════════════════════════ */
+.lienr{color:var(--accent);font-weight:500;cursor:pointer;background:none;
+  font-family:ui-monospace,Menlo,"SF Mono",monospace;font-size:.93em;
+  border-bottom:1.5px solid var(--accent);border-radius:0;padding:0 0 1px;
+  white-space:nowrap;transition:background .14s ease}
+.lienr::after{content:' ↗';font-family:var(--font-ui);font-size:1.05em}
+.lienr:hover{background:var(--accent-bg)}
+.lienr.rouge,.liena{border-bottom-color:var(--accent)}
+.lienr.rouge:hover,.liena:hover{background:var(--accent-bg)}
+
+
+/* ═══════════════════════════════════════════════════════════════════
+   LA REPRISE DE CONTEXTE
+
+   Le cas vécu : on dit « relance », et l'agent ne sait pas quoi
+   relancer — alors que la conversation est là, ouverte, avec tout
+   dedans. Ce n'est pas une panne de mémoire. C'est une panne d'ORDRE :
+   il est allé chercher loin sans avoir regardé près.
+
+       AVANT DE CHERCHER LOIN, RELIRE PRÈS.
+
+   Face à une demande qui suppose un contexte — « relance »,
+   « continue », « comme tout à l'heure », « ça ne marche pas » —
+   l'ordre est fixe et ne varie jamais :
+
+     1. le fil visible, celui qu'on a sous les yeux ;
+     2. le plan en cours et l'état de ses étapes ;
+     3. la dernière séance résumée ;
+     4. et seulement alors, demander.
+
+   Et il DIT ce qu'il a relu. Une reprise silencieuse est une devinette
+   déguisée : si l'on ne sait pas d'où vient sa réponse, on ne peut pas
+   corriger sa méprise.
+   ═══════════════════════════════════════════════════════════════════ */
+.relu{display:flex;gap:10px;align-items:flex-start;font-size:13.5px;color:var(--muted);
+  background:var(--surface);border-radius:var(--radius-md);padding:10px 14px;
+  margin-bottom:14px;animation:rise .3s cubic-bezier(.2,0,0,1) both}
+[data-d="epure"] .relu{background:none;padding:10px 0 0;border-top:1px solid rgba(31,31,31,.08)}
+.relu b{color:var(--text);font-weight:500}
+.relu .st{flex:none;margin-top:2px;color:var(--muted)}
+
+
+/* ═══════════════════════════════════════════════════════════════════
+   REMPLIR user.md SANS VOIR DE MARKDOWN
+
+   Une zone de texte vide devant quelqu'un qui n'a jamais écrit de
+   markdown, c'est la page blanche. Les cinq questions deviennent donc
+   cinq champs, chacun avec son invite au-dessus et **son exemple en
+   filigrane dans le champ**.
+
+       L'EXEMPLE VA DANS LE CHAMP, PAS À CÔTÉ.
+
+   Un exemple posé sous le champ se lit comme une consigne de plus. Le
+   même texte en filigrane se lit comme « voilà à quoi ressemblerait
+   votre réponse » — et il disparaît dès qu'on tape.
+
+   Le fichier reste consultable d'un lien : rien n'est caché, mais
+   personne n'est obligé de le regarder.
+   ═══════════════════════════════════════════════════════════════════ */
+.qbloc{padding:18px 0;border-bottom:1px solid rgba(31,31,31,.07)}
+.qbloc:last-of-type{border-bottom:none}
+.qn{font-weight:500;margin-bottom:4px}
+.qi{font-size:14px;color:var(--muted);line-height:1.5;margin-bottom:10px}
+.qi b{color:var(--text);font-weight:500}
+.qf{width:100%;background:var(--surface);border-radius:var(--radius-md);
+  padding:12px 15px;font-size:15px;line-height:1.55;border:1px solid transparent;
+  resize:vertical;min-height:52px;color:var(--text);font-family:var(--font-ui)}
+.qf:focus{outline:none;background:var(--bg);border-color:var(--outline-var)}
+.qf::placeholder{color:var(--faint);font-style:italic}
+.qrepondu{color:var(--green);font-size:13px;margin-left:8px;font-weight:500}
+.qprog{display:flex;align-items:center;gap:14px;margin:4px 0 18px;
+  font-size:14px;color:var(--muted)}
+.qprog .bar{flex:1;max-width:220px;height:4px;background:var(--surface-hi);
+  border-radius:var(--radius-pill);overflow:hidden}
+.qprog .bar i{display:block;height:100%;background:var(--green);
+  border-radius:var(--radius-pill);transition:width .3s ease}
+
+/* ═══ Repères ═══ */
+.fam{margin-bottom:26px}
+.fam h3{font-size:var(--font-size-sm);color:var(--muted);font-weight:500;margin-bottom:10px}
+.gl-row{display:flex;align-items:center;gap:18px;padding:13px 18px;background:var(--surface);
+  border-radius:var(--radius-md);margin-bottom:6px}
+.gl-ic{width:40px;height:40px;flex:none;border-radius:var(--radius-sm);background:var(--bg);
+  display:grid;place-items:center;color:var(--text)}
+.gl-nm{width:150px;flex:none;font-weight:500}
+.gl-rule{flex:1;font-size:var(--font-size-sm);color:var(--muted)}
+.law{background:var(--accent-container);color:var(--on-accent-container);
+  border-radius:var(--radius-md);padding:16px 20px;margin-bottom:22px;font-size:15px}
+.law b{font-weight:600}
+.dembar{position:fixed;left:0;right:0;bottom:0;z-index:5;height:34px;
+  display:flex;align-items:center;gap:10px;padding:0 16px;
+  background:rgba(255,255,255,.92);border-top:1px solid var(--outline-var);
+  backdrop-filter:blur(8px)}
+.dembar .sp{flex:1}
+.dembar .note{font-size:var(--font-size-xs);color:var(--faint);white-space:nowrap;
+  overflow:hidden;text-overflow:ellipsis}
+.dembar button{height:24px;padding:0 12px;border-radius:var(--radius-pill);flex:none;
+  font-size:12px;color:var(--muted);background:var(--surface);white-space:nowrap;
+  transition:background .14s ease,color .14s ease}
+.dembar button:hover{background:var(--surface-hi);color:var(--text)}
+/* Le contenu s'arrête au-dessus de la barre : elle ne recouvre rien. */
+#app,#lvl1,#first{padding-bottom:34px}
+
+/* ═══ Régression de la décision 19, trouvée par l'audit sur images ══
+   Le bandeau de dette est entièrement rouge sur les 27 captures du
+   lot 4c. À 760 px il occupe trois lignes pleines en haut de l'écran.
+
+     LA COULEUR NE COLORE PAS LE MESSAGE — ELLE DÉSIGNE LE MOT.
+
+   Ce n'est pas neuf : la correction avait été faite une première
+   fois, puis **perdue quand le texte a été réécrit** pour le rendre
+   plus concret. Une règle qui vit dans une chaîne de caractères se
+   perd à la première réécriture de cette chaîne.
+
+   Posé ici, en fin de feuille, volontairement : après quatre passes
+   perdues aujourd'hui à raffiner des cascades, on choisit ce qui ne
+   peut pas être défait par une règle écrite plus haut.
+   ═══════════════════════════════════════════════════════════════ */
+.dette,.dette.rouge{color:var(--text)}
+.dette .tx{color:var(--text)}
+/* Ce qui garde le droit à la couleur : le triangle qui alerte, et le
+   mot qui mène quelque part. Deux objets, pas une phrase. */
+.dette .pt{color:var(--amber)}
+.dette.rouge .pt{color:#B3261E}
+.dette .tx b{color:var(--text)}
+</style>
+
+<style>
+.u-who{font-size:var(--font-size-xs);color:var(--faint);margin-bottom:4px}
+.u-sousbarre{position:relative;z-index:1;display:flex;align-items:center;gap:12px;
+  width:min(720px,calc(100vw - 48px));margin:10px auto 0}
+.u-modenote{font-size:11.5px;color:var(--faint)}
+.u-todo{border:1px dashed var(--outline-var);border-radius:var(--radius-card);
+  padding:18px;color:var(--muted);font-size:var(--font-size-sm);max-width:620px;
+  line-height:1.6;margin:12px 0}
+.u-todo b{color:var(--text);font-weight:500}
+.u-todo code{background:var(--surface);border-radius:6px;padding:1px 6px;
+  font-size:var(--font-size-xs)}
+
+/* ── Habillage de l'aperçu ─────────────────────────────────────────────── */
+body{overflow:auto}
+.ap-bar{position:sticky;top:0;z-index:900;display:flex;align-items:center;gap:14px;
+  flex-wrap:wrap;padding:10px 20px;background:#1F1F1F;color:#fff;font-size:13px}
+.ap-bar .t{font-weight:500;margin-right:auto}
+.ap-bar .t span{color:#9AA0A6;font-weight:400}
+.ap-seg{display:flex;border:1px solid #5F6368;border-radius:999px;overflow:hidden}
+.ap-seg button{padding:5px 13px;font-size:12.5px;color:#DADCE0}
+.ap-seg button+button{border-left:1px solid #5F6368}
+.ap-seg button.on{background:#D3E3FD;color:#041E49;font-weight:500}
+.ap-frame{position:relative;height:calc(100vh - 46px);min-height:660px;
+  border-top:1px solid var(--outline-var);display:flex;overflow:hidden}
+.ap-frame .stage{flex:1;min-width:0;position:relative;display:flex;flex-direction:column}
+.ap-frame .panel{position:absolute;inset:0;display:flex;flex-direction:column}
+.ap-note{position:fixed;right:16px;bottom:16px;z-index:800;max-width:350px;
+  max-height:64vh;overflow:auto;background:#1F1F1F;color:#E8EAED;border-radius:14px;
+  padding:15px 17px;font-size:12.5px;line-height:1.55;box-shadow:0 4px 20px rgba(0,0,0,.4)}
+.ap-note b{color:#8AB4F8;font-weight:500}
+.ap-note h4{font-size:12.5px;color:#fff;margin:12px 0 5px}
+.ap-note ul{margin:4px 0 0 15px;padding:0}
+.ap-note li{margin-bottom:6px}
+.ap-note code{background:#3C4043;border-radius:4px;padding:1px 5px;font-size:11.5px}
+.ap-note .x{position:absolute;top:8px;right:11px;color:#9AA0A6;cursor:pointer}
+
+/* ═══════════════════════════════════════════════════════════════════════
+   CE QUI S'AJOUTE — préfixé `l-`.
+   ═══════════════════════════════════════════════════════════════════════ */
+
+/* ── LA GÉLULE DU LIEU ───────────────────────────────────────────────────
+   Elle se pose à côté du titre, là où `#privchip` se pose déjà : la barre
+   de titre décrit l'écran, et **où l'on travaille fait partie de ce qu'il
+   est**.
+
+   Elle reprend les trois espèces arbitrées dans la passe des Projets, avec
+   les mêmes signes — un vrai projet a sa couleur, un dossier déduit est
+   gris et vide. On ne réapprend pas un vocabulaire d'un écran à l'autre. */
+.l-lieu{display:inline-flex;align-items:center;gap:7px;margin-left:12px;
+  height:28px;padding:0 12px 0 8px;border-radius:var(--radius-pill);
+  font-size:12.5px;background:var(--surface);color:var(--muted);
+  max-width:280px;transition:background .14s ease}
+.l-lieu:hover{background:var(--surface-hi);color:var(--text)}
+.l-lieu .ic{width:18px;height:18px;flex:none;border-radius:5px;display:grid;
+  place-items:center}
+.l-lieu .nm{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+/* Un vrai projet porte sa couleur. Un dossier déduit, non — c'est ce qui
+   les distingue dans la liste, et ça doit être vrai ici aussi. */
+.l-lieu.projet .ic{color:#fff}
+.l-lieu.dossier .ic{background:var(--surface-hi);color:var(--muted)}
+/* Tant qu'on ne sait pas, on ne dit pas. Même règle que les pastilles de
+   `#first` : « je ne sais pas » n'est pas « nulle part ». */
+.l-lieu.attente{color:var(--faint)}
+.l-lieu.attente .ic{background:var(--outline-var);animation:l-pulse 1.4s ease-in-out infinite}
+@keyframes l-pulse{0%,100%{opacity:1}50%{opacity:.4}}
+
+/* ── LE CAS QUI N'EXISTAIT NULLE PART : DEUX DOSSIERS À LA FOIS ──────────
+   `CFG.SESSION_CWD` est le dossier de la PROCHAINE session.
+   `conv.info.cwd` est celui de la session EN COURS.
+
+   Cliquer « Travailler ici » pendant qu'un fil est ouvert change le
+   premier, pas le second — et **rien ne le dit aujourd'hui**. On croit
+   avoir déménagé ; on écrit encore à l'ancienne adresse.
+
+   La gélule se dédouble alors, avec une flèche entre les deux. C'est le
+   seul moment où elle prend de la place, et c'est le seul où il le faut. */
+.l-lieu.change{background:#FEF7E0;color:#5F4200;padding-right:8px}
+.l-lieu .fl{color:var(--amber);flex:none;display:grid}
+.l-lieu .suite{color:#5F4200;font-weight:500}
+
+/* Le repli : le chemin entier, et où aller. On ne met pas un chemin de
+   cent caractères dans une barre de titre. */
+.l-pop{position:absolute;top:44px;left:0;right:auto;bottom:auto;min-width:300px;
+  max-width:420px;padding:14px 16px}
+.l-pop .ch{font-family:ui-monospace,Menlo,monospace;font-size:12px;
+  word-break:break-all;color:var(--text);background:var(--surface);
+  border-radius:var(--radius-sm);padding:9px 12px;margin:8px 0 4px}
+.l-pop .tt{font-size:var(--font-size-xs);color:var(--muted);line-height:1.55}
+.l-pop .acts{display:flex;gap:8px;margin-top:12px;opacity:1}
+</style>
+</head>
+<body>
+
+<div class="ap-bar">
+  <span class="t">Aperçu — <b>où Discuter travaille</b>
+    <span>· projects.for_cwd</span></span>
+
+  <div class="ap-seg" id="apCas">
+    <button data-c="attente" class="on">Session pas ouverte</button>
+    <button data-c="projet">Un vrai projet</button>
+    <button data-c="dossier">Un dossier déduit</button>
+    <button data-c="aucun">Aucun dossier</button>
+    <button data-c="change">Changement en attente</button>
+  </div>
+  <div class="ap-seg" id="apVers">
+    <button data-v="0" class="on">Actuel</button>
+    <button data-v="1">Proposé</button>
+  </div>
+</div>
+
+<div class="ap-frame">
+  <div class="stage">
+    <div class="panel on" id="pDiscuter">
+      <div class="topbar">
+        <span class="title">Discuter</span>
+        <span class="privchip" id="privchip"></span>
+        <!-- La gélule du lieu vient ici, à côté du titre. -->
+        <span id="lieuSlot" style="position:relative"></span>
+        <span class="sep"></span>
+        <span style="position:relative">
+          <button class="icon-btn" id="moreBtn" aria-label="Autres options"></button>
+          <div class="pop" id="morePop" style="bottom:auto;top:48px;right:0;left:auto"></div>
+        </span>
+      </div>
+
+      <div class="work" id="work">
+        <div class="thread"><div class="thread-in"><div id="thread"></div></div></div>
+      </div>
+
+      <div class="foot"><div style="position:relative;max-width:720px;margin:0 auto">
+        <form class="composer" id="composer" onsubmit="return false">
+          <button type="button" class="icon-btn" id="plus1" aria-label="Joindre"></button>
+          <input id="reply" autocomplete="off" placeholder="Répondre…">
+          <button type="button" class="icon-btn" id="mic1" aria-label="Parler"></button>
+          <button type="submit" class="icon-btn send" id="snd1" aria-label="Envoyer"></button>
+        </form>
+        <div class="u-sousbarre">
+          <div class="seg u-modeseg" data-seg="1">
+            <button data-mode="pur" class="on">Chat</button>
+            <button data-mode="cowork">Cowork</button>
+          </div>
+          <span class="sp" style="flex:1"></span>
+          <span class="u-modenote" id="modenote1"></span>
+        </div>
+      </div></div>
+    </div>
+  </div>
+</div>
+
+<div class="snack" id="snack"></div>
+
+<div class="ap-note" id="apNote">
+  <span class="x" onclick="document.getElementById('apNote').style.display='none'">✕</span>
+  <div id="apBody"></div>
+</div>
+
+<script>
+/* ══ ulysse-icons.js, recopié ══ */
+/* ============================================================================
+ * ulysse-icons.js — le jeu d'icones d'Ulysse
+ * ----------------------------------------------------------------------------
+ * EXTRAIT VERBATIM de maquette-ulysse-google-33.html (table `I` + fonction
+ * `svg()`). Chaque icone porte son nom en clair (`nm`) et sa raison d'etre
+ * (`r`) : c'est ce qui alimente le panneau Reperes. Ne pas remplacer par un
+ * jeu d'icones generique — la maquette est le produit fini.
+ * ========================================================================== */
+
+const I={
+ menu:{d:'M4 7h16M4 12h16M4 17h16',nm:'menu',
+   r:"Épingle le menu ouvert. Le survol du bord gauche suffit à le déplier — l'épingle sert à le garder."},
+ fermer:{d:'M6 6l12 12M18 6L6 18',nm:'fermer',
+   r:"Fait disparaître. Ne détruit jamais : ce qui est fermé se rouvre depuis le menu."},
+ reduire:{d:'M6 12h12',nm:'réduire',r:"Le volet reste là mais cède la place à son voisin."},
+ agrandir:{d:'M9 4H4v5M15 4h5v5M20 15v5h-5M9 20H4v-5',nm:'agrandir',
+   r:"Le volet prend toute la place. Son voisin s'efface, il ne se ferme pas."},
+ restaurer:{d:'M4 9h5V4M20 9h-5V4M20 15h-5v5M4 15h5v5',nm:'restaurer',
+   r:"Revient au partage d'origine. Remplace « agrandir » quand on y est déjà."},
+ chevron:{d:'M6 9l6 6 6-6',nm:'développer / replier',
+   r:"Montre ou cache le détail, sur place. La même icône pivote : jamais deux dessins pour un aller-retour."},
+ tout:{d:'M4 8h16M4 16h16M8 4l4 4 4-4M8 20l4-4 4 4',nm:'tout replier',
+   r:"Applique le repli à toute la liste d'un coup."},
+ retour:{d:'M15 6l-6 6 6 6',nm:'retour',r:"Revient d'où l'on vient. Toujours en haut à gauche."},
+ suivant:{d:'M9 6l6 6-6 6',nm:'suivant',
+   r:"Va vers le détail. Sur une carte, annonce qu'un clic ouvre quelque chose."},
+ plus:{d:'M12 5v14M5 12h14',nm:'ajouter',
+   r:"Ouvre le choix de ce qu'on ajoute — un fichier, un projet, un agent. Ne crée jamais tout seul."},
+ incognito:{raw:`<path d="M4.5 12c0-4 3.3-7 7.5-7s7.5 3 7.5 7"/><path d="M2.5 12h19"/>
+   <circle cx="7.4" cy="16.6" r="2.7"/><circle cx="16.6" cy="16.6" r="2.7"/>
+   <path d="M10.1 16.2h3.8"/>`,nm:'conversation privée',
+   r:"Le fil n'est pas retenu. La fenêtre entière change de teint : on ne peut pas s'y tromper."},
+ coffre:{raw:`<rect x="4" y="10" width="16" height="10" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/>`,
+   nm:'coffre',r:"Le contenu d'un projet. Chaque projet a le sien, aucun ne voit celui d'un autre."},
+ bac:{raw:`<path d="M12 3 3 7.5v9L12 21l9-4.5v-9z"/><path d="M3 7.5 12 12l9-4.5M12 12v9"/>`,
+   nm:'bac à sable',r:"L'espace d'exécution d'un projet. Il s'ouvre, il se ferme, il ne déborde pas."},
+ auto:{raw:`<path d="M11.5 3 13.3 7.7 18 9.5l-4.7 1.8L11.5 16 9.7 11.3 5 9.5l4.7-1.8z"/>
+   <path d="M18.2 15l.85 2.15L21.2 18l-2.15.85L18.2 21l-.85-2.15L15.2 18l2.15-.85z"/>`,
+   nm:'se fait tout seul',
+   r:"Marque une étape qui n'a besoin de personne : ni vous, ni un agent. Elle se fait, elle ne se décide pas."},
+ recherche:{raw:`<circle cx="11" cy="11" r="6"/><path d="M15.6 15.6 21 21"/>`,nm:'filtrer',
+   r:"Réduit la grille à ce qui correspond. Ne masque jamais définitivement : videz le champ, tout revient."},
+ relancer:{raw:`<path d="M20.5 12a8.5 8.5 0 1 1-2.5-6"/><path d="M20.5 2.5v5h-5"/>`,
+   nm:'relancer',
+   r:"Remet un projet en route. Le menu qui l'accompagne dit d'où : de là où ça s'est arrêté, ou du début."},
+ alerte:{raw:`<path d="M12 3.9 21.7 20.3H2.3z" fill="#F9AB00" stroke="#F9AB00"
+   stroke-width="1.7" stroke-linejoin="round"/>
+   <path d="M12 10v3.7" stroke="#3D2B00" stroke-width="1.9" stroke-linecap="round"/>
+   <circle cx="12" cy="16.7" r="1.05" fill="#3D2B00" stroke="none"/>`,
+   nm:'attention',
+   r:"Signale ce qui empêchera quelque chose de bien se passer. Jamais décoratif : s'il est là, il y a une action au bout."},
+ prise:{raw:`<path d="M9 2.5v6M15 2.5v6"/><path d="M5.5 8.5h13v3.5a6.5 6.5 0 0 1-13 0z"/>
+   <path d="M12 18.5V22"/>`,nm:'connexions',
+   r:"Ce à quoi Ulysse a le droit de se brancher. Rien n'est branché sans que vous l'ayez dit."},
+ cloche:{raw:`<path d="M18 16.5v-5.2a6 6 0 1 0-12 0v5.2L4.2 19.5h15.6z"/>
+   <path d="M9.8 22a2.6 2.6 0 0 0 4.4 0"/>`,nm:'notifications',
+   r:"Ce qui attend une réponse s'y compte, et le compteur bat tant qu'on n'a pas répondu."},
+ boucle:{raw:`<path d="M17 2.6 20.6 6 17 9.4"/><path d="M20.6 6H8.2A4.6 4.6 0 0 0 3.6 10.6v1.2"/>
+   <path d="M7 21.4 3.4 18 7 14.6"/><path d="M3.4 18h12.4a4.6 4.6 0 0 0 4.6-4.6v-1.2"/>`,
+   nm:'automatisation',
+   r:"Ce qui tourne en boucle, sans agent derrière. Un travail a une fin ; une automatisation, non."},
+ corbeille:{raw:`<path d="M4 7h16"/><path d="M9.5 7V5.2a1.2 1.2 0 0 1 1.2-1.2h2.6a1.2 1.2 0 0 1 1.2 1.2V7"/>
+   <path d="M6.5 7l.9 12.1a1.5 1.5 0 0 0 1.5 1.4h6.2a1.5 1.5 0 0 0 1.5-1.4L17.5 7"/>`,
+   nm:'supprimer',
+   r:"Met à la corbeille. Ne détruit pas : l'objet y reste, et la corbeille vit là où vivent les objets qu'elle recueille."},
+ point:{circle:true,nm:"marqueur d'état",
+   r:"Vert : terminé. Orange : en cours. Gris : en attente. Trois états, pas plus."},
+ /* Deux signes AJOUTÉS à la maquette, parce que le produit a gagné deux
+    pouvoirs qu'elle n'avait pas : `PATCH /api/sessions/{id}` sait épingler et
+    archiver. Ajouter une icône est sans risque ; en retirer casserait un
+    appel svg(). */
+ epingle:{raw:`<path d="M9 3h6M12 3v6.2a4 4 0 0 1-1.2 2.9L8.6 14.3h6.8l-2.2-2.2A4 4 0 0 1 12 9.2"/>
+   <path d="M12 14.3V21"/>`,nm:'épingler',
+   r:"Sort une conversation du fil du temps. Elle reste en tête quel que soit son âge — c'est la seule chose qui empêche une liste de devenir un journal."},
+ boite:{raw:`<path d="M3 8.5h18v10.5a1.5 1.5 0 0 1-1.5 1.5h-15A1.5 1.5 0 0 1 3 19z"/>
+   <rect x="2.2" y="3.8" width="19.6" height="4.7" rx="1.2"/><path d="M10 12.5h4"/>`,
+   nm:'archiver',
+   r:"Range sans jeter. Une conversation archivée sort de la liste et se retrouve quand on la demande — c'est ce qui permet de ne pas avoir à décider si on supprime."},
+ /* service */
+ micro:{d:'M12 2a3 3 0 0 1 3 3v6a3 3 0 0 1-6 0V5a3 3 0 0 1 3-3zM5 11a7 7 0 0 0 14 0M12 18v4',
+   nm:'parler',
+   r:"Dicte à la place d'écrire. Non branché à ce jour : Hermès expose /api/audio/transcribe, l'interface reste à faire — le bouton le dit plutôt que de faire semblant."},
+ envoi:{d:'M5 12h13M13 6l6 6-6 6',
+   nm:'envoyer',
+   r:"Part vers l'agent. C'est le seul geste de l'écran qui engage un tour de travail ; il porte l'accent, et rien d'autre autour du champ ne le porte."},
+ coche:{d:'M4 12l6 6L20 6',w:3.4,
+   nm:"c’est fait",
+   r:"Confirme après coup, jamais avant. Sur un accord donné, il garde la trace de ce qui a été autorisé."},
+ chat:{d:'M4 6a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2h-6l-5 4v-4H6a2 2 0 0 1-2-2z',
+   nm:'discuter',
+   r:"La conversation nue — le modèle répond, il n'agit pas. À distinguer de la bulle du menu, qui désigne la destination."},
+ atelier:{d:'M3 21h18M5 21V9l7-5 7 5v12M9 21v-6h6v6',
+   nm:"l’Établi",
+   r:"Les fichiers déjà sur la machine, ouverts à côté du fil. Il s'ouvre à côté, il ne pousse rien."},
+ fichier:{d:'M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8zM14 3v5h5',
+   nm:'fichier',
+   r:"Un fichier ordinaire, dans une liste. Le contour seul : c'est du contenu, pas une destination."},
+ lien:{d:'M10 13a5 5 0 0 0 7 0l2-2a5 5 0 0 0-7-7l-1 1M14 11a5 5 0 0 0-7 0l-2 2a5 5 0 0 0 7 7l1-1',
+   nm:'lien',
+   r:"Renvoie ailleurs sans quitter ce qu'on fait. Réservé à ce qui pointe hors d'Ulysse."},
+ regler:{tune:true,
+   nm:'réglages',
+   r:"La destination où l'on change ce qui vaut pour toutes les conversations, pas pour celle-ci."},
+ copier:{d:'M9 9h10v10H9zM5 15V5h10',
+   nm:'copier',
+   r:"Prend une valeur pour la coller ailleurs. Ne modifie rien : c'est le seul geste de la barre d'actions qui ne touche à rien."},
+ power:{d:'M12 3v9M6.5 6.5a8 8 0 1 0 11 0',
+   nm:'arrêter',
+   r:"Coupe pour de bon. Réservé à ce qui ne se rattrape pas par un simple retour."},
+ /* destinations */
+ bulle:{fillable:'M4 6a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2h-6l-5 4v-4H6a2 2 0 0 1-2-2z',
+   nm:'Discuter',
+   r:"La destination du fil en cours. Pleine quand on y est, en contour sinon — la même règle pour les dix entrées du menu."},
+ eclair:{fillable:'M13 2 4 14h7l-1 8 9-12h-7z',
+   nm:'Travaux',
+   r:"Les conversations déjà menées. L'éclair dit le travail fait, pas la vitesse."},
+ doc:{fillable:'M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z',
+   nm:'Livrables',
+   r:"Ce qui a été produit et qu'on peut emporter. Un livrable est un fichier qu'on montre à quelqu'un d'autre."},
+ dossier:{fillable:'M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z',
+   nm:'Projets',
+   r:"Le regroupement réel qu'Hermès connaît : le dossier de travail. Il ne prétend pas être autre chose."},
+ equipe:{people:true,
+   nm:'Vestiaire',
+   r:"Les rôles et les compétences — ce qu'on peut endosser. Trois silhouettes, parce qu'aucune n'est la bonne à elle seule."},
+ noeuds:{nodes:true,
+   nm:'Plan',
+   r:"Ce que fait l'agent, étape par étape. Des nœuds reliés : c'est une suite, pas une liste."},
+ boussole:{fillable:'M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18zm3.5 5.5-2 5-5 2 2-5z',
+   nm:'Repères',
+   r:"Le sens de chaque signe de l'interface. On y vient avec un dessin en tête, pas pour le lire en entier."},
+ points:{raw:`<circle cx="12" cy="5.6" r="1.7" fill="currentColor" stroke="none"/>
+   <circle cx="12" cy="12" r="1.7" fill="currentColor" stroke="none"/>
+   <circle cx="12" cy="18.4" r="1.7" fill="currentColor" stroke="none"/>`,nm:'agir sur',
+   r:"Range les actions d'un élément au lieu de les étaler. Elles ne disparaissent pas : elles attendent qu'on les demande."},
+ terminal:{raw:`<rect x="3" y="4.5" width="18" height="15" rx="2.5"/>
+   <path d="M7.2 10.2 10 12.6l-2.8 2.4M12.4 15.4h4.4"/>`,nm:'terminal',
+   r:"Ouvre la ligne de commande d'Hermès, en dehors d'Ulysse. Ce qui s'y tape ne passe par aucun de vos accords."}
+};
+
+function svg(k,{size=24,fill=false,w=2}={}){
+  const o=I[k]||{}, sw=o.w||w;
+  /* Un glyphe « plein » n'est jamais un aplat : c'est sa propre couleur
+     à 18 %. Le contour reste net, la masse reste légère. */
+  const wrap=(inner,f)=>`<svg width="${size}" height="${size}" viewBox="0 0 24 24"
+    fill="${f||'none'}" fill-opacity="${f&&f!=='none'?'.12':'1'}"
+    stroke="currentColor" stroke-width="${sw}" stroke-linecap="round"
+    stroke-linejoin="round">${inner}</svg>`;
+  if(o.circle) return `<svg width="${size}" height="${size}" viewBox="0 0 24 24">
+    <circle cx="12" cy="12" r="5" fill="currentColor"/></svg>`;
+  if(o.people) return wrap(`<circle cx="9" cy="8" r="3.2"/>
+    <path d="M3 19a6 6 0 0 1 12 0"/><circle cx="17" cy="9.5" r="2.4"/>
+    <path d="M15.5 19h5.5a4.5 4.5 0 0 0-3-4.2"/>`, fill?'currentColor':'none');
+  if(o.nodes) return wrap(`<circle cx="6" cy="6" r="2.6"/><circle cx="18" cy="10" r="2.6"/>
+    <circle cx="8" cy="18" r="2.6"/><path d="M8.4 7.1 15.5 9.3M7.4 8.5 7.9 15.4" fill="none"/>`,
+    fill?'currentColor':'none');
+  if(o.tune) return wrap(`<path d="M4 7h6M15 7h5M4 12h11M4 17h3M12 17h8" fill="none"/>
+    <circle cx="12.5" cy="7" r="2.3"/><circle cx="17.5" cy="12" r="2.3"/>
+    <circle cx="9.5" cy="17" r="2.3"/>`, fill?'currentColor':'none');
+  if(o.raw) return wrap(o.raw);
+  if(o.fillable) return wrap(`<path d="${o.fillable}"/>`,fill?'currentColor':'none');
+  return wrap(`<path d="${o.d}"/>`);
+}
+
+</script>
+<script>
+/* ═══ Banc d'essai. ═══ */
+const $ = (id) => document.getElementById(id);
+const H = (id, h) => { const n = $(id); if (n) n.innerHTML = h; };
+const ech = (s) => String(s).replace(/[&<>"]/g, (c) =>
+  ({ "&":"&amp;", "<":"&lt;", ">":"&gt;", '"':"&quot;" }[c]));
+
+let propose = false, cas = "attente";
+
+/* Ce que `projects.for_cwd` rendrait, selon le cas. Les trois espèces sont
+   celles arbitrées dans la passe des Projets — on ne réinvente rien. */
+const LIEUX = {
+  attente: null,
+  projet:  { espece:"projet", label:"Migration des factures", color:"#9334E6",
+             icon:"doc", path:"%USERPROFILE%/Documents/Factures" },
+  dossier: { espece:"dossier", label:"Projet Ulysse",
+             path:"%USERPROFILE%/Desktop/Projet Ulysse" },
+  aucun:   { espece:"aucun", label:"dossier d'Hermès",
+             path:"%USERPROFILE%/.hermes" },
+  change:  { espece:"dossier", label:"Projet Ulysse",
+             path:"%USERPROFILE%/Desktop/Projet Ulysse",
+             suivant:{ espece:"projet", label:"Migration des factures",
+                       color:"#9334E6", icon:"doc",
+                       path:"%USERPROFILE%/Documents/Factures" } }
+};
+
+function gelule(){
+  const L = LIEUX[cas];
+
+  /* Tant que la session n'est pas ouverte, on ne sait pas où elle ira. On
+     le dit — « je ne sais pas » n'est pas « nulle part ». */
+  if (!L){
+    return '<button class="l-lieu attente" id="lieuBtn">'
+      + '<span class="ic"></span><span class="nm">dossier en attente</span></button>';
+  }
+
+  const ic = L.espece === "projet"
+    ? '<span class="ic" style="background:' + L.color + '">'
+      + svg(L.icon, { size: 12 }) + "</span>"
+    : '<span class="ic">' + svg("dossier", { size: 12 }) + "</span>";
+
+  /* Le cas qui n'existait nulle part : deux dossiers à la fois. */
+  if (L.suivant){
+    return '<button class="l-lieu change" id="lieuBtn">'
+      + ic + '<span class="nm">' + ech(L.label) + "</span>"
+      + '<span class="fl">' + svg("suivant", { size: 14 }) + "</span>"
+      + '<span class="nm suite">' + ech(L.suivant.label) + "</span></button>";
+  }
+
+  return '<button class="l-lieu ' + L.espece + '" id="lieuBtn">'
+    + ic + '<span class="nm">' + ech(L.label) + "</span></button>";
+}
+
+function repli(){
+  const L = LIEUX[cas];
+  if (!L){
+    return '<div class="pop l-pop" id="lieuPop">'
+      + '<div class="tt">La session s\'ouvrira au premier message. Son dossier '
+      + "sera celui que vous avez choisi dans Projets, ou celui d'Hermès.</div>"
+      + '<div class="acts"><button class="btn-pick" data-a="projets">'
+      + "Voir les Projets</button></div></div>";
+  }
+  if (L.suivant){
+    return '<div class="pop l-pop" id="lieuPop">'
+      + '<div class="tt"><b>Ce fil travaille encore ici :</b></div>'
+      + '<div class="ch">' + ech(L.path) + "</div>"
+      + '<div class="tt" style="margin-top:12px"><b>Le prochain s\'ouvrira ici :</b>'
+      + "</div>"
+      + '<div class="ch">' + ech(L.suivant.path) + "</div>"
+      + '<div class="tt">Un fil ne change pas de dossier en cours de route — '
+      + "l'agent y a déjà lu et écrit.</div>"
+      + '<div class="acts"><button class="btn-pick" data-a="nouveau">'
+      + "Ouvrir un fil là-bas</button>"
+      + '<button class="quiet-link" data-a="annuler">Rester ici</button></div></div>';
+  }
+  return '<div class="pop l-pop" id="lieuPop">'
+    + '<div class="tt">' + (L.espece === "projet"
+        ? "Ce fil appartient à un projet. Ce qu'Ulysse y écrit reste dans son dossier."
+        : L.espece === "dossier"
+        ? "Ce dossier n'est pas rangé en projet. Il n'a ni nom propre, ni couleur."
+        : "Aucun dossier n'a été choisi. L'agent travaille là où Hermès a été lancé.")
+    + "</div>"
+    + '<div class="ch">' + ech(L.path) + "</div>"
+    + '<div class="acts">'
+    + (L.espece === "dossier"
+        ? '<button class="btn-pick" data-a="ranger">En faire un projet</button>' : "")
+    + '<button class="quiet-link" data-a="projets">Voir dans Projets</button>'
+    + "</div></div>";
+}
+
+function dessine(){
+  /* ACTUEL : la barre de titre ne dit rien du lieu. */
+  H("lieuSlot", propose ? gelule() + repli() : "");
+
+  H("thread",
+    '<div class="msg you"><div class="u-who">Vous</div>'
+    + "<p>Applique la passe de design sur les projets.</p></div>"
+    + '<div class="msg ulysse"><div class="u-who">Ulysse</div>'
+    + "<p>C'est fait — j'ai écrit dans <b>ulysse.html</b> et <b>ulysse-app.js</b>.</p>"
+    + "</div>");
+
+  ["plus1","mic1","snd1"].forEach((i, n) =>
+    H(i, svg(["plus","micro","envoi"][n], { size: 24 })));
+  H("moreBtn", svg("points", { size: 24 }));
+  $("modenote1").textContent = "Outils actifs — l'agent peut lire et écrire.";
+
+  const b = $("lieuBtn");
+  if (b) b.onclick = (e) => {
+    e.stopPropagation();
+    $("lieuPop").classList.toggle("on");
+  };
+  const p = $("lieuPop");
+  if (p){
+    p.onclick = (e) => e.stopPropagation();
+    p.querySelectorAll("[data-a]").forEach((x) => {
+      x.onclick = () => {
+        p.classList.remove("on");
+        snack({ projets:"Ouvrirait Projets.",
+          ranger:"Ouvrirait « Ranger un dossier en projet ».",
+          nouveau:"Ouvrirait un fil neuf dans le dossier choisi.",
+          annuler:"Le prochain fil s'ouvrira ici, finalement." }[x.dataset.a]);
+      };
+    });
+  }
+  majNote();
+}
+
+document.addEventListener("click", () => {
+  const p = $("lieuPop"); if (p) p.classList.remove("on");
+});
+
+let snackT = null;
+function snack(msg){
+  const el = $("snack");
+  el.innerHTML = "<span>" + ech(msg) + "</span>";
+  el.classList.add("on");
+  clearTimeout(snackT);
+  snackT = setTimeout(() => el.classList.remove("on"), 4000);
+}
+
+function majSeg(id, v){
+  $(id).querySelectorAll("button").forEach((b) =>
+    b.classList.toggle("on", (b.dataset.c || b.dataset.v) === v));
+}
+$("apCas").onclick = (e) => {
+  const b = e.target.closest("[data-c]"); if (!b) return;
+  cas = b.dataset.c; majSeg("apCas", cas); dessine();
+};
+$("apVers").onclick = (e) => {
+  const b = e.target.closest("[data-v]"); if (!b) return;
+  majSeg("apVers", b.dataset.v);
+  propose = b.dataset.v === "1";
+  dessine();
+};
+
+function majNote(){
+  $("apBody").innerHTML = propose
+    ? "<b>Proposé</b> — la barre de titre dit où l'on travaille."
+      + "<h4>Le défaut</h4>"
+      + "On choisit « Travailler ici » dans Projets, un snack le dit six secondes, "
+      + "on va dans Discuter — et <b>plus rien</b>. C'est le même défaut que la "
+      + "demande d'accord invisible, et il est plus grave : là, l'agent "
+      + "<b>écrit</b>."
+      + "<h4>Les trois espèces, encore</h4>"
+      + "La gélule reprend les signes arbitrés dans la passe des Projets : un vrai "
+      + "projet porte <b>sa couleur</b>, un dossier déduit est <b>gris et vide</b>. "
+      + "On ne réapprend pas un vocabulaire d'un écran à l'autre."
+      + "<h4>Et un quatrième état que personne n'avait vu</h4>"
+      + "<code>CFG.SESSION_CWD</code> est le dossier de la <b>prochaine</b> session ; "
+      + "<code>conv.info.cwd</code> celui de la session <b>en cours</b>. Cliquer "
+      + "« Travailler ici » pendant qu'un fil est ouvert change le premier, pas le "
+      + "second — et <b>rien ne le dit</b>. On croit avoir déménagé ; on écrit "
+      + "encore à l'ancienne adresse.<br><br>"
+      + "<i>Voyez « Changement en attente » : la gélule se dédouble. C'est le seul "
+      + "moment où elle prend de la place, et le seul où il le faut.</i>"
+      + "<h4>Tant qu'on ne sait pas, on ne dit pas</h4>"
+      + "Avant l'ouverture de la session, la gélule est grise et respire — même "
+      + "règle que les pastilles de <code>#first</code> : « je ne sais pas » n'est "
+      + "pas « nulle part »."
+      + "<h4>⚠ Ce qui est supposé</h4>"
+      + "Que <code>projects.for_cwd</code> rende le projet ou rien sans erreur, et "
+      + "qu'il distingue un vrai projet d'un dossier déduit comme le fait "
+      + "<code>projects.tree</code>. <b>À vérifier avant d'appliquer.</b> Le reste "
+      + "est constaté."
+    : "<b>Actuel</b> — l'état du produit."
+      + "<h4>À regarder</h4><ul>"
+      + "<li>La barre de titre : <b>rien</b> ne dit où l'agent travaille.</li>"
+      + "<li>Le fil dit « j'ai écrit dans ulysse.html » — <b>où ça</b> ?</li>"
+      + "<li>Changez de cas dans le bandeau noir : <b>rien ne change</b>. "
+      + "C'est le problème.</li></ul>"
+      + "Puis basculez sur « Proposé ».";
+}
+
+dessine();
+</script>
+</body>
+</html>

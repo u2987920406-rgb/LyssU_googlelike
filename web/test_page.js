@@ -494,6 +494,69 @@ async function main(){
 
   check("l'accueil s'efface dès que la session existe",
     !win.document.getElementById("pDiscuter").classList.contains("accueil"));
+
+  /* ── OÙ CE FIL TRAVAILLE ────────────────────────────────────────────────
+     La barre ne disait rien du dossier. Le fil annonçait « j'ai écrit dans
+     ulysse.html » — où ça ? */
+  const lieu = () => win.document.getElementById("lieuSlot");
+  check("Lieu · tant qu'on ignore le dossier, on le DIT — pas de silence",
+    !!lieu().querySelector(".l-lieu.attente")
+    && /dossier en attente/.test(lieu().textContent),
+    lieu().textContent.trim().slice(0, 40));
+
+  // La session dit enfin où elle travaille.
+  win.eval('conv.info = Object.assign(conv.info || {}, { cwd: "D:/Atelier" });'
+    + " paintHint();");
+  await wait(40);
+  const dmdLieu = FakeWS.sent.map((s) => JSON.parse(s.trim()))
+    .find((m) => m.method === "projects.for_cwd");
+  check("Lieu · le projet du dossier est demandé à Hermès",
+    !!dmdLieu && dmdLieu.params.cwd === "D:/Atelier",
+    dmdLieu ? JSON.stringify(dmdLieu.params) : "aucun appel");
+
+  /* ⚠ LE PIÈGE MESURÉ SUR HERMÈS EN MARCHE. `projects.for_cwd` ne dit pas
+     « je ne sais pas » : pour un dossier inconnu il REMPLACE silencieusement
+     la demande par le dossier courant du serveur et répond sur celui-là.
+     Il rend le `cwd` sur lequel il a répondu — on le compare, et on jette la
+     réponse si elle porte sur autre chose. Sans ça, la gélule dirait « vous
+     êtes dans Desktop » d'un fil qui travaille ailleurs. */
+  FakeWS.last.push({ jsonrpc: "2.0", id: dmdLieu && dmdLieu.id, result: {
+    project: { id: "p9", name: "Un tout autre projet", color: "#9334E6", icon: "doc" },
+    cwd: "C:/ailleurs/completement", branch: null } });
+  await wait(60);
+  check("Lieu · une réponse qui porte sur un AUTRE dossier est jetée",
+    !/Un tout autre projet/.test(lieu().textContent),
+    lieu().textContent.trim().slice(0, 60));
+  check("Lieu · ...et le dossier est alors montré pour ce qu'il est : un dossier",
+    !!lieu().querySelector(".l-lieu.dossier")
+    && /Atelier/.test(lieu().textContent),
+    lieu().querySelector(".l-lieu") ? lieu().querySelector(".l-lieu").className : "aucune");
+
+  /* ⚠ LE CAS QUE PERSONNE N'AVAIT VU, et il ne demande aucun appel :
+     `CFG.SESSION_CWD` est le dossier de la PROCHAINE session, `conv.info.cwd`
+     celui de la session EN COURS. Cliquer « Travailler ici » pendant qu'un fil
+     est ouvert change le premier, pas le second. */
+  win.eval('CFG.SESSION_CWD = "D:/Autre lieu"; paintHint();');
+  await wait(40);
+  check("Lieu · deux dossiers à la fois, et la gélule le DIT",
+    !!lieu().querySelector(".l-lieu.change")
+    && /Atelier/.test(lieu().textContent)
+    && /Autre lieu/.test(lieu().textContent),
+    lieu().textContent.trim().slice(0, 70));
+  const popLieu = win.document.getElementById("lieuPop");
+  check("Lieu · ...et le repli montre les DEUX chemins, pas un seul",
+    /D:\/Atelier/.test(popLieu.textContent) && /D:\/Autre lieu/.test(popLieu.textContent));
+  check("Lieu · ...et dit pourquoi le fil ne déménage pas",
+    /ne change pas de dossier en cours de route/.test(popLieu.textContent));
+
+  // « Rester ici » doit AGIR : sans ça, le prochain fil partirait quand même
+  // ailleurs, et le bouton n'aurait fait que fermer un repli.
+  popLieu.querySelector('[data-lieu="annuler"]').click();
+  await wait(40);
+  check("Lieu · « Rester ici » ramène vraiment le prochain fil ici",
+    win.eval("CFG.SESSION_CWD") === "D:/Atelier"
+    && !lieu().querySelector(".l-lieu.change"),
+    win.eval("CFG.SESSION_CWD"));
   check("le mot-marque se fond pour laisser la place",
     win.getComputedStyle(win.document.querySelector("#pDiscuter .u-marque"))
       .opacity === "0");

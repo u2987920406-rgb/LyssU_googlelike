@@ -44,6 +44,9 @@ supprimez les `id` et les `data-*` listés plus bas.
   > (`j-ic` `j-vide` `j-auto` `j-rien` `j-home` `j-champ` `j-in` `j-chemin`
   > `j-etat` `j-cols` `j-col` `j-trois` `j-acts`) portent le nom donné par
   > `PASSE-DESIGN-PROJETS.md` §6, et `apercu-projets.html` les emploie.
+  > Même chose pour `l-lieu` / `l-pop` (`PASSE-DESIGN-LIEU.md` §6,
+  > `apercu-lieu.html`), avec `projet` `dossier` `attente` `change` en
+  > classe jointe.
   > Renommer en `u-` casserait la correspondance entre l'aperçu et le produit.
   > Elles vivent dans `ulysse.html`, **pas** dans `ulysse.css` : ce sont des
   > classes neuves, pas des corrections de la maquette.
@@ -88,6 +91,7 @@ menu ne peuvent pas diverger. **`#pDiscuter` porte les cinq classes d'état.**
 
 **Discuter** — `work` `thread` `band` `roles` `privchip` `files` `ctlEtabli`
 `wait0` `wait0txt` `languette` `uStock`
+`lieuSlot`
 `composer` `reply` `plus1` `mic1` `snd1` `stopBtn` `composerHint`
 `moreBtn` `morePop` `pop` `fileInput` `jointes1` `modenote1`
 `cadreBtn` `cadrePop`
@@ -122,6 +126,7 @@ créer d'`id` qui leur ressemble) : `gzoom` `doorBtn` `densSeg` `livCrumbs`
 `etabliClose` `tGo` `tSize` `tCout` `tecran` `tstate` `tApp` `tMem` `tFull`
 `tPopApp` `tPopMem` `tSortie` `tOutils2` `tRepli` `detteGo` `detteAct` `detteRed`
 `uMemFiles` `uMemTexte` `uMemDiff` `uMemVers` `uMemGo` `tConsole` `jNom`
+`lieuBtn` `lieuPop`
 
 > **`#sEcrire` / `#ecrireBody` sont dans le HTML** — la feuille où l'on écrit
 > dans la mémoire. Elle est à part de `#sFile` : ce qu'on y montre — la
@@ -151,6 +156,22 @@ créer d'`id` qui leur ressemble) : `gzoom` `doorBtn` `densSeg` `livCrumbs`
 > Et il n'y a **pas** de bouton « Choisir… » — la feuille ne s'ouvre que
 > depuis un dossier déjà connu ; un sélecteur de dossier serait une passe à
 > soi, et le bouton sans lui serait mort.
+
+> **`#lieuSlot` est dans le HTML**, vide — la gélule « où ce fil travaille »,
+> à côté de `#privchip`. `majLieu()` y écrit `#lieuBtn` et `#lieuPop`.
+>
+> ⚠ **`projects.for_cwd` NE DIT PAS « je ne sais pas ».** Mesuré sur Hermès en
+> marche le 2026-08-09 : pour un dossier inexistant — ou sans `cwd` du tout —
+> il **remplace silencieusement** la demande par le dossier courant du serveur
+> et répond sur celui-là. Il rend heureusement le `cwd` sur lequel il a
+> répondu : **on le compare, et on jette la réponse si elle porte sur autre
+> chose.** Sans cette comparaison, la gélule dirait « vous êtes dans tel
+> projet » d'un fil qui travaille ailleurs.
+>
+> ⚠ **`CFG.SESSION_CWD` n'est PAS `conv.info.cwd`.** Le premier est le dossier
+> de la **prochaine** session, le second celui de la session **en cours**. Leur
+> écart est un état à part entière — la gélule se dédouble en ambre. Ne le
+> ramenez pas à un seul chemin : c'est l'incohérence qu'il rend visible.
 
 > **`#tConsole` — « Ouvrir une console Hermès » — ouvre pour de vrai.**
 > `POST /ulysse/console`, quatrième route locale. C'est **le seul endroit où

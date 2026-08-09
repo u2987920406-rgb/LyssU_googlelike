@@ -465,6 +465,33 @@ def main():
              len(projets) if isinstance(projets, list) else "?"))
 
     # La question qui pouvait tout arrêter. Elle ne l'arrête pas.
+    # ⚠ LE PIÈGE DE `projects.for_cwd`, mesuré le 2026-08-09.
+    #
+    # Il NE DIT PAS « je ne sais pas ». Pour un dossier qui n'existe pas — ou
+    # pour aucun `cwd` du tout — il REMPLACE silencieusement la demande par le
+    # dossier courant du serveur et répond sur celui-là. Interrogé sur
+    # « D:/nulle-part-du-tout », il a rendu le projet du dossier d'Ulysse.
+    #
+    # Une gélule qui afficherait sa réponse telle quelle dirait « vous êtes
+    # dans tel projet » d'un fil qui travaille ailleurs. Il rend heureusement
+    # le `cwd` sur lequel il a répondu : la page le COMPARE et jette la
+    # réponse si elle porte sur autre chose. Ces vérifications tiennent le
+    # fait — si Hermès se met un jour à refuser franchement, elles tombent et
+    # on saura qu'on peut simplifier.
+    faux = wsp.rpc("projects.for_cwd", {"cwd": "D:/nulle-part-du-tout-ulysse"}) or {}
+    check("« for_cwd » sur un dossier inexistant NE REND PAS ce dossier",
+          faux.get("cwd") != "D:/nulle-part-du-tout-ulysse",
+          "cwd rendu : %s" % faux.get("cwd"))
+    check("...il répond donc sur un AUTRE dossier, sans le dire",
+          isinstance(faux.get("cwd"), str) and len(faux.get("cwd")) > 0,
+          "cwd rendu : %s" % faux.get("cwd"))
+    # Ce qui rend la parade possible : le `cwd` est TOUJOURS rendu.
+    for cible in ("C:/Windows", os.path.dirname(os.path.abspath(__file__))):
+        rep = wsp.rpc("projects.for_cwd", {"cwd": cible}) or {}
+        check("...et pour un dossier réel, « cwd » est rendu et comparable",
+              isinstance(rep.get("cwd"), str) and rep.get("cwd"),
+              "%s -> %s" % (cible, rep.get("cwd")))
+
     # Un projet absent est REFUSÉ par une erreur JSON-RPC, pas par un objet
     # vide : c'est la bonne façon: on ne peut pas confondre « pas de projet »
     # avec « un projet sans nom ». L'écran devra donc traiter le refus, pas
