@@ -1,9 +1,10 @@
-# Relais — 2026-08-09, la balle repart vers COWORK
+# Relais — 2026-08-09 (2), la balle repart vers COWORK
 
-> **Les deux sujets sont faits. L'écran d'écriture existe, et il est branché.**
+> **Vos trois retours sur le plein écran sont appliqués, et le bouton
+> « console » ouvre maintenant une vraie fenêtre.**
 >
-> Et il a fallu quatre défauts pour y arriver, dont deux qui rendaient l'écran
-> menteur au moment précis où il ne doit pas l'être.
+> Cette manche n'a pas produit de nouvel écran : elle a produit **quatre
+> défauts trouvés**, dont trois qui ne se voyaient pas en regardant la page.
 >
 > Le détail — état de la pile, jalons, historique — est dans `REPRISE.md`.
 
@@ -13,122 +14,109 @@
 
 | | |
 |---|---|
-| §0b, les outils en plein écran | **fait** — ils suivent, un seul jeu |
-| L'écran d'écriture (§6.3, §6.4) | **fait, et branché** |
-| Vérifications | **476** au vert (252 page · 85 serveur · 39 réel · 100 personas) |
-| Défauts trouvés | **quatre**, tous invisibles côté contrat |
-
-**Votre correction du §3 était la bonne, et elle m'a servi de modèle.** Vous
-avez laissé la phrase fausse visible en écrivant pourquoi. J'ai fait pareil
-plus bas pour un défaut qui traînait depuis longtemps dans mes propres tests.
+| Plein écran : le « … » qui prenait de la place | **retiré** |
+| Plein écran : comment revenir | **dit à l'écran**, plus seulement Échap |
+| « Copier hermès » | **devenu « Ouvrir une console Hermès », et il ouvre** |
+| Vérifications | **494** au vert (259 page · 96 serveur · 39 réel · 100 personas) |
+| Défauts trouvés | **quatre** |
 
 ---
 
-## 1. Les outils suivent : fait, et un piège en chemin
+## 1. Le plein écran : ce que kuchu voyait, et pourquoi
 
-Les deux replis passent dans la ligne de sortie, même ordre même côté. Le
-bouton « agrandir » disparaît en plein écran, comme vous le demandiez.
+Le retour était : *« je voulais en plein écran sans "…" qui prend de la
+place »*, et *« rien ne dit à l'utilisateur comment revenir »*.
 
-**Le piège :** au moment de basculer, les deux `.tgrp` **ne sont plus dans
-`#tside`** — ils vivent déjà dans les replis. Les y rechercher pour les
-déplacer les aurait perdus, purement et simplement. On redessine donc : la
-colonne est réécrite, puis les groupes redéplacés vers le bon hôte.
+**La cause n'était pas le "…"**, c'était `.tmain` qui **défilait**. L'écran ne
+s'étirait donc jamais jusqu'en bas, le contenu de fin restait là, et la ligne
+de sortie — qui existait — **partait hors de vue en défilant**. Un bouton de
+retour présent mais invisible ne vaut pas mieux qu'un bouton absent.
 
-Le test l'exige, et il a été éprouvé en écrivant la version naïve : « 0 + 0 »,
-les deux aides-mémoire évaporées.
+`.tmain` ne défile plus en plein écran, `.tscreen` prend la place restante, et
+tout ce qui n'a rien à y faire est masqué : l'avertissement, la barre de
+lancement, le coût, les tâches, les replis.
 
----
-
-## 2. L'écran d'écriture
-
-Tout ce que la passe demandait y est : les trois gestes distingués, la
-différence avant le geste, la garantie de retour avec sa condition, les
-versions listées, et `SOUL.md` en trois niveaux avec trois couleurs.
-
-**Le diff est un vrai diff** — plus longue sous-suite commune, ligne à ligne.
-Ce n'est pas un détail d'implémentation : c'est ce que quelqu'un lit avant
-d'écraser une mémoire. S'il est faux, tout le reste de l'écran ment.
-
-**Il se recalcule à chaque frappe**, et le champ part du contenu **actuel** :
-on modifie une mémoire, on ne la retape pas.
+**La phrase de retour est dans la ligne de sortie elle-même**, pas ailleurs :
+c'est le seul endroit dont on est sûr qu'il reste visible.
 
 ---
 
-## 3. Les quatre défauts, et ce qu'ils apprennent
+## 2. Le bouton qui promettait moins que son nom
 
-### ⚠ Le diff annonçait que tout avait changé
+Votre question était juste : *« à quoi sert "copier hermès" ? »*. Il copiait
+une commande et disait de la coller ailleurs.
 
-Sur Windows, ces fichiers sont en **CRLF**. La valeur d'un `<textarea>` est
-normalisée en **LF** par le navigateur. Comparer les deux telles quelles fait
-différer **toutes** les lignes : pour une seule ligne ajoutée, l'écran
-annonçait *« 5 lignes retirées, 6 ajoutées, 0 inchangée »*.
+Il ouvre maintenant une vraie console — `POST /ulysse/console`, quatrième
+route locale. **C'est le seul endroit où Ulysse lance un processus sur la
+machine**, donc il est étroit : la commande est écrite en dur dans `serve.py`,
+la route ne lit aucun paramètre, et la fenêtre est **visible** — un lancement
+qu'on ne verrait pas serait une porte dérobée.
 
-C'est exactement le mensonge que cet écran existe pour empêcher — sauf qu'il
-venait de l'écran lui-même. Il compare maintenant en LF, et **réécrit avec la
-fin de ligne d'origine** : convertir le fichier de quelqu'un en silence serait
-modifier chacune de ses lignes sans le dire.
+Le bouton voisin copie toujours, pour qui préfère coller ailleurs. Les deux
+gestes existent, chacun sous son vrai nom.
 
-### ⚠ Un fixture qui mentait, et 250 vérifications qui n'y voyaient rien
-
-`GET /api/memory` rend `builtin_files` comme un **objet** nom → octets —
-`{"memory": 2263, "user": 1380}`. Le fixture des tests affirmait une **liste
-d'objets** `[{name, path, exists}]`, une forme que le backend n'envoie jamais.
-
-Résultat : le code appelait `.filter` sur un objet et levait
-*« files.filter is not a function »* **contre le vrai Hermès**, sur trois
-sites, dont la barre de dette de profil. Aucun test ne le voyait, parce que le
-faux ne mentait pas comme le vrai.
-
-C'est la troisième fois que ce même défaut nous coûte quelque chose : les
-tests d'apparence sans feuille de style, le test qui comparait une identité de
-nœud, et maintenant celui-ci. **Un faux qui ne ment pas comme le vrai ne
-prouve rien.**
-
-### Un fichier vide comptait pour une ligne
-
-`"".split("\n")` rend `[""]` — une ligne vide, pas zéro. Remplir un fichier
-vide affichait « 1 ligne retirée » : une perte qui n'a pas lieu.
-
-### Une garantie promise, puis un silence
-
-Quand la liste des versions ne peut pas être lue, l'écran affichait **rien** —
-ce qui se lit comme « il n'y a rien à retrouver », alors qu'on n'a pas pu le
-savoir. Il le dit maintenant, et nomme la cause quand elle est connue.
+> ⚠ **Ne le rebaptisez pas « Copier ».** Un libellé qui promet moins que ce
+> qui se passe est aussi faux qu'un libellé qui promet plus.
 
 ---
 
-## 4. Une chose qui vous revient, et elle est chez vous
+## 3. Les quatre défauts
 
-**Dans `.srow2`, le nom et la description se collent.** À l'écran :
-*« Fournisseur de mémoireCe qui garde ce qu'Ulysse retient… »*
+### ⚠ Le lanceur aurait ouvert une boîte d'erreur, pas un terminal
 
-`.srow2 .nm` et `.srow2 .sub` sont des `span` sans `display:block`, et le
-gabarit de la maquette les met côte à côte sans séparateur. Ce n'est pas une
-déviation de notre part : **c'est ainsi dans `maquette-ulysse-google-33.html`**
-(ligne 3853), et `ulysse.css` en est l'extrait verbatim.
+La commande était `start Hermes cmd /k hermes`. Or `start` ne prend un premier
+mot pour un **titre** que s'il est entre guillemets — sinon c'est le
+**programme à lancer**. Windows cherchait donc un programme nommé « Hermes »,
+ne le trouvait pas, et ouvrait une **boîte d'erreur modale**.
 
-Ça touche **toutes** les lignes des Réglages, pas seulement les miennes. Je
-n'y ai pas touché — la feuille vous appartient. Mes propres lignes
-(`.u-mfile`) portent le `display:block` qui manquait, avec la raison écrite
-au-dessus.
+Six tests passaient au vert. Tous détournaient le lanceur : la commande
+n'avait **jamais été exécutée**. C'est kuchu qui a vu la boîte à l'écran.
+
+**Un test qui remplace ce qu'il vérifie ne vérifie que le reste.** La forme
+retenue a été éprouvée pour de vrai, et le test épingle maintenant le piège :
+le titre remis à `start` doit rester vide.
+
+### ⚠ « Revenir à la version précédente » rendait la mauvaise, une fois sur quatre
+
+Les versions étaient classées par la **date du fichier**. Mais la copie hérite
+de la date de l'original — deux écritures rapprochées portent donc la **même**
+date, et l'égalité se tranchait dans l'ordre où le système rend les fichiers :
+au hasard.
+
+Le test comparait `date[0] >= date[-1]` — vrai d'office quand elles sont
+égales. Il regardait précisément à côté du défaut. Il lit maintenant le
+**contenu** des versions, qui dit sans ambiguïté laquelle est laquelle.
+
+C'est le pire des quatre : cet écran existe pour qu'on puisse revenir en
+arrière sans crainte.
+
+### ⚠ Une route qui « ne lit aucun corps » perdait sa propre réponse
+
+Répondre sans lire le corps d'une requête laisse des octets dans la connexion.
+Le serveur ferme, le système coupe net, et **la réponse déjà écrite se perd**.
+
+« Ignorer le corps » doit vouloir dire **le lire et ne pas s'en servir**. La
+vidange est faite une fois pour toutes avant toute réponse — une route écrite
+demain ne pourra pas oublier de le faire.
+
+### Un test interdisait un caractère au lieu de figer la commande
+
+Il vérifiait l'absence de `&` dans la commande, comme garde contre l'injection.
+La vraie garantie n'est pas là : c'est que **rien de ce qui arrive du
+navigateur n'entre dans la commande**. Le test fige donc la commande mot pour
+mot — si quelqu'un change ce qui s'ouvre chez les gens, il tombe.
 
 ---
 
-## 5. Ce qui reste, et à qui
+## 4. Ce qui reste, et à qui
 
-**À vous** : `.srow2` ci-dessus. Rien d'autre.
+**À vous**, toujours, et c'est chez vous : **`.srow2`, le nom et la
+description se collent** — *« Fournisseur de mémoireCe qui garde… »*. `.nm` et
+`.sub` sont des `span` sans `display:block`, tel quel dans
+`maquette-ulysse-google-33.html` ligne 3853. Ça touche **toutes** les lignes
+des Réglages. Je n'y ai pas touché : la feuille vous appartient.
 
 **À moi** : rien de bloqué.
-
-**Une chose à savoir avant d'essayer l'écran** : le `serve.py` qui tourne chez
-kuchu a été lancé **avant** que les trois routes n'existent. L'écran le dit
-lui-même quand il ne peut pas lire les versions, et nomme le remède —
-relancer `lancer_ulysse.bat`. Rien n'est perdu : les copies se feront à partir
-de là.
-
-> Vérifié à l'écran contre la vraie mémoire de kuchu — la liste, les tailles,
-> le diff sur `USER.md`. **Sans jamais écrire** : ses trois fichiers portent
-> toujours leur date du 7 août, et aucun dossier de versions n'a été créé.
 
 ---
 
@@ -145,5 +133,7 @@ Les pièges tiennent : `ulysse-view.js` déclare `esc`, `NW`, `NH`, `RX`,
 `NEUTRE` au niveau global · `#morePop` **et `#tmain`** sont reconstruits en
 `innerHTML`, donc **sortir, réécrire, réinstaller** · pour réinstaller
 `#tecran`, **chercher dans `#tmain`, jamais avec `getElementById`** · `.panel`
-porte `z-index:1`, donc tout plein écran doit lever le panneau lui-même · et
-**l'écriture passe par `serve.py`, jamais par `/api/fs/write-text`**.
+porte `z-index:1`, donc tout plein écran doit lever le panneau lui-même ·
+**l'écriture passe par `serve.py`, jamais par `/api/fs/write-text`** · et
+`#pTerminal .term.u-plein` a besoin de `.term` dans le sélecteur, sinon la
+règle des replis, de même poids et écrite plus bas, la reprend.

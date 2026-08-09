@@ -702,9 +702,23 @@ def main():
                      headers=same)
     liste = json.loads(txt).get("versions", []) if st == 200 else []
     check("Les versions gardees se listent, la plus recente d'abord",
-          st == 200 and len(liste) == 3
-          and liste[0]["horodatage"] >= liste[-1]["horodatage"],
+          st == 200 and len(liste) == 3,
           "HTTP %d, %d version(s)" % (st, len(liste)))
+
+    # Comparer les DATES ne prouve rien ici : les trois copies portent la date
+    # de l'original, et les ecritures rapprochees la rendent identique. Un
+    # « >= » passait donc meme quand l'ordre etait tire au sort — et « revenir
+    # a la version precedente » rendait la mauvaise, une fois sur quatre.
+    # On lit donc le CONTENU, qui, lui, dit sans ambiguite laquelle est laquelle.
+    def texte_version(v):
+        with open(os.path.join(serve.dossier_versions(memo), v["nom"]),
+                  encoding="utf-8") as fh:
+            return fh.read()
+
+    contenus = [texte_version(v) for v in liste]
+    check("...et cet ordre est celui des faits, pas celui du hasard",
+          contenus == ["troisieme\n", "deuxieme version\n", "premiere version\n"],
+          str(contenus))
 
     # Restaurer est une ecriture comme une autre : elle ecrase l'etat courant.
     # Ne pas en garder copie ferait du retour en arriere un aller simple.
@@ -787,7 +801,73 @@ def main():
           "sans retour possible" in txt, txt[:110])
     os.remove(serve.dossier_versions(bloque))
 
+    # --- Ouvrir une VRAIE console ---------------------------------------
+    # Le seul endroit ou Ulysse lance un processus. On detourne le lanceur :
+    # une suite de verifications ne doit ouvrir aucune fenetre sur la machine
+    # de quelqu'un.
+    print("\n-- Ouvrir une console Hermes, hors d'Ulysse --")
+
+    lances = []
+    serve.LANCEUR = lambda argv, **kw: lances.append(list(argv))
+
+    st, _, _ = req("POST", "/ulysse/console", headers=same)
+    if sys.platform.startswith("win"):
+        check("La route ouvre une console", st == 200 and len(lances) == 1,
+              "HTTP %d, %d lancement(s)" % (st, len(lances)))
+        check("...avec une commande ECRITE DANS serve.py, pas recue du client",
+              lances and lances[0] == serve.CONSOLE_ARGV,
+              str(lances[0] if lances else None))
+        # argv en LISTE, jamais une chaine remise a un shell : rien a echapper.
+        check("...passee en liste d'arguments, jamais a un shell",
+              isinstance(serve.CONSOLE_ARGV, list)
+              and all(isinstance(x, str) for x in serve.CONSOLE_ARGV))
+        # La commande est figee ici AUSSI : si quelqu'un change ce qui s'ouvre
+        # chez les gens, ce test tombe et il faut l'assumer explicitement.
+        check("...et c'est exactement la commande figee, mot pour mot",
+              serve.CONSOLE_ARGV ==
+              ["cmd", "/c", "start", "", "cmd", "/k", "title Hermes & hermes"],
+              str(serve.CONSOLE_ARGV))
+        # Le defaut constate en vrai : `start Hermes ...` (titre sans
+        # guillemets) fait chercher un PROGRAMME nomme "Hermes" et ouvre une
+        # boite d'erreur BLOQUANTE. Le titre passe a `start` doit rester vide.
+        i = serve.CONSOLE_ARGV.index("start")
+        check("...le titre remis a `start` est vide, sinon la fenetre bloque",
+              serve.CONSOLE_ARGV[i + 1] == "",
+              "titre = %r" % serve.CONSOLE_ARGV[i + 1])
+    else:
+        check("Hors Windows, la route refuse et le DIT", st == 500 and not lances,
+              "HTTP %d" % st)
+
+    # Un corps hostile ne doit rien changer : rien de ce qu'il propose n'entre
+    # dans la commande.
+    avant_corps = len(lances)
+    st, _, _ = req("POST", "/ulysse/console", headers=same,
+                   body=json.dumps({"cmd": "calc.exe",
+                                    "argv": ["calc.exe"]}).encode())
+    check("Un corps qui propose une autre commande est ignore",
+          all(l == serve.CONSOLE_ARGV for l in lances[avant_corps:]),
+          str(lances[avant_corps:] or "aucun"))
+    # Le defaut constate : une route qui ne lit pas le corps le laisse dans la
+    # connexion ; le serveur ferme, le systeme coupe (WinError 10053) et la
+    # reponse SE PERD. Ca ne ratait qu'une fois sur quatre — donc ca ratait.
+    check("...et la reponse arrive quand meme : le corps ignore est jete, pas laisse",
+          st == 200, "HTTP %d" % st)
+
     hostile = {"Host": "mechant.example.com", "Origin": "http://mechant.example.com"}
+    avant_hostile = len(lances)
+    st, _, _ = req("POST", "/ulysse/console", headers=hostile)
+    check("Une page hostile ne peut ouvrir aucune console",
+          st == 403 and len(lances) == avant_hostile, "HTTP %d" % st)
+    # Meme piege sur le refus : un 403 rendu sans lire le corps se perd aussi.
+    avant_hostile = len(lances)
+    st, _, _ = req("POST", "/ulysse/console", headers=hostile,
+                   body=b"x" * 40000)
+    check("...et le refus arrive meme quand la requete portait un gros corps",
+          st == 403 and len(lances) == avant_hostile, "HTTP %d" % st)
+    st, _, _ = req("GET", "/ulysse/console", headers=same)
+    check("...et la route ne repond qu'au POST", st in (404, 405), "HTTP %d" % st)
+    serve.LANCEUR = None
+
     st, _, _ = ecrire(memo, "par une page hostile", headers=hostile)
     with open(memo, encoding="utf-8") as fh:
         intact = fh.read()

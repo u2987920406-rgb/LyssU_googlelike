@@ -536,7 +536,32 @@
 #pTerminal.u-plein-actif{z-index:300}
 #pTerminal .u-plein{position:fixed;inset:0;z-index:200;background:var(--bg);
   display:flex;flex-direction:column;padding:10px}
+/* `.tmain` est un bloc qui DÉFILE. En plein écran, l'écran ne s'étirait donc
+   pas — il gardait sa hauteur de panneau — et tout ce qui vient dessous
+   restait là, en dessous. Pire : comme ça débordait, la page défilait, et la
+   ligne « Quitter le plein écran » s'échappait par le haut. Elle existait,
+   mais on ne la voyait plus. C'est devenu un plein écran dont on ne sait pas
+   sortir — exactement ce que la passe appelle un piège.
+   En plein écran, `.tmain` devient donc une colonne qui NE défile pas. */
+#pTerminal .u-plein .tmain{display:flex;flex-direction:column;min-height:0;
+  overflow-y:hidden;overflow-x:hidden;padding:0}
 #pTerminal .u-plein .tscreen{flex:1;min-height:0;border-radius:var(--radius-md)}
+/* Plein écran = LE TERMINAL. Tout ce qui l'entoure dans le panneau prend une
+   place qu'on est précisément venu chercher : l'avertissement long, les
+   boutons, le coût, la note technique, la ligne de repli. */
+/* `.term.u-plein` et non `.u-plein` : `#pTerminal.u-term-ouvert .u-repli`
+   a la MEME specificite et est ecrite plus bas, donc elle gagnait — la ligne
+   de repli restait affichee en plein ecran. Un poids de plus tranche. */
+#pTerminal .term.u-plein .avert,
+#pTerminal .term.u-plein .tlaunch,
+#pTerminal .term.u-plein .cout,
+#pTerminal .term.u-plein .u-todo,
+#pTerminal .term.u-plein .u-repli{display:none}
+/* Mais l'avertissement NE DISPARAÎT PAS : il monte dans la ligne de sortie,
+   en une ligne. C'est la seule fenêtre qui mène en dehors de l'application —
+   le taire parce qu'on a agrandi serait le taire au pire moment. */
+.u-sortie .u-hors{display:inline-flex;align-items:center;gap:7px;color:var(--amber)}
+.u-sortie .u-hors svg{flex:none}
 /* En plein écran l'écran a une hauteur réelle (flex:1) : le plancher qui
    l'empêche de s'effondrer dans le panneau n'a plus lieu d'être, et il
    l'empêcherait de descendre au ras de la fenêtre. */
@@ -551,6 +576,27 @@
 .u-sortie kbd{font-family:var(--font-ui);font-size:11px;
   border:1px solid var(--outline-var);border-radius:5px;padding:1px 6px;
   color:var(--muted)}
+/* La touche EST le bouton — pas un bouton AVEC une touche à côté. Le bouton
+   « Quitter le plein écran » et la mention `Échap` faisaient deux commandes
+   pour un seul geste, et la large prenait la place qu'on vient chercher.
+   Le bouton n'a donc aucun décor propre : ce qu'on voit, c'est la touche. */
+.u-sortie .u-echap{display:inline-flex;align-items:center;background:none;
+  border:0;padding:0;margin:0;font:inherit;color:inherit;cursor:pointer}
+.u-sortie .u-echap:hover kbd,
+.u-sortie .u-echap:focus-visible kbd{color:var(--fg);border-color:var(--fg)}
+/* La phrase ne se lit qu'au survol. `max-width` et non `display:none` : elle
+   se déplie, elle n'apparaît pas d'un coup — la ligne ne saute pas.
+   `border-box` fait que la marge intérieure se replie AVEC elle ; sans lui il
+   resterait un filet de 8px, visible et inexplicable. */
+.u-sortie .u-echap .u-dit{box-sizing:border-box;max-width:0;opacity:0;
+  overflow:hidden;white-space:nowrap;padding-left:8px;
+  transition:max-width .18s ease,opacity .18s ease}
+.u-sortie .u-echap:hover .u-dit,
+.u-sortie .u-echap:focus-visible .u-dit{max-width:200px;opacity:1}
+/* Qui ne veut pas d'animation ne la subit pas : la phrase paraît, sans glisser. */
+@media (prefers-reduced-motion:reduce){
+  .u-sortie .u-echap .u-dit{transition:none}
+}
 
 /* `/clear` est gardée, mais SÉPARÉE — comme « Autoriser toujours » dans la
    demande d'accord. Elle n'est pas interdite, elle est distinguée, parce

@@ -97,7 +97,7 @@ créer d'`id` qui leur ressemble) : `gzoom` `doorBtn` `densSeg` `livCrumbs`
 `livHome` `livList` `mIncog` `mNew` `mEtabli` `nClose` `fClose` `vAct`
 `etabliClose` `tGo` `tSize` `tCout` `tecran` `tstate` `tApp` `tMem` `tFull`
 `tPopApp` `tPopMem` `tSortie` `tOutils2` `tRepli` `detteGo` `detteAct` `detteRed`
-`uMemFiles` `uMemTexte` `uMemDiff` `uMemVers` `uMemGo`
+`uMemFiles` `uMemTexte` `uMemDiff` `uMemVers` `uMemGo` `tConsole`
 
 > **`#sEcrire` / `#ecrireBody` sont dans le HTML** — la feuille où l'on écrit
 > dans la mémoire. Elle est à part de `#sFile` : ce qu'on y montre — la
@@ -109,6 +109,29 @@ créer d'`id` qui leur ressemble) : `gzoom` `doorBtn` `densSeg` `livCrumbs`
 > `POST /ulysse/restaurer`. Appeler l'API d'Hermès en direct contournerait la
 > copie datée — et l'écran promettrait alors un retour en arrière qui n'existe
 > pas. Un test l'exige.
+
+> **`#tConsole` — « Ouvrir une console Hermès » — ouvre pour de vrai.**
+> `POST /ulysse/console`, quatrième route locale. C'est **le seul endroit où
+> Ulysse lance un processus sur la machine**. La commande est écrite en dur
+> dans `serve.py` : la route ne lit aucun paramètre, et un corps envoyé quand
+> même est vidé puis jeté sans être regardé. Le bouton voisin, lui, se
+> contente de copier la commande (`data-cmd`) — pour qui préfère la coller
+> ailleurs.
+>
+> ⚠ **Une maquette ne doit pas rebaptiser ce bouton en « Copier ».** Il l'a
+> été, et kuchu a demandé qu'il fasse ce qu'il annonce. Un libellé qui promet
+> moins que ce qui se passe est aussi faux qu'un libellé qui promet plus.
+
+> **`#tSortie` est la touche `Échap` elle-même** — un `<button class="u-echap">`
+> qui contient `<kbd>Échap</kbd>` et un `<span class="u-dit">` lu **au survol
+> seulement**. Il y avait avant un bouton large « Quitter le plein écran »
+> **et**, à côté, la mention `Échap` : deux commandes pour un seul geste, et la
+> large prenait la place qu'on vient justement chercher en plein écran.
+> Demandé par kuchu le 2026-08-09.
+>
+> ⚠ **Ne pas le rendre à nouveau large**, et **ne pas remplacer le survol par
+> `display:none`** : le nom doit rester dans le DOM et dans `aria-label`.
+> Caché à l'œil, jamais au lecteur d'écran — personne ne survole au clavier.
 
 > **`#tOutils` est dans le HTML**, vide — c'est le seul `id` ajouté au gabarit
 > par la passe 2. `drawTerm()` y écrit les trois boutons, puis **déplace** les

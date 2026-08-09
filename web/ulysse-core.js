@@ -125,6 +125,12 @@ const REST = {
   versionsDe: (path) => api("/ulysse/versions?path=" + encodeURIComponent(path)),
   restaurerVersion: (path, nom) =>
     api("/ulysse/restaurer", { method: "POST", body: { path: path, nom: nom } }),
+
+  /* Ouvre une VRAIE console Hermes, hors d'Ulysse. Aucun parametre : la
+     commande est ecrite en dur dans serve.py. C'est le seul endroit ou la
+     page fait lancer un processus sur la machine — et la fenetre qui s'ouvre
+     est visible, ce qui est la moitie de ce qui rend le geste acceptable. */
+  ouvrirConsole: () => api("/ulysse/console", { method: "POST" }),
   // web_routers/skills.py:395 — une LISTE, pas un objet
   skills: () => api("/api/skills"),
   // web_server.py:12486 — {enabled, base_url, subscriptions:[{name,…}]}

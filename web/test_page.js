@@ -1391,10 +1391,35 @@ async function main(){
     && win.document.querySelectorAll("#tOutils .icon-btn").length === 0,
     win.document.querySelectorAll("#tOutils2 .icon-btn").length + " ici · "
     + win.document.querySelectorAll("#tOutils .icon-btn").length + " restés en haut");
-  check("0b · ...et « agrandir » disparaît : la ligne a déjà un bouton nommé",
+  check("0b · ...et « agrandir » disparaît : la ligne porte déjà la sortie",
     !win.document.getElementById("tFull")
-    && /Quitter le plein écran/.test(
-         win.document.getElementById("tSortie").textContent));
+    && !!win.document.getElementById("tSortie"));
+
+  // ⚠ La touche EST le bouton. Il y avait un bouton « Quitter le plein écran »
+  //    ET, à côté, la mention `Échap` : deux commandes pour un seul geste, et
+  //    la large prenait la place qu'on vient justement chercher. Demandé par
+  //    kuchu le 2026-08-09 : garder la touche, lire la phrase au survol.
+  const touche = win.document.getElementById("tSortie");
+  check("0b · la sortie est la touche elle-même, pas un bouton à côté d'elle",
+    touche.tagName === "BUTTON" && !!touche.querySelector("kbd")
+    && /^Échap$/.test(touche.querySelector("kbd").textContent.trim()),
+    touche.outerHTML.slice(0, 80));
+  // Cachée à l'ŒIL, jamais au lecteur d'écran : personne ne survole au clavier
+  // ni à la voix. Un bouton sans nom accessible serait un bouton muet.
+  check("0b · ...et elle garde un nom pour qui ne voit pas l'écran",
+    touche.getAttribute("aria-label") === "Quitter le plein écran",
+    String(touche.getAttribute("aria-label")));
+  const dit = touche.querySelector(".u-dit");
+  check("0b · la phrase existe, mais ne se lit pas au repos",
+    !!dit && gcs(dit, "opacity") === "0" && gcs(dit, "max-width") === "0px",
+    dit ? gcs(dit, "opacity") + " · " + gcs(dit, "max-width") : "absente");
+  // jsdom ne simule pas `:hover` : on ne peut pas mesurer l'état survolé. On
+  // vérifie donc que la règle qui le découvre EXISTE — sans elle, la phrase
+  // serait invisible pour toujours, et la touche redeviendrait muette.
+  const feuille = fs.readFileSync(path.join(DIR, "ulysse.html"), "utf8");
+  check("0b · ...et c'est le survol qui la découvre",
+    /\.u-echap:hover \.u-dit[\s\S]{0,120}max-width:\s*[1-9]/.test(feuille)
+    && /\.u-echap:focus-visible \.u-dit/.test(feuille));
   // ⚠ LE PIÈGE. Au moment du bascule, les deux groupes ne sont plus dans
   // `#tside` — ils vivent dans les replis. Les y rechercher les perdrait.
   check("0b · les deux aides-mémoire ont suivi, aucun n'est perdu",
@@ -1403,6 +1428,26 @@ async function main(){
     && win.document.querySelectorAll("#tPopMem [data-poser]").length > 0,
     win.document.querySelectorAll("#tPopApp .tgrp").length + " + "
     + win.document.querySelectorAll("#tPopMem .tgrp").length);
+
+  // ⚠ Plein écran = LE TERMINAL. Tout ce qui l'entoure prend la place qu'on
+  //    est venu chercher — et, en débordant, faisait DÉFILER la page, ce qui
+  //    emportait hors de vue la ligne « Quitter le plein écran ». Elle
+  //    existait, on ne la voyait plus : un plein écran dont on ne sait pas
+  //    sortir. Signalé par kuchu le 2026-08-09.
+  ["#tmain .avert", "#tmain .tlaunch", "#tmain .cout", "#tmain .u-todo", "#tmain .u-repli"]
+    .forEach((sel) => {
+      const el = win.document.querySelector(sel);
+      check("0b · en plein écran, « " + sel.replace("#tmain ", "") + " » ne prend plus de place",
+        !el || gcs(el, "display") === "none", el ? gcs(el, "display") : "absent");
+    });
+  check("0b · ...et le cadre ne défile plus : l'écran s'étire à la place",
+    gcs(win.document.getElementById("tmain"), "overflow-y") === "hidden"
+    && gcs(win.document.getElementById("tmain"), "display") === "flex",
+    gcs(win.document.getElementById("tmain"), "overflow-y"));
+  // L'avertissement ne disparaît pas : il MONTE dans la ligne de sortie.
+  check("0b · ...mais l'avertissement ne disparaît pas, il monte dans la ligne",
+    /ne s'appliquent pas ici/.test(
+      win.document.querySelector("#tmain .u-sortie").textContent));
 
   // Un plein écran dont on ne sait pas sortir n'est pas un agrandissement.
   const sortie = win.document.querySelector("#tmain .u-sortie");
@@ -1471,7 +1516,8 @@ async function main(){
   //    bouton un par un : on exige que TOUS soient branchés.
   const morts = Array.from(
     win.document.querySelectorAll("#pTerminal [data-cmd], #pTerminal [data-poser],"
-      + " #pTerminal .tbtn, #pTerminal .icon-btn"))
+      + " #pTerminal .tbtn, #pTerminal .icon-btn,"
+      + " #pTerminal .tlaunch button, #pTerminal .u-sortie button"))
     .filter((el) => !el.onclick)
     .map((el) => el.id || el.dataset.cmd || el.dataset.poser
       || el.textContent.trim().slice(0, 24));

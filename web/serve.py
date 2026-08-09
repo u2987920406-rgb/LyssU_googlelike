@@ -52,6 +52,7 @@ import select
 import shutil
 import socket
 import socketserver
+import subprocess
 import ssl
 import sys
 import time
@@ -400,6 +401,25 @@ def garder_version(chemin, horodatage=None):
     return cible
 
 
+def _cle_version(quand):
+    """Ordre de garde, lu dans le NOM : « 2026-08-09-131500 » ou « ...-2 ».
+
+    Pourquoi pas la date du fichier : `garder_version` recopie la date de
+    l'ORIGINAL sur la copie (c'est ce qu'on affiche, et c'est juste : ca dit
+    quand ce texte-la a ete ecrit). Mais deux ecritures dans la meme seconde
+    donnent alors deux dates identiques, et l'egalite se tranchait dans
+    l'ordre de `os.listdir` — au hasard. « Revenir a la version precedente »
+    pouvait donc rendre la mauvaise. Le nom, lui, est pose en ordre strict.
+
+    Le compteur est compare en NOMBRE et non en texte : « -10 » vient apres
+    « -2 », alors que l'ordre alphabetique le mettrait avant.
+    """
+    bouts = quand.split("-")
+    if len(bouts) == 5 and bouts[4].isdigit():
+        return ("-".join(bouts[:4]), int(bouts[4]))
+    return (quand, 0)
+
+
 def lister_versions(chemin):
     """Les versions gardees d'un fichier, de la plus recente a la plus ancienne."""
     dossier = dossier_versions(chemin)
@@ -423,8 +443,59 @@ def lister_versions(chemin):
             "octets": st.st_size,
             "horodatage": st.st_mtime,
         })
-    out.sort(key=lambda v: v["horodatage"], reverse=True)
+    out.sort(key=lambda v: _cle_version(v["quand"]), reverse=True)
     return out
+
+
+# ===========================================================================
+# Ouvrir une VRAIE console Hermes, hors d'Ulysse
+#
+# Le bouton copiait une commande et disait de la coller ailleurs. kuchu a
+# demande qu'il fasse ce qu'il annonce. C'est le seul endroit ou Ulysse lance
+# un processus sur la machine : il merite donc d'etre etroit.
+#
+# CE QUI REND CECI SUR :
+#   · la commande est ECRITE ICI, en dur, sous forme de liste — aucun mot ne
+#     vient du navigateur, donc rien a echapper et rien a injecter ;
+#   · la route n'accepte AUCUN corps, aucun parametre ;
+#   · meme origine exigee, comme tout le reste ;
+#   · la fenetre ouverte est VISIBLE. Un lancement qu'on ne verrait pas serait
+#     une porte derobee ; celui-ci se voit, se lit et se ferme.
+#
+# Ce qui s'y ouvre n'est rien de plus que ce que la personne taperait
+# elle-meme dans son terminal. Mais c'est Ulysse qui le fait, alors on le dit.
+# ===========================================================================
+
+# La forme de cette ligne a ete eprouvee pour de vrai, pas seulement en test.
+# Le piege : `start` ne prend un premier mot pour un TITRE que s'il est entre
+# guillemets. Or Popen ne met de guillemets qu'autour des arguments contenant
+# une espace : `start Hermes cmd /k hermes` cherchait donc un PROGRAMME nomme
+# "Hermes", ne le trouvait pas, et ouvrait une boite d'erreur bloquante.
+# D'ou le titre VIDE ici, et le vrai titre pose par `title` dans la fenetre.
+# Rendu : cmd /c start "" cmd /k "title Hermes & hermes"
+#
+# On garde `start` plutot que creationflags=CREATE_NEW_CONSOLE : la fenetre
+# est alors detachee du serveur, elle survit a son arret et ne meurt pas avec.
+CONSOLE_ARGV = ["cmd", "/c", "start", "", "cmd", "/k", "title Hermes & hermes"]
+
+# Point d'injection pour les tests : une suite de verifications ne doit PAS
+# ouvrir de fenetres sur la machine de quelqu'un.
+LANCEUR = None
+
+
+def ouvrir_console():
+    """Ouvre une console Hermes. Rend (True, None) ou (False, raison)."""
+    if not sys.platform.startswith("win"):
+        return False, ("Cette machine n'est pas sous Windows : Ulysse ne sait "
+                       "pas y ouvrir de console. Copiez la commande et "
+                       "lancez-la vous-meme.")
+    lanceur = LANCEUR or subprocess.Popen
+    try:
+        lanceur(CONSOLE_ARGV, close_fds=True)
+    except OSError as exc:
+        return False, ("La console n'a pas pu s'ouvrir (%s). Hermes est-il "
+                       "bien dans le PATH ?" % exc)
+    return True, None
 
 
 def webhook_secret(name):
@@ -622,6 +693,20 @@ class Handler(http.server.SimpleHTTPRequestHandler):
                 return
             self.restaurer_version()
             return
+        # Le seul endroit ou Ulysse lance un processus. La commande est ecrite
+        # dans ce fichier, en dur : rien de ce qui arrive ici n'entre dedans,
+        # donc il n'y a rien a echapper et rien a injecter. Un corps envoye
+        # quand meme est vide puis jete (cf. vider_corps) : ne pas le lire du
+        # tout brisait la connexion, et la reponse se perdait.
+        if self.route() == "/ulysse/console":
+            if self.guard():
+                return
+            ok, souci = ouvrir_console()
+            if ok:
+                self.send_json(200, {"ok": True})
+            else:
+                self.json_error(500, souci)
+            return
         self.relay_or_405("POST")
 
     def do_PUT(self):
@@ -658,7 +743,53 @@ class Handler(http.server.SimpleHTTPRequestHandler):
     # Relais HTTP
     # ------------------------------------------------------------------
 
+    # ------------------------------------------------------------------
+    # Le corps non lu
+    #
+    # Repondre a une requete sans avoir lu son corps laisse des octets en
+    # attente dans la connexion. Le serveur ferme, le systeme envoie un RST,
+    # et le client PERD la reponse qu'on venait pourtant de lui ecrire
+    # (WinError 10053 sous Windows). Constate en vrai : un POST avec corps sur
+    # /ulysse/console — une route qui se targue justement de n'en lire aucun.
+    #
+    # « Ignorer le corps » doit donc vouloir dire le LIRE et ne pas s'en
+    # servir. La vidange est faite ici, une fois pour toutes, avant toute
+    # reponse : chaque route n'a pas a y penser, et une route ecrite demain
+    # ne pourra pas oublier de le faire.
+    # ------------------------------------------------------------------
+
+    VIDANGE_MAX = 1024 * 1024
+
+    def handle_one_request(self):
+        # Une connexion gardee ouverte sert plusieurs requetes avec le MEME
+        # objet : sans cette remise a zero, la deuxieme se croirait deja lue.
+        self._corps_lu = False
+        super().handle_one_request()
+
+    def vider_corps(self):
+        """Lit et jette le corps qui n'a pas ete lu. Sans effet s'il l'a ete."""
+        if getattr(self, "_corps_lu", False):
+            return
+        self._corps_lu = True
+        try:
+            n = int(self.headers.get("Content-Length") or 0)
+        except ValueError:
+            self.close_connection = True
+            return
+        if n <= 0:
+            return
+        if n > self.VIDANGE_MAX:
+            # On n'avale pas des megaoctets par politesse. On ferme la
+            # connexion : c'est franc, et la reponse est deja partie.
+            self.close_connection = True
+            return
+        try:
+            self.rfile.read(n)
+        except OSError:
+            self.close_connection = True
+
     def read_body(self):
+        self._corps_lu = True
         length = self.headers.get("Content-Length")
         if not length:
             return b""
@@ -772,7 +903,12 @@ class Handler(http.server.SimpleHTTPRequestHandler):
     def json_error(self, status, message):
         self.send_json(status, {"error": message})
 
+    def send_error(self, code, message=None, explain=None):
+        self.vider_corps()
+        super().send_error(code, message, explain)
+
     def send_json(self, status, obj):
+        self.vider_corps()
         payload = json.dumps(obj).encode("utf-8")
         self.send_response_only(status)
         self.send_header("Content-Type", "application/json; charset=utf-8")
@@ -1026,6 +1162,9 @@ class Handler(http.server.SimpleHTTPRequestHandler):
         if n > limite:
             return None, ("Corps trop gros (%d octets pour %d au plus)."
                           % (n, limite))
+        # Marque AVANT la lecture : meme si le JSON est illisible, les octets
+        # ont quitte la connexion et il ne faut pas les relire.
+        self._corps_lu = True
         try:
             return json.loads(self.rfile.read(n).decode("utf-8")), None
         except (ValueError, UnicodeDecodeError, OSError) as exc:

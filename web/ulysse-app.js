@@ -2775,10 +2775,22 @@ function drawTerm(){
     // En plein écran, la barre de titre du panneau n'est plus là : cette
     // ligne porte le retour, la touche qui en sort, et ce qu'on regarde.
     // Elle est écrite toujours, montrée seulement en plein écran.
-    '<div class="u-sortie"><button class="ghost-btn" id="tSortie"'
-    + ' style="height:32px;padding:0 14px">' + svg("restaurer", { size: 17 })
-    + " Quitter le plein écran</button>"
-    + "<kbd>Échap</kbd><span class=\"sp\"></span>"
+    // La touche EST le bouton. Il y avait un bouton « Quitter le plein écran »
+    // et, juste à côté, la mention `Échap` : deux commandes pour un seul geste,
+    // et la plus large mangeait la place qu'on venait justement chercher.
+    // Survolée, la touche dit ce qu'elle fait ; cliquée, elle le fait.
+    // `aria-label` porte la phrase en permanence : elle n'est cachée qu'à
+    // l'œil, et personne ne survole au lecteur d'écran.
+    '<div class="u-sortie"><button class="u-echap" id="tSortie"'
+    + ' aria-label="Quitter le plein écran"><kbd>Échap</kbd>'
+    + '<span class="u-dit">Quitter le plein écran</span></button>'
+    // L'avertissement ne disparaît pas parce qu'on a agrandi : il monte ici,
+    // en une ligne. C'est la seule fenêtre qui mène en dehors de
+    // l'application — le taire au moment où elle occupe tout l'écran serait
+    // le taire au pire moment.
+    + '<span class="u-hors">' + svg("alerte", { size: 15 })
+    + "Les accords d'Ulysse ne s'appliquent pas ici</span>"
+    + "<span class=\"sp\"></span>"
     + "<span>" + esc(TCMD) + " --tui</span>"
     // Les deux replis viennent ici en plein écran : même ordre, même côté.
     // Les outils ne bougent pas, c'est la barre qui les porte qui change.
@@ -2825,9 +2837,17 @@ function drawTerm(){
 
     + '<div class="tlaunch"><button class="tbtn" id="tGo">'
     + svg("terminal", { size: 20 }) + "Ouvrir une session</button>"
-    + '<button class="ghost-btn" data-cmd="' + esc(TCMD) + '">Copier « '
-    + esc(TCMD) + ' »</button>'
-    + '<span class="tpath">Pour l\'ouvrir hors d\'Ulysse, dans votre console</span></div>'
+    // Celui-ci OUVRE, pour de vrai — une console Windows, hors d'Ulysse.
+    // C'est le seul endroit où la page fait lancer un processus sur la
+    // machine. Son libellé dit donc exactement ce qui va se passer, et la
+    // phrase en dessous dit où ça se passe.
+    + '<button class="ghost-btn" id="tConsole">' + svg("lien", { size: 17 })
+    + " Ouvrir une console Hermès</button>"
+    // Et celui-là copie, pour qui préfère la coller ailleurs — une autre
+    // machine, un autre terminal, un raccourci.
+    + '<button class="txt-btn" data-cmd="' + esc(TCMD) + '">Copier la commande</button>'
+    + '<span class="tpath">Une vraie fenêtre, en dehors d\'Ulysse. Ce qui s\'y '
+    + "passe ne passe plus par lui.</span></div>"
 
     + '<div class="cout" style="margin-top:16px">💶 <b>Ce que ça coûte.</b> Le terminal '
     + "appelle le même cerveau, facturé de la même façon. Ce qui s'y consomme apparaît "
@@ -2889,6 +2909,20 @@ function drawTerm(){
   };
   const sortie = $("tSortie");
   if (sortie) sortie.onclick = () => basculerPlein(false);
+
+  const cons = $("tConsole");
+  if (cons) cons.onclick = async () => {
+    cons.disabled = true;
+    try {
+      await REST.ouvrirConsole();
+      snack("Une console Hermès s'est ouverte, hors d'Ulysse.");
+    } catch (e){
+      // serve.py dit pourquoi — machine non Windows, `hermes` absent du PATH,
+      // serveur lancé avant cette route. On relaie sa phrase.
+      snack(String(e.message).replace(/<[^>]*>/g, " ").slice(0, 160));
+    }
+    cons.disabled = false;
+  };
 
   // ⚠ On interroge `#pTerminal`, plus `#tside` : les deux groupes ont déménagé
   // dans les replis, et les chercher dans la colonne ne rendrait plus rien.
