@@ -274,6 +274,159 @@ def hermes_home():
     return os.path.join(os.path.expanduser("~"), ".hermes")
 
 
+# ===========================================================================
+# Ecrire dans la memoire — la copie datee AVANT l'ecrasement
+#
+# `/api/fs/write-text` d'Hermes ecrit proprement (fichier temporaire puis
+# `os.replace`, donc pas de troncature en cas de plantage) mais ne garde
+# AUCUNE copie : ce qui etait la est perdu. La passe de design pose la regle,
+# et elle vient de la maquette elle-meme :
+#
+#     « Rien ne disparait d'un geste. Ce qui porte des donnees va a la
+#       corbeille, et y reste. »
+#
+# Ecrire par-dessus une memoire EST une destruction, meme si ca s'appelle
+# ecrire. Tant que la copie datee n'existe pas, un ecran qui promet un retour
+# en arriere ment. Voici donc la copie datee, et rien d'autre pour l'instant.
+# ===========================================================================
+
+# Les versions vivent dans un SOUS-DOSSIER, pas dans une convention de nommage.
+# `user.md.2026-08-09-1804` a cote de `user.md` encombrerait la liste des
+# fichiers — celle que le panneau Fichiers affiche — et melangerait les
+# sauvegardes aux originaux. Un dossier se replie ; un nom de fichier, non.
+DOSSIER_VERSIONS = "versions-ulysse"
+
+# Ce qui ne s'ecrit JAMAIS par ce chemin. Ce n'est pas un reglage prudent
+# qu'on desserrera un jour : SOUL.md dit ce qu'Ulysse s'autorise et ce qu'il
+# refuse. Si l'agent pouvait le reecrire, il pourrait lever ses propres
+# garde-fous, et il n'y aurait plus rien pour l'en empecher.
+#
+# ATTENTION A LA PORTEE REELLE DE CETTE FRONTIERE : elle tient pour tout ce
+# qui passe par Ulysse. Elle ne tient PAS pour l'agent lui-meme, qui ecrit
+# avec ses propres outils dans le processus Hermes, sans passer par ici.
+# Verifie dans le code source le 2026-08-09 : Hermes n'expose aucun
+# refus par chemin (`agent/file_safety.py` n'a qu'un garde-fou souple pour
+# les miroirs de bac a sable, documente comme « not a security boundary »).
+# Le dire autrement serait promettre une frontiere qui n'existe pas.
+INTERDITS_ECRITURE = ("soul.md",)
+
+
+def _sous_chemin(parent, enfant):
+    """`enfant` est-il DANS `parent` ? Compare des chemins reels, normalises."""
+    try:
+        p = os.path.realpath(parent)
+        e = os.path.realpath(enfant)
+    except OSError:
+        return False
+    if os.name == "nt":
+        p, e = p.lower(), e.lower()
+    return e == p or e.startswith(p + os.sep)
+
+
+def ecriture_refusee(chemin):
+    """Raison de refus, ou None. C'est la seule porte d'entree des regles."""
+    if not chemin or not isinstance(chemin, str):
+        return "Aucun fichier n'a ete indique."
+    nom = os.path.basename(chemin).lower()
+    if nom in INTERDITS_ECRITURE:
+        return ("SOUL.md ne se modifie pas depuis Ulysse. Il dit ce qu'Ulysse "
+                "s'autorise et ce qu'il refuse : le laisser reecrire d'ici "
+                "reviendrait a le laisser lever ses propres garde-fous. "
+                "Ouvrez-le vous-meme ; Hermes le relira au prochain lancement.")
+    # Hors du Hermes Home, ce n'est pas de la memoire — et ce serveur n'a pas
+    # a devenir un editeur de fichiers pour toute la machine.
+    if not _sous_chemin(hermes_home(), chemin):
+        return ("Ce fichier n'est pas dans le dossier d'Hermes. Ulysse n'ecrit "
+                "que dans la memoire, pas ailleurs sur la machine.")
+    # Les sauvegardes vivent DANS le Hermes Home : sans cette ligne, la meme
+    # route permettrait d'ecraser une version gardee — c'est-a-dire de
+    # detruire precisement ce qui existe pour empecher une destruction.
+    if DOSSIER_VERSIONS in os.path.abspath(chemin).replace("\\", "/").split("/"):
+        return ("Ce fichier est une version gardee. On y revient, on ne "
+                "l'ecrase pas : c'est ce qui rend le retour en arriere sur.")
+    return None
+
+
+def dossier_versions(chemin):
+    return os.path.join(os.path.dirname(os.path.abspath(chemin)), DOSSIER_VERSIONS)
+
+
+def garder_version(chemin, horodatage=None):
+    """Met la version actuelle de cote, datee. Rend son chemin, ou None.
+
+    None veut dire « il n'y avait rien a garder » (fichier absent : c'est une
+    CREATION, elle ne detruit rien). Une exception veut dire qu'on n'a pas pu
+    garder — et dans ce cas l'ecriture ne doit pas avoir lieu.
+    """
+    if not os.path.isfile(chemin):
+        return None
+    dossier = dossier_versions(chemin)
+    # `exist_ok` et non un `if not isdir(...)` : deux copies simultanees
+    # voient toutes deux le dossier absent, et la seconde echouerait sur un
+    # FileExistsError — en perdant la sauvegarde qu'elle devait faire.
+    os.makedirs(dossier, exist_ok=True)
+    quand = horodatage or time.strftime("%Y-%m-%d-%H%M%S")
+    base = os.path.basename(chemin)
+
+    # Deux ecritures dans la meme seconde ne doivent pas s'ecraser l'une
+    # l'autre : ce serait perdre precisement ce qu'on essaie de garder.
+    #
+    # Un `while os.path.exists(...)` suivi d'une copie laisse une fenetre
+    # entre le test et l'ecriture : deux requetes simultanees peuvent choisir
+    # le meme nom et l'une effacer l'autre. On demande donc au systeme de
+    # creer le fichier de facon EXCLUSIVE — c'est lui qui arbitre.
+    n, cible, fd = 0, None, None
+    while fd is None:
+        cible = os.path.join(dossier, "%s.%s" % (base, quand) if n == 0
+                             else "%s.%s-%d" % (base, quand, n))
+        try:
+            fd = os.open(cible, os.O_CREAT | os.O_EXCL | os.O_WRONLY | getattr(os, "O_BINARY", 0))
+        except FileExistsError:
+            n += 1
+            if n > 500:                       # garde-fou : on ne boucle pas sans fin
+                raise
+    try:
+        with open(chemin, "rb") as src, os.fdopen(fd, "wb") as dst:
+            shutil.copyfileobj(src, dst)
+    except BaseException:
+        # Une copie a moitie ecrite est pire qu'aucune copie : elle ferait
+        # croire a une sauvegarde qui n'en est pas une.
+        try:
+            os.remove(cible)
+        except OSError:
+            pass
+        raise
+    shutil.copystat(chemin, cible)
+    return cible
+
+
+def lister_versions(chemin):
+    """Les versions gardees d'un fichier, de la plus recente a la plus ancienne."""
+    dossier = dossier_versions(chemin)
+    base = os.path.basename(chemin)
+    out = []
+    try:
+        noms = os.listdir(dossier)
+    except OSError:
+        return out
+    for nom in noms:
+        if not nom.startswith(base + "."):
+            continue
+        plein = os.path.join(dossier, nom)
+        try:
+            st = os.stat(plein)
+        except OSError:
+            continue
+        out.append({
+            "nom": nom,
+            "quand": nom[len(base) + 1:],
+            "octets": st.st_size,
+            "horodatage": st.st_mtime,
+        })
+    out.sort(key=lambda v: v["horodatage"], reverse=True)
+    return out
+
+
 def webhook_secret(name):
     """Secret HMAC d'une route webhook, lu dans webhook_subscriptions.json.
 
@@ -423,6 +576,11 @@ class Handler(http.server.SimpleHTTPRequestHandler):
         if self.route() in EMPRUNTS:
             self.serve_emprunt(self.route())
             return
+        if self.route() == "/ulysse/versions":
+            if self.guard():
+                return
+            self.dire_versions()
+            return
         if not self.static_allowed():
             self.send_error(404, "Not Found")
             return
@@ -449,6 +607,20 @@ class Handler(http.server.SimpleHTTPRequestHandler):
             if self.guard():
                 return
             self.marquer_premier_vu()
+            return
+        # Ecrire dans la memoire ne passe PAS par le relais nu : la copie datee
+        # doit avoir lieu avant, et le refus de SOUL.md doit tenir ici, pas
+        # seulement dans la page. Une frontiere qui ne tient que dans
+        # l'interface n'est pas une frontiere.
+        if self.route() == "/ulysse/ecrire":
+            if self.guard():
+                return
+            self.ecrire_memoire()
+            return
+        if self.route() == "/ulysse/restaurer":
+            if self.guard():
+                return
+            self.restaurer_version()
             return
         self.relay_or_405("POST")
 
@@ -831,6 +1003,155 @@ class Handler(http.server.SimpleHTTPRequestHandler):
         self.send_header("Content-Length", str(len(payload)))
         self.end_headers()
         self.wfile.write(payload)
+
+    # ------------------------------------------------------------------
+    # Ecrire dans la memoire — copie datee, versions, retour en arriere
+    # ------------------------------------------------------------------
+
+    # Le plafond d'Hermes pour une ecriture de texte
+    # (`_FS_TEXT_WRITE_MAX_BYTES`, web_server.py:1853), plus la place de
+    # l'enveloppe JSON. En mettre un plus bas ici ferait refuser des fichiers
+    # qu'Hermes accepterait, avec un message venu du mauvais endroit.
+    CORPS_MAX = 8 * 1024 * 1024 + 64 * 1024
+
+    def lire_json(self, limite=None):
+        """Corps JSON de la requete, ou (None, raison). Taille bornee."""
+        limite = self.CORPS_MAX if limite is None else limite
+        try:
+            n = int(self.headers.get("Content-Length") or 0)
+        except ValueError:
+            return None, "En-tete Content-Length illisible."
+        if n <= 0:
+            return None, "Corps vide."
+        if n > limite:
+            return None, ("Corps trop gros (%d octets pour %d au plus)."
+                          % (n, limite))
+        try:
+            return json.loads(self.rfile.read(n).decode("utf-8")), None
+        except (ValueError, UnicodeDecodeError, OSError) as exc:
+            return None, "JSON illisible (%s)." % exc
+
+    def ecrire_memoire(self):
+        """Garde la version d'avant, PUIS ecrit. Jamais l'inverse."""
+        corps, souci = self.lire_json()
+        if not isinstance(corps, dict):
+            self.json_error(400, souci or "Corps JSON attendu : {path, content}.")
+            return
+        chemin = corps.get("path")
+        contenu = corps.get("content")
+        if not isinstance(contenu, str):
+            self.json_error(400, "« content » doit etre du texte.")
+            return
+
+        refus = ecriture_refusee(chemin)
+        if refus:
+            self.json_error(403, refus)
+            return
+
+        # La copie AVANT l'ecriture, et si elle echoue on n'ecrit pas. C'est
+        # tout l'objet de cette route : sans elle, la promesse de retour en
+        # arriere serait fausse.
+        try:
+            garde = garder_version(chemin)
+        except OSError as exc:
+            self.json_error(
+                500,
+                "La version d'avant n'a pas pu etre mise de cote (%s). Rien n'a "
+                "ete ecrit : mieux vaut ne pas ecrire que d'ecrire sans retour "
+                "possible." % exc)
+            return
+
+        rep = self.appeler_backend(
+            "POST", "/api/fs/write-text",
+            json.dumps({"path": chemin, "content": contenu}).encode("utf-8"))
+        statut, texte = rep
+        if statut == 0:
+            self.json_error(
+                502, "Hermes n'a pas repondu (%s) ; rien n'a ete ecrit. La "
+                     "version d'avant reste gardee." % texte[:160])
+            return
+        if statut >= 400:
+            self.json_error(statut, "Hermes a refuse l'ecriture : %s" % texte[:300])
+            return
+        self.send_json(200, {
+            "ok": True,
+            "path": chemin,
+            "version_gardee": os.path.basename(garde) if garde else None,
+            "creation": garde is None,
+            "versions": len(lister_versions(chemin)),
+        })
+
+    def dire_versions(self):
+        chemin = urllib.parse.parse_qs(
+            urllib.parse.urlparse(self.path).query).get("path", [""])[0]
+        if not chemin or not _sous_chemin(hermes_home(), chemin):
+            self.json_error(400, "Chemin absent ou hors du dossier d'Hermes.")
+            return
+        self.send_json(200, {"path": chemin, "versions": lister_versions(chemin)})
+
+    def restaurer_version(self):
+        """Revenir en arriere — en gardant d'abord ce qu'on quitte.
+
+        Restaurer est une ecriture comme une autre : elle ecrase l'etat
+        courant. Ne pas en garder copie ferait du retour en arriere un aller
+        simple, et on aurait juste deplace le probleme d'un cran.
+        """
+        corps, souci = self.lire_json()
+        if not isinstance(corps, dict):
+            self.json_error(400, souci or "Corps JSON attendu : {path, nom}.")
+            return
+        chemin, nom = corps.get("path"), corps.get("nom")
+        refus = ecriture_refusee(chemin)
+        if refus:
+            self.json_error(403, refus)
+            return
+        # Le nom vient du client : il ne doit designer qu'une version DE CE
+        # fichier, dans le dossier des versions, et jamais servir de chemin.
+        if (not isinstance(nom, str) or not nom
+                or os.path.basename(nom) != nom
+                or not nom.startswith(os.path.basename(chemin) + ".")):
+            self.json_error(400, "Cette version n'appartient pas a ce fichier.")
+            return
+        source = os.path.join(dossier_versions(chemin), nom)
+        if not os.path.isfile(source) or not _sous_chemin(dossier_versions(chemin), source):
+            self.json_error(404, "Version introuvable.")
+            return
+        try:
+            garde = garder_version(chemin)
+            shutil.copy2(source, chemin)
+        except OSError as exc:
+            self.json_error(500, "Le retour en arriere a echoue (%s)." % exc)
+            return
+        self.send_json(200, {
+            "ok": True, "path": chemin, "restauree": nom,
+            "version_gardee": os.path.basename(garde) if garde else None,
+        })
+
+    def appeler_backend(self, methode, chemin, corps=None):
+        """Un appel a Hermes fait PAR ce serveur, avec le jeton qu'il detient.
+
+        Distinct du relais : ici la requete est la notre, pas celle du
+        navigateur — c'est ce qui permet d'intercaler la copie datee.
+        """
+        backend = BACKEND
+        entetes = self.build_upstream_headers(backend)
+        entetes["Content-Type"] = "application/json"
+        if corps:
+            entetes["Content-Length"] = str(len(corps))
+        conn = None
+        try:
+            conn = backend.connect()
+            conn.request(methode, chemin, body=corps, headers=entetes)
+            rep = conn.getresponse()
+            return rep.status, rep.read().decode("utf-8", "replace")
+        except Exception as exc:
+            # On rend la cause : « injoignable » sans raison oblige a deviner,
+            # et c'est precisement ce qu'on ne veut pas quand une ecriture
+            # vient d'etre refusee.
+            return 0, "%s: %s" % (type(exc).__name__, exc)
+        finally:
+            if conn:
+                conn.close()
 
     def marquer_premier_vu(self):
         """Note que l'ecran de premier lancement a ete vu."""

@@ -1094,7 +1094,7 @@ async function main(){
   // ⚠ LE PIÈGE. `#tmain` est reconstruit en innerHTML à chaque changement de
   // thème. Si l'écran vivant reste dans le gabarit, le changer de couleur
   // COUPE le PTY sous les doigts de quelqu'un en train de taper.
-  const autre = Array.from(win.document.querySelectorAll("#tside [data-th]"))
+  const autre = Array.from(win.document.querySelectorAll("#pTerminal [data-th]"))
     .find((b) => !b.classList.contains("on"));
   autre.click();
   await wait(120);
@@ -1217,8 +1217,8 @@ async function main(){
   // 7. Deux familles, UN SEUL geste chacune. Ce qui les distingue n'est pas
   //    le geste : c'est où elles s'exécutent. Le mauvais geste ne doit pas
   //    exister là où il serait faux.
-  const poseurs = win.document.querySelectorAll("#tside [data-poser]");
-  const copieurs = win.document.querySelectorAll("#tside .tmemo [data-cmd]");
+  const poseurs = win.document.querySelectorAll("#pTerminal [data-poser]");
+  const copieurs = win.document.querySelectorAll("#pTerminal .tmemo [data-cmd]");
   check("7 · les deux familles existent, et chacune n'a qu'un geste",
     poseurs.length > 0 && copieurs.length > 0
     && !Array.from(poseurs).some((p) => p.hasAttribute("data-cmd"))
@@ -1231,10 +1231,10 @@ async function main(){
     Array.from(poseurs).map((p) => p.dataset.poser).join(" "));
   check("7 · ...et la note dit ce que l'invite attend",
     /attend d'abord une phrase/.test(
-      win.document.querySelector("#tside .u-tui .u-note").textContent));
+      win.document.querySelector("#pTerminal .u-tui .u-note").textContent));
   check("7 · session fermée, la famille de la session n'est pas proposée",
-    gcs(win.document.querySelector("#tside .u-tui"), "display") === "none",
-    gcs(win.document.querySelector("#tside .u-tui"), "display"));
+    gcs(win.document.querySelector("#pTerminal .u-tui"), "display") === "none",
+    gcs(win.document.querySelector("#pTerminal .u-tui"), "display"));
   ptyD.envoye.length = 0;
   poseurs[0].click();
   check("7 · ...et cliqué quand même, il refuse au lieu d'envoyer dans le vide",
@@ -1246,8 +1246,8 @@ async function main(){
   win.document.getElementById("tGo").click();
   await wait(80);
   check("7 · session ouverte, la famille de la session apparaît",
-    gcs(win.document.querySelector("#tside .u-tui"), "display") !== "none",
-    gcs(win.document.querySelector("#tside .u-tui"), "display"));
+    gcs(win.document.querySelector("#pTerminal .u-tui"), "display") !== "none",
+    gcs(win.document.querySelector("#pTerminal .u-tui"), "display"));
   check("le panneau bascule sur un seul état, jamais deux",
     Array.from(panneau.classList).filter((c) => /^u-term-/.test(c)).length === 1
     && panneau.classList.contains("u-term-ouvert"),
@@ -1288,7 +1288,7 @@ async function main(){
 
   // Le piège, encore : la passe touche à #tmain, la session doit survivre.
   const ecranO = win.document.getElementById("tecran");
-  const themeAutre = Array.from(win.document.querySelectorAll("#tside [data-th]"))
+  const themeAutre = Array.from(win.document.querySelectorAll("#pTerminal [data-th]"))
     .find((b) => !b.classList.contains("on"));
   themeAutre.click();
   await wait(120);
@@ -1298,6 +1298,144 @@ async function main(){
     && panneau.classList.contains("u-term-ouvert")
     && ptyO.readyState === 1,
     win.document.getElementById("tmain").contains(ecranO) ? "" : "écran resté au stock");
+
+  console.log("\n--- Terminal, passe 2 : la place ---");
+
+  // 0a. La colonne de 300 px n'a pas disparu : elle a EMMÉNAGÉ. Ses deux
+  //     groupes sont déplacés, pas réécrits — rien de vivant n'est détruit.
+  const cote = win.document.getElementById("tside");
+  // Il y en a TROIS depuis que les familles sont séparées : l'apparence, et
+  // les deux aides-mémoire. Aucun ne doit rester orphelin dans une colonne
+  // devenue invisible — c'est ce que ce test garde.
+  check("0a · aucun groupe ne reste orphelin dans la colonne",
+    cote.querySelectorAll(".tgrp").length === 0
+    && win.document.querySelectorAll("#tPopApp .tgrp").length === 1
+    && win.document.querySelectorAll("#tPopMem .tgrp").length === 2,
+    cote.querySelectorAll(".tgrp").length + " resté(s) · "
+    + win.document.querySelectorAll("#tPopMem .tgrp").length + " dans l'aide-mémoire");
+  check("0a · ...et la colonne ne prend plus de place ni le pointeur",
+    gcs(cote, "width") === "0px" && gcs(cote, "pointer-events") === "none",
+    gcs(cote, "width"));
+  // Deux kebabs côte à côte seraient indistinguables : chacun porte l'icône
+  // de ce qu'il contient.
+  check("0a · les trois boutons portent chacun leur signe, et un intitulé",
+    ["tApp", "tMem", "tFull"].every((id) => {
+      const b = win.document.getElementById(id);
+      return b && b.querySelector("svg") && b.getAttribute("aria-label");
+    }));
+
+  const app = win.document.getElementById("tApp");
+  const mem = win.document.getElementById("tMem");
+  const popApp = win.document.getElementById("tPopApp");
+  const popMem = win.document.getElementById("tPopMem");
+  app.click();
+  check("0a · un repli s'ouvre", popApp.classList.contains("on"));
+  mem.click();
+  check("0a · ...et ouvrir l'autre ferme le premier",
+    popMem.classList.contains("on") && !popApp.classList.contains("on"));
+
+  // 0b. Le plein écran est APPLICATIF : une classe, pas l'API du navigateur —
+  //     qui ferait sortir de l'application pour agrandir un de ses panneaux.
+  const zoneTerm = win.document.querySelector("#pTerminal .term");
+  const ecranAv = win.document.getElementById("tecran");
+  const ptyAv = FakeWS.dernierPty;
+  const creesAv = FakeTerminal.crees;
+  win.document.getElementById("tFull").click();
+  await wait(140);
+  check("0b · le plein écran pose une classe, il ne reconstruit rien",
+    zoneTerm.classList.contains("u-plein")
+    && win.document.getElementById("tecran") === ecranAv
+    && FakeTerminal.crees === creesAv && ptyAv.readyState === 1,
+    FakeTerminal.crees - creesAv + " terminal(aux) recréé(s)");
+  check("0b · ...et il n'appelle jamais le plein écran du navigateur",
+    !win.document.fullscreenElement);
+  // Un plein écran dont on ne sait pas sortir n'est pas un agrandissement.
+  const sortie = win.document.querySelector("#tmain .u-sortie");
+  check("0b · le chemin pour sortir est écrit à l'écran, et visible",
+    gcs(sortie, "display") !== "none"
+    && /Échap/.test(sortie.textContent)
+    && !!win.document.getElementById("tSortie"),
+    sortie.textContent.trim().slice(0, 44));
+  check("0b · l'état de session ne disparaît jamais",
+    !!win.document.getElementById("tstate")
+    && gcs(win.document.getElementById("tstate"), "display") !== "none");
+
+  // Échap ferme d'abord un repli — on ne perd jamais deux choses d'un coup.
+  const echap = () => win.document.dispatchEvent(
+    new win.KeyboardEvent("keydown", { key: "Escape", bubbles: true }));
+  win.document.getElementById("tApp").click();
+  echap();
+  check("0b · Échap ferme d'abord le repli, et laisse le plein écran",
+    !win.document.getElementById("tPopApp").classList.contains("on")
+    && zoneTerm.classList.contains("u-plein"));
+  echap();
+  await wait(140);
+  check("0b · ...puis Échap sort du plein écran",
+    !zoneTerm.classList.contains("u-plein"));
+
+  // ⚠ Échap APPARTIENT au terminal quand on tape dedans : c'est une touche de
+  // travail dans une TUI. La confisquer rendrait le terminal inutilisable en
+  // plein écran, là précisément où on y travaille. Le bouton reste le chemin.
+  win.document.getElementById("tFull").click();
+  await wait(140);
+  const saisie = win.document.createElement("textarea");
+  win.document.getElementById("tecran").appendChild(saisie);
+  saisie.focus();
+  echap();
+  await wait(60);
+  check("0b · Échap tapé DANS le terminal lui revient, il ne replie rien",
+    zoneTerm.classList.contains("u-plein"),
+    zoneTerm.classList.contains("u-plein") ? "" : "le plein écran a été volé");
+  saisie.remove();
+  win.document.body.focus();
+  echap();
+  await wait(140);
+  check("0b · ...et hors du terminal, Échap sort toujours",
+    !zoneTerm.classList.contains("u-plein"));
+
+  // Le contrat survit à tout ça — c'est ce que la passe promettait.
+  const themeDepuisRepli = Array.from(
+    win.document.querySelectorAll("#tPopApp [data-th]"))
+    .find((b) => !b.classList.contains("on"));
+  themeDepuisRepli.click();
+  await wait(140);
+  check("0b · après plein écran, retour et thème changé depuis le repli, "
+    + "les huit id du contrat sont là",
+    ["tside", "tmain", "tecran", "tstate", "tGo", "tSize", "uStock", "tOutils"]
+      .every((id) => !!win.document.getElementById(id))
+    && win.document.getElementById("tecran") === ecranAv
+    && win.document.getElementById("tmain").contains(ecranAv),
+    ["tside", "tmain", "tecran", "tstate", "tGo", "tSize", "uStock", "tOutils"]
+      .filter((id) => !win.document.getElementById(id)).join(" ") || "toutes là");
+
+  // ⚠ AUCUN contrôle mort dans ce panneau. « Copier « hermes » » a vécu
+  //    depuis le premier jour sans gestionnaire : il était dans `.tlaunch`,
+  //    et le câblage n'interrogeait que `#tside`. Un bouton visible qui
+  //    n'agit pas est ce que la règle STU-1 interdit — et il a traversé deux
+  //    passes de design sans qu'on le voie. On ne vérifie donc plus chaque
+  //    bouton un par un : on exige que TOUS soient branchés.
+  const morts = Array.from(
+    win.document.querySelectorAll("#pTerminal [data-cmd], #pTerminal [data-poser],"
+      + " #pTerminal .tbtn, #pTerminal .icon-btn"))
+    .filter((el) => !el.onclick)
+    .map((el) => el.id || el.dataset.cmd || el.dataset.poser
+      || el.textContent.trim().slice(0, 24));
+  check("aucun contrôle du Terminal n'est mort",
+    morts.length === 0, morts.join(" · "));
+
+  // §1 — `/clear` : gardée, séparée, et son libellé dit ce qu'elle fait.
+  const fort = win.document.querySelector("#pTerminal .tmemo .u-sep");
+  check("1 · `/clear` est gardée, mais séparée par un filet",
+    !!fort && !!fort.nextElementSibling
+    && fort.nextElementSibling.dataset.poser === "/clear",
+    fort && fort.nextElementSibling ? fort.nextElementSibling.dataset.poser : "absente");
+  // La réponse à Cowork est dans le libellé, et elle est constatée : la
+  // session fermée reste listée par /api/sessions.
+  check("1 · ...et son libellé dit ce qu'elle fait, sans le mot « écran »",
+    /nouvelle session à la place/.test(fort.nextElementSibling.textContent)
+    && /restera dans \/sessions/.test(fort.nextElementSibling.textContent)
+    && !/écran/.test(fort.nextElementSibling.textContent),
+    fort.nextElementSibling.textContent.trim());
 
   // ── Les deux défauts que seul l'écran a montrés ────────────────────────
   // La TUI tournait, son texte était dans le tampon, et l'écran restait NOIR.

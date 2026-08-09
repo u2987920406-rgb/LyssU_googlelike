@@ -2248,6 +2248,104 @@ const TMEMO_TUI = [
   ["/stop", "arrêter les processus lancés en arrière-plan"]
 ];
 
+/* Ce qui engage plus que ses voisines, sous un filet — comme « Autoriser
+   toujours » dans la demande d'accord. Elle n'est pas interdite, elle est
+   distinguée.
+
+   Le libellé peut être rassurant, et ce n'est pas une politesse : c'est
+   constaté. `/clear` appelle `session.close` (methods_session.py:2717), qui
+   FINALISE la session sans la supprimer — elle reste dans le magasin et
+   `GET /api/sessions` la liste (70 y figuraient au moment de la vérification,
+   dont des sessions fermées le soir même). La TUI demande en plus
+   confirmation avant d'agir (core.ts:206, `danger: true`). */
+const TMEMO_TUI_FORT = [
+  ["/clear", "ouvrir une nouvelle session à la place de celle-ci — "
+    + "celle-ci restera dans /sessions"]
+];
+
+/* Le plein écran est APPLICATIF, pas celui du navigateur : Ulysse tourne déjà
+   dans une fenêtre, et demander le plein écran du système ferait SORTIR de
+   l'application pour agrandir un de ses panneaux. Une classe sur `.term`, et
+   c'est réversible sans rien demander à personne. */
+let termPlein = false;
+
+function basculerPlein(v){
+  const t = $("pTerminal") && $("pTerminal").querySelector(".term");
+  if (!t) return;
+  termPlein = v === undefined ? !termPlein : !!v;
+  t.classList.toggle("u-plein", termPlein);
+  // Le panneau doit être levé AUSSI : `.panel` est un contexte d'empilement
+  // (`z-index:1`), donc le `z-index:200` de la fenêtre ne peut pas en sortir,
+  // et le rail — à 60 dans le contexte parent — passait devant le terminal.
+  $("pTerminal").classList.toggle("u-plein-actif", termPlein);
+  const b = $("tFull");
+  if (b) H("tFull", svg(termPlein ? "restaurer" : "agrandir", { size: 20 }));
+  // La fenêtre change de taille du tout au tout : le terminal doit se
+  // réajuster, sinon il garde le gabarit de l'autre taille.
+  ajusterTerm();
+}
+
+function fermerReplis(){
+  let ferme = false;
+  ["tPopApp", "tPopMem"].forEach((id) => {
+    const p = $(id);
+    if (p && p.classList.contains("on")){ p.classList.remove("on"); ferme = true; }
+  });
+  return ferme;
+}
+
+/* Les deux groupes de `#tside` déménagent dans les replis de la barre de
+   titre. On les DÉPLACE — `appendChild` sur un nœud déjà écrit — plutôt que
+   de les réécrire : c'est le même motif que `#band` vers le kebab, dans
+   l'autre sens, et il ne détruit rien.
+
+   Deux boutons, pas deux « ⋯ » : deux kebabs côte à côte sont
+   indistinguables, il faudrait les ouvrir pour savoir lequel est lequel. */
+function poserOutils(){
+  const hote = $("tOutils");
+  if (!hote) return;
+  H("tOutils",
+    '<span><button class="icon-btn" id="tApp" aria-label="Apparence du terminal"'
+    + ' title="Apparence">' + svg("regler", { size: 20 }) + "</button>"
+    + '<div class="pop u-pop" id="tPopApp"></div></span>'
+    + '<span><button class="icon-btn" id="tMem" aria-label="Aide-mémoire"'
+    + ' title="Aide-mémoire">' + svg("doc", { size: 20 }) + "</button>"
+    + '<div class="pop u-pop" id="tPopMem"></div></span>'
+    + '<button class="icon-btn" id="tFull" aria-label="Plein écran"'
+    + ' title="Plein écran">' + svg(termPlein ? "restaurer" : "agrandir", { size: 20 })
+    + "</button>");
+
+  // Le premier groupe est l'apparence ; TOUT le reste est de l'aide-mémoire.
+  // Depuis que les familles sont séparées, il y en a deux — « Dans votre
+  // console » et « Dans cette session » — et la passe en supposait un seul.
+  // On prend donc la suite, quel qu'en soit le nombre : ajouter une famille
+  // ne doit pas laisser un groupe orphelin dans une colonne invisible.
+  const grp = Array.from($("tside").querySelectorAll(".tgrp"));
+  if (grp[0]) $("tPopApp").appendChild(grp[0]);
+  grp.slice(1).forEach((g) => $("tPopMem").appendChild(g));
+
+  // Les deux replis s'excluent : ouvrir l'un ferme l'autre.
+  const bascule = (bouton, mien, sien) => {
+    $(bouton).onclick = (e) => {
+      e.stopPropagation();
+      $(sien).classList.remove("on");
+      $(mien).classList.toggle("on");
+    };
+  };
+  bascule("tApp", "tPopApp", "tPopMem");
+  bascule("tMem", "tPopMem", "tPopApp");
+  $("tPopApp").onclick = (e) => e.stopPropagation();
+  $("tPopMem").onclick = (e) => e.stopPropagation();
+  $("tFull").onclick = (e) => { e.stopPropagation(); basculerPlein(); };
+}
+
+function ligneTui([c, q]){
+  return '<div class="u-cmd" data-poser="' + esc(c) + '" role="button"'
+    + ' tabindex="0" title="Poser dans la ligne, sans lancer">'
+    + "<code>" + esc(c) + "</code><span>" + esc(q) + "</span>"
+    + '<span class="u-poser">' + svg("suivant", { size: 15 }) + "</span></div>";
+}
+
 function drawTerm(){
   const T = TTHEMES.find((x) => x.id === tTheme) || TTHEMES[0];
   const px = { petit: 12, moyen: 13, grand: 15 }[tTaille];
@@ -2281,11 +2379,10 @@ function drawTerm(){
     + '<p class="u-note">La session attend d\'abord une phrase — dites ce que '
     + "vous voulez. Ces commandes-ci sont les raccourcis qu'elle reconnaît.</p>"
     + '<div class="tmemo">'
-    + TMEMO_TUI.map(([c, q]) => '<div class="u-cmd" data-poser="' + esc(c) + '"'
-        + ' role="button" tabindex="0" title="Poser dans la ligne, sans lancer">'
-        + "<code>" + esc(c) + "</code><span>" + esc(q) + "</span>"
-        + '<span class="u-poser">' + svg("suivant", { size: 15 })
-        + "</span></div>").join("")
+    + TMEMO_TUI.map(ligneTui).join("")
+    // Le filet, puis ce qui engage au-delà de la ligne.
+    + '<div class="u-sep"></div>'
+    + TMEMO_TUI_FORT.map(ligneTui).join("")
     + "</div></div>");
 
   // ⚠ `#tmain` est reconstruit en innerHTML à chaque changement de thème ou
@@ -2297,7 +2394,16 @@ function drawTerm(){
   if (ecran && stock) stock.appendChild(ecran);
 
   H("tmain",
-    '<div class="tscreen u-tscreen" style="background:' + T.bg + ";color:" + T.fg
+    // En plein écran, la barre de titre du panneau n'est plus là : cette
+    // ligne porte le retour, la touche qui en sort, et ce qu'on regarde.
+    // Elle est écrite toujours, montrée seulement en plein écran.
+    '<div class="u-sortie"><button class="ghost-btn" id="tSortie"'
+    + ' style="height:32px;padding:0 14px">' + svg("restaurer", { size: 17 })
+    + " Quitter le plein écran</button>"
+    + "<kbd>Échap</kbd><span class=\"sp\"></span>"
+    + "<span>Terminal CLI · " + esc(TCMD) + " --tui</span></div>"
+
+    + '<div class="tscreen u-tscreen" style="background:' + T.bg + ";color:" + T.fg
     + ";font-size:" + px + 'px">'
     // Les trois pastilles rouge/jaune/verte ont disparu : elles ne fermaient
     // rien, ne réduisaient rien, sur la seule fenêtre qui mène en dehors de
@@ -2360,12 +2466,12 @@ function drawTerm(){
     + 'la session. <span id="tRepli" role="button" tabindex="0">Voir les '
     + "dépenses</span></div>");
 
-  $("tside").querySelectorAll("[data-th]").forEach((b) => {
-    b.onclick = () => { tTheme = b.dataset.th; drawTerm(); };
-  });
-  $("tSize").querySelectorAll("[data-sz]").forEach((b) => {
-    b.onclick = () => { tTaille = b.dataset.sz; drawTerm(); };
-  });
+  // ── Les deux replis, et le plein écran ───────────────────────────────
+  // `#tside` a été écrit exactement comme avant : le code qui le remplit n'a
+  // rien à savoir de tout ceci. On déplace ses deux groupes ENSUITE, une fois
+  // écrits — c'est sortir/réinstaller, dans l'autre sens. Rien n'est
+  // reconstruit, donc rien de vivant n'est détruit.
+  poserOutils();
   if (ecran){
     // ⚠ PAS `$("tecran")` ici. Pendant la réécriture, DEUX nœuds portent cet
     // `id` : le vivant, rangé dans `#uStock`, et le neuf, vide, dans `#tmain`.
@@ -2400,14 +2506,32 @@ function drawTerm(){
     if (!term){ brancherTerminal(); return; }
     ouvrirPty();
   };
-  $("tside").querySelectorAll("[data-cmd]").forEach((el) => {
+  const sortie = $("tSortie");
+  if (sortie) sortie.onclick = () => basculerPlein(false);
+
+  // ⚠ On interroge `#pTerminal`, plus `#tside` : les deux groupes ont déménagé
+  // dans les replis, et les chercher dans la colonne ne rendrait plus rien.
+  const P = $("pTerminal");
+  P.querySelectorAll("[data-th]").forEach((b) => {
+    b.onclick = () => { tTheme = b.dataset.th; drawTerm(); };
+  });
+  P.querySelectorAll("[data-sz]").forEach((b) => {
+    b.onclick = () => { tTaille = b.dataset.sz; drawTerm(); };
+  });
+  // ⚠ Tout le panneau, pas seulement `.tmemo` : le bouton « Copier
+  // « hermes » » vit dans `.tlaunch`, sous l'écran. Il n'a JAMAIS été câblé —
+  // l'ancien code interrogeait `#tside`, où il ne se trouve pas. Un bouton
+  // visible qui n'agit pas est précisément ce que la règle STU-1 interdit, et
+  // il aura suffi qu'il soit dans le mauvais sous-arbre pour passer inaperçu
+  // à travers deux passes de design.
+  P.querySelectorAll("[data-cmd]").forEach((el) => {
     const prendre = () => copier(el.dataset.cmd, "La commande");
     el.onclick = prendre;
     el.onkeydown = (e) => { if (e.key === "Enter" || e.key === " "){ e.preventDefault(); prendre(); } };
   });
   // Les lignes de la seconde famille ne portent QUE `data-poser` : plus de
   // propagation à arrêter, plus de geste à ne pas déclencher par erreur.
-  $("tside").querySelectorAll("[data-poser]").forEach((el) => {
+  P.querySelectorAll("[data-poser]").forEach((el) => {
     const poser = () => poserDansTerm(el.dataset.poser);
     el.onclick = poser;
     el.onkeydown = (e) => { if (e.key === "Enter" || e.key === " "){ e.preventDefault(); poser(); } };
@@ -3035,6 +3159,24 @@ function boot(){
   document.addEventListener("click", () => {
     document.querySelectorAll(".pop.on").forEach((p) => p.classList.remove("on"));
     Notifs.close();
+  });
+
+  // Échap sort du plein écran du Terminal — mais ferme D'ABORD un repli s'il
+  // y en a un d'ouvert : on ne perd jamais deux choses d'un coup. Un plein
+  // écran dont on ne sait pas sortir n'est pas un agrandissement, c'est un
+  // piège ; c'est pourquoi la touche est écrite à l'écran, en plus.
+  document.addEventListener("keydown", (e) => {
+    if (e.key !== "Escape") return;
+    // ⚠ Échap APPARTIENT au terminal quand on tape dedans. C'est une touche
+    // de travail dans une TUI — elle sort d'un mode, ferme une complétion,
+    // annule une saisie. La confisquer pour replier une fenêtre rendrait le
+    // terminal inutilisable en plein écran, précisément là où on y travaille.
+    // Le chemin de sortie reste : le bouton, qui est toujours visible — c'est
+    // exactement la raison pour laquelle la passe exigeait qu'il le soit.
+    const ecran = $("tecran");
+    if (ecran && ecran.contains(document.activeElement)) return;
+    if (fermerReplis()) return;
+    if (termPlein) basculerPlein(false);
   });
   document.querySelectorAll(".sheet-bg").forEach((bg) => {
     bg.onclick = (e) => { if (e.target === bg) bg.classList.remove("on"); };

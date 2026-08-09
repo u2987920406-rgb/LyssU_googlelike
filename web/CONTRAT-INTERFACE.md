@@ -95,7 +95,15 @@ et leurs boutons : `travRefresh` `livRefresh` `projRefresh` `autoRefresh`
 **Créés à l'exécution** (ne pas les mettre dans le HTML, mais ne pas non plus
 créer d'`id` qui leur ressemble) : `gzoom` `doorBtn` `densSeg` `livCrumbs`
 `livHome` `livList` `mIncog` `mNew` `mEtabli` `nClose` `fClose` `vAct`
-`etabliClose` `tGo` `tSize` `tCout` `tecran` `tstate` `detteGo` `detteAct` `detteRed`
+`etabliClose` `tGo` `tSize` `tCout` `tecran` `tstate` `tApp` `tMem` `tFull`
+`tPopApp` `tPopMem` `tSortie` `tRepli` `detteGo` `detteAct` `detteRed`
+
+> **`#tOutils` est dans le HTML**, vide — c'est le seul `id` ajouté au gabarit
+> par la passe 2. `drawTerm()` y écrit les trois boutons, puis **déplace** les
+> `.tgrp` de `#tside` dans les deux replis. `#tside` reste écrit exactement
+> comme avant : le code qui le remplit n'a rien à savoir de ce déménagement.
+> Une passe qui ajoute un groupe à la colonne n'a donc rien à faire — ils sont
+> tous repris, quel qu'en soit le nombre.
 
 > ⚠ **`#tecran` porte un terminal VIVANT.** C'est le seul nœud de la page
 > dont le contenu n'appartient pas à la maquette : xterm.js y peint la sortie
@@ -210,6 +218,9 @@ sans que rien ne le signale.
 | `u-tscreen` / `u-tecran` / `u-tstate` | Terminal | **à nous** : le cadre de l'écran, l'écran lui-même, et l'état de la session (`repos` / `ouverture` / `ouvert` / `coupe` en classe jointe) |
 | `u-quoi` / `u-long` / `u-repli` / `u-poser` | Terminal | **à nous**, passe du 2026-08-09 : ce qui tourne dans la barre · la partie longue de l'avertissement, repliée en session · la ligne qui dit ce qui est replié · la pastille du geste « poser » |
 | `u-tui` / `u-note` | Terminal | **à nous** : le bloc de l'aide-mémoire réservé aux commandes de la TUI — caché tant qu'aucune session n'est ouverte — et la note qui dit ce que l'invite attend |
+| `u-outils` / `u-pop` | Terminal | **à nous**, passe 2 : les trois boutons de la barre de titre, et les deux replis où la colonne a emménagé |
+| `u-plein` / `u-plein-actif` / `u-sortie` | Terminal | **à nous** : le plein écran **applicatif** posé sur `.term`, la levée du panneau qui le fait passer devant le rail, et la ligne qui porte le chemin de sortie |
+| `u-sep` | Terminal | **à nous** : le filet qui sépare `/clear` de ses voisines |
 | `u-term-<état>` | **`#pTerminal`** | **à nous** : l'état de session porté par le panneau, **une seule** classe parmi `u-term-repos` · `u-term-ouverture` · `u-term-ouvert` · `u-term-coupe`. Posée par `majTermEtat()`, et par rien d'autre. |
 | `u-hint` | `#composerHint` | **à nous**, pas à la maquette : voir plus bas |
 

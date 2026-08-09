@@ -3,20 +3,31 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Aperçu — le Terminal</title>
+<title>Aperçu — écrire dans la mémoire</title>
 
 <!-- ═══════════════════════════════════════════════════════════════════════
-     APERÇU DE DESIGN — panneau « Terminal CLI »
+     APERÇU DE DESIGN — les garde-fous d'écriture des fichiers de profil
 
-     L'écran n'est plus une image : `hermes --tui` tourne dedans, dans un
-     pseudo-terminal ouvert par Hermès (WebSocket `/api/pty`), rendu par
-     xterm.js. Ce qu'on y tape s'exécute.
+     `/api/fs/write-text` existe et n'est pas branché. La raison tient en une
+     phrase, écrite depuis le premier jour du projet :
 
-     C'est ce qui change tout. Un dessin de terminal et un terminal ne se
-     dessinent pas pareil.
+         « Écraser une mémoire par erreur n'est pas rattrapable. »
 
-     ⚠ `#tecran` est ici REMPLI pour montrer — dans le produit il doit rester
-     VIDE dans le gabarit, et le nœud vivant y est réinstallé par drawTerm().
+     Trois questions, donc :
+       · ce qu'on MONTRE avant d'écrire ;
+       · ce qu'on permet de DÉFAIRE après ;
+       · ce qu'on REFUSE de faire du tout.
+
+     La maquette a déjà la doctrine — elle est écrite dans ulysse.css, au-
+     dessus de `.snack`, et personne ne s'en est encore servi :
+
+         « Rien ne disparaît d'un geste. Ce qui se refait part sur place,
+          avec un Annuler qui reste six secondes. Ce qui porte des données
+          va à la corbeille, et y reste. La destruction définitive n'existe
+          qu'à un seul endroit, et se confirme. »
+
+     Écrire par-dessus un fichier de mémoire EST une destruction, même si ça
+     s'appelle écrire. Ce qui suit applique cette doctrine, mot pour mot.
 
      PAGE AUTONOME : ulysse.css et ulysse-icons.js recopiés plus bas.
      ═══════════════════════════════════════════════════════════════════════ -->
@@ -1584,23 +1595,12 @@ svg.graph *{cursor:inherit}
 </style>
 
 <style>
-/* Ce que le produit a déjà (repris d'ulysse.html). */
 .u-todo{border:1px dashed var(--outline-var);border-radius:var(--radius-card);
   padding:18px;color:var(--muted);font-size:var(--font-size-sm);max-width:620px;
   line-height:1.6;margin:12px 0}
 .u-todo b{color:var(--text);font-weight:500}
 .u-todo code{background:var(--surface);border-radius:6px;padding:1px 6px;
   font-size:var(--font-size-xs)}
-.u-tscreen{display:flex;flex-direction:column;min-height:0}
-.u-tecran{flex:1;min-height:340px;margin-top:10px}
-.u-tstate{font-size:11.5px;opacity:.55}
-.u-tstate.ouvert{color:var(--green);opacity:.95}
-.u-tstate.ouverture{color:var(--amber);opacity:.95}
-.u-cmd{cursor:pointer;border-radius:var(--radius-sm);padding:5px 8px;margin:0 -8px;
-  align-items:center;transition:background .14s ease}
-.u-cmd:hover{background:var(--hover-bg)}
-.u-cmd .k{margin-left:auto;color:var(--accent);opacity:0;flex:none;display:grid}
-.u-cmd:hover .k{opacity:1}
 
 /* ── Habillage de l'aperçu ─────────────────────────────────────────────── */
 body{overflow:auto}
@@ -1616,8 +1616,8 @@ body{overflow:auto}
   border-top:1px solid var(--outline-var);display:flex;overflow:hidden}
 .ap-frame .stage{flex:1;min-width:0;position:relative;display:flex;flex-direction:column}
 .ap-frame .panel{position:absolute;inset:0;display:flex;flex-direction:column}
-.ap-note{position:fixed;right:16px;bottom:16px;z-index:800;max-width:345px;
-  max-height:62vh;overflow:auto;background:#1F1F1F;color:#E8EAED;border-radius:14px;
+.ap-note{position:fixed;right:16px;bottom:16px;z-index:800;max-width:350px;
+  max-height:64vh;overflow:auto;background:#1F1F1F;color:#E8EAED;border-radius:14px;
   padding:15px 17px;font-size:12.5px;line-height:1.55;box-shadow:0 4px 20px rgba(0,0,0,.4)}
 .ap-note b{color:#8AB4F8;font-weight:500}
 .ap-note h4{font-size:12.5px;color:#fff;margin:12px 0 5px}
@@ -1625,245 +1625,113 @@ body{overflow:auto}
 .ap-note li{margin-bottom:6px}
 .ap-note code{background:#3C4043;border-radius:4px;padding:1px 5px;font-size:11.5px}
 .ap-note .x{position:absolute;top:8px;right:11px;color:#9AA0A6;cursor:pointer}
-/* Le faux xterm de l'aperçu — le vrai est un nœud vivant. */
-.ap-xterm{font-family:ui-monospace,Menlo,Consolas,monospace;line-height:1.5;
-  white-space:pre-wrap;height:100%;overflow:auto}
-.ap-xterm .c{display:inline-block;width:8px;height:1.05em;vertical-align:-2px;
-  animation:ap-bl 1.1s step-end infinite}
-@keyframes ap-bl{50%{opacity:0}}
-</style>
-
-<!-- ═══════════════════════════════════════════════════════════════════════
-     LA PROPOSITION.
-     ═══════════════════════════════════════════════════════════════════════ -->
-<style id="propose" media="not all">
 
 /* ═══════════════════════════════════════════════════════════════════════
-   PASSE 2 (2026-08-09, demandée par kuchu) — LA PLACE
-
-   « Tout ce qui est réglage doit passer dans des menus. La fenêtre doit être
-   grande, et pouvoir être pleine. »
-
-   Les sept points de la première passe portaient sur ce que l'écran DIT. Ceux
-   qui suivent portent sur la place qu'il PREND — et c'est la suite logique :
-   un terminal vivant n'est pas un cadre dans une page, c'est l'endroit où
-   l'on travaille.
+   CE QUI S'AJOUTE — préfixé `m-`, rien qui recouvre la maquette.
    ═══════════════════════════════════════════════════════════════════════ */
 
-/* ── 0a. LA COLONNE DE GAUCHE PART DANS DES REPLIS ───────────────────────
-   `#tside` prend 300 px, en permanence, pour deux choses qu'on consulte
-   rarement : quatre thèmes et une liste de commandes. Sur un portable de
-   1280, c'est un quart de l'écran donné à ce qu'on regarde une fois par
-   semaine — pris à ce qu'on regarde tout le temps.
+/* ── LES TROIS GESTES NE SONT PAS LE MÊME GESTE ──────────────────────────
+   `/api/fs/write-text` n'en connaît qu'un : écrire. Du côté de la personne,
+   il y en a trois, et ils n'ont pas le même risque :
 
-   Elle ne disparaît pas : elle emménage dans deux replis de la barre de
-   titre. `#tside` reste le conteneur, avec son contenu — c'est le même
-   déplacement que `#band` vers le kebab, ou `#roles` vers la gélule.
+     · CRÉER      — le fichier n'existe pas. Rien à perdre.
+     · COMPLÉTER  — ajouter à la fin. Rien à perdre non plus.
+     · REMPLACER  — le fichier existe. C'est là que tout se joue.
 
-   DEUX boutons, pas deux « ⋯ ». Deux kebabs côte à côte sont
-   indistinguables : il faudrait les ouvrir pour savoir lequel est lequel.
-   Chacun porte donc l'icône de ce qu'il contient. */
-#pTerminal .term{gap:0}
-#pTerminal .tside{position:absolute;left:0;top:0;width:0;overflow:hidden;
-  opacity:0;pointer-events:none}
-#pTerminal .p-outils{display:inline-flex;align-items:center;gap:2px}
-#pTerminal .p-pop{position:absolute;top:46px;right:0;left:auto;bottom:auto;
-  min-width:270px;max-width:330px;padding:12px 14px;max-height:64vh;overflow:auto}
-#pTerminal .p-pop .tgrp{margin-bottom:0}
-#pTerminal .p-pop .tgrp+.tgrp{margin-top:20px}
+   Les traiter pareil, c'est faire payer à la création la prudence que
+   mérite le remplacement — et l'habituer, si bien qu'on ne la lira plus le
+   jour où elle compte. */
+.m-fichier{display:flex;align-items:center;gap:14px;padding:14px 0;
+  border-bottom:1px solid var(--outline-var)}
+.m-fichier:last-of-type{border-bottom:none}
+.m-fichier .ic{color:var(--muted);flex:none;display:grid}
+.m-fichier .tx{flex:1;min-width:0}
+.m-fichier .nm{font-weight:500}
+.m-fichier .sub{font-size:var(--font-size-xs);color:var(--muted);margin-top:2px}
+.m-fichier .act{flex:none;display:flex;gap:6px}
 
-/* ── 0b. LA FENÊTRE PREND TOUTE LA PLACE, PUIS TOUT L'ÉCRAN ──────────────
-   Trois tailles, et une seule commande pour passer de l'une à l'autre.
+/* Le verrou : `soul.md` n'est pas un fichier comme les autres. */
+.m-fichier.m-verrou .nm{color:var(--muted)}
+.m-cadenas{display:inline-flex;align-items:center;gap:6px;font-size:var(--font-size-xs);
+  color:var(--amber);white-space:nowrap}
 
-     · dans le panneau — l'écran occupe tout ce que la colonne libère ;
-     · plein écran     — il recouvre le rail et la barre de titre.
+/* ── CE QU'ON MONTRE AVANT : LA DIFFÉRENCE, PAS LE FICHIER ───────────────
+   Montrer le nouveau texte ne dit pas ce qu'on perd. Montrer les deux côte
+   à côte demande de comparer soi-même. Ce qu'il faut lire tient en deux
+   nombres et quelques lignes : ce qui part, ce qui vient. */
+.m-diff{border:1px solid var(--outline-var);border-radius:var(--radius-md);
+  overflow:hidden;margin:14px 0 4px;font-size:12.5px;
+  font-family:ui-monospace,Menlo,Consolas,monospace;line-height:1.55}
+.m-diff .l{display:flex;gap:10px;padding:2px 12px;white-space:pre-wrap;
+  word-break:break-word}
+.m-diff .l .g{flex:none;width:14px;text-align:center;opacity:.5;user-select:none}
+.m-diff .l.moins{background:#FCE8E6;color:#8C1D18}
+.m-diff .l.plus{background:#E6F4EA;color:#0D652D}
+.m-diff .l.rien{color:var(--muted)}
+.m-diff .coupe{padding:5px 12px;background:var(--surface);color:var(--faint);
+  font-size:11px;font-family:var(--font-ui)}
+.m-bilan{display:flex;gap:16px;font-size:var(--font-size-xs);color:var(--muted);
+  margin-bottom:2px}
+.m-bilan .moins{color:#B3261E}
+.m-bilan .plus{color:var(--green)}
 
-   Le plein écran est APPLICATIF, pas celui du navigateur : Ulysse tourne
-   déjà dans une fenêtre, et demander le plein écran du système ferait sortir
-   de l'application pour agrandir un de ses panneaux. Échap en sort, et le
-   bouton reste visible.
+/* ── CE QU'ON PERMET DE DÉFAIRE ──────────────────────────────────────────
+   « Annuler » pendant six secondes est juste pour ce qui se refait. Une
+   mémoire, on s'aperçoit qu'elle est fausse des jours plus tard. Six
+   secondes ne sont pas un garde-fou, c'est une politesse.
 
-   Ce qui ne disparaît JAMAIS en plein écran : l'état de session, et le
-   chemin pour sortir. Un plein écran dont on ne sait pas sortir n'est pas
-   un agrandissement, c'est un piège. */
-#pTerminal .u-tecran{min-height:0}
-#pTerminal .p-plein{position:fixed;inset:0;z-index:200;background:var(--bg);
-  display:flex;flex-direction:column;padding:10px}
-#pTerminal .p-plein .tscreen{flex:1;min-height:0;border-radius:var(--radius-md)}
-#pTerminal .p-sortie{display:none;align-items:center;gap:10px;
-  font-size:var(--font-size-xs);color:var(--muted);padding:4px 6px 8px}
-#pTerminal .p-plein .p-sortie{display:flex}
-#pTerminal .p-sortie .sp{flex:1}
-#pTerminal .p-sortie kbd{font-family:var(--font-ui);font-size:11px;
-  border:1px solid var(--outline-var);border-radius:5px;padding:1px 6px;
-  color:var(--muted)}
+   La doctrine de la maquette a la réponse : ce qui porte des données ne
+   disparaît pas, il est mis de côté. La version d'avant est GARDÉE, et
+   l'écran ne peut le dire que si c'est vrai. */
+.m-garde{display:flex;gap:12px;align-items:flex-start;background:var(--surface);
+  border-radius:var(--radius-md);padding:12px 16px;font-size:var(--font-size-sm);
+  color:var(--muted);line-height:1.55;margin-top:14px}
+.m-garde b{color:var(--text);font-weight:500}
+.m-garde .pt{color:var(--green);flex:none;display:grid}
+.m-vers{margin-top:10px;font-size:var(--font-size-xs)}
+.m-vers .r{display:flex;align-items:center;gap:10px;padding:7px 0;
+  border-bottom:1px solid var(--surface)}
+.m-vers .r:last-child{border-bottom:none}
+.m-vers .q{color:var(--faint);flex:none;min-width:112px;
+  font-variant-numeric:tabular-nums}
+.m-vers .n{flex:1;color:var(--muted)}
+.m-vers button{color:var(--accent);font-size:var(--font-size-xs);padding:4px 10px;
+  border-radius:var(--radius-pill)}
+.m-vers button:hover{background:var(--accent-bg)}
 
-/* ── 1. LA FENÊTRE ENLÈVE SON DÉGUISEMENT ────────────────────────────────
-   `.tbar` porte trois pastilles rouge / jaune / verte. Dans la maquette
-   c'était juste : l'écran était une IMAGE, et ces trois points disaient
-   « ceci est un terminal », comme une icône.
-
-   Maintenant c'en est un vrai. Ce sont donc trois faux boutons — qui ne
-   ferment rien, ne réduisent rien, n'agrandissent rien — posés sur la seule
-   fenêtre de l'application qui mène en dehors d'elle. C'est exactement ce
-   que le projet refuse partout ailleurs.
-
-   La barre garde sa place et son rôle : dire de quoi il s'agit et où on en
-   est. Elle perd son costume. */
-#pTerminal .tbar i{display:none}
-#pTerminal .p-quoi{display:flex;align-items:center;gap:8px;font-size:11.5px;
-  opacity:.62;font-family:ui-monospace,Menlo,monospace}
-#pTerminal .p-quoi svg{width:14px;height:14px;flex:none}
-
-/* ── 2. L'ÉTAT DE SESSION CESSE D'ÊTRE LA CHOSE LA PLUS DISCRÈTE ─────────
-   `#tstate` est en 11,5 px à 55 % d'opacité, dans un coin. C'est pourtant
-   la seule chose qu'on a besoin de savoir sans y penser : est-ce que ce que
-   je tape part quelque part ?
-
-   Il devient une pastille avec son point, dans la barre. Même élément,
-   mêmes classes d'état — il change de poids, pas de nature. */
-#pTerminal #tstate{opacity:1!important;font-size:11.5px;display:inline-flex;
-  align-items:center;gap:7px;padding:3px 11px 3px 9px;border-radius:var(--radius-pill);
-  background:rgba(255,255,255,.09)}
-#pTerminal #tstate::before{content:"";width:6px;height:6px;border-radius:50%;
-  background:currentColor;flex:none}
-#pTerminal #tstate.repos{color:#9AA0A6}
-#pTerminal #tstate.ouverture{color:#FEBC2E}
-#pTerminal #tstate.ouverture::before{animation:ap-bl 1.2s ease-in-out infinite}
-#pTerminal #tstate.ouvert{color:#28C840}
-#pTerminal #tstate.coupe{color:#FF5F57}
-
-/* ── 3. OUVRIR ET FERMER NE SONT PAS LE MÊME BOUTON ──────────────────────
-   `#tGo` porte les deux, avec le même noir plein. Ouvrir est une invitation ;
-   fermer arrête ce qui tourne. Les habiller pareil, c'est demander de lire
-   le libellé pour savoir si l'on va commencer ou couper.
-
-   Le bouton reste unique — c'est le contrat — mais il change d'aspect avec
-   l'état : plein quand il ouvre, contour quand il ferme. */
-#pTerminal.p-ouvert #tGo{background:transparent;color:var(--muted);
-  border:1px solid var(--outline-var)}
-#pTerminal.p-ouvert #tGo:hover{background:#FCE8E6;color:#B3261E;
-  border-color:#F2B8B5;opacity:1}
-#pTerminal.p-ouverture #tGo{opacity:.55}
-
-/* ── 4. LA LIGNE D'ÉTAT DIT CE QUI CONCERNE LE TERMINAL ──────────────────
-   `.dim` annonce « Hermès 2.4.1 · gateway en marche ». Le gateway n'a
-   RIEN à voir avec un pseudo-terminal : c'est un reste de l'écran-image,
-   quand ce cadre servait de tableau d'affichage.
-
-   Ce qui compte ici : quel binaire tourne, et dans quel dossier. */
-#pTerminal .dim{display:flex;gap:14px;flex-wrap:wrap;font-size:11.5px}
-#pTerminal .dim b{font-weight:500;opacity:.9}
-
-/* ── 5. L'AVERTISSEMENT PASSE AVANT LE PREMIER GESTE ─────────────────────
-   Il est sous l'écran. C'était juste quand l'écran était une image : on
-   lisait, puis on décidait de copier une commande pour aller ailleurs.
-
-   Maintenant on peut taper directement, et l'avertissement arrive après.
-   Il remonte au-dessus du bouton d'ouverture — et une fois la session
-   ouverte, il se replie en une ligne : on l'a lu, il a fait son travail,
-   il ne doit plus prendre la place dont le terminal a besoin. */
-#pTerminal .p-avert-haut{display:block}
-#pTerminal .p-avert-bas{display:none}
-#pTerminal.p-ouvert .avert{padding:9px 14px}
-#pTerminal.p-ouvert .avert .p-long{display:none}
-
-/* ── 6. UN TERMINAL VIVANT A BESOIN DE PLACE ─────────────────────────────
-   Sous l'écran : l'avertissement, le coût, et la note technique. Trois
-   pavés qui poussent le terminal à 340 px sur un portable.
-
-   Une fois la session ouverte, les deux qui n'engagent rien se replient. */
-#pTerminal.p-ouvert .cout,
-#pTerminal.p-ouvert .u-todo{display:none}
-#pTerminal.p-ouvert .u-tecran{min-height:420px}
-#pTerminal .p-repli{display:none;font-size:var(--font-size-xs);color:var(--faint);
-  margin-top:14px}
-#pTerminal.p-ouvert .p-repli{display:block}
-#pTerminal .p-repli span{color:var(--accent);cursor:pointer}
-
-/* ── 7. L'AIDE-MÉMOIRE : DEUX DESTINATIONS, UN GESTE CHACUNE ─────────────
-   CORRIGÉ le 2026-08-09, après le retour du code. Ma première version était
-   fausse, et je l'ai laissée écrite pour qu'on sache pourquoi.
-
-   J'avais proposé DEUX gestes par ligne : copier, et poser dans le terminal.
-   Ça supposait que la ligne du terminal soit un shell. **Elle ne l'est pas.**
-   C'est l'invite de `hermes --tui`, celle qui propose « Try "write a test
-   for…" ». Y poser `hermes doctor` et valider n'exécuterait pas la commande :
-   ça enverrait ce texte à l'agent comme un message.
-
-   Le geste ne partait rien — le code l'a vérifié contre le vrai binaire — mais
-   il visait à côté. Et une commande qui a l'air de s'exécuter et qui devient
-   une phrase est pire qu'une commande qu'on recopie à la main.
-
-   Ce qui distingue ces lignes n'est pas le geste, c'est **où elles
-   s'exécutent**. Deux familles, donc, et le geste découle de la destination :
-
-     · « Dans votre console » — hors d'Ulysse. UN geste : copier.
-     · « Dans cette session » — les commandes de la TUI. UN geste : poser.
-
-   **Un seul geste par ligne, jamais deux.** On ne peut plus se tromper de
-   cible, parce que le mauvais geste n'existe pas là où il serait faux. Ça
-   règle du même coup l'empilement des deux pastilles, que le code a dû
-   corriger pour que le texte ne se reflue pas. */
-#pTerminal .p-fam{font-size:11px;letter-spacing:.4px;font-weight:600;
-  color:var(--faint);text-transform:uppercase;margin:16px 0 6px;
-  display:flex;align-items:center;gap:8px}
-#pTerminal .p-fam:first-child{margin-top:0}
-#pTerminal .p-fam .l{flex:1;height:1px;background:rgba(31,31,31,.08)}
-#pTerminal .u-cmd .k{opacity:.55}
-#pTerminal .u-cmd:hover .k{opacity:1}
-/* La famille de la session n'apparaît qu'en session : proposer des commandes
-   à une invite qui n'existe pas serait promettre un endroit où les taper. */
-#pTerminal .p-tui{display:none}
-#pTerminal.p-ouvert .p-tui{display:block}
-#pTerminal .p-tui .u-cmd .k{color:var(--accent)}
-/* Ce que la TUI attend d'abord, et que rien ne dit aujourd'hui. */
-#pTerminal .p-note-tui{font-size:11.5px;color:var(--faint);line-height:1.5;
-  margin:2px 0 8px}
-/* Ce qui engage au-delà de la ligne se sépare — même règle que « Autoriser
-   toujours » dans la demande d'accord. */
-#pTerminal .p-sep{height:1px;background:var(--outline-var);margin:10px 2px 8px}
-#pTerminal .u-cmd.p-fort code{color:var(--amber)}
+.m-sheet-acts{display:flex;align-items:center;gap:10px;margin-top:22px}
+.m-sheet-acts .sp{flex:1}
 </style>
 </head>
 <body>
 
 <div class="ap-bar">
-  <span class="t">Aperçu — panneau <b>Terminal</b>
-    <span>· xterm simulé, PTY simulé</span></span>
+  <span class="t">Aperçu — <b>écrire dans la mémoire</b>
+    <span>· les garde-fous, avant qu'une ligne de code n'existe</span></span>
 
-  <div class="ap-seg" id="apEtat">
-    <button data-e="repos" class="on">Au repos</button>
-    <button data-e="ouverture">Ouverture</button>
-    <button data-e="ouvert">Session ouverte</button>
-    <button data-e="coupe">Lien coupé</button>
-  </div>
-  <div class="ap-seg" id="apVers">
-    <button data-v="0" class="on">Actuel</button>
-    <button data-v="1">Proposé</button>
+  <div class="ap-seg" id="apCas">
+    <button data-c="liste" class="on">Les fichiers</button>
+    <button data-c="creer">Créer</button>
+    <button data-c="remplacer">Remplacer</button>
+    <button data-c="agent">L'agent demande</button>
+    <button data-c="refus">Ce qu'on refuse</button>
   </div>
 </div>
 
 <div class="ap-frame">
   <div class="stage">
-    <div class="panel on" id="pTerminal">
-      <div class="topbar"><span class="title">Terminal CLI</span>
-        <span class="sep"></span>
-        <span class="tmeta" id="tmetaBar">Hermès en ligne de commande</span>
-        <!-- Les deux replis et le plein écran. Chacun porte l'icône de ce
-             qu'il contient : deux « ⋯ » côte à côte seraient indistinguables. -->
-        <span class="p-outils" id="pOutils"></span></div>
-      <div class="term">
-        <!-- `#tside` reste, avec son contenu. En « Proposé » il est déplacé
-             dans les replis, pas vidé. -->
-        <div class="tside" id="tside"></div>
-        <div class="tmain" id="tmain"></div>
+    <div class="panel on" id="pReglages">
+      <div class="topbar"><span class="title">Réglages</span></div>
+      <div class="setwrap">
+        <nav class="setnav" id="setnav"></nav>
+        <div class="setbody"><div class="setbody-in" id="setbody"></div></div>
       </div>
     </div>
   </div>
 </div>
 
-<div id="uStock" hidden></div>
+<div class="sheet-bg" id="sEcrire"><div class="sheet" id="ecrireBody"></div></div>
+<div class="snack" id="snack"></div>
 
 <div class="ap-note" id="apNote">
   <span class="x" onclick="document.getElementById('apNote').style.display='none'">✕</span>
@@ -2044,427 +1912,283 @@ const H = (id, h) => { const n = $(id); if (n) n.innerHTML = h; };
 const ech = (s) => String(s).replace(/[&<>"]/g, (c) =>
   ({ "&":"&amp;", "<":"&lt;", ">":"&gt;", '"':"&quot;" }[c]));
 
-let propose = false, etat = "repos", tTheme = "nuit", tTaille = "moyen";
-let plein = false;   // plein écran applicatif
+let cas = "liste";
 
-const TTHEMES = [
-  { id:"nuit",   nm:"Nuit",   bg:"#1E1E1E", fg:"#E8EAED", ac:"#8AB4F8" },
-  { id:"encre",  nm:"Encre",  bg:"#0B1220", fg:"#CFE0FF", ac:"#7AA2F7" },
-  { id:"papier", nm:"Papier", bg:"#FAF8F5", fg:"#2B2A28", ac:"#0B57D0" },
-  { id:"foret",  nm:"Forêt",  bg:"#10201A", fg:"#D6F0E2", ac:"#5FD3A0" }
+/* ── Les fichiers de mémoire, tels que GET /api/memory les rend ──────────── */
+const FICHIERS = [
+  { n:"user.md", exists:true, taille:"2,4 ko", lignes:38,
+    quoi:"Qui vous êtes, ce que vous faites, comment vous voulez qu'on vous parle." },
+  { n:"memory.md", exists:true, taille:"11 ko", lignes:214,
+    quoi:"Ce qu'Ulysse a retenu de vos échanges, au fil du temps." },
+  { n:"soul.md", exists:true, taille:"1,8 ko", lignes:29, verrou:true,
+    quoi:"Ce qu'il s'autorise et ce qu'il refuse." },
+  { n:"projet.md", exists:false,
+    quoi:"Le contexte du projet en cours. N'existe pas encore." }
 ];
 
-const TCMD = "hermes";
-
-/* Les six d'origine : des commandes de SHELL, à taper hors d'Ulysse. C'est
-   ce que dit déjà `.tpath` sous le bouton. On les copie. */
-const TMEMO = [
-  ["hermes", "ouvrir l'agent en ligne de commande"],
-  ["hermes dashboard --port 9123 --no-open", "le backend qu'Ulysse enveloppe"],
-  ["hermes gateway run", "les webhooks et les canaux distants"],
-  ["hermes proxy start --provider nous --port 8645", "le mode Discussion, sans outils"],
-  ["hermes webhook subscribe <nom> --prompt \"…\"", "créer une route webhook"],
-  ["hermes doctor", "diagnostiquer une installation"]
+/* Un vrai diff, court, sur user.md. */
+const DIFF = [
+  ["rien", "# Profil"],
+  ["rien", ""],
+  ["moins", "Passionné par mon métier, je mets mon savoir-faire à votre service."],
+  ["moins", "Disponible et à l'écoute."],
+  ["plus",  "Céramiste à Nantes depuis onze ans. Je tourne, je cuis au gaz,"],
+  ["plus",  "je vends en galerie et je donne trois cours par semaine."],
+  ["plus",  ""],
+  ["plus",  "Ne pas écrire à ma place : je relis tout ce qui sort sous mon nom."],
+  ["rien", ""],
+  ["rien", "## Ce que je ne veux pas qu'on me demande deux fois"]
 ];
 
-/* Les commandes de la TUI : elles s'exécutent DANS la session ouverte. Ce
-   sont celles-là qu'on pose.
-
-   ⚠ CETTE LISTE SE REDEMANDE, ELLE NE SE RECOPIE PAS. Elle vient de
-   `complete.slash` (RPC au gateway, `tui_gateway/methods_complete.py:218`),
-   constatée sur la pile réelle le 2026-08-09 — pas devinée. Les libellés
-   sont la traduction fidèle de ce qu'Hermès renvoie. Si elle doit changer,
-   redemander plutôt que supposer.
-
-   Leçon de cette vérification : `/theme` est ENREGISTRÉE dans la TUI et
-   ABSENTE de la complétion. Enregistré et exposé sont deux choses
-   différentes ; seule la complétion fait foi. */
-const TTUI = [
-  ["/help",     "voir toutes les commandes de la session"],
-  ["/status",   "la session, le modèle, les jetons, le contexte"],
-  ["/model",    "changer de modèle, le temps de la session"],
-  ["/sessions", "parcourir et reprendre une session précédente"],
-  ["/compress", "compresser le contexte de la conversation"],
-  ["/stop",     "arrêter les processus lancés en arrière-plan"]
+const VERSIONS = [
+  ["il y a 3 minutes", "avant l'écriture d'aujourd'hui", true],
+  ["7 août, 14 h 02", "version livrée à l'installation"]
 ];
 
-/* `/clear` est réelle, et elle est à part. Sa description Hermès est
-   « Clear screen and start a new session » : elle n'efface pas l'écran, elle
-   OUVRE UNE AUTRE SESSION. Entre `/compress` et `/stop`, on la prendrait
-   pour un geste d'affichage.
+/* ── Le panneau Réglages, section « Ce qu'Ulysse sait » ──────────────────── */
+const SETS = ["Général", "Ce qu'Ulysse sait", "Le cerveau", "Sécurité et accords",
+              "Connexions", "Dépenses", "Avancé"];
 
-   On ne l'omet pas — la complétion de la TUI la proposera de toute façon, et
-   une liste qui cache une commande réelle crée un écart qu'on ne peut pas
-   expliquer. On la SÉPARE, exactement comme « Autoriser toujours » dans la
-   demande d'accord : elle n'est pas interdite, elle est distinguée, parce
-   qu'elle engage plus que ses voisines. Et son libellé dit ce qu'elle fait. */
-const TTUI_FORT = [
-  ["/clear", "ouvrir une nouvelle session à la place de celle-ci"]
-];
+function dessine(){
+  H("setnav", SETS.map((t, i) =>
+    '<button class="' + (i === 1 ? "on" : "") + '">' + ech(t) + "</button>").join(""));
 
-const STATUS = { version:"2.4.1", gateway_running:true, profil:"defaut" };
-const CWD = "%USERPROFILE%/Desktop/Projet Ulysse";
+  H("setbody",
+    '<div class="seth">Les fichiers de mémoire<span class="l"></span></div>'
+    + FICHIERS.map(fichierHTML).join("")
 
-/* Ce que le vrai xterm afficherait. Ici c'est du texte figé : le nœud
-   vivant ne peut pas exister dans un aperçu sans backend. */
-function ecranHTML(T){
-  if (etat === "repos"){
-    return '<div class="ap-xterm" style="opacity:.4">Aucune session.\n'
-      + "Ouvrez-en une pour lancer " + TCMD + " --tui dans un pseudo-terminal.</div>";
-  }
-  if (etat === "ouverture"){
-    return '<div class="ap-xterm" style="opacity:.55">Ouverture du pseudo-terminal…'
-      + '<span class="c" style="background:' + T.fg + '"></span></div>';
-  }
-  if (etat === "coupe"){
-    return '<div class="ap-xterm">Ouverture du pseudo-terminal…\n\n'
-      + '<span style="color:#FF6B60">Le lien a été coupé.</span>\n'
-      + '<span style="opacity:.55">La session s\'est fermée. Rien de ce qui tournait '
-      + "n'a été perdu côté Hermès.</span></div>";
-  }
-  return '<div class="ap-xterm">'
-    + '<span style="color:' + T.ac + '">Hermès</span> 2.4.1  ·  41 outils  ·  '
-    + "99 compétences\n"
-    + '<span style="opacity:.55">' + CWD + "</span>\n\n"
-    + '<span style="color:' + T.ac + '">›</span> /help\n'
-    + '<span style="opacity:.8">  /new      ouvrir une conversation\n'
-    + "  /resume   reprendre la dernière\n"
-    + "  /skills   lister les compétences\n"
-    + "  /doctor   diagnostiquer l'installation</span>\n\n"
-    + '<span style="color:' + T.ac + '">›</span> '
-    + '<span class="c" style="background:' + T.fg + '"></span></div>';
-}
+    /* La doctrine, dite une fois, en haut — pas répétée à chaque ligne. */
+    + '<div class="m-garde"><span class="pt">' + svg("coche", { size: 18 }) + "</span>"
+    + "<span><b>Rien ne s'écrase.</b> Chaque écriture met la version d'avant de côté, "
+    + "datée. On peut y revenir tant qu'elle est là — et elle y reste : ces fichiers "
+    + "pèsent quelques kilo-octets.</span></div>"
 
-/* ── Le panneau ─────────────────────────────────────────────────────────── */
-function drawTerm(){
-  const T = TTHEMES.find((x) => x.id === tTheme) || TTHEMES[0];
-  const px = { petit:12, moyen:13, grand:15 }[tTaille];
-  const ouvert = etat === "ouvert";
+    + '<div class="seth" style="margin-top:26px">Les versions gardées'
+    + '<span class="l"></span></div>'
+    + '<div class="m-vers">' + VERSIONS.map(([q, n, cur]) =>
+        '<div class="r"><span class="q">' + ech(q) + "</span>"
+        + '<span class="n">' + ech(n) + "</span>"
+        + (cur ? "" : '<button data-rev="1">Revenir à celle-ci</button>')
+        + "</div>").join("") + "</div>"
 
-  $("pTerminal").classList.toggle("p-ouvert", propose && ouvert);
-  $("pTerminal").classList.toggle("p-ouverture", propose && etat === "ouverture");
-  /* Le plein écran ne vit qu'en « Proposé », et se pose sur `.term`. */
-  document.querySelector("#pTerminal .term").classList.toggle("p-plein",
-    propose && plein);
+    + '<div class="u-todo" style="margin-top:22px"><b>Ce que le code devra tenir.</b> '
+    + "<code>/api/fs/write-text</code> ne sait qu'écrire. La copie datée, la liste "
+    + "des versions et le retour en arrière n'existent pas encore. "
+    + "<b>Tant qu'ils n'existent pas, cet écran ne doit pas être branché</b> — il "
+    + "promettrait un retour en arrière qui n'a pas lieu.</div>");
 
-  H("tside",
-    '<div class="tgrp"><h3>Apparence</h3><div class="tswatch">'
-    + TTHEMES.map((t) => '<button class="tsw ' + (t.id === tTheme ? "on" : "") + '"'
-        + ' title="' + ech(t.nm) + '" style="background:' + t.bg + '"'
-        + ' data-th="' + t.id + '"></button>').join("")
-    + '</div><div style="margin-top:14px" class="seg" id="tSize">'
-    + ["petit","moyen","grand"].map((v) =>
-        '<button class="' + (v === tTaille ? "on" : "") + '" data-sz="' + v + '">'
-        + v[0].toUpperCase() + v.slice(1) + "</button>").join("")
-    + "</div></div>"
-    + '<div class="tgrp"><h3>Aide-mémoire</h3>'
-
-    /* ACTUEL : une seule liste, un seul geste — copier. */
-    + (propose ? "" : '<div class="tmemo">'
-        + TMEMO.map(([c, q]) => '<div class="u-cmd" data-cmd="' + ech(c) + '"'
-            + ' role="button" tabindex="0" title="Copier"><code>' + ech(c) + "</code>"
-            + "<span>" + ech(q) + '</span><span class="k">'
-            + svg("copier", { size: 15 }) + "</span></div>").join("")
-        + "</div>")
-
-    /* PROPOSÉ : deux familles, distinguées par leur DESTINATION, et un seul
-       geste chacune — celui qui a du sens là où la commande s'exécute. */
-    + (propose
-        ? '<div class="p-fam">Dans votre console<span class="l"></span></div>'
-          + '<div class="tmemo">'
-          + TMEMO.map(([c, q]) => '<div class="u-cmd" data-cmd="' + ech(c) + '"'
-              + ' role="button" tabindex="0" title="Copier"><code>' + ech(c) + "</code>"
-              + "<span>" + ech(q) + '</span><span class="k">'
-              + svg("copier", { size: 15 }) + "</span></div>").join("")
-          + "</div>"
-          + '<div class="p-tui">'
-          + '<div class="p-fam">Dans cette session<span class="l"></span></div>'
-          + '<div class="p-note-tui">La session attend d\'abord une phrase — dites ce '
-          + "que vous voulez. Ces commandes-ci sont les raccourcis qu'elle "
-          + "reconnaît.</div>"
-          + '<div class="tmemo">'
-          + TTUI.map(([c, q]) => '<div class="u-cmd" data-poser="' + ech(c) + '"'
-              + ' role="button" tabindex="0" title="Poser dans la ligne, sans lancer">'
-              + "<code>" + ech(c) + "</code><span>" + ech(q) + "</span>"
-              + '<span class="k">' + svg("suivant", { size: 15 })
-              + "</span></div>").join("")
-          /* Le filet, puis ce qui engage au-delà de la ligne. */
-          + '<div class="p-sep"></div>'
-          + TTUI_FORT.map(([c, q]) => '<div class="u-cmd p-fort" data-poser="'
-              + ech(c) + '" role="button" tabindex="0"'
-              + ' title="Poser dans la ligne, sans lancer">'
-              + "<code>" + ech(c) + "</code><span>" + ech(q) + "</span>"
-              + '<span class="k">' + svg("suivant", { size: 15 })
-              + "</span></div>").join("")
-          + "</div></div>"
-        : "")
-    + "</div>");
-
-  H("tmain",
-    /* En plein écran, la barre de titre du panneau n'est plus là : cette
-       ligne porte le retour, l'état, et rien d'autre. On sort par Échap ou
-       par elle — jamais sans savoir comment. */
-    (propose
-      ? '<div class="p-sortie"><button class="ghost-btn" id="pSort2"'
-        + ' style="height:32px;padding:0 14px">' + svg("restaurer", { size: 17 })
-        + " Quitter le plein écran</button>"
-        + '<kbd>Échap</kbd><span class="sp"></span>'
-        + '<span>Terminal CLI · ' + ech(TCMD) + " --tui</span></div>"
-      : "")
-    + '<div class="tscreen u-tscreen" style="background:' + T.bg + ";color:" + T.fg
-    + ";font-size:" + px + 'px">'
-
-    + '<div class="tbar">'
-    + '<i style="background:#FF5F57"></i><i style="background:#FEBC2E"></i>'
-    + '<i style="background:#28C840"></i>'
-    /* ACTUEL : « hermes — nuit », le nom du THÈME. PROPOSÉ : ce qui tourne. */
-    + (propose
-        ? '<span class="p-quoi">' + svg("terminal", { size: 14 })
-          + ech(TCMD) + " --tui</span>"
-        : '<span style="margin-left:8px;font-size:11.5px;opacity:.55">hermes — '
-          + ech(T.nm.toLowerCase()) + "</span>")
-    + '<span class="sp" style="flex:1"></span>'
-    + '<span class="tmeta u-tstate ' + etat + '" id="tstate">'
-    + (etat === "ouvert" ? "session ouverte" : etat === "ouverture" ? "connexion…"
-        : etat === "coupe" ? "lien coupé" : "aucune session") + "</span></div>"
-
-    /* ACTUEL : la version d'Hermès et l'état du GATEWAY — qui n'a rien à
-       voir avec un pseudo-terminal. PROPOSÉ : ce qui concerne cet écran. */
-    + '<div class="dim">'
-    /* Le dossier de travail n'y est PAS : /api/status donne `hermes_home`,
-       pas le répertoire où tourne le dashboard — et c'est celui-là qu'hérite
-       le PTY. L'écrire aurait été de la donnée fictive (constaté par le code
-       le 2026-08-09). La TUI l'imprime elle-même, trois lignes plus bas. */
-    + (propose
-        ? "<span><b>Hermès</b> " + ech(STATUS.version) + "</span>"
-          + "<span><b>profil</b> " + ech(STATUS.profil) + "</span>"
-          + "<span><b>rendu</b> xterm.js, emprunté à Hermès</span>"
-        : "Hermès " + ech(STATUS.version) + " · gateway "
-          + (STATUS.gateway_running ? "en marche" : "arrêté"))
-    + "</div>"
-
-    /* ⚠ Dans le produit, ce div doit rester VIDE : drawTerm() y réinstalle
-       le nœud vivant. Ici on le remplit pour montrer. */
-    + '<div class="u-tecran" id="tecran">' + ecranHTML(T) + "</div></div>"
-
-    /* L'avertissement, AVANT le geste, en proposé. */
-    + (propose ? avertHTML() : "")
-
-    + '<div class="tlaunch"><button class="tbtn" id="tGo">'
-    + svg("terminal", { size: 20 })
-    + (ouvert ? "Fermer la session" : etat === "ouverture" ? "Ouverture…"
-        : "Ouvrir une session") + "</button>"
-    + '<button class="ghost-btn" data-cmd="' + ech(TCMD) + '">Copier « '
-    + ech(TCMD) + ' »</button>'
-    + '<span class="tpath">Pour l\'ouvrir hors d\'Ulysse, dans votre console</span></div>'
-
-    /* En actuel, l'avertissement est SOUS le bouton. */
-    + (propose ? "" : avertHTML())
-
-    + '<div class="cout" style="margin-top:16px">💶 <b>Ce que ça coûte.</b> Le terminal '
-    + "appelle le même cerveau, facturé de la même façon. Ce qui s'y consomme apparaît "
-    + 'dans <a id="tCout" style="color:var(--accent);cursor:pointer">Dépenses</a>, '
-    + "au même titre que le reste.</div>"
-
-    + '<div class="u-todo">Ce qui tourne ici est <b>' + ech(TCMD)
-    + " --tui</b>, derrière un pseudo-terminal ouvert par Hermès "
-    + "(<code>/api/pty</code>). Le rendu est confié à <code>xterm.js</code>, "
-    + "emprunté à votre installation d'Hermès plutôt que recopié.</div>"
-
-    /* Ce qui remplace les deux pavés repliés, une fois la session ouverte. */
-    + '<div class="p-repli">Le coût et le détail technique sont repliés pendant '
-    + 'la session. <span data-go="cout">Voir les dépenses</span></div>');
-
-  /* ── Les deux replis, et le plein écran ─────────────────────────────────
-     `#tside` est TOUJOURS écrit de la même façon — le code du produit n'a
-     rien à changer à sa façon de le remplir. On déplace ses deux groupes
-     ensuite, une fois écrits. C'est le motif sortir/réinstaller, dans
-     l'autre sens. */
-  if (propose){
-    const grp = $("tside").querySelectorAll(".tgrp");
-    H("pOutils",
-      '<span style="position:relative"><button class="icon-btn" id="pApp"'
-      + ' aria-label="Apparence du terminal" title="Apparence">'
-      + svg("regler", { size: 20 }) + "</button>"
-      + '<div class="pop p-pop" id="popApp"></div></span>'
-      + '<span style="position:relative"><button class="icon-btn" id="pMem"'
-      + ' aria-label="Aide-mémoire" title="Aide-mémoire">'
-      + svg("doc", { size: 20 }) + "</button>"
-      + '<div class="pop p-pop" id="popMem"></div></span>'
-      + '<button class="icon-btn" id="pFull" aria-label="Plein écran"'
-      + ' title="Plein écran">' + svg(plein ? "restaurer" : "agrandir", { size: 20 })
-      + "</button>");
-    if (grp[0]) $("popApp").appendChild(grp[0]);
-    if (grp[1]) $("popMem").appendChild(grp[1]);
-
-    const bascule = (id, autre) => {
-      $(id).onclick = (e) => {
-        e.stopPropagation();
-        $(autre).classList.remove("on");
-        $(id === "pApp" ? "popApp" : "popMem").classList.toggle("on");
-      };
-    };
-    bascule("pApp", "popMem");
-    bascule("pMem", "popApp");
-    $("popApp").onclick = (e) => e.stopPropagation();
-    $("popMem").onclick = (e) => e.stopPropagation();
-    $("pFull").onclick = () => { plein = !plein; drawTerm(); };
-  } else {
-    H("pOutils", "");
-  }
-
-  document.querySelectorAll("[data-th]").forEach((b) => {
-    b.onclick = () => { tTheme = b.dataset.th; drawTerm(); };
+  $("setbody").querySelectorAll("[data-f]").forEach((b) => {
+    b.onclick = () => ouvrir(b.dataset.f, b.dataset.mode);
   });
-  document.querySelectorAll("[data-sz]").forEach((b) => {
-    b.onclick = () => { tTaille = b.dataset.sz; drawTerm(); };
+  $("setbody").querySelectorAll("[data-rev]").forEach((b) => {
+    b.onclick = () => snack("Version du 7 août rétablie. La précédente est gardée.",
+      () => snack("Retour annulé."));
   });
-  document.querySelectorAll("[data-cmd]").forEach((b) => {
-    b.onclick = (e) => { e.stopPropagation(); souffle("« " + b.dataset.cmd + " » copié."); };
-  });
-  document.querySelectorAll("[data-poser]").forEach((b) => {
-    b.onclick = (e) => {
-      e.stopPropagation();
-      souffle("« " + b.dataset.poser + " » posé dans la ligne — à vous d'appuyer "
-        + "sur Entrée.");
-    };
-  });
-  $("tGo").onclick = () => {
-    etat = etat === "ouvert" ? "repos" : "ouvert";
-    majSeg("apEtat", etat);
-    drawTerm();
-  };
-  const s2 = $("pSort2");
-  if (s2) s2.onclick = () => { plein = false; drawTerm(); };
-  const c = $("tCout");
-  if (c) c.onclick = () => souffle("Ouvrirait Réglages › Dépenses.");
-  const g = document.querySelector("[data-go]");
-  if (g) g.onclick = () => souffle("Ouvrirait Réglages › Dépenses.");
+
+  if (cas === "creer") ouvrir("projet.md", "creer");
+  else if (cas === "remplacer") ouvrir("user.md", "remplacer");
+  else if (cas === "agent") ouvrir("memory.md", "agent");
+  else if (cas === "refus") ouvrir("soul.md", "refus");
+  else fermer();
+
   majNote();
 }
 
-function avertHTML(){
-  return '<div class="avert" style="margin:18px 0 4px"><span class="pt">'
-    + svg("alerte", { size: 17 }) + "</span>"
-    + "<span><b>Les accords que vous donnez dans Ulysse ne s'appliquent pas ici.</b>"
-    + '<span class="p-long"> Ulysse demande votre permission avant d\'écrire, '
-    + "d'envoyer ou de publier ; le terminal, non. Ce qui y est tapé s'exécute. "
-    + "C'est la seule fenêtre de l'application qui mène en dehors d'elle — et c'est "
-    + "pour ça qu'elle vous le dit avant, et pas après.</span></span></div>";
+function fichierHTML(f){
+  return '<div class="m-fichier' + (f.verrou ? " m-verrou" : "") + '">'
+    + '<span class="ic">' + svg(f.exists ? "fichier" : "plus", { size: 20 }) + "</span>"
+    + '<span class="tx"><span class="nm">' + ech(f.n) + "</span>"
+    + '<span class="sub">' + ech(f.quoi)
+    + (f.exists ? " · " + ech(f.taille) + " · " + f.lignes + " lignes" : "")
+    + "</span></span>"
+    + '<span class="act">'
+    + (f.verrou
+        ? '<span class="m-cadenas">' + svg("coffre", { size: 15 })
+          + "Vous seul</span>"
+          + '<button class="btn-pick" data-f="' + ech(f.n) + '" data-mode="refus">'
+          + "Modifier</button>"
+        : f.exists
+          ? '<button class="btn-pick" data-f="' + ech(f.n) + '" data-mode="remplacer">'
+            + "Remplacer</button>"
+          : '<button class="btn-pick" data-f="' + ech(f.n) + '" data-mode="creer">'
+            + "Créer</button>")
+    + "</span></div>";
 }
 
-let souffleT = null;
-function souffle(t){
-  let el = $("apSouffle");
-  if (!el){
-    el = document.createElement("div");
-    el.id = "apSouffle";
-    el.style.cssText = "position:fixed;left:50%;transform:translateX(-50%);bottom:22px;"
-      + "z-index:900;background:#1F1F1F;color:#fff;font-size:12.5px;padding:9px 18px;"
-      + "border-radius:999px;box-shadow:0 4px 16px rgba(0,0,0,.35);transition:opacity .25s";
-    document.body.appendChild(el);
+/* ── La feuille d'écriture ──────────────────────────────────────────────── */
+function ouvrir(nom, mode){
+  const f = FICHIERS.find((x) => x.n === nom);
+
+  /* ── CE QU'ON REFUSE DE FAIRE DU TOUT ──────────────────────────────────
+     `soul.md` dit ce qu'Ulysse s'autorise et ce qu'il refuse. Si l'agent
+     peut le réécrire, les garde-fous deviennent modifiables par ce qu'ils
+     gardent. Ce n'est pas un réglage prudent, c'est une frontière : elle ne
+     s'ouvre pas, même à la demande. */
+  if (mode === "refus"){
+    return feuille("Modifier ce qu'Ulysse s'autorise",
+      '<div class="sub">soul.md · 1,8 ko · 29 lignes</div>'
+      + '<div class="irrev" style="margin-top:18px"><span class="pt">'
+      + svg("alerte", { size: 19 }) + "</span><span>"
+      + "<b>Ce fichier n'est modifiable que par vous, et jamais depuis une "
+      + "conversation.</b> Il dit ce qu'Ulysse s'autorise et ce qu'il refuse. Si "
+      + "l'agent pouvait le réécrire, il pourrait lever ses propres garde-fous — et "
+      + "il n'y aurait plus rien pour l'en empêcher.</span></div>"
+      + "<p style=\"margin-top:16px\">Ouvrez-le dans votre éditeur. Ulysse le relira "
+      + "au prochain lancement.</p>"
+      + '<div class="m-sheet-acts">'
+      + '<button class="validate" data-a="ouvrir-dossier">Ouvrir le dossier</button>'
+      + '<button class="quiet-link" data-a="copier">Copier le chemin</button>'
+      + '<span class="sp"></span>'
+      + '<button class="txt-btn" data-a="fermer">Fermer</button></div>');
   }
-  el.textContent = t; el.style.opacity = "1";
-  clearTimeout(souffleT);
-  souffleT = setTimeout(() => { el.style.opacity = "0"; }, 2800);
-}
 
-function majSeg(id, v){
-  $(id).querySelectorAll("button").forEach((b) =>
-    b.classList.toggle("on", (b.dataset.e || b.dataset.v) === v));
-}
-/* Échap sort du plein écran, et ferme les replis. Un plein écran dont on ne
-   sait pas sortir n'est pas un agrandissement, c'est un piège. */
-document.addEventListener("keydown", (e) => {
-  if (e.key !== "Escape") return;
-  const pa = $("popApp"), pm = $("popMem");
-  if ((pa && pa.classList.contains("on")) || (pm && pm.classList.contains("on"))){
-    if (pa) pa.classList.remove("on");
-    if (pm) pm.classList.remove("on");
-    return;
+  /* ── CRÉER : rien à perdre, donc rien à faire peser ────────────────────
+     La prudence qu'on met ici est de la prudence qu'on n'aura plus quand
+     elle comptera. */
+  if (mode === "creer"){
+    return feuille("Créer projet.md",
+      '<div class="sub">Ce fichier n\'existe pas encore. Rien ne sera remplacé.</div>'
+      + '<div class="m-diff" style="margin-top:16px">'
+      + '<div class="l plus"><span class="g">+</span>« Le contexte du projet en '
+      + "cours. »</div>"
+      + '<div class="coupe">4 lignes ajoutées · aucune retirée</div></div>'
+      + '<div class="m-sheet-acts">'
+      + '<button class="validate" data-a="ecrire">Créer le fichier</button>'
+      + '<span class="sp"></span>'
+      + '<button class="txt-btn" data-a="fermer">Annuler</button></div>');
   }
-  if (plein){ plein = false; drawTerm(); }
-});
-document.addEventListener("click", () => {
-  ["popApp","popMem"].forEach((i) => { const p = $(i); if (p) p.classList.remove("on"); });
-});
 
-$("apEtat").onclick = (e) => {
-  const b = e.target.closest("[data-e]"); if (!b) return;
-  etat = b.dataset.e; majSeg("apEtat", etat); drawTerm();
-};
-$("apVers").onclick = (e) => {
-  const b = e.target.closest("[data-v]"); if (!b) return;
-  majSeg("apVers", b.dataset.v);
-  propose = b.dataset.v === "1";
-  $("propose").media = propose ? "all" : "not all";
-  drawTerm();
+  /* ── L'AGENT DEMANDE ───────────────────────────────────────────────────
+     Une écriture demandée depuis une conversation passe par la demande
+     d'accord — la même que celle du fil, avec les mêmes portées. Mais elle
+     montre EN PLUS ce qui va changer : « Autoriser toujours » sur une
+     écriture sans voir le contenu n'est pas un accord, c'est un blanc-seing. */
+  if (mode === "agent"){
+    return feuille("L'agent veut écrire dans votre mémoire",
+      '<div class="sub">memory.md · demandé pendant « Passe de design sur '
+      + "Discuter »</div>"
+      + diffHTML(2, 4)
+      + '<div class="irrev" style="margin-top:16px"><span class="pt">'
+      + svg("alerte", { size: 19 }) + "</span><span>"
+      + "<b>Une écriture ne s'autorise pas « toujours ».</b> Les autres actions se "
+      + "ressemblent d'une fois sur l'autre ; deux écritures dans un même fichier "
+      + "n'ont rien à voir. On peut autoriser celle-ci, ou celles de cette "
+      + "conversation — pas les suivantes, qu'on n'a pas lues.</span></div>"
+      + '<div class="m-sheet-acts">'
+      + '<button class="validate" data-a="ecrire">Autoriser cette écriture</button>'
+      + '<button class="btn-pick" data-a="ecrire">Pour cette conversation</button>'
+      + '<span class="sp"></span>'
+      + '<button class="dangerlink" data-a="fermer">Refuser</button></div>');
+  }
+
+  /* ── REMPLACER : le seul cas où quelque chose se perd ──────────────────── */
+  return feuille("Remplacer user.md",
+    '<div class="sub">' + ech(f.taille) + " · " + f.lignes + " lignes · "
+    + "modifié il y a 3 minutes</div>"
+    + diffHTML(2, 4)
+    + '<div class="m-garde"><span class="pt">' + svg("coche", { size: 18 }) + "</span>"
+    + "<span><b>La version d'avant sera gardée</b>, datée d'aujourd'hui. Vous pourrez "
+    + "y revenir depuis cet écran, sans limite de temps.</span></div>"
+    + '<div class="m-sheet-acts">'
+    + '<button class="validate" data-a="ecrire">Remplacer</button>'
+    + '<span class="sp"></span>'
+    + '<button class="txt-btn" data-a="fermer">Annuler</button></div>');
+}
+
+function diffHTML(moins, plus){
+  return '<div class="m-bilan" style="margin-top:16px">'
+    + '<span class="moins">' + moins + " lignes retirées</span>"
+    + '<span class="plus">' + plus + " ajoutées</span>"
+    + "<span>4 inchangées</span></div>"
+    + '<div class="m-diff">'
+    + DIFF.map(([k, t]) => '<div class="l ' + k + '"><span class="g">'
+        + (k === "moins" ? "−" : k === "plus" ? "+" : " ") + "</span>"
+        + (t ? ech(t) : " ") + "</div>").join("")
+    + '<div class="coupe">Le reste du fichier est inchangé.</div></div>';
+}
+
+function feuille(titre, corps){
+  H("ecrireBody", "<h2>" + ech(titre) + "</h2>" + corps);
+  $("sEcrire").classList.add("on");
+  $("ecrireBody").querySelectorAll("[data-a]").forEach((b) => {
+    b.onclick = () => {
+      if (b.dataset.a === "fermer") return fermer();
+      if (b.dataset.a === "ecrire"){
+        fermer();
+        /* « Annuler » reste — il ne remplace pas la version gardée, il évite
+           d'avoir à s'en servir dans les six secondes qui suivent la bêtise. */
+        snack("Écrit. La version d'avant est gardée.",
+          () => snack("Écriture annulée — rien n'a changé."));
+        return;
+      }
+      snack(b.dataset.a === "copier" ? "Chemin copié."
+        : "Ouvrirait le dossier de mémoire.");
+    };
+  });
+}
+
+function fermer(){ $("sEcrire").classList.remove("on"); }
+$("sEcrire").onclick = (e) => { if (e.target.id === "sEcrire") fermer(); };
+
+/* Le snack de la maquette, verbatim. */
+let snackT = null, undoFn = null;
+function snack(msg, undo){
+  const el = $("snack");
+  undoFn = undo || null;
+  el.innerHTML = "<span>" + ech(msg) + "</span>"
+    + (undo ? '<button id="snack-undo">Annuler</button>' : "");
+  if (undo) el.querySelector("#snack-undo").onclick = () => {
+    if (undoFn) undoFn();
+    undoFn = null;
+    el.classList.remove("on");
+  };
+  el.classList.add("on");
+  clearTimeout(snackT);
+  snackT = setTimeout(() => el.classList.remove("on"), 6000);
+}
+
+$("apCas").onclick = (e) => {
+  const b = e.target.closest("[data-c]"); if (!b) return;
+  $("apCas").querySelectorAll("button").forEach((x) => x.classList.remove("on"));
+  b.classList.add("on");
+  cas = b.dataset.c;
+  dessine();
 };
 
 function majNote(){
-  $("apBody").innerHTML = propose
-    ? "<b>Proposé</b> — un dessin de terminal et un terminal ne se dessinent pas "
-      + "pareil."
-      + "<h4>La place (passe 2)</h4>"
-      + "<b>La colonne de 300 px part dans deux replis.</b> Elle donnait un quart "
-      + "d'un écran de 1280 à ce qu'on regarde une fois par semaine — pris à ce qu'on "
-      + "regarde tout le temps. <code>#tside</code> reste, avec son contenu : ses deux "
-      + "groupes sont <b>déplacés</b>, pas recréés."
-      + "<br><br><b>Deux boutons, pas deux « ⋯ ».</b> Deux kebabs côte à côte sont "
-      + "indistinguables : il faudrait les ouvrir pour savoir lequel est lequel. "
-      + "Chacun porte l'icône de ce qu'il contient."
-      + "<br><br><b>Le plein écran est applicatif</b>, pas celui du navigateur : "
-      + "Ulysse tourne déjà dans une fenêtre, et demander le plein écran du système "
-      + "ferait sortir de l'application pour agrandir un de ses panneaux. "
-      + "<i>Essayez le troisième bouton, puis Échap.</i>"
-      + "<br><br>Ce qui ne disparaît jamais en plein écran : <b>l'état de session et "
-      + "le chemin pour sortir</b>. Un plein écran dont on ne sait pas sortir n'est "
-      + "pas un agrandissement, c'est un piège."
-      + "<h4>La fenêtre enlève son déguisement</h4>"
-      + "Les trois pastilles rouge/jaune/verte étaient justes quand l'écran était une "
-      + "<b>image</b> : elles disaient « ceci est un terminal », comme une icône. "
-      + "Maintenant c'en est un vrai — ce sont trois <b>faux boutons</b> qui ne "
-      + "ferment ni ne réduisent rien, sur la seule fenêtre qui mène en dehors de "
-      + "l'application. La barre dit maintenant ce qui tourne : "
-      + "<code>hermes --tui</code>."
-      + "<h4>Et cinq autres</h4><ul>"
-      + "<li><b>L'état de session</b> passe de 11,5 px à 55 % d'opacité dans un coin "
-      + "à une pastille avec son point. C'est la seule chose qu'on doit savoir sans "
-      + "y penser : est-ce que ce que je tape part quelque part ?</li>"
-      + "<li><b>Ouvrir et Fermer</b> ne portent plus le même noir plein. Ouvrir est "
-      + "une invitation ; fermer arrête ce qui tourne.</li>"
-      + "<li><b>La ligne d'état</b> annonçait « gateway en marche » — le gateway n'a "
-      + "rien à voir avec un pseudo-terminal. Elle dit le binaire et le dossier.</li>"
-      + "<li><b>L'avertissement remonte au-dessus du bouton.</b> Il était sous "
-      + "l'écran : juste quand on lisait avant de copier une commande, faux depuis "
-      + "qu'on peut taper directement.</li>"
-      + "<li><b>Un terminal vivant a besoin de place.</b> Session ouverte, le coût et "
-      + "la note technique se replient, l'écran gagne 80 px.</li></ul>"
-      + "<h4>L'aide-mémoire : deux destinations</h4>"
-      + "<b>Ma première version était fausse</b> et je l'ai corrigée : je proposais "
-      + "deux gestes par ligne — copier, et poser dans le terminal. Ça supposait que "
-      + "la ligne soit un <b>shell</b>. C'est l'invite de <code>hermes --tui</code>. "
-      + "Y poser <code>hermes doctor</code> et valider n'exécuterait pas la commande : "
-      + "ça enverrait ce texte à l'agent comme un message.<br><br>"
-      + "Ce qui distingue ces lignes n'est pas le geste, c'est <b>où elles "
-      + "s'exécutent</b>. Deux familles, et <b>un seul geste chacune</b> : "
-      + "« Dans votre console » se copie, « Dans cette session » se pose. On ne peut "
-      + "plus se tromper de cible, parce que le mauvais geste n'existe pas là où il "
-      + "serait faux."
-    : "<b>Actuel</b> — l'écran habillé au jugé."
-      + "<h4>À regarder</h4><ul>"
-      + "<li>Les <b>trois pastilles</b> en haut à gauche. Cliquez-les.</li>"
-      + "<li>L'<b>état de session</b>, à droite dans la barre : 11,5 px, 55 % "
-      + "d'opacité. C'est l'information la plus importante de l'écran.</li>"
-      + "<li>La ligne sous la barre annonce l'état du <b>gateway</b>.</li>"
-      + "<li>Passez sur « Session ouverte » : l'avertissement, le coût et la note "
-      + "technique sont toujours là, et l'écran garde ses 340 px.</li>"
-      + "<li>L'aide-mémoire ne sait que <b>copier</b>, alors qu'un terminal est "
-      + "ouvert à côté.</li></ul>"
-      + "Puis basculez sur « Proposé ».";
+  $("apBody").innerHTML =
+    "<b>Écrire dans la mémoire</b> — trois questions, dans l'ordre où elles se posent."
+    + "<h4>La doctrine existe déjà</h4>"
+    + "Elle est dans <code>ulysse.css</code>, au-dessus de <code>.snack</code>, et "
+    + "personne ne s'en est servi : <i>« Rien ne disparaît d'un geste. Ce qui porte "
+    + "des données va à la corbeille, et y reste. »</i> Écrire par-dessus une mémoire "
+    + "<b>est</b> une destruction, même si ça s'appelle écrire."
+    + "<h4>1 · Ce qu'on montre avant</h4>"
+    + "<b>La différence, pas le fichier.</b> Montrer le nouveau texte ne dit pas ce "
+    + "qu'on perd ; montrer les deux côte à côte demande de comparer soi-même. Deux "
+    + "nombres et quelques lignes suffisent."
+    + "<h4>2 · Ce qu'on permet de défaire</h4>"
+    + "<b>« Annuler » six secondes ne suffit pas.</b> Une mémoire fausse, on s'en "
+    + "aperçoit des jours plus tard. La version d'avant est <b>gardée, datée</b>, et "
+    + "on y revient depuis l'écran. Le snack reste — il évite d'avoir à s'en servir."
+    + "<h4>3 · Ce qu'on refuse</h4>"
+    + "<b><code>soul.md</code> n'est modifiable que par vous</b>, jamais depuis une "
+    + "conversation. Il dit ce qu'Ulysse s'autorise et ce qu'il refuse : si l'agent "
+    + "pouvait le réécrire, il pourrait lever ses propres garde-fous, et il n'y "
+    + "aurait plus rien pour l'en empêcher. Ce n'est pas un réglage prudent, c'est "
+    + "une <b>frontière</b>."
+    + "<h4>Et une quatrième, qui n'était pas demandée</h4>"
+    + "<b>Une écriture ne s'autorise pas « toujours ».</b> Les autres actions se "
+    + "ressemblent d'une fois sur l'autre ; deux écritures dans un même fichier n'ont "
+    + "rien à voir. La demande d'accord garde ses portées, moins celle-là."
+    + "<h4>⚠ Ce qui bloque</h4>"
+    + "<code>/api/fs/write-text</code> ne sait qu'écrire. <b>La copie datée, la liste "
+    + "des versions et le retour en arrière n'existent pas.</b> Tant qu'ils n'existent "
+    + "pas, cet écran ne doit pas être branché : il promettrait un retour en arrière "
+    + "qui n'a pas lieu.";
 }
 
-drawTerm();
+dessine();
 </script>
 </body>
 </html>

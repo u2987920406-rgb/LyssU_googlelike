@@ -9,6 +9,69 @@ Aperçu : `apercu-terminal.html` (autonome, quatre états jouables).
 
 ---
 
+> **Passe 2, du 2026-08-09** — demandée par kuchu : *« tout ce qui est réglage
+> doit passer dans des menus ; la fenêtre doit être grande, et pouvoir être
+> pleine. »* Voir §0a et §0b. Les sept points d'origine sont inchangés.
+
+---
+
+## 0a. La colonne de 300 px part dans deux replis
+
+`#tside` prend **300 px en permanence** pour deux choses qu'on consulte
+rarement : quatre thèmes et une liste de commandes. Sur un portable de 1280,
+c'est un quart de l'écran donné à ce qu'on regarde une fois par semaine — pris
+à ce qu'on regarde tout le temps.
+
+Elle ne disparaît pas, elle **emménage** dans deux replis de la barre de titre.
+C'est le même déplacement que `#band` vers le kebab ou `#roles` vers la gélule :
+`#tside` reste écrit exactement comme aujourd'hui — `H("tside", …)` ne change
+pas — et ses deux `.tgrp` sont **déplacés ensuite**. Sortir/réinstaller, dans
+l'autre sens.
+
+### Deux boutons, pas deux « ⋯ »
+
+Deux kebabs côte à côte sont indistinguables : il faudrait les ouvrir pour
+savoir lequel est lequel. Chacun porte donc l'icône de ce qu'il contient —
+`regler` pour l'apparence, `doc` pour l'aide-mémoire. Le troisième bouton est
+le plein écran.
+
+Les deux replis **s'excluent** : ouvrir l'un ferme l'autre.
+
+---
+
+## 0b. La fenêtre prend toute la place, puis tout l'écran
+
+Deux tailles, une seule commande :
+
+| | |
+|---|---|
+| **dans le panneau** | l'écran occupe tout ce que la colonne libère |
+| **plein écran** | il recouvre le rail et la barre de titre |
+
+**Le plein écran est applicatif, pas celui du navigateur.** Ulysse tourne déjà
+dans une fenêtre : demander le plein écran du système ferait *sortir de
+l'application* pour agrandir un de ses panneaux. Une classe sur `.term`,
+`position:fixed`, et c'est réversible sans rien demander à personne.
+
+### Ce qui ne disparaît jamais
+
+**L'état de session, et le chemin pour sortir.** Une ligne en tête porte le
+bouton de retour, la mention `Échap`, et le rappel de ce qu'on regarde.
+
+> Un plein écran dont on ne sait pas sortir n'est pas un agrandissement, c'est
+> un piège. Échap en sort, le bouton reste visible, et la même touche ferme
+> d'abord un repli s'il y en a un d'ouvert — on ne perd jamais deux choses
+> d'un coup.
+
+### `#tecran` survit à tout
+
+Vérifié en jsdom : après passage en plein écran, retour, changement de thème
+depuis le repli et bascule d'état, `#tecran` est toujours présent et les huit
+`id` du contrat aussi. Le plein écran ne touche pas à la séquence
+sortir → réécrire → réinstaller : il pose une classe, il ne reconstruit rien.
+
+---
+
 ## Le fond de l'affaire
 
 **Un dessin de terminal et un terminal ne se dessinent pas pareil.**
@@ -167,8 +230,14 @@ classes jointes · `data-th` (4) et `data-sz` (3) intacts.
 lancer) — à ajouter au §2.2 s'il est retenu.
 
 **Classes nouvelles**, toutes préfixées et sans recouvrement : `p-quoi`,
-`p-avert-haut`, `p-repli`, `p-poser`, et les deux classes d'état du panneau
-`p-ouvert` / `p-ouverture`.
+`p-avert-haut`, `p-repli`, `p-poser`, `p-fam`, `p-tui`, `p-note-tui`,
+`p-sep`, `p-fort`, et pour la passe 2 : `p-outils`, `p-pop`, `p-plein`,
+`p-sortie`.
+
+**Trois `id` nouveaux** dans la barre de titre : `pApp`, `pMem`, `pFull` — et
+leurs deux replis `popApp` / `popMem`. À nommer selon la convention du produit
+au moment de l'appliquer ; ce qui compte est qu'ils existent et que les deux
+replis s'excluent.
 
 > ~~**À décider :** les deux classes d'état du panneau.~~ **Tranché le
 > 2026-08-09 par le code, et bien tranché :** une seule classe,

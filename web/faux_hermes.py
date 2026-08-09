@@ -280,6 +280,25 @@ class Dashboard(BaseHTTPRequestHandler):
                     return
             self.send_json(404, {"detail": "job introuvable"})
             return
+
+        # /api/fs/write-text — la vraie route ECRIT vraiment sur le disque
+        # (web_server.py:2651), par fichier temporaire puis os.replace. Le faux
+        # doit ecrire aussi, sinon on ne pourrait pas verifier que serve.py
+        # garde bien la version d'AVANT avant de laisser passer l'ecriture.
+        if p.path == "/api/fs/write-text":
+            try:
+                n = int(self.headers.get("Content-Length") or 0)
+                corps = json.loads(self.rfile.read(n).decode("utf-8"))
+                chemin = corps["path"]
+                with open(chemin, "w", encoding="utf-8") as fh:
+                    fh.write(corps.get("content") or "")
+            except Exception as exc:
+                self.send_json(400, {"detail": str(exc)})
+                return
+            note("fs_write", path=chemin)
+            self.send_json(200, {"ok": True, "path": chemin})
+            return
+
         self.send_json(404, {"detail": "Not Found: " + p.path})
 
     # -- WebSocket ------------------------------------------------------

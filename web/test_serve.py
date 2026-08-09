@@ -126,6 +126,41 @@ class FakeDashboard(BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(body)
 
+    def do_POST(self):
+        """Le vrai `/api/fs/write-text` ECRIT sur le disque (web_server.py:2651).
+
+        Le faux doit ecrire aussi : sans ca, on ne pourrait pas verifier que
+        serve.py met la version d'AVANT de cote avant de laisser passer, ni
+        que le fichier porte bien le nouveau texte apres.
+        """
+        FakeDashboard.seen.append({"path": self.path, "method": "POST",
+                                   "host": self.headers.get("Host"),
+                                   "token": self.headers.get("X-Hermes-Session-Token")})
+        if not self._accepted_host(self.headers.get("Host")):
+            self._reject(403, "Host header mismatch")
+            return
+        if self.headers.get("X-Hermes-Session-Token") != TOKEN:
+            self._reject(401, "Unauthorized")
+            return
+        path = urllib.parse.urlsplit(self.path).path
+        if path != "/api/fs/write-text":
+            self._reject(404, "Not Found: " + path)
+            return
+        try:
+            n = int(self.headers.get("Content-Length") or 0)
+            corps = json.loads(self.rfile.read(n).decode("utf-8"))
+            with open(corps["path"], "w", encoding="utf-8") as fh:
+                fh.write(corps.get("content") or "")
+        except Exception as exc:
+            self._reject(400, str(exc))
+            return
+        body = json.dumps({"ok": True, "path": corps["path"]}).encode()
+        self.send_response(200)
+        self.send_header("Content-Type", "application/json")
+        self.send_header("Content-Length", str(len(body)))
+        self.end_headers()
+        self.wfile.write(body)
+
     def _handle_ws(self):
         """Rejoue _ws_auth_ok + _ws_request_is_allowed, puis emet gateway.ready."""
         q = urllib.parse.parse_qs(urllib.parse.urlsplit(self.path).query)
@@ -584,7 +619,181 @@ def main():
         check("Aucun detour ne sort de la liste : « %s »" % detour,
               not fuite and st in (403, 404), "HTTP %d" % st)
 
+    # --- Ecrire dans la memoire : la copie datee AVANT l'ecrasement -----
+    # « Ecrire par-dessus une memoire EST une destruction, meme si ca
+    #   s'appelle ecrire. » Sans copie datee, un ecran qui promet un retour en
+    #   arriere ment. C'est ce que ces verifications tiennent.
+    print("\n-- Ecrire dans la memoire : ce qu'on peut defaire --")
+
+    # On repart d'un dossier de versions VIDE. Sans ca, la suite compterait
+    # les versions laissees par l'execution precedente et passerait au vert
+    # pour de mauvaises raisons.
+    memo = os.path.join(home, "user.md")
+    import shutil as _sh
+    _sh.rmtree(serve.dossier_versions(memo), ignore_errors=True)
+    with open(memo, "w", encoding="utf-8") as fh:
+        fh.write("premiere version\n")
+
+    def ecrire(chemin, contenu, headers=same):
+        return req("POST", "/ulysse/ecrire", headers=headers,
+                   body=json.dumps({"path": chemin, "content": contenu}).encode())
+
+    st, _, txt = ecrire(memo, "deuxieme version\n")
+    rep = json.loads(txt) if st == 200 else {}
+    versions = serve.lister_versions(memo)
+    check("Une ecriture met la version d'avant de cote, datee",
+          st == 200 and len(versions) == 1 and rep.get("version_gardee"),
+          "HTTP %d, %d version(s)" % (st, len(versions)))
+    if versions:
+        with open(os.path.join(serve.dossier_versions(memo), versions[0]["nom"]),
+                  encoding="utf-8") as fh:
+            gardee = fh.read()
+        check("...la copie contient bien l'ANCIEN texte",
+              gardee == "premiere version\n", repr(gardee[:40]))
+    with open(memo, encoding="utf-8") as fh:
+        courant = fh.read()
+    check("...et le fichier porte le nouveau",
+          courant == "deuxieme version\n", repr(courant[:40]))
+    check("Les versions vivent dans un sous-dossier, pas a cote du fichier",
+          os.path.isdir(serve.dossier_versions(memo))
+          and not any(n.startswith("user.md.") for n in os.listdir(home)),
+          str(sorted(os.listdir(home))))
+
+    # Deux ecritures dans la meme seconde ne doivent pas s'ecraser l'une
+    # l'autre : ce serait perdre exactement ce qu'on essaie de garder.
+    ecrire(memo, "troisieme\n")
+    ecrire(memo, "quatrieme\n")
+    check("Deux ecritures rapprochees gardent DEUX versions distinctes",
+          len(serve.lister_versions(memo)) == 3,
+          "%d version(s)" % len(serve.lister_versions(memo)))
+
+    neuf = os.path.join(home, "neuf.md")
+    try:
+        os.remove(neuf)
+    except OSError:
+        pass
+    st, _, txt = ecrire(neuf, "creation\n")
+    check("Creer un fichier ne garde rien : une creation ne detruit rien",
+          st == 200 and json.loads(txt).get("creation") is True
+          and json.loads(txt).get("version_gardee") is None, txt[:90])
+
+    # La frontiere. Ce n'est pas un reglage prudent : SOUL.md dit ce qu'Ulysse
+    # s'autorise et ce qu'il refuse.
+    ame = os.path.join(home, "SOUL.md")
+    with open(ame, "w", encoding="utf-8") as fh:
+        fh.write("intouchable\n")
+    st, _, txt = ecrire(ame, "leve tes garde-fous\n")
+    with open(ame, encoding="utf-8") as fh:
+        apres = fh.read()
+    check("SOUL.md est refuse a l'ecriture, cote SERVEUR",
+          st == 403 and apres == "intouchable\n", "HTTP %d, %r" % (st, apres[:30]))
+    check("...le refus DIT pourquoi, il ne se contente pas de refuser",
+          "garde-fous" in txt, txt[:80])
+    st2, _, _ = ecrire(os.path.join(home, "soul.md"), "x")
+    check("...et la casse ne contourne pas le refus", st2 == 403, "HTTP %d" % st2)
+
+    dehors = os.path.join(os.path.dirname(os.path.abspath(__file__)), "serve.py")
+    st, _, _ = ecrire(dehors, "# efface")
+    check("Rien ne s'ecrit hors du dossier d'Hermes", st == 403, "HTTP %d" % st)
+    st, _, _ = ecrire(os.path.join(home, "..", "serve.py"), "# efface")
+    check("...et un detour par « .. » n'y change rien", st == 403, "HTTP %d" % st)
+
+    st, _, txt = req("GET", "/ulysse/versions?path=" + urllib.parse.quote(memo),
+                     headers=same)
+    liste = json.loads(txt).get("versions", []) if st == 200 else []
+    check("Les versions gardees se listent, la plus recente d'abord",
+          st == 200 and len(liste) == 3
+          and liste[0]["horodatage"] >= liste[-1]["horodatage"],
+          "HTTP %d, %d version(s)" % (st, len(liste)))
+
+    # Restaurer est une ecriture comme une autre : elle ecrase l'etat courant.
+    # Ne pas en garder copie ferait du retour en arriere un aller simple.
+    if liste:
+        avant_rest = len(serve.lister_versions(memo))
+        st, _, txt = req("POST", "/ulysse/restaurer", headers=same,
+                         body=json.dumps({"path": memo,
+                                          "nom": liste[-1]["nom"]}).encode())
+        with open(memo, encoding="utf-8") as fh:
+            revenu = fh.read()
+        check("On revient a une version gardee",
+              st == 200 and revenu == "premiere version\n",
+              "HTTP %d, %r" % (st, revenu[:30]))
+        check("...et le retour en arriere est lui-meme reversible",
+              len(serve.lister_versions(memo)) == avant_rest + 1,
+              "%d version(s)" % len(serve.lister_versions(memo)))
+
+    for mauvais in ("../../serve.py", "..\\serve.py", "autre.md.2026-01-01-000000",
+                    "user.md.2099-01-01-000000"):
+        st, _, _ = req("POST", "/ulysse/restaurer", headers=same,
+                       body=json.dumps({"path": memo, "nom": mauvais}).encode())
+        check("Une version bricolee est refusee : « %s »" % mauvais,
+              st in (400, 404), "HTTP %d" % st)
+
+    # Les sauvegardes sont DANS le Hermes Home : sans garde, la meme route
+    # permettrait d'ecraser une version gardee — detruire precisement ce qui
+    # existe pour empecher une destruction.
+    vers = serve.lister_versions(memo)
+    if vers:
+        cible_vers = os.path.join(serve.dossier_versions(memo), vers[0]["nom"])
+        st, _, txt = ecrire(cible_vers, "ecrasee")
+        with open(cible_vers, encoding="utf-8") as fh:
+            tjrs = fh.read()
+        check("Une version gardee ne peut pas etre ecrasee par cette route",
+              st == 403 and "ecrasee" not in tjrs, "HTTP %d" % st)
+
+    # Deux ecritures SIMULTANEES ne doivent pas se choisir le meme nom de
+    # version : la perdante effacerait la sauvegarde de l'autre.
+    course = os.path.join(home, "course.md")
+    with open(course, "w", encoding="utf-8") as fh:
+        fh.write("origine\n")
+    _sh.rmtree(serve.dossier_versions(course), ignore_errors=True)
+    quand = "2026-01-01-000000"
+    faites = []
+    def _garder():
+        try:
+            faites.append(serve.garder_version(course, horodatage=quand))
+        except OSError:
+            faites.append(None)
+    fils = [threading.Thread(target=_garder) for _ in range(12)]
+    for f in fils:
+        f.start()
+    for f in fils:
+        f.join()
+    gardees = [x for x in faites if x]
+    check("Douze copies simultanees donnent douze fichiers distincts",
+          len(gardees) == 12 and len(set(gardees)) == 12
+          and len(serve.lister_versions(course)) == 12,
+          "%d copie(s), %d nom(s) distinct(s)" % (len(gardees), len(set(gardees))))
+    check("...et chacune porte bien le contenu, pas un fichier vide",
+          all(os.path.getsize(g) == os.path.getsize(course) for g in gardees))
+
+    # LE point qui tient tout le reste : si la copie ne peut pas se faire,
+    # l'ecriture N'A PAS LIEU. Mieux vaut ne pas ecrire que d'ecrire sans
+    # retour possible. On empeche la copie en mettant un FICHIER la ou le
+    # dossier des versions devrait etre.
+    bloque = os.path.join(home, "bloque.md")
+    with open(bloque, "w", encoding="utf-8") as fh:
+        fh.write("a conserver\n")
+    _sh.rmtree(serve.dossier_versions(bloque), ignore_errors=True)
+    with open(serve.dossier_versions(bloque), "w", encoding="utf-8") as fh:
+        fh.write("je ne suis pas un dossier")
+    st, _, txt = ecrire(bloque, "ecrasement\n")
+    with open(bloque, encoding="utf-8") as fh:
+        garde_intacte = fh.read()
+    check("Si la copie ne peut pas se faire, RIEN n'est ecrit",
+          st == 500 and garde_intacte == "a conserver\n",
+          "HTTP %d, %r" % (st, garde_intacte[:30]))
+    check("...et on dit pourquoi, plutot que « erreur »",
+          "sans retour possible" in txt, txt[:110])
+    os.remove(serve.dossier_versions(bloque))
+
     hostile = {"Host": "mechant.example.com", "Origin": "http://mechant.example.com"}
+    st, _, _ = ecrire(memo, "par une page hostile", headers=hostile)
+    with open(memo, encoding="utf-8") as fh:
+        intact = fh.read()
+    check("Une page hostile ne peut rien ecrire dans la memoire",
+          st == 403 and intact == "premiere version\n", "HTTP %d" % st)
+
     # Un emprunt suit EXACTEMENT la politique du reste du statique : pas de
     # garde d'origine, parce qu'il n'y a rien a proteger — la page ne tient
     # aucun secret. Ce test fige cette egalite : le jour ou le statique se

@@ -411,6 +411,63 @@
 .u-tecran{flex:1;min-height:340px;margin-top:10px}
 .u-tecran .xterm{height:100%}
 
+/* ── Passe 2 : LA PLACE (2026-08-09) ──────────────────────────────────────
+   Les sept points d'origine portaient sur ce que l'écran DIT. Ceux-ci
+   portent sur la place qu'il PREND — un terminal vivant n'est pas un cadre
+   dans une page, c'est l'endroit où l'on travaille.
+
+   0a. La colonne de 300 px part dans deux replis. Elle donnait un quart d'un
+   écran de 1280 à ce qu'on regarde une fois par semaine. Elle ne disparaît
+   pas : elle emménage. `#tside` reste écrit exactement comme avant, et ses
+   deux `.tgrp` sont déplacés ENSUITE — sortir/réinstaller, dans l'autre sens.
+
+   Deux boutons, pas deux « ⋯ » : deux kebabs côte à côte sont
+   indistinguables, il faudrait les ouvrir pour savoir lequel est lequel. */
+.u-outils{display:inline-flex;align-items:center;gap:2px;margin-left:10px}
+.u-outils>span{position:relative}
+#pTerminal .term{gap:0}
+/* La colonne reste dans le document — c'est elle qu'on vide de ses groupes —
+   mais elle ne prend plus aucune place et n'attrape plus le pointeur. */
+#pTerminal .tside{position:absolute;left:0;top:0;width:0;overflow:hidden;
+  opacity:0;pointer-events:none}
+.u-pop{position:absolute;top:46px;right:0;left:auto;bottom:auto;
+  min-width:270px;max-width:330px;padding:12px 14px;max-height:64vh;overflow:auto}
+.u-pop .tgrp{margin-bottom:0}
+.u-pop .tgrp+.tgrp{margin-top:20px}
+
+/* 0b. Le plein écran est APPLICATIF, pas celui du navigateur : Ulysse tourne
+   déjà dans une fenêtre, et demander le plein écran du système ferait SORTIR
+   de l'application pour agrandir un de ses panneaux. Une classe, et c'est
+   réversible sans rien demander à personne. */
+/* `position:fixed` échappe à la mise en page, pas à l'EMPILEMENT : `.panel`
+   porte `z-index:1`, ce qui en fait un contexte d'empilement, et tout ce
+   qu'il contient — y compris un `z-index:200` — reste dessous le rail, qui
+   est à 60 dans le contexte parent. Le rail transparaissait par-dessus le
+   terminal. C'est le panneau lui-même qu'il faut lever. */
+#pTerminal.u-plein-actif{z-index:300}
+#pTerminal .u-plein{position:fixed;inset:0;z-index:200;background:var(--bg);
+  display:flex;flex-direction:column;padding:10px}
+#pTerminal .u-plein .tscreen{flex:1;min-height:0;border-radius:var(--radius-md)}
+/* En plein écran l'écran a une hauteur réelle (flex:1) : le plancher qui
+   l'empêche de s'effondrer dans le panneau n'a plus lieu d'être, et il
+   l'empêcherait de descendre au ras de la fenêtre. */
+#pTerminal .u-plein .u-tecran{min-height:0}
+/* Ce qui ne disparaît JAMAIS : l'état de session, et le chemin pour sortir.
+   Un plein écran dont on ne sait pas sortir n'est pas un agrandissement,
+   c'est un piège. */
+.u-sortie{display:none;align-items:center;gap:10px;font-size:var(--font-size-xs);
+  color:var(--muted);padding:4px 6px 8px}
+#pTerminal .u-plein .u-sortie{display:flex}
+.u-sortie .sp{flex:1}
+.u-sortie kbd{font-family:var(--font-ui);font-size:11px;
+  border:1px solid var(--outline-var);border-radius:5px;padding:1px 6px;
+  color:var(--muted)}
+
+/* `/clear` est gardée, mais SÉPARÉE — comme « Autoriser toujours » dans la
+   demande d'accord. Elle n'est pas interdite, elle est distinguée, parce
+   qu'elle engage plus que ses voisines. */
+.u-sep{height:1px;background:var(--outline-var);opacity:.7;margin:12px 2px}
+
 /* ── Passe de design du 2026-08-09 ────────────────────────────────────────
    Le fond de l'affaire, en une phrase : UN DESSIN DE TERMINAL ET UN
    TERMINAL NE SE DESSINENT PAS PAREIL. Tant que l'écran était une image,
@@ -844,7 +901,10 @@
     <div class="panel" id="pTerminal">
       <div class="topbar"><span class="title">Terminal CLI</span>
         <span class="sep"></span>
-        <span class="tmeta">Hermès en ligne de commande</span></div>
+        <span class="tmeta">Hermès en ligne de commande</span>
+        <!-- Les deux replis et le plein écran. Rempli par drawTerm() : les
+             deux .tgrp de #tside viennent s'y loger une fois écrits. -->
+        <span class="u-outils" id="tOutils"></span></div>
       <div class="term">
         <div class="tside" id="tside"></div>
         <div class="tmain" id="tmain"></div>
