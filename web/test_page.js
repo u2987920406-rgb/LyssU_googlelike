@@ -504,33 +504,52 @@ async function main(){
     && /dossier en attente/.test(lieu().textContent),
     lieu().textContent.trim().slice(0, 40));
 
-  // La session dit enfin où elle travaille.
-  win.eval('conv.info = Object.assign(conv.info || {}, { cwd: "D:/Atelier" });'
-    + " paintHint();");
-  await wait(40);
-  const dmdLieu = FakeWS.sent.map((s) => JSON.parse(s.trim()))
-    .find((m) => m.method === "projects.for_cwd");
-  check("Lieu · le projet du dossier est demandé à Hermès",
-    !!dmdLieu && dmdLieu.params.cwd === "D:/Atelier",
-    dmdLieu ? JSON.stringify(dmdLieu.params) : "aucun appel");
+  /* ⚠ LA SESSION DIT ELLE-MÊME OÙ ELLE EST, ET DANS QUEL PROJET.
+     Relevé sur Hermès en marche le 2026-08-09 : `info` porte `cwd` ET
+     `project` — `{id, slug, name, primary_path}`, ou `null` hors de tout
+     projet. On ne demande donc rien à `projects.for_cwd` : une session ne
+     peut pas se tromper sur elle-même, et cet appel-là, si (voir plus bas).
 
-  /* ⚠ LE PIÈGE MESURÉ SUR HERMÈS EN MARCHE. `projects.for_cwd` ne dit pas
-     « je ne sais pas » : pour un dossier inconnu il REMPLACE silencieusement
-     la demande par le dossier courant du serveur et répond sur celui-là.
-     Il rend le `cwd` sur lequel il a répondu — on le compare, et on jette la
-     réponse si elle porte sur autre chose. Sans ça, la gélule dirait « vous
-     êtes dans Desktop » d'un fil qui travaille ailleurs. */
-  FakeWS.last.push({ jsonrpc: "2.0", id: dmdLieu && dmdLieu.id, result: {
-    project: { id: "p9", name: "Un tout autre projet", color: "#9334E6", icon: "doc" },
-    cwd: "C:/ailleurs/completement", branch: null } });
-  await wait(60);
-  check("Lieu · une réponse qui porte sur un AUTRE dossier est jetée",
-    !/Un tout autre projet/.test(lieu().textContent),
-    lieu().textContent.trim().slice(0, 60));
-  check("Lieu · ...et le dossier est alors montré pour ce qu'il est : un dossier",
-    !!lieu().querySelector(".l-lieu.dossier")
-    && /Atelier/.test(lieu().textContent),
+     Le fixture porte la forme RÉELLE. Un faux qui ne ment pas comme le vrai
+     ne prouve rien : ce projet l'a payé trois fois. */
+  win.eval('conv.info = Object.assign(conv.info || {}, { cwd: "D:/Atelier",'
+    + " project: null }); paintHint();");
+  await wait(40);
+  check("Lieu · hors de tout projet, le dossier est montré pour ce qu'il est",
+    !!lieu().querySelector(".l-lieu.dossier") && /Atelier/.test(lieu().textContent),
     lieu().querySelector(".l-lieu") ? lieu().querySelector(".l-lieu").className : "aucune");
+
+  // ⚠ ON NE DOIT RIEN DEMANDER À `projects.for_cwd` : pour un dossier qu'il
+  //   ne trouve pas, il remplace silencieusement la demande par le dossier
+  //   courant du serveur et répond sur celui-là (mesuré). La session, elle,
+  //   ne peut pas se tromper sur elle-même.
+  check("Lieu · ...et « for_cwd » n'est PAS appelé — la session sait déjà",
+    !FakeWS.sent.map((s) => JSON.parse(s.trim()))
+      .some((m) => m.method === "projects.for_cwd"));
+
+  // Le fil appartient à un projet : la session le dit, la gélule le porte.
+  win.eval('conv.info = Object.assign(conv.info || {}, { cwd: "D:/Atelier",'
+    + ' project: { id: "p7", slug: "atelier", name: "Atelier de poterie",'
+    + ' primary_path: "D:/Atelier" } }); paintHint();');
+  await wait(40);
+  check("Lieu · le projet vient de la session, pas d'un appel de plus",
+    !!lieu().querySelector(".l-lieu.projet")
+    && /Atelier de poterie/.test(lieu().textContent),
+    lieu().textContent.trim().slice(0, 50));
+
+  // La couleur, elle, n'est pas dans `info` : elle vient de `projects.list`,
+  // lu une fois. Une couleur qui manque ne cache rien — le nom est déjà là.
+  const dmdCoul = FakeWS.sent.map((s) => JSON.parse(s.trim()))
+    .find((m) => m.method === "projects.list");
+  check("Lieu · la couleur est demandée à part, et n'empêche rien d'afficher",
+    !!dmdCoul, "appels : " + FakeWS.sent.map((s) => JSON.parse(s.trim()).method).join(","));
+  FakeWS.last.push({ jsonrpc: "2.0", id: dmdCoul && dmdCoul.id, result: {
+    projects: [{ id: "p7", name: "Atelier de poterie", color: "#9334E6", icon: "doc" }],
+    active_id: null } });
+  await wait(60);
+  check("Lieu · ...et quand elle arrive, la pastille la porte",
+    /#9334E6/.test(lieu().innerHTML),
+    lieu().innerHTML.slice(0, 120));
 
   /* ⚠ LE CAS QUE PERSONNE N'AVAIT VU, et il ne demande aucun appel :
      `CFG.SESSION_CWD` est le dossier de la PROCHAINE session, `conv.info.cwd`
@@ -557,6 +576,28 @@ async function main(){
     win.eval("CFG.SESSION_CWD") === "D:/Atelier"
     && !lieu().querySelector(".l-lieu.change"),
     win.eval("CFG.SESSION_CWD"));
+
+  /* ⚠ EN MODE CHAT, IL N'Y A PAS DE LIEU. Ce mode n'ouvre AUCUNE session
+     Hermès — le modèle répond, il n'agit pas. `conv.info.cwd` ne viendra
+     jamais, et « dossier en attente » annoncerait indéfiniment quelque chose
+     qui n'arrive pas.
+
+     Signalé par kuchu le 2026-08-09, capture à l'appui : la gélule était
+     restée en attente sur un écran où rien ne pouvait l'ouvrir. Le défaut
+     est passé parce que ce test n'existait pas. */
+  const modeAvant = win.eval("mode");
+  win.eval('mode = "pur"; paintHint();');
+  await wait(40);
+  check("Lieu · en mode Chat, aucune gélule — rien n'y travaille",
+    !lieu().querySelector(".l-lieu"),
+    lieu().textContent.trim().slice(0, 50) || "vide");
+  check("Lieu · ...et surtout pas « en attente », qui promettrait un dossier",
+    !/en attente/.test(lieu().textContent));
+  win.eval('mode = "' + modeAvant + '"; paintHint();');
+  await wait(40);
+  check("Lieu · elle revient dès qu'on repasse en Cowork",
+    !!lieu().querySelector(".l-lieu"),
+    lieu().textContent.trim().slice(0, 40));
   check("le mot-marque se fond pour laisser la place",
     win.getComputedStyle(win.document.querySelector("#pDiscuter .u-marque"))
       .opacity === "0");

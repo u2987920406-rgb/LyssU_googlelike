@@ -160,13 +160,21 @@ créer d'`id` qui leur ressemble) : `gzoom` `doorBtn` `densSeg` `livCrumbs`
 > **`#lieuSlot` est dans le HTML**, vide — la gélule « où ce fil travaille »,
 > à côté de `#privchip`. `majLieu()` y écrit `#lieuBtn` et `#lieuPop`.
 >
-> ⚠ **`projects.for_cwd` NE DIT PAS « je ne sais pas ».** Mesuré sur Hermès en
-> marche le 2026-08-09 : pour un dossier inexistant — ou sans `cwd` du tout —
-> il **remplace silencieusement** la demande par le dossier courant du serveur
-> et répond sur celui-là. Il rend heureusement le `cwd` sur lequel il a
-> répondu : **on le compare, et on jette la réponse si elle porte sur autre
-> chose.** Sans cette comparaison, la gélule dirait « vous êtes dans tel
-> projet » d'un fil qui travaille ailleurs.
+> **Le lieu vient de la SESSION, pas d'un appel.** `conv.info` porte `cwd`
+> **et** `project` (`{id, slug, name, primary_path}`, ou `null` hors de tout
+> projet). Une session ne peut pas se tromper sur elle-même. Seule la
+> **couleur** manque : elle vient de `projects.list`, lu une fois — et une
+> couleur qui manque ne cache rien, le nom est déjà là.
+>
+> ⚠ **N'appelez pas `projects.for_cwd` pour ça.** Mesuré sur Hermès en marche
+> le 2026-08-09 : pour un dossier inexistant — ou sans `cwd` du tout — il
+> **remplace silencieusement** la demande par le dossier courant du serveur et
+> répond sur celui-là. Il dirait « vous êtes dans tel projet » d'un fil qui
+> travaille ailleurs. Le piège reste épinglé dans `test_reel.py`.
+>
+> ⚠ **En mode Chat, PAS de gélule.** Ce mode n'ouvre aucune session : `cwd` ne
+> viendra jamais, et « dossier en attente » annoncerait indéfiniment un dossier
+> qui n'arrive pas. Signalé par kuchu, capture à l'appui.
 >
 > ⚠ **`CFG.SESSION_CWD` n'est PAS `conv.info.cwd`.** Le premier est le dossier
 > de la **prochaine** session, le second celui de la session **en cours**. Leur

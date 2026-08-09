@@ -287,6 +287,25 @@ def main():
     if isinstance(res.get("info"), dict):
         note("info : " + ", ".join(cles(res["info"]))[:160])
 
+    # ⚠ CE SUR QUOI REPOSE LA GÉLULE DU LIEU.
+    #
+    # La session dit ELLE-MÊME où elle travaille et dans quel projet elle est.
+    # C'est ce qui permet de ne PAS appeler `projects.for_cwd`, dont on a
+    # mesuré qu'il répond parfois sur un autre dossier que celui demandé.
+    # Une session ne peut pas se tromper sur elle-même.
+    #
+    # Si ces deux champs disparaissaient, la gélule dirait « dossier en
+    # attente » pour toujours — et il faudrait revenir à `for_cwd`, avec sa
+    # comparaison. Mieux vaut que ce test tombe.
+    info = res.get("info") if isinstance(res.get("info"), dict) else {}
+    check("« info » porte « cwd » : le fil sait où il travaille",
+          "cwd" in info, cles(info))
+    check("« info » porte « project » : il sait AUSSI dans quel projet",
+          "project" in info, cles(info))
+    note("cwd = %s · project = %s"
+         % (info.get("cwd"),
+            (info.get("project") or {}).get("name") if info.get("project") else "aucun"))
+
     # --- 3. Un vrai tour d'agent ------------------------------------------
     print("\n── Un tour réel ──")
     try:
@@ -465,7 +484,8 @@ def main():
              len(projets) if isinstance(projets, list) else "?"))
 
     # La question qui pouvait tout arrêter. Elle ne l'arrête pas.
-    # ⚠ LE PIÈGE DE `projects.for_cwd`, mesuré le 2026-08-09.
+    # ⚠ LE PIÈGE DE `projects.for_cwd`, mesuré le 2026-08-09 — ET LA RAISON
+    # POUR LAQUELLE LA PAGE NE S'EN SERT PAS.
     #
     # Il NE DIT PAS « je ne sais pas ». Pour un dossier qui n'existe pas — ou
     # pour aucun `cwd` du tout — il REMPLACE silencieusement la demande par le
@@ -473,11 +493,12 @@ def main():
     # « D:/nulle-part-du-tout », il a rendu le projet du dossier d'Ulysse.
     #
     # Une gélule qui afficherait sa réponse telle quelle dirait « vous êtes
-    # dans tel projet » d'un fil qui travaille ailleurs. Il rend heureusement
-    # le `cwd` sur lequel il a répondu : la page le COMPARE et jette la
-    # réponse si elle porte sur autre chose. Ces vérifications tiennent le
-    # fait — si Hermès se met un jour à refuser franchement, elles tombent et
-    # on saura qu'on peut simplifier.
+    # dans tel projet » d'un fil qui travaille ailleurs.
+    #
+    # La page lit donc `info.project` — la session dit elle-même dans quel
+    # projet elle est, et elle ne peut pas se tromper sur elle-même. Ces
+    # vérifications restent : le piège est réel, et il attend quiconque se
+    # servira de `for_cwd` un jour.
     faux = wsp.rpc("projects.for_cwd", {"cwd": "D:/nulle-part-du-tout-ulysse"}) or {}
     check("« for_cwd » sur un dossier inexistant NE REND PAS ce dossier",
           faux.get("cwd") != "D:/nulle-part-du-tout-ulysse",

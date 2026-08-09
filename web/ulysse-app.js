@@ -1399,44 +1399,71 @@ async function drawLivrables(){
    variables que la page a déjà.
    ─────────────────────────────────────────────────────────────────────── */
 
-/* Ce que `projects.for_cwd` a répondu, par dossier. Un cache, parce que la
-   barre se redessine à chaque frappe et que la réponse, elle, ne bouge pas. */
-const LIEU_CONNU = new Map();
-
 function memeChemin(a, b){
   const n = (x) => String(x || "").replace(/[\\/]+$/, "").replace(/\\/g, "/").toLowerCase();
   return n(a) === n(b);
 }
 
-/* ⚠ `projects.for_cwd` NE DIT PAS « je ne sais pas ». Mesuré sur Hermès en
-   marche le 2026-08-09 : pour un dossier qui n'existe pas — ou pour aucun
-   `cwd` du tout — il REMPLACE silencieusement la demande par le dossier
-   courant du serveur, et répond sur celui-là. Interrogé sur
-   « D:/nulle-part-du-tout », il a rendu le projet du dossier d'Ulysse.
+/* ⚠ ON N'APPELLE PAS `projects.for_cwd`, ET C'EST VOULU.
+   La passe de design était bâtie autour de lui. Deux mesures contre Hermès en
+   marche l'ont écarté, dans cet ordre :
 
-   Il rend heureusement le `cwd` sur lequel il a répondu. On le compare donc
-   à celui qu'on a demandé, et on jette la réponse si elle porte sur autre
-   chose. Sans cette comparaison, la gélule dirait « vous êtes dans Desktop »
-   d'un fil qui travaille ailleurs — le mensonge exact que cet écran existe
-   pour empêcher. */
-async function lieuDe(chemin){
-  if (!chemin) return null;
-  if (LIEU_CONNU.has(chemin)) return LIEU_CONNU.get(chemin);
-  if (link.state !== "open") return null;
-  let rep = null;
+   1. Il NE DIT PAS « je ne sais pas ». Pour un dossier qu'il ne trouve pas —
+      ou sans `cwd` du tout — il REMPLACE silencieusement la demande par le
+      dossier courant du serveur et répond sur celui-là. Interrogé sur
+      « D:/nulle-part-du-tout », il a rendu le projet du dossier d'Ulysse.
+      Il fallait donc comparer le `cwd` rendu à celui qu'on avait demandé.
+
+   2. Puis, en vérifiant que `conv.info.cwd` existait vraiment : **`info`
+      porte déjà `project`**. La session dit elle-même dans quel projet elle
+      est — `{id, slug, name, primary_path}`, ou `null` hors de tout projet.
+      Constaté sur trois dossiers.
+
+   Une session ne peut pas se tromper sur elle-même. On lit donc `info`, et
+   l'appel — avec son piège, son cache par chemin et sa comparaison — n'a plus
+   lieu d'être. Le piège reste épinglé dans `test_reel.py` : il est vrai, et
+   il attend quiconque se servira de `for_cwd` un jour.
+
+   Il ne manque que la COULEUR : `info.project` porte l'identité, pas
+   l'apparence. Elle vient de `projects.list`, lu une fois. */
+const PROJ_COULEURS = new Map();
+let projCouleursLues = false;
+
+async function chargerCouleurs(){
+  if (projCouleursLues || link.state !== "open") return;
+  projCouleursLues = true;
   try {
-    const d = await link.rpc("projects.for_cwd", { cwd: chemin });
-    rep = (d && memeChemin(d.cwd, chemin)) ? (d.project || null) : null;
+    const d = await link.rpc("projects.list", {});
+    ((d && d.projects) || []).forEach((p) => {
+      if (p && p.id) PROJ_COULEURS.set(p.id, { color: p.color, icon: p.icon });
+    });
   } catch (e){
-    rep = null;                       // on ne sait pas — on ne dira donc rien
-  }
-  LIEU_CONNU.set(chemin, rep);
-  return rep;
+    projCouleursLues = false;         // on retentera : une couleur n'est pas
+  }                                   // une information, seulement un repère
+}
+
+/* Le projet de CE fil, tel que la session le dit — enrichi de sa couleur si
+   on la connaît. Aucune supposition : pas de projet, pas de gélule colorée. */
+function projetDuFil(){
+  const p = (conv.info && conv.info.project) || null;
+  if (!p || !p.id) return null;
+  const a = PROJ_COULEURS.get(p.id) || {};
+  return { id: p.id, name: p.name, color: a.color || null, icon: a.icon || null };
 }
 
 function geluleLieu(){
   const enCours = (conv.info && conv.info.cwd) || null;
   const prochain = CFG.SESSION_CWD || null;
+
+  /* ⚠ EN MODE CHAT, IL N'Y A PAS DE LIEU — et « en attente » serait un
+     mensonge. Le mode Chat n'ouvre AUCUNE session Hermès : le modèle répond
+     et n'agit pas. `conv.info.cwd` ne viendra donc jamais, et la gélule
+     annoncerait indéfiniment un dossier à venir.
+
+     Signalé par kuchu le 2026-08-09, capture à l'appui. Elle disparaît :
+     un lieu de travail n'a de sens que là où quelque chose travaille — et
+     la ligne sous le champ dit déjà « sans outils ». */
+  if (mode !== "cowork") return "";
 
   // Tant que la session n'est pas ouverte, on ignore où elle ira.
   if (!enCours){
@@ -1444,7 +1471,7 @@ function geluleLieu(){
       + '<span class="ic"></span><span class="nm">dossier en attente</span></button>';
   }
 
-  const p = LIEU_CONNU.get(enCours) || null;
+  const p = projetDuFil();
   const nom = p ? (p.name || nomDeChemin(enCours)) : nomDeChemin(enCours);
   const ic = p && p.color
     ? '<span class="ic" style="background:' + esc(p.color) + '">'
@@ -1486,7 +1513,7 @@ function repliLieu(){
       + "Ouvrir un fil là-bas</button>"
       + '<button class="quiet-link" data-lieu="annuler">Rester ici</button></div></div>';
   }
-  const p = LIEU_CONNU.get(enCours) || null;
+  const p = projetDuFil();
   return '<div class="pop l-pop" id="lieuPop">'
     + '<div class="tt">' + (p
         ? "Ce fil appartient à un projet. Ce qu’Ulysse y écrit reste dans son dossier."
@@ -1502,7 +1529,9 @@ function repliLieu(){
 function majLieu(){
   const hote = $("lieuSlot");
   if (!hote) return;
-  H("lieuSlot", geluleLieu() + repliLieu());
+  const g = geluleLieu();
+  if (!g){ H("lieuSlot", ""); return; }   // mode Chat : pas de lieu du tout
+  H("lieuSlot", g + repliLieu());
   const pop = $("lieuPop"), bouton = $("lieuBtn");
   if (bouton) bouton.onclick = (e) => {
     e.stopPropagation();
@@ -1527,12 +1556,12 @@ function majLieu(){
     };
   });
 
-  // L'appel part APRÈS le dessin : la barre ne doit pas attendre le réseau.
-  // Quand la réponse arrive, on redessine — et seulement si elle apprend
-  // quelque chose, sinon on repeindrait la barre à chaque frappe.
-  const enCours = (conv.info && conv.info.cwd) || null;
-  if (enCours && !LIEU_CONNU.has(enCours)){
-    lieuDe(enCours).then(() => { if (current === "Discuter") majLieu(); });
+  // Les couleurs arrivent APRÈS le dessin : la barre ne doit pas attendre le
+  // réseau pour dire où l'on est. Le nom, lui, est déjà là — il vient de la
+  // session. Une couleur qui manque ne cache rien, elle ne décore pas.
+  const p = (conv.info && conv.info.project) || null;
+  if (p && p.id && !PROJ_COULEURS.has(p.id) && !projCouleursLues){
+    chargerCouleurs().then(() => { if (current === "Discuter") majLieu(); });
   }
 }
 
