@@ -13,7 +13,7 @@
   (tout le visuel) et ce qui porte la logique (88 `id`, 25 `data-*`, les
   cinq classes d'état). Décidé le 2026-08-08 : le design en dialogue ici prenait
   trop de temps.
-- **Ce qu'on fait au retour** : `cd web && node test_page.js`. 259 vérifications
+- **Ce qu'on fait au retour** : `cd web && node test_page.js`. 263 vérifications
   sur la vraie page dans un DOM réel. **S'il passe au rouge, ce n'est pas le
   test qui a tort** — un `id` ou un `data-*` du contrat a disparu, et le
   contrat dit lequel. Ne jamais adapter `ulysse-core.js` pour faire passer un
@@ -36,8 +36,8 @@ dictée, terminal intégré, 4 suites de tests dont une contre le VRAI Hermès.
 Au 2026-08-08 au soir : elle est **côté Cowork**. Les six réparations ET les
 cinq passes de design sont appliquées.
 
-1. kuchu revient de Cowork → `node test_page.js` (**259** vérifications ;
-   les quatre suites font **494** : 259 page · 96 serveur · 39 réel · 100 personas)
+1. kuchu revient de Cowork → `node test_page.js` (**263** vérifications ;
+   les quatre suites font **498** : 263 page · 96 serveur · 39 réel · 100 personas)
 2. ~~Appliquer les cinq passes~~ — **FAIT le 2026-08-08** : la passe
    d'accord, les trois décisions, et le style des cinq panneaux.
    La dette des Repères est éteinte (43 signes sur 43).

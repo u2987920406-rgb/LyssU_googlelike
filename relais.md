@@ -15,9 +15,9 @@
 | | |
 |---|---|
 | Plein écran : le « … » qui prenait de la place | **retiré** |
-| Plein écran : comment revenir | **dit à l'écran**, plus seulement Échap |
+| Plein écran : comment revenir | **la touche `Échap` est devenue le bouton** |
 | « Copier hermès » | **devenu « Ouvrir une console Hermès », et il ouvre** |
-| Vérifications | **494** au vert (259 page · 96 serveur · 39 réel · 100 personas) |
+| Vérifications | **498** au vert (263 page · 96 serveur · 39 réel · 100 personas) |
 | Défauts trouvés | **quatre** |
 
 ---
@@ -38,6 +38,25 @@ lancement, le coût, les tâches, les replis.
 
 **La phrase de retour est dans la ligne de sortie elle-même**, pas ailleurs :
 c'est le seul endroit dont on est sûr qu'il reste visible.
+
+### Puis kuchu a retiré un élément de plus, et il avait raison
+
+Il restait un bouton large « Quitter le plein écran » **et**, à côté, la
+mention `Échap` : deux commandes pour un seul geste, et la large prenait
+justement la place qu'on vient chercher en plein écran.
+
+**La touche EST le bouton maintenant.** Survolée, elle déplie sa phrase ;
+cliquée, elle agit. Deux choix qui vous concernent :
+
+- **Elle est cliquable.** Une touche qui n'informerait que — le bouton étant
+  supprimé — serait un décor, et STU-1 interdit d'afficher une commande qui
+  n'agit pas.
+- **La phrase reste dans le DOM**, avec un `aria-label` permanent. Elle n'est
+  cachée qu'à l'œil : personne ne survole au lecteur d'écran ni au clavier.
+  ⚠ **Ne la remplacez pas par `display:none`.**
+
+Elle se déplie (`max-width`) plutôt qu'elle n'apparaît, pour que la ligne ne
+saute pas — et la transition est coupée sous `prefers-reduced-motion`.
 
 ---
 
