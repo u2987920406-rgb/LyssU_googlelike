@@ -115,7 +115,7 @@ en avait le moins besoin.
 **Les autres panneaux** — `works` `livrables` `projets` `autos`
 `vgrid` `vdet` `vmeta` `vseg` `vq` `icSearch` `setnav` `setbody`
 `tside` `tmain` `glossary`
-et leurs boutons : `travRefresh` `livRefresh` `projRefresh` `autoRefresh` `newProj`
+et leurs boutons : `travRefresh` `livRefresh` `projRefresh` `autoRefresh` `newProj` `trashBtn`
 
 **Le flottant** — `npanel` `toasts` `snack` `sNode` `ficheBody` `sFile`
 `fileBody` `sEcrire` `ecrireBody` `sProjet` `projetBody`
@@ -151,6 +151,20 @@ créer d'`id` qui leur ressemble) : `gzoom` `doorBtn` `densSeg` `livCrumbs`
 > ou « archiver » afficherait une commande qui n'agit pas.
 > **Trois apparences, pas une étiquette sur trois cartes identiques.**
 >
+> **`#trashBtn` est dans le HTML**, vide — « **Archivés** », jamais
+> « Corbeille » : `archive` pose un drapeau, `restore` le retire, et **rien
+> n'expire** (`projects_db.py:570`). « Trente jours » serait une promesse
+> qu'Hermès ne tient pas, et « corbeille » en suggère une même sans la nommer.
+>
+> ⚠ **`projects.tree` MASQUE les archivés** (`project_tree.py:569`) ; seule
+> `projects.list` les rend, avec leur drapeau `archived`. Le panneau appelle
+> donc les deux.
+>
+> ⚠ **Archiver n'existe que sur un VRAI projet** — un dossier déduit n'a pas
+> d'identifiant à archiver. Et **« Supprimer définitivement » n'existe que
+> depuis les Archivés**, après un premier geste, avec une seconde demande :
+> `projects.delete` est définitif et en cascade.
+
 > **`#newProj` est dans le HTML**, vide — « Ranger un dossier en projet »,
 > dans la barre des Projets. Il ouvre le choix de dossier, qui réemploie le
 > navigateur des Livrables (mêmes `.row`, même fil d'Ariane). Les fichiers y

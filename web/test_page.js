@@ -549,8 +549,11 @@ async function main(){
 
   // La couleur, elle, n'est pas dans `info` : elle vient de `projects.list`,
   // lu une fois. Une couleur qui manque ne cache rien — le nom est déjà là.
+  // ⚠ Le DERNIER, pas le premier : un `projects.list` part déjà au démarrage
+  //   (la boucle qui visite les dix panneaux appelle `drawProjets`). Répondre
+  //   au premier envoyait la réponse à un appel déjà oublié.
   const dmdCoul = FakeWS.sent.map((s) => JSON.parse(s.trim()))
-    .find((m) => m.method === "projects.list");
+    .filter((m) => m.method === "projects.list").pop();
   check("Lieu · la couleur est demandée à part, et n'empêche rien d'afficher",
     !!dmdCoul, "appels : " + FakeWS.sent.map((s) => JSON.parse(s.trim()).method).join(","));
   FakeWS.last.push({ jsonrpc: "2.0", id: dmdCoul && dmdCoul.id, result: {
@@ -634,6 +637,12 @@ async function main(){
   await wait(40);
 
   win.eval('nav("Projets")');
+  await wait(60);
+  // Les archivés d'abord : sans cette réponse, l'arbre ne part jamais.
+  const arch2 = FakeWS.sent.map((s) => JSON.parse(s.trim()))
+    .filter((m) => m.method === "projects.list").pop();
+  FakeWS.last.push({ jsonrpc: "2.0", id: arch2 && arch2.id,
+    result: { projects: [], active_id: null } });
   await wait(60);
   const dmd2 = FakeWS.sent.map((s) => JSON.parse(s.trim()))
     .filter((m) => m.method === "projects.tree").pop();
@@ -1059,8 +1068,23 @@ async function main(){
      déjà coûté trois fois à ce projet. */
   win.eval('nav("Projets")');
   await wait(80);
+  /* Le panneau demande d'abord `projects.list` — c'est la SEULE liste qui
+     rende les archivés (`projects.tree` les masque, `project_tree.py:569`).
+     Sans réponse ici, l'arbre ne part jamais. */
+  const dmdArch = FakeWS.sent.map((s) => JSON.parse(s.trim()))
+    .filter((m) => m.method === "projects.list").pop();
+  check("Projets · les archivés sont demandés à « projects.list »", !!dmdArch,
+    JSON.stringify(FakeWS.sent.map((s) => JSON.parse(s.trim()).method)));
+  FakeWS.last.push({ jsonrpc: "2.0", id: dmdArch && dmdArch.id, result: {
+    projects: [
+      { id: "p1", name: "Migration des factures", color: "#9334E6", icon: "doc",
+        primary_path: "D:/Fact", archived: false },
+      { id: "pz", name: "Essai de janvier", color: "#9AA0A6", icon: "dossier",
+        primary_path: "D:/Essai", archived: true }
+    ], active_id: null } });
+  await wait(80);
   const dmd = FakeWS.sent.map((s) => JSON.parse(s.trim()))
-    .find((m) => m.method === "projects.tree");
+    .filter((m) => m.method === "projects.tree").pop();
   check("Projets · la liste est demandée à « projects.tree », pas déduite",
     !!dmd, JSON.stringify(FakeWS.sent.map((s) => JSON.parse(s.trim()).method)));
   FakeWS.last.push({ jsonrpc: "2.0", id: dmd && dmd.id, result: { projects: [
@@ -1112,10 +1136,112 @@ async function main(){
   // La mémoire n'est PAS cloisonnée par projet. On ne l'affiche pas comme
   // promesse — et on ne se tait pas non plus : le silence laisserait croire
   // ce que la phrase de la maquette disait.
+  /* ── ARCHIVER, ET NON « METTRE À LA CORBEILLE » ─────────────────────────
+     `archive` pose un drapeau, `restore` le retire, et RIEN N'EXPIRE : le
+     drapeau est posé à un seul endroit et retiré à un seul autre, aucune
+     tâche ne purge. « Trente jours » aurait été une promesse qu'Hermès ne
+     tient pas, et « corbeille » en suggère une même sans la nommer. */
+  const barreArch = win.document.getElementById("trashBtn");
+  check("Archiver · la barre dit « Archivés », jamais « Corbeille »",
+    !!barreArch && /Archivés/.test(barreArch.textContent)
+    && !/[Cc]orbeille/.test(barreArch.textContent),
+    barreArch ? barreArch.textContent.trim() : "absent");
+  check("Archiver · ...et elle compte ceux qu'il y a, sans afficher un zéro",
+    /· 1/.test(barreArch.textContent), barreArch.textContent.trim());
+
+  // ⚠ Archiver n'existe QUE sur un vrai projet : un dossier déduit n'a pas
+  //   d'identifiant à archiver, et « Home » n'est pas un projet.
+  check("Archiver · le vrai projet peut être archivé",
+    !!vraie && !!vraie.querySelector("[data-arch-id]"));
+  check("Archiver · ...et le dossier déduit, NON — il n'a rien à archiver",
+    !!deduite && !deduite.querySelector("[data-arch-id]"));
+
+  vraie.querySelector("[data-arch-id]").click();
+  await wait(60);
+  const vueArch = win.document.getElementById("projetBody");
+  check("Archiver · on demande avant, et on dit les trois choses",
+    /revient quand vous voulez/.test(vueArch.textContent)
+    && /dossier n’est pas touché/.test(vueArch.textContent)
+    && /restent dans Travaux/.test(vueArch.textContent),
+    vueArch.textContent.slice(0, 70));
+  check("Archiver · ...et on promet « sans limite de temps », pas trente jours",
+    /sans limite de temps/i.test(vueArch.textContent.replace(/\s+/g, " "))
+    && !/30 jours|trente jours/i.test(vueArch.textContent),
+    vueArch.textContent.replace(/\s+/g, " ").slice(0, 90));
+  vueArch.querySelector('[data-ja="oui"]').click();
+  await wait(60);
+  const appelArch = FakeWS.sent.map((s) => JSON.parse(s.trim()))
+    .filter((m) => m.method === "projects.archive").pop();
+  check("Archiver · l'appel part sur l'identifiant du projet, sans « restore »",
+    !!appelArch && appelArch.params.id === "p1" && !appelArch.params.restore,
+    appelArch ? JSON.stringify(appelArch.params) : "aucun appel");
+  win.eval("fermerProjet()");
+
   check("Projets · la note dit que la mémoire N'EST PAS cloisonnée",
     /commun à tous/.test(proj.textContent)
     && !/n'en sort jamais/.test(proj.textContent),
     proj.textContent.slice(0, 60));
+
+  /* ── LA VUE DES ARCHIVÉS ────────────────────────────────────────────────
+     `projects.tree` les masque (`project_tree.py:569`) ; seule
+     `projects.list` les rend, avec leur drapeau. */
+  barreArch.click();
+  await wait(60);
+  const listeArch = FakeWS.sent.map((s) => JSON.parse(s.trim()))
+    .filter((m) => m.method === "projects.list").pop();
+  FakeWS.last.push({ jsonrpc: "2.0", id: listeArch && listeArch.id, result: {
+    projects: [{ id: "pz", name: "Essai de janvier", color: "#9AA0A6",
+                 icon: "dossier", primary_path: "D:/Essai", archived: true }],
+    active_id: null } });
+  await wait(120);
+  const vueA = win.document.getElementById("projets");
+  check("Archivés · la vue montre le projet archivé, barré",
+    !!vueA.querySelector(".pcard.gone") && /Essai de janvier/.test(vueA.textContent),
+    vueA.textContent.slice(0, 60));
+  check("Archivés · ...et redit que le dossier n'a jamais été touché",
+    /dossier n’a jamais été touché/.test(vueA.textContent));
+  // On ne range rien depuis les archivés : le bouton s'efface.
+  check("Archivés · « Ranger un dossier » disparaît, on n'y range rien",
+    win.document.getElementById("newProj").style.display === "none");
+
+  // Remettre : le MÊME appel, dans l'autre sens.
+  vueA.querySelector('[data-arch-a="remettre"]').click();
+  await wait(60);
+  const remis = FakeWS.sent.map((s) => JSON.parse(s.trim()))
+    .filter((m) => m.method === "projects.archive").pop();
+  check("Archivés · « Remettre » est le même appel avec « restore »",
+    !!remis && remis.params.id === "pz" && remis.params.restore === true,
+    remis ? JSON.stringify(remis.params) : "aucun appel");
+
+  // ⚠ Supprimer est DÉFINITIF et en cascade. On ne le propose que depuis les
+  //   archivés — après un premier geste — et on redemande.
+  FakeWS.last.push({ jsonrpc: "2.0", id: remis && remis.id, result: {} });
+  await wait(60);
+  const listeA2 = FakeWS.sent.map((s) => JSON.parse(s.trim()))
+    .filter((m) => m.method === "projects.list").pop();
+  FakeWS.last.push({ jsonrpc: "2.0", id: listeA2 && listeA2.id, result: {
+    projects: [{ id: "pz", name: "Essai de janvier", color: "#9AA0A6",
+                 icon: "dossier", primary_path: "D:/Essai", archived: true }],
+    active_id: null } });
+  await wait(120);
+  const purger = win.document.querySelector('#projets [data-arch-a="purger"]');
+  check("Archivés · « Supprimer définitivement » n'existe QUE là", !!purger);
+  purger.click();
+  await wait(60);
+  const vueSup = win.document.getElementById("projetBody");
+  check("Archivés · ...et on redemande, en disant que ça ne se défait pas",
+    /ne revient pas/.test(vueSup.textContent)
+    && /Archiver se défait/.test(vueSup.textContent),
+    vueSup.textContent.slice(0, 70));
+  check("Archivés · ...et on redit que le dossier n'est pas touché",
+    /dossier n’est toujours pas touché/.test(vueSup.textContent));
+  const avantSup = FakeWS.sent.length;
+  vueSup.querySelector('[data-ja="non"]').click();
+  await wait(40);
+  check("Archivés · « Annuler » ne supprime rien du tout",
+    !FakeWS.sent.slice(avantSup).map((s) => JSON.parse(s.trim()))
+      .some((m) => m.method === "projects.delete"));
+  win.eval("projArchives = false;");
 
   /* ── RANGER UN DOSSIER EN PROJET ────────────────────────────────────────
      `projects.create` n'écrit RIEN sur le disque : il désigne un dossier qui

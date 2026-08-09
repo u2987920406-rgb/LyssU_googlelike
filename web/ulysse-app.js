@@ -1631,8 +1631,15 @@ function carteProjetVrai(p){
     + '<span class="chip">' + n + " session" + (n > 1 ? "s" : "") + "</span>"
     + '<span class="sp"></span>'
     + '<span class="meta">' + esc(fmtWhen(p.lastActive)) + "</span>"
-    + acts([{ a: "regler", ic: "regler", t: "Régler la mémoire et les accords" },
-            { a: "chemin", ic: "copier", t: "Copier le chemin du dossier" }])
+    // Trois actions, et « archiver » n'existe QUE sur un vrai projet : un
+    // dossier déduit n'a pas d'identifiant à archiver.
+    + '<div class="acts">'
+    + '<button data-a="regler" title="Régler la mémoire et les accords">'
+    + svg("regler", { size: 19 }) + "</button>"
+    + '<button data-a="chemin" title="Copier le chemin du dossier">'
+    + svg("copier", { size: 19 }) + "</button>"
+    + '<button data-arch-id="' + esc(p.id || "") + '" title="Archiver ce projet">'
+    + svg("boucle", { size: 19 }) + "</button></div>"
     + "</div>"
     + '<div class="iso">'
     + "<span>" + svg("bac", { size: 17 }) + " "
@@ -1902,6 +1909,104 @@ async function ouvrirRanger(chemin){
   brancher();
 }
 
+/* ── Archiver, et non « mettre à la corbeille » ──────────────────────────
+   ⚠ `archive` pose un drapeau, `restore` le retire, et **RIEN N'EXPIRE** :
+   le drapeau est posé à un seul endroit et retiré à un seul autre, aucune
+   tâche ne purge (`projects_db.py:570`). « Trente jours » aurait donc été une
+   promesse qu'Hermès ne tient pas — et « corbeille » suggère une échéance
+   même sans la nommer.
+
+   `projects.tree` masque les archivés (`project_tree.py:569`) ;
+   `projects.list` les rend tous, avec leur drapeau. C'est donc `list` qui
+   sert ici, et `tree` pour la liste ordinaire. */
+let projArchives = false;
+
+/* La barre du panneau. Le compte n'est affiché QUE s'il y en a : « Archivés
+   · 0 » se lit comme un chiffre qu'on aurait oublié de retirer. Et
+   « Ranger » disparaît dans la vue des archivés — on n'y range rien. */
+function majBarreProjets(combien){
+  const t = $("trashBtn");
+  if (t){
+    H("trashBtn", svg("boucle", { size: 18 }) + " Archivés"
+      + (combien ? " · " + combien : ""));
+    t.classList.toggle("on", projArchives);
+  }
+  const n = $("newProj");
+  if (n) n.style.display = projArchives ? "none" : "";
+}
+
+function feuilleArchiver(p){
+  feuilleProjet("Archiver « " + p.name + " » ?",
+    '<div class="j-trois" style="margin-top:14px">'
+    + ligneTrois("boucle", "Il sort de la liste",
+        "Et il revient quand vous voulez, depuis les Archivés. Sans limite de "
+        + "temps : rien n’expire.")
+    + ligneTrois("dossier", "Votre dossier n’est pas touché",
+        (p.primary_path || "Le dossier") + " reste exactement comme il est. "
+        + "Ulysse ne supprime aucun de vos fichiers.")
+    + ligneTrois("chat", "Les conversations restent dans Travaux",
+        "Elles perdent leur rattachement au projet, pas leur contenu.")
+    + "</div>"
+    + '<div class="j-acts">'
+    + '<button class="validate" data-ja="oui">Archiver</button>'
+    + '<span class="sp"></span>'
+    + '<button class="txt-btn" data-ja="non">Annuler</button></div>');
+  brancherArchive(p, "archive");
+}
+
+/* Supprimer est DÉFINITIF et en cascade (`delete_project`). On ne le propose
+   que depuis les Archivés — après un premier geste, donc — et on redemande. */
+function feuilleSupprimer(p){
+  feuilleProjet("Supprimer « " + p.name + " » définitivement ?",
+    '<div class="j-trois" style="margin-top:14px">'
+    + ligneTrois("alerte", "Celui-là ne revient pas",
+        "Son nom, sa couleur et ses dossiers sont effacés de la base d’Hermès. "
+        + "Archiver se défait ; ceci, non.")
+    + ligneTrois("dossier", "Votre dossier n’est toujours pas touché",
+        (p.primary_path || "Le dossier") + " reste exactement comme il est.")
+    + ligneTrois("chat", "Les conversations restent dans Travaux",
+        "Elles ne sont rattachées à plus rien, c’est tout.")
+    + "</div>"
+    + '<div class="j-acts">'
+    + '<button class="dangerlink" data-ja="oui">Supprimer définitivement</button>'
+    + '<span class="sp"></span>'
+    + '<button class="txt-btn" data-ja="non">Annuler</button></div>');
+  brancherArchive(p, "delete");
+}
+
+function brancherArchive(p, quoi){
+  $("projetBody").querySelectorAll("[data-ja]").forEach((b) => {
+    b.onclick = async () => {
+      if (b.dataset.ja === "non") return fermerProjet();
+      b.disabled = true;
+      try {
+        if (quoi === "archive") await link.rpc("projects.archive", { id: p.id });
+        else await link.rpc("projects.delete", { id: p.id });
+        fermerProjet();
+        snack(quoi === "archive"
+          ? "« " + p.name + " » est archivé. Votre dossier n’a pas bougé."
+          : "« " + p.name + " » est supprimé. Votre dossier n’a pas bougé.");
+        drawProjets();
+      } catch (e){
+        snack("Hermès a refusé : " + String(e.message).slice(0, 140));
+        b.disabled = false;
+      }
+    };
+  });
+}
+
+async function remettreProjet(p){
+  try {
+    // Le MÊME appel, avec `restore` : le retour en arrière n'est pas une
+    // autre route, c'est la même dans l'autre sens.
+    await link.rpc("projects.archive", { id: p.id, restore: true });
+    snack("« " + p.name + " » est de retour dans la liste.");
+    drawProjets();
+  } catch (e){
+    snack("Hermès a refusé : " + String(e.message).slice(0, 140));
+  }
+}
+
 async function rangerEnProjet(chemin, hote, couleur, bouton){
   const champ = hote.querySelector("#jNom");
   const nom = (champ && champ.value || "").trim();
@@ -1946,6 +2051,49 @@ async function drawProjets(){
       };
       link.onState(repasser);
     }
+    return;
+  }
+
+  // Les archivés : `projects.tree` ne les montre pas, `projects.list` si.
+  let archives = [];
+  try {
+    archives = (((await link.rpc("projects.list", {})) || {}).projects || [])
+      .filter((p) => p && p.archived);
+  } catch (e){
+    archives = [];                    // on ne sait pas : on n'annoncera aucun
+  }                                   // compte plutôt qu'un compte faux
+
+  if (projArchives){
+    H("projets", archives.length
+      ? '<div class="trashnote">' + svg("boucle", { size: 20 })
+        + "<span>Un projet archivé sort de la liste, et <b>rien d’autre</b>. "
+        + "Il revient quand vous voulez, <b>sans limite de temps</b> — et son "
+        + "dossier n’a jamais été touché.</span></div>"
+        + archives.map((p) =>
+            '<div class="pcard gone" data-arch="' + esc(p.id) + '"><div class="top">'
+            + '<span class="j-ic" style="background:' + esc(p.color || "#9AA0A6") + '22;color:'
+            + esc(p.color || "#9AA0A6") + '">' + svg(p.icon || "dossier", { size: 17 })
+            + "</span>"
+            + '<span class="nm">' + esc(p.name) + "</span>"
+            + '<span class="sp"></span>'
+            + '<div class="acts" style="opacity:1">'
+            + '<button class="dangerlink" data-arch-a="purger">Supprimer définitivement</button>'
+            + '<button class="txt-btn" data-arch-a="remettre">Remettre</button></div>'
+            + "</div>"
+            + '<div class="iso"><span>' + svg("bac", { size: 17 }) + " "
+            + esc(p.primary_path || "") + "</span></div></div>").join("")
+      : '<div class="empty"><div class="big">Aucun projet archivé.</div>'
+        + "<div>Un projet archivé se retrouve ici, sans limite de temps.</div></div>");
+    majBarreProjets(archives.length);
+    $("projets").querySelectorAll("[data-arch-a]").forEach((b) => {
+      b.onclick = () => {
+        const carte = b.closest("[data-arch]");
+        const p = archives.find((x) => x.id === carte.dataset.arch);
+        if (!p) return;
+        if (b.dataset.archA === "remettre") return remettreProjet(p);
+        feuilleSupprimer(p);
+      };
+    });
     return;
   }
 
@@ -1998,6 +2146,18 @@ async function drawProjets(){
     });
 
     H("projets", h);
+    majBarreProjets(archives.length);
+
+    // Archiver ne se propose que sur un VRAI projet : un dossier déduit n'a
+    // pas d'identifiant à archiver, et « Home » n'est pas un projet.
+    $("projets").querySelectorAll("[data-arch-id]").forEach((b) => {
+      b.onclick = (ev) => {
+        ev.stopPropagation();
+        const p = vrais.find((x) => x.id === b.dataset.archId);
+        if (p) feuilleArchiver({ id: p.id, name: p.label || nomDeChemin(p.path),
+                                 primary_path: p.path });
+      };
+    });
 
     /* ⚠ « TRAVAILLER ICI » NE FERME PLUS LE FIL OUVERT.
        Il appelait `resetSession()` d'abord — ce qui vide `conv.turns` : la
@@ -4135,6 +4295,7 @@ function boot(){
   H("newProj", svg("plus", { size: 18 }) + " Ranger un dossier en projet");
   $("newProj").onclick = () => feuilleChoisirDossier(
     (conv.info && conv.info.cwd) || "", (neuf) => ouvrirRanger(neuf));
+  $("trashBtn").onclick = () => { projArchives = !projArchives; drawProjets(); };
   $("autoRefresh").onclick = drawAutos;
 
   // Travaux charge 50 sessions, Livrables ouvre des dossiers qui en
