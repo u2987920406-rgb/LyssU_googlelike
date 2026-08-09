@@ -1214,13 +1214,27 @@ async function main(){
     !!(avert.compareDocumentPosition(lancer) & 4),
     "avert " + (avert.compareDocumentPosition(lancer) & 4 ? "avant" : "APRÈS"));
 
-  // 7. Poser une commande, session fermée : le geste est caché, et refuse.
+  // 7. Deux familles, UN SEUL geste chacune. Ce qui les distingue n'est pas
+  //    le geste : c'est où elles s'exécutent. Le mauvais geste ne doit pas
+  //    exister là où il serait faux.
   const poseurs = win.document.querySelectorAll("#tside [data-poser]");
-  check("7 · chaque ligne de l'aide-mémoire porte le second geste",
-    poseurs.length === win.document.querySelectorAll("#tside [data-cmd]").length
-    && poseurs.length > 0, poseurs.length + " poseur(s)");
-  check("7 · session fermée, poser est masqué",
-    gcs(poseurs[0], "display") === "none", gcs(poseurs[0], "display"));
+  const copieurs = win.document.querySelectorAll("#tside .tmemo [data-cmd]");
+  check("7 · les deux familles existent, et chacune n'a qu'un geste",
+    poseurs.length > 0 && copieurs.length > 0
+    && !Array.from(poseurs).some((p) => p.hasAttribute("data-cmd"))
+    && !Array.from(copieurs).some((c) => c.hasAttribute("data-poser")),
+    copieurs.length + " à copier · " + poseurs.length + " à poser");
+  // Une commande shell posée dans l'invite de l'agent partirait comme un
+  // message. La seconde famille ne contient QUE des commandes de la TUI.
+  check("7 · on ne pose que des commandes de la TUI, jamais du shell",
+    Array.from(poseurs).every((p) => p.dataset.poser.startsWith("/")),
+    Array.from(poseurs).map((p) => p.dataset.poser).join(" "));
+  check("7 · ...et la note dit ce que l'invite attend",
+    /attend d'abord une phrase/.test(
+      win.document.querySelector("#tside .u-tui .u-note").textContent));
+  check("7 · session fermée, la famille de la session n'est pas proposée",
+    gcs(win.document.querySelector("#tside .u-tui"), "display") === "none",
+    gcs(win.document.querySelector("#tside .u-tui"), "display"));
   ptyD.envoye.length = 0;
   poseurs[0].click();
   check("7 · ...et cliqué quand même, il refuse au lieu d'envoyer dans le vide",
@@ -1231,6 +1245,9 @@ async function main(){
   // Session ouverte : tout bascule.
   win.document.getElementById("tGo").click();
   await wait(80);
+  check("7 · session ouverte, la famille de la session apparaît",
+    gcs(win.document.querySelector("#tside .u-tui"), "display") !== "none",
+    gcs(win.document.querySelector("#tside .u-tui"), "display"));
   check("le panneau bascule sur un seul état, jamais deux",
     Array.from(panneau.classList).filter((c) => /^u-term-/.test(c)).length === 1
     && panneau.classList.contains("u-term-ouvert"),

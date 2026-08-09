@@ -144,7 +144,23 @@ créer d'`id` qui leur ressemble) : `gzoom` `doorBtn` `densSeg` `livCrumbs`
 | `data-cle` | lignes et cartes | l'identité de la ligne, lue par ses actions |
 | `data-cr` | segments du fil d'Ariane | remonter d'un cran |
 | `data-cmd` | aide-mémoire du Terminal, adresses de webhook | copier |
-| `data-poser` | aide-mémoire du Terminal | **poser** la commande dans la ligne du terminal, **sans la lancer** — voir l'encadré ci-dessous |
+| `data-poser` | aide-mémoire du Terminal, famille « Dans cette session » | **poser** la commande dans la ligne de la TUI, **sans la lancer** — voir l'encadré ci-dessous |
+
+> **L'aide-mémoire tient deux familles, et une ligne ne porte JAMAIS les deux
+> attributs.** Ce qui les distingue n'est pas le geste, c'est où elles
+> s'exécutent : « Dans votre console » se copie (`data-cmd`), « Dans cette
+> session » se pose (`data-poser`). Le mauvais geste n'existe pas là où il
+> serait faux.
+>
+> La ligne du terminal **n'est pas un shell** : c'est l'invite de
+> `hermes --tui`. Y poser une commande shell puis valider ne l'exécuterait
+> pas — ça l'enverrait à l'agent comme un message. `data-poser` ne doit donc
+> porter que des commandes de la TUI, celles qui commencent par `/`.
+>
+> **Et seulement celles que la complétion expose vraiment.** La liste se
+> demande à Hermès (`complete.slash` sur le gateway), elle ne se devine pas :
+> `/theme` existe dans le registre de la TUI et n'est **pas** exposé. Un
+> test vérifie que toute ligne posable commence par `/`.
 | `data-z` | `.u-echelle` | zoomer d'un pas |
 | `data-jx` | pastilles de pièce jointe | retirer la pièce |
 | `data-role` | pastilles de rôle | activer un cadre |
@@ -192,7 +208,8 @@ sans que rien ne le signale.
 | `wait` / `inline` | l'accueil | le compteur, rejoué dans le fil |
 | `avert` / `cout` / `tmemo` | Terminal | l'avertissement, le coût, l'aide-mémoire |
 | `u-tscreen` / `u-tecran` / `u-tstate` | Terminal | **à nous** : le cadre de l'écran, l'écran lui-même, et l'état de la session (`repos` / `ouverture` / `ouvert` / `coupe` en classe jointe) |
-| `u-quoi` / `u-long` / `u-repli` / `u-poser` | Terminal | **à nous**, passe du 2026-08-09 : ce qui tourne dans la barre · la partie longue de l'avertissement, repliée en session · la ligne qui dit ce qui est replié · le second geste de l'aide-mémoire |
+| `u-quoi` / `u-long` / `u-repli` / `u-poser` | Terminal | **à nous**, passe du 2026-08-09 : ce qui tourne dans la barre · la partie longue de l'avertissement, repliée en session · la ligne qui dit ce qui est replié · la pastille du geste « poser » |
+| `u-tui` / `u-note` | Terminal | **à nous** : le bloc de l'aide-mémoire réservé aux commandes de la TUI — caché tant qu'aucune session n'est ouverte — et la note qui dit ce que l'invite attend |
 | `u-term-<état>` | **`#pTerminal`** | **à nous** : l'état de session porté par le panneau, **une seule** classe parmi `u-term-repos` · `u-term-ouverture` · `u-term-ouvert` · `u-term-coupe`. Posée par `majTermEtat()`, et par rien d'autre. |
 | `u-hint` | `#composerHint` | **à nous**, pas à la maquette : voir plus bas |
 

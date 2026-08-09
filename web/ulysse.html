@@ -477,20 +477,33 @@
 #pTerminal.u-term-ouvert .u-repli{display:block}
 .u-repli span{color:var(--accent);cursor:pointer}
 
-/* 7. L'aide-mémoire a changé d'usage : il y a un terminal juste à côté.
-      Deux gestes — copier, et POSER dans la ligne. Jamais l'exécution :
-      on insère sans valider, c'est à la personne d'appuyer sur Entrée. */
+/* 7. L'aide-mémoire tient DEUX FAMILLES, et ce qui les distingue n'est pas
+      le geste : c'est où elles s'exécutent. « Dans votre console » se copie,
+      « Dans cette session » se pose dans la ligne de la TUI. UN SEUL geste
+      par ligne, jamais deux — le mauvais geste n'existe pas là où il serait
+      faux. Et poser n'exécute rien : on insère sans valider.
+
+      La première version en mettait deux par ligne. Elle supposait que la
+      ligne du terminal soit un shell : c'est l'invite de `hermes --tui`, et
+      y poser une commande shell l'aurait envoyée à l'agent comme un message.
+
+      Corollaire : il n'y a plus qu'une pastille par ligne, donc plus rien à
+      empiler et plus de `padding-right` à élargir — le texte des six lignes
+      ne se reflue plus à l'ouverture d'une session. */
 #pTerminal .u-cmd .k{opacity:.55}
 #pTerminal .u-cmd:hover .k{opacity:1}
-/* `.u-cmd` est un flex EN COLONNE, et sa pastille de copie est en position
-   absolue avec un `padding-right` réservé pour elle. Un second geste posé
-   dans le flux tombait donc en bas à gauche, sous la description. Il se
-   place comme sa voisine : à gauche d'elle, sur la même ligne. */
-.u-poser{position:absolute;right:2px;top:22px;color:var(--accent);opacity:0;
-  transition:opacity .14s ease;display:none;cursor:pointer}
-#pTerminal.u-term-ouvert .u-cmd .u-poser{display:grid}
-#pTerminal.u-term-ouvert .u-cmd:hover .u-poser{opacity:1}
-#pTerminal .u-cmd .u-poser:focus-visible{opacity:1}
+.u-poser{position:absolute;right:2px;top:2px;color:var(--accent);opacity:.55;
+  transition:opacity .14s ease;display:grid;cursor:pointer}
+#pTerminal .u-cmd:hover .u-poser,
+#pTerminal .u-cmd:focus-visible .u-poser{opacity:1}
+/* La note qui dit ce que l'invite attend — aucun écran ne le disait. */
+.u-note{font-size:var(--font-size-xs);color:var(--muted);margin:-2px 0 10px;
+  line-height:1.45}
+/* La seconde famille n'a de sens qu'en session ouverte : proposer des
+   commandes à une invite qui n'existe pas serait promettre un endroit où les
+   taper. Elle est écrite à chaque dessin et cachée en CSS, pour que l'ouverture
+   d'une session ne reconstruise pas la colonne sous les doigts. */
+#pTerminal:not(.u-term-ouvert) .u-tui{display:none}
 
 /* La dictée. Le micro dit dans quel état il est — on ne laisse pas quelqu'un
    se demander si ça enregistre. */

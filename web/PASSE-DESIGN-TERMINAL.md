@@ -61,8 +61,13 @@ ce moment-là.
 voir avec un pseudo-terminal** : c'est un reste de l'écran-image, quand ce
 cadre servait de tableau d'affichage.
 
-Elle dit maintenant ce qui concerne cet écran : le binaire, le dossier de
-travail, et d'où vient le rendu.
+Elle dit maintenant ce qui concerne cet écran : **Hermès · profil · rendu**.
+
+> **Sans le dossier de travail**, que je demandais d'abord. Constaté par le
+> code : `/api/status` donne `hermes_home`, pas le répertoire où tourne le
+> dashboard — et c'est celui-là qu'hérite le PTY. L'écrire aurait été de la
+> donnée fictive. Ce n'est pas une perte : **la TUI l'imprime elle-même** sur
+> sa première ligne, trois centimètres plus bas, et là il est vrai.
 
 ## 5. L'avertissement passe avant le premier geste
 
@@ -84,20 +89,56 @@ Session ouverte, les deux qui **n'engagent rien** se replient (le coût et la
 note technique), remplacés par une ligne qui dit qu'ils sont repliés et où les
 retrouver. L'écran gagne 80 px. L'avertissement, lui, ne disparaît jamais.
 
-## 7. L'aide-mémoire a changé d'usage
+## 7. L'aide-mémoire : deux destinations, un geste chacune
 
-Ces six lignes servaient à **copier pour aller taper ailleurs**. Il y a
-maintenant un terminal juste à côté : elles peuvent y être **posées**.
+> **Corrigé le 2026-08-09.** Ma première version proposait *deux gestes par
+> ligne* — copier, et poser dans le terminal. **Elle était fausse**, et je la
+> laisse écrite ici pour qu'on sache pourquoi.
 
-Deux gestes par ligne, donc : copier (inchangé) et poser. Et **jamais
-l'exécution** — on insère la commande dans la ligne sans la valider. C'est à la
+Elle supposait que la ligne du terminal soit un **shell**. Elle ne l'est pas :
+c'est l'invite de `hermes --tui`, celle qui propose *« Try "write a test
+for…" »*. Y poser `hermes doctor` et appuyer sur Entrée n'exécuterait pas la
+commande — ça **enverrait ce texte à l'agent comme un message**.
+
+Le geste ne lançait rien (le code l'a vérifié contre le vrai binaire), mais il
+**visait à côté**. Et une commande qui a l'air de s'exécuter et qui devient une
+phrase est pire qu'une commande qu'on recopie à la main.
+
+### Ce qui distingue ces lignes n'est pas le geste, c'est où elles s'exécutent
+
+| Famille | Destination | Geste |
+|---|---|---|
+| **Dans votre console** | hors d'Ulysse — les six d'origine | **copier** |
+| **Dans cette session** | les commandes de la TUI | **poser** |
+
+**Un seul geste par ligne, jamais deux.** On ne peut plus se tromper de cible,
+parce que le mauvais geste n'existe pas là où il serait faux.
+
+Ça règle aussi, sans y toucher, l'empilement des deux pastilles que le code a
+dû corriger pour que le texte des six lignes ne se reflue pas à l'ouverture
+d'une session : il n'y a plus qu'une pastille par ligne.
+
+La seconde famille n'apparaît **qu'en session ouverte** — proposer des
+commandes à une invite qui n'existe pas serait promettre un endroit où les
+taper. Et poser n'exécute toujours rien : on insère dans la ligne, c'est à la
 personne d'appuyer sur Entrée.
 
-> *Ulysse n'exécute rien que vous n'ayez lancé.* C'est ce que dit le panneau
-> depuis le début, et ça doit rester vrai maintenant qu'il en a les moyens.
+> *Ulysse n'exécute rien que vous n'ayez lancé.* Ça reste vrai, et c'est
+> maintenant vrai **au bon endroit**.
 
-Le second geste n'apparaît qu'en session ouverte : poser une commande dans un
-terminal fermé n'a pas de sens.
+### Ce que ça ajoute, et qu'aucun écran ne disait
+
+Le panneau ne dit nulle part que la TUI a ses propres commandes. Quelqu'un qui
+ouvre une session voit une invite et ne sait pas ce qu'elle attend. La note
+sous le titre le dit en une ligne : *« La session attend d'abord une phrase —
+dites ce que vous voulez. Ces commandes-ci sont les raccourcis qu'elle
+reconnaît. »*
+
+> ⚠ **À vérifier avant de poser ces lignes.** `/help` est constaté — sa
+> complétion s'est déclenchée. `/model`, `/clear`, `/resume` sont **plausibles,
+> pas vérifiées**. N'inscrire que ce que la TUI expose réellement ; sa propre
+> complétion le dira. Une liste d'aide qui propose une commande inexistante est
+> pire que pas d'aide.
 
 ---
 
@@ -129,9 +170,11 @@ lancer) — à ajouter au §2.2 s'il est retenu.
 `p-avert-haut`, `p-repli`, `p-poser`, et les deux classes d'état du panneau
 `p-ouvert` / `p-ouverture`.
 
-> **À décider :** les deux classes d'état du panneau. J'ai employé `p-ouvert`
-> pour rester dans le préfixe de l'aperçu, mais elles vivront dans le produit —
-> `u-ouvert` / `u-ouverture` serait plus cohérent avec le reste, ou une seule
-> classe `u-term` portant l'état comme le fait déjà `#tstate`. À vous de
-> choisir la forme ; ce qui compte est qu'une seule chose la pose, comme
-> `majEtats()`.
+> ~~**À décider :** les deux classes d'état du panneau.~~ **Tranché le
+> 2026-08-09 par le code, et bien tranché :** une seule classe,
+> `u-term-repos` / `u-term-ouverture` / `u-term-ouvert` / `u-term-coupe`, posée
+> par `majTermEtat()` et par rien d'autre. Les quatre états s'excluent : avec
+> deux booléens, « en ouverture ET ouvert » est représentable ; avec une
+> classe, il ne l'est pas. **On ne teste pas un état impossible, on
+> l'empêche.** Dans cet aperçu, `p-ouvert` / `p-ouverture` restent — c'est un
+> banc d'essai, pas le produit.

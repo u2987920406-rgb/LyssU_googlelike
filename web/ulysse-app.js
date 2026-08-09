@@ -2219,6 +2219,11 @@ let tTheme = "nuit", tTaille = "moyen";
 // l'aide-mémoire la lisent ici, donc ils ne peuvent plus diverger.
 const TCMD = "hermes";
 
+/* L'aide-mémoire tient DEUX familles, et ce qui les distingue n'est pas le
+   geste : c'est OÙ elles s'exécutent. Les unes se tapent dans une console,
+   hors d'Ulysse — on les copie. Les autres sont les commandes de la TUI qui
+   tourne dans l'écran — on les pose dans sa ligne. Un seul geste par ligne,
+   jamais deux : le mauvais geste n'existe pas là où il serait faux. */
 const TMEMO = [
   ["hermes", "ouvrir l'agent en ligne de commande"],
   ["hermes dashboard --port 9123 --no-open", "le backend qu'Ulysse enveloppe"],
@@ -2226,6 +2231,21 @@ const TMEMO = [
   ["hermes proxy start --provider nous --port 8645", "le mode Discussion, sans outils"],
   ["hermes webhook subscribe <nom> --prompt \"…\"", "créer une route webhook"],
   ["hermes doctor", "diagnostiquer une installation"]
+];
+
+/* Les six ci-dessous ont été demandées à la complétion d'Hermès elle-même
+   (RPC `complete.slash`, sur le gateway qui tourne), et les descriptions sont
+   la traduction fidèle de celles qu'il renvoie. Rien n'est supposé : `/theme`
+   existe dans le registre de la TUI et n'est PAS exposé par la complétion —
+   il n'est donc pas ici. Si la liste doit changer, la redemander plutôt que
+   la deviner. */
+const TMEMO_TUI = [
+  ["/help", "voir toutes les commandes de la session"],
+  ["/status", "la session, le modèle, les jetons, le contexte"],
+  ["/model", "changer de modèle, le temps de la session"],
+  ["/sessions", "parcourir et reprendre une session précédente"],
+  ["/compress", "compresser le contexte de la conversation"],
+  ["/stop", "arrêter les processus lancés en arrière-plan"]
 ];
 
 function drawTerm(){
@@ -2244,15 +2264,27 @@ function drawTerm(){
     + "</div></div>"
     // Chaque ligne devient copiable. Elles sont là pour être tapées ; les
     // faire recopier à la main est le seul usage qu'on n'attendait pas d'elles.
-    // Ces six lignes servaient à copier pour aller taper AILLEURS. Il y a
-    // maintenant un terminal juste à côté : elles peuvent y être posées.
-    // Deux gestes, donc — et jamais l'exécution.
-    + '<div class="tgrp"><h3>Aide-mémoire</h3><div class="tmemo">'
+    // PREMIÈRE FAMILLE — hors d'Ulysse. Un seul geste : copier.
+    + '<div class="tgrp"><h3>Dans votre console</h3><div class="tmemo">'
     + TMEMO.map(([c, q]) => '<div class="u-cmd" data-cmd="' + esc(c) + '" role="button"'
         + ' tabindex="0" title="Cliquer pour copier"><code>' + esc(c) + "</code><span>"
-        + esc(q) + '</span><span class="k">' + svg("copier", { size: 15 }) + "</span>"
-        + '<span class="u-poser" data-poser="' + esc(c) + '" role="button" tabindex="0"'
-        + ' title="Poser dans le terminal, sans lancer">' + svg("suivant", { size: 15 })
+        + esc(q) + '</span><span class="k">' + svg("copier", { size: 15 })
+        + "</span></div>").join("")
+    + "</div></div>"
+
+    // SECONDE FAMILLE — la TUI qui tourne dans l'écran. Un seul geste : poser.
+    // Le bloc n'est visible qu'en session ouverte (`u-tui`, en CSS) : proposer
+    // des commandes à une invite qui n'existe pas serait promettre un endroit
+    // où les taper. Il est écrit à chaque dessin plutôt que monté et démonté,
+    // pour que l'ouverture d'une session ne reconstruise rien.
+    + '<div class="tgrp u-tui"><h3>Dans cette session</h3>'
+    + '<p class="u-note">La session attend d\'abord une phrase — dites ce que '
+    + "vous voulez. Ces commandes-ci sont les raccourcis qu'elle reconnaît.</p>"
+    + '<div class="tmemo">'
+    + TMEMO_TUI.map(([c, q]) => '<div class="u-cmd" data-poser="' + esc(c) + '"'
+        + ' role="button" tabindex="0" title="Poser dans la ligne, sans lancer">'
+        + "<code>" + esc(c) + "</code><span>" + esc(q) + "</span>"
+        + '<span class="u-poser">' + svg("suivant", { size: 15 })
         + "</span></div>").join("")
     + "</div></div>");
 
@@ -2373,14 +2405,12 @@ function drawTerm(){
     el.onclick = prendre;
     el.onkeydown = (e) => { if (e.key === "Enter" || e.key === " "){ e.preventDefault(); prendre(); } };
   });
-  // Le second geste. Il est DANS la ligne de l'aide-mémoire, qui porte déjà
-  // `data-cmd` : sans arrêter la propagation, poser copierait aussi.
+  // Les lignes de la seconde famille ne portent QUE `data-poser` : plus de
+  // propagation à arrêter, plus de geste à ne pas déclencher par erreur.
   $("tside").querySelectorAll("[data-poser]").forEach((el) => {
-    const poser = (e) => { e.stopPropagation(); poserDansTerm(el.dataset.poser); };
+    const poser = () => poserDansTerm(el.dataset.poser);
     el.onclick = poser;
-    el.onkeydown = (e) => {
-      if (e.key === "Enter" || e.key === " "){ e.preventDefault(); poser(e); }
-    };
+    el.onkeydown = (e) => { if (e.key === "Enter" || e.key === " "){ e.preventDefault(); poser(); } };
   });
 }
 

@@ -1721,19 +1721,45 @@ body{overflow:auto}
 #pTerminal.p-ouvert .p-repli{display:block}
 #pTerminal .p-repli span{color:var(--accent);cursor:pointer}
 
-/* ── 7. L'AIDE-MÉMOIRE A CHANGÉ D'USAGE ──────────────────────────────────
-   Avant, ces six lignes servaient à COPIER pour aller taper ailleurs.
-   Maintenant il y a un terminal juste à côté : elles peuvent y être posées.
+/* ── 7. L'AIDE-MÉMOIRE : DEUX DESTINATIONS, UN GESTE CHACUNE ─────────────
+   CORRIGÉ le 2026-08-09, après le retour du code. Ma première version était
+   fausse, et je l'ai laissée écrite pour qu'on sache pourquoi.
 
-   Deux gestes, donc — et jamais l'exécution. On INSÈRE la commande dans la
-   ligne, sans la valider : c'est à la personne d'appuyer sur Entrée. Ulysse
-   n'exécute rien que vous n'ayez lancé, et c'est vrai jusqu'ici. */
+   J'avais proposé DEUX gestes par ligne : copier, et poser dans le terminal.
+   Ça supposait que la ligne du terminal soit un shell. **Elle ne l'est pas.**
+   C'est l'invite de `hermes --tui`, celle qui propose « Try "write a test
+   for…" ». Y poser `hermes doctor` et valider n'exécuterait pas la commande :
+   ça enverrait ce texte à l'agent comme un message.
+
+   Le geste ne partait rien — le code l'a vérifié contre le vrai binaire — mais
+   il visait à côté. Et une commande qui a l'air de s'exécuter et qui devient
+   une phrase est pire qu'une commande qu'on recopie à la main.
+
+   Ce qui distingue ces lignes n'est pas le geste, c'est **où elles
+   s'exécutent**. Deux familles, donc, et le geste découle de la destination :
+
+     · « Dans votre console » — hors d'Ulysse. UN geste : copier.
+     · « Dans cette session » — les commandes de la TUI. UN geste : poser.
+
+   **Un seul geste par ligne, jamais deux.** On ne peut plus se tromper de
+   cible, parce que le mauvais geste n'existe pas là où il serait faux. Ça
+   règle du même coup l'empilement des deux pastilles, que le code a dû
+   corriger pour que le texte ne se reflue pas. */
+#pTerminal .p-fam{font-size:11px;letter-spacing:.4px;font-weight:600;
+  color:var(--faint);text-transform:uppercase;margin:16px 0 6px;
+  display:flex;align-items:center;gap:8px}
+#pTerminal .p-fam:first-child{margin-top:0}
+#pTerminal .p-fam .l{flex:1;height:1px;background:rgba(31,31,31,.08)}
 #pTerminal .u-cmd .k{opacity:.55}
 #pTerminal .u-cmd:hover .k{opacity:1}
-#pTerminal .p-poser{margin-left:6px;color:var(--accent);opacity:0;
-  transition:opacity .14s ease;display:none}
-#pTerminal.p-ouvert .u-cmd .p-poser{display:grid}
-#pTerminal.p-ouvert .u-cmd:hover .p-poser{opacity:1}
+/* La famille de la session n'apparaît qu'en session : proposer des commandes
+   à une invite qui n'existe pas serait promettre un endroit où les taper. */
+#pTerminal .p-tui{display:none}
+#pTerminal.p-ouvert .p-tui{display:block}
+#pTerminal .p-tui .u-cmd .k{color:var(--accent)}
+/* Ce que la TUI attend d'abord, et que rien ne dit aujourd'hui. */
+#pTerminal .p-note-tui{font-size:11.5px;color:var(--faint);line-height:1.5;
+  margin:2px 0 8px}
 </style>
 </head>
 <body>
@@ -1959,6 +1985,9 @@ const TTHEMES = [
 ];
 
 const TCMD = "hermes";
+
+/* Les six d'origine : des commandes de SHELL, à taper hors d'Ulysse. C'est
+   ce que dit déjà `.tpath` sous le bouton. On les copie. */
 const TMEMO = [
   ["hermes", "ouvrir l'agent en ligne de commande"],
   ["hermes dashboard --port 9123 --no-open", "le backend qu'Ulysse enveloppe"],
@@ -1968,7 +1997,22 @@ const TMEMO = [
   ["hermes doctor", "diagnostiquer une installation"]
 ];
 
-const STATUS = { version:"2.4.1", gateway_running:true };
+/* Les commandes de la TUI : elles s'exécutent DANS la session ouverte. Ce
+   sont celles-là qu'on pose.
+
+   ⚠ À VÉRIFIER AVANT DE POSER CES LIGNES. Le relais cite `/help` comme
+   vérifié — sa complétion s'est déclenchée. Les autres sont plausibles, pas
+   constatées. **N'inscrire que ce que la TUI expose réellement** : sa propre
+   complétion le dira. Une liste d'aide qui propose une commande inexistante
+   est pire que pas d'aide. */
+const TTUI = [
+  ["/help",   "les commandes de la session", true],
+  ["/model",  "changer de cerveau pour cette session"],
+  ["/clear",  "repartir de zéro sans fermer la session"],
+  ["/resume", "reprendre la conversation précédente"]
+];
+
+const STATUS = { version:"2.4.1", gateway_running:true, profil:"defaut" };
 const CWD = "%USERPROFILE%/Desktop/Projet Ulysse";
 
 /* Ce que le vrai xterm afficherait. Ici c'est du texte figé : le nœud
@@ -2020,15 +2064,40 @@ function drawTerm(){
         '<button class="' + (v === tTaille ? "on" : "") + '" data-sz="' + v + '">'
         + v[0].toUpperCase() + v.slice(1) + "</button>").join("")
     + "</div></div>"
-    + '<div class="tgrp"><h3>Aide-mémoire</h3><div class="tmemo">'
-    + TMEMO.map(([c, q]) => '<div class="u-cmd" data-cmd="' + ech(c) + '" role="button"'
-        + ' tabindex="0" title="Copier"><code>' + ech(c) + "</code><span>" + ech(q)
-        + '</span><span class="k">' + svg("copier", { size: 15 }) + "</span>"
-        /* Le second geste : poser dans la ligne, sans valider. */
-        + '<span class="p-poser" data-poser="' + ech(c) + '" title="Poser dans le '
-        + 'terminal, sans lancer">' + svg("suivant", { size: 15 }) + "</span>"
-        + "</div>").join("")
-    + "</div></div>");
+    + '<div class="tgrp"><h3>Aide-mémoire</h3>'
+
+    /* ACTUEL : une seule liste, un seul geste — copier. */
+    + (propose ? "" : '<div class="tmemo">'
+        + TMEMO.map(([c, q]) => '<div class="u-cmd" data-cmd="' + ech(c) + '"'
+            + ' role="button" tabindex="0" title="Copier"><code>' + ech(c) + "</code>"
+            + "<span>" + ech(q) + '</span><span class="k">'
+            + svg("copier", { size: 15 }) + "</span></div>").join("")
+        + "</div>")
+
+    /* PROPOSÉ : deux familles, distinguées par leur DESTINATION, et un seul
+       geste chacune — celui qui a du sens là où la commande s'exécute. */
+    + (propose
+        ? '<div class="p-fam">Dans votre console<span class="l"></span></div>'
+          + '<div class="tmemo">'
+          + TMEMO.map(([c, q]) => '<div class="u-cmd" data-cmd="' + ech(c) + '"'
+              + ' role="button" tabindex="0" title="Copier"><code>' + ech(c) + "</code>"
+              + "<span>" + ech(q) + '</span><span class="k">'
+              + svg("copier", { size: 15 }) + "</span></div>").join("")
+          + "</div>"
+          + '<div class="p-tui">'
+          + '<div class="p-fam">Dans cette session<span class="l"></span></div>'
+          + '<div class="p-note-tui">La session attend d\'abord une phrase — dites ce '
+          + "que vous voulez. Ces commandes-ci sont les raccourcis qu'elle "
+          + "reconnaît.</div>"
+          + '<div class="tmemo">'
+          + TTUI.map(([c, q]) => '<div class="u-cmd" data-poser="' + ech(c) + '"'
+              + ' role="button" tabindex="0" title="Poser dans la ligne, sans lancer">'
+              + "<code>" + ech(c) + "</code><span>" + ech(q) + "</span>"
+              + '<span class="k">' + svg("suivant", { size: 15 })
+              + "</span></div>").join("")
+          + "</div></div>"
+        : "")
+    + "</div>");
 
   H("tmain",
     '<div class="tscreen u-tscreen" style="background:' + T.bg + ";color:" + T.fg
@@ -2051,9 +2120,13 @@ function drawTerm(){
     /* ACTUEL : la version d'Hermès et l'état du GATEWAY — qui n'a rien à
        voir avec un pseudo-terminal. PROPOSÉ : ce qui concerne cet écran. */
     + '<div class="dim">'
+    /* Le dossier de travail n'y est PAS : /api/status donne `hermes_home`,
+       pas le répertoire où tourne le dashboard — et c'est celui-là qu'hérite
+       le PTY. L'écrire aurait été de la donnée fictive (constaté par le code
+       le 2026-08-09). La TUI l'imprime elle-même, trois lignes plus bas. */
     + (propose
         ? "<span><b>Hermès</b> " + ech(STATUS.version) + "</span>"
-          + "<span><b>dossier</b> " + ech(CWD.split("/").slice(-2).join("/")) + "</span>"
+          + "<span><b>profil</b> " + ech(STATUS.profil) + "</span>"
           + "<span><b>rendu</b> xterm.js, emprunté à Hermès</span>"
         : "Hermès " + ech(STATUS.version) + " · gateway "
           + (STATUS.gateway_running ? "en marche" : "arrêté"))
@@ -2103,7 +2176,8 @@ function drawTerm(){
   document.querySelectorAll("[data-poser]").forEach((b) => {
     b.onclick = (e) => {
       e.stopPropagation();
-      souffle("« " + b.dataset.poser + " » posé dans la ligne — à vous d'appuyer sur Entrée.");
+      souffle("« " + b.dataset.poser + " » posé dans la ligne — à vous d'appuyer "
+        + "sur Entrée.");
     };
   });
   $("tGo").onclick = () => {
@@ -2184,11 +2258,17 @@ function majNote(){
       + "qu'on peut taper directement.</li>"
       + "<li><b>Un terminal vivant a besoin de place.</b> Session ouverte, le coût et "
       + "la note technique se replient, l'écran gagne 80 px.</li></ul>"
-      + "<h4>L'aide-mémoire a changé d'usage</h4>"
-      + "Ces six lignes servaient à <b>copier pour aller ailleurs</b>. Il y a un "
-      + "terminal juste à côté : elles peuvent y être <b>posées</b>. Deux gestes, et "
-      + "jamais l'exécution — on insère dans la ligne sans valider. "
-      + "<i>Ulysse n'exécute rien que vous n'ayez lancé, et ça reste vrai ici.</i>"
+      + "<h4>L'aide-mémoire : deux destinations</h4>"
+      + "<b>Ma première version était fausse</b> et je l'ai corrigée : je proposais "
+      + "deux gestes par ligne — copier, et poser dans le terminal. Ça supposait que "
+      + "la ligne soit un <b>shell</b>. C'est l'invite de <code>hermes --tui</code>. "
+      + "Y poser <code>hermes doctor</code> et valider n'exécuterait pas la commande : "
+      + "ça enverrait ce texte à l'agent comme un message.<br><br>"
+      + "Ce qui distingue ces lignes n'est pas le geste, c'est <b>où elles "
+      + "s'exécutent</b>. Deux familles, et <b>un seul geste chacune</b> : "
+      + "« Dans votre console » se copie, « Dans cette session » se pose. On ne peut "
+      + "plus se tromper de cible, parce que le mauvais geste n'existe pas là où il "
+      + "serait faux."
     : "<b>Actuel</b> — l'écran habillé au jugé."
       + "<h4>À regarder</h4><ul>"
       + "<li>Les <b>trois pastilles</b> en haut à gauche. Cliquez-les.</li>"
