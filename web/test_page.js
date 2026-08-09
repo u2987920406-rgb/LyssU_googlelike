@@ -554,7 +554,15 @@ async function main(){
   /* ⚠ LE CAS QUE PERSONNE N'AVAIT VU, et il ne demande aucun appel :
      `CFG.SESSION_CWD` est le dossier de la PROCHAINE session, `conv.info.cwd`
      celui de la session EN COURS. Cliquer « Travailler ici » pendant qu'un fil
-     est ouvert change le premier, pas le second. */
+     est ouvert change le premier, pas le second.
+
+     ⚠⚠ CE TEST POSAIT LES DEUX VARIABLES À LA MAIN. Il prouvait donc le
+     DESSIN de l'état, pas qu'on puisse y ARRIVER — et on ne pouvait pas :
+     « Travailler ici » appelait `resetSession()` d'abord, ce qui vidait le
+     fil. kuchu ne voyait jamais la gélule ambre, et il avait raison.
+
+     C'est le piège que cette suite dénonce partout ailleurs — un test qui
+     remplace ce qu'il vérifie. On passe donc PAR LE BOUTON. */
   win.eval('CFG.SESSION_CWD = "D:/Autre lieu"; paintHint();');
   await wait(40);
   check("Lieu · deux dossiers à la fois, et la gélule le DIT",
@@ -598,6 +606,67 @@ async function main(){
   check("Lieu · elle revient dès qu'on repasse en Cowork",
     !!lieu().querySelector(".l-lieu"),
     lieu().textContent.trim().slice(0, 40));
+
+  /* ── PAR LE BOUTON, POUR DE VRAI ────────────────────────────────────────
+     On repart d'un fil ouvert avec des tours, on va dans Projets, on clique
+     « Travailler ici » sur un AUTRE dossier, et on revient. Rien n'est posé
+     à la main : c'est le chemin qu'emprunte quelqu'un. */
+  // Ce bloc malmène la session : on la met de côté et on la rendra intacte,
+  // sinon tout ce qui suit vérifierait un fil qu'on vient d'effacer.
+  win.eval("window.__sauve = { sid: conv.sessionId, stid: conv.storedId,"
+    + " info: conv.info, status: conv.status, running: conv.running,"
+    + " approval: conv.approval, turns: conv.turns.slice(), cwd: CFG.SESSION_CWD };");
+
+  win.eval('conv.info = { cwd: "D:/Atelier", project: null };'
+    + ' conv.turns.length = 0;'
+    + ' conv.turns.push({ role: "user", text: "un tour qui doit survivre" });'
+    + ' CFG.SESSION_CWD = "D:/Atelier"; paintHint();');
+  await wait(40);
+
+  win.eval('nav("Projets")');
+  await wait(60);
+  const dmd2 = FakeWS.sent.map((s) => JSON.parse(s.trim()))
+    .filter((m) => m.method === "projects.tree").pop();
+  FakeWS.last.push({ jsonrpc: "2.0", id: dmd2 && dmd2.id, result: { projects: [
+    { id: "D:/Autre lieu", label: "Autre lieu", path: "D:/Autre lieu", color: null,
+      icon: null, isAuto: true, isNoProject: false, sessionCount: 2,
+      lastActive: 1786270000, repos: [], previewSessions: [] }
+  ], active_id: null, scoped_session_ids: [] } });
+  await wait(120);
+
+  const allerLa = win.document.querySelector('#projets [data-cwd="D:/Autre lieu"]');
+  check("Lieu · « Travailler ici » existe sur l'autre dossier",
+    !!allerLa, allerLa ? allerLa.textContent.trim() : "absent");
+  allerLa.click();
+  await wait(120);
+
+  // ⚠ LE POINT. Le fil ne doit PAS avoir été jeté au passage.
+  check("Lieu · le fil ouvert SURVIT au changement de dossier",
+    win.eval("conv.turns.length") === 1
+    && win.eval("conv.info && conv.info.cwd") === "D:/Atelier",
+    "tours : " + win.eval("conv.turns.length"));
+  check("Lieu · ...et la gélule ambre paraît ENFIN, par le bouton",
+    !!lieu().querySelector(".l-lieu.change")
+    && /Atelier/.test(lieu().textContent)
+    && /Autre lieu/.test(lieu().textContent),
+    lieu().textContent.trim().slice(0, 70));
+
+  // « Ouvrir un fil là-bas » est le seul endroit où la fermeture est un choix
+  // NOMMÉ. C'est là que le fil se perd — et on l'a demandé.
+  win.document.getElementById("lieuPop")
+    .querySelector('[data-lieu="nouveau"]').click();
+  await wait(60);
+  check("Lieu · « Ouvrir un fil là-bas » ferme le fil, mais on l'a DIT",
+    win.eval("conv.turns.length") === 0,
+    "tours : " + win.eval("conv.turns.length"));
+
+  // On rend la session telle qu'on l'a trouvée.
+  win.eval("conv.sessionId = __sauve.sid; conv.storedId = __sauve.stid;"
+    + " conv.info = __sauve.info; conv.status = __sauve.status;"
+    + " conv.running = __sauve.running; conv.approval = __sauve.approval;"
+    + " conv.turns.length = 0; __sauve.turns.forEach(function(t){ conv.turns.push(t); });"
+    + " CFG.SESSION_CWD = __sauve.cwd; nav('Discuter'); paintThread(); paintHint();");
+  await wait(60);
   check("le mot-marque se fond pour laisser la place",
     win.getComputedStyle(win.document.querySelector("#pDiscuter .u-marque"))
       .opacity === "0");

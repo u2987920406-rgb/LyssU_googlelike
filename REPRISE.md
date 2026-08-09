@@ -13,7 +13,7 @@
   (tout le visuel) et ce qui porte la logique (88 `id`, 25 `data-*`, les
   cinq classes d'état). Décidé le 2026-08-08 : le design en dialogue ici prenait
   trop de temps.
-- **Ce qu'on fait au retour** : `cd web && node test_page.js`. 313 vérifications
+- **Ce qu'on fait au retour** : `cd web && node test_page.js`. 317 vérifications
   sur la vraie page dans un DOM réel. **S'il passe au rouge, ce n'est pas le
   test qui a tort** — un `id` ou un `data-*` du contrat a disparu, et le
   contrat dit lequel. Ne jamais adapter `ulysse-core.js` pour faire passer un
@@ -64,8 +64,8 @@ dictée, terminal intégré, 4 suites de tests dont une contre le VRAI Hermès.
 Au 2026-08-08 au soir : elle est **côté Cowork**. Les six réparations ET les
 cinq passes de design sont appliquées.
 
-1. kuchu revient de Cowork → `node test_page.js` (**313** vérifications ;
-   les quatre suites font **563** : 313 page · 99 serveur · 51 réel · 100 personas)
+1. kuchu revient de Cowork → `node test_page.js` (**317** vérifications ;
+   les quatre suites font **567** : 317 page · 99 serveur · 51 réel · 100 personas)
 2. ~~Appliquer les cinq passes~~ — **FAIT le 2026-08-08** : la passe
    d'accord, les trois décisions, et le style des cinq panneaux.
    La dette des Repères est éteinte (43 signes sur 43).
@@ -128,6 +128,11 @@ cinq passes de design sont appliquées.
    dans `test_reel.py`.
    ⚠ **En mode Chat, pas de gélule** : ce mode n'ouvre aucune session, donc
    « dossier en attente » annoncerait un dossier qui n'arrive jamais.
+   ⚠ **« Travailler ici » NE FERME PLUS le fil ouvert.** Il appelait
+   `resetSession()` d'abord — ce qui vide `conv.turns` : la conversation
+   disparaissait de l'écran **sans un mot**, et l'état « deux dossiers à la
+   fois » devenait inatteignable. La fermeture est désormais un choix nommé,
+   dans le repli : « Ouvrir un fil là-bas ».
    ⚠ **`CFG.SESSION_CWD` n'est pas `conv.info.cwd`** : le premier est le
    dossier de la PROCHAINE session, le second celui de la session EN COURS.
    « Travailler ici » pendant qu'un fil est ouvert ne change que le premier.

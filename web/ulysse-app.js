@@ -1893,13 +1893,34 @@ async function drawProjets(){
 
     H("projets", h);
 
+    /* ⚠ « TRAVAILLER ICI » NE FERME PLUS LE FIL OUVERT.
+       Il appelait `resetSession()` d'abord — ce qui vide `conv.turns` : la
+       conversation en cours disparaissait de l'écran, **sans un mot**. Et
+       comme le fil s'en allait, il ne restait rien dont le dossier puisse
+       diverger : l'état « deux dossiers à la fois » était INATTEIGNABLE.
+
+       Signalé par kuchu le 2026-08-09 — la gélule ambre ne venait jamais.
+       Mon test la « prouvait » en posant les deux variables à la main : il
+       vérifiait le dessin, pas le fait qu'on puisse y arriver. C'est le
+       piège que cette session dénonce depuis le matin, et j'y suis tombé.
+
+       On pose donc le dossier, et on garde le fil. L'écart devient visible
+       dans la gélule, et « Ouvrir un fil là-bas » — dans son repli — fait la
+       fermeture EXPLICITEMENT, comme un choix nommé. */
     $("projets").querySelectorAll("[data-cwd]").forEach((b) => {
       b.onclick = () => {
-        resetSession(); accordRepondu = null;
-        CFG.SESSION_CWD = b.dataset.cwd;
+        const chemin = b.dataset.cwd;
+        const filOuvert = !!(conv.info && conv.info.cwd);
+        CFG.SESSION_CWD = chemin;
+        // Rien à garder : on repart propre, comme avant.
+        if (!filOuvert){ resetSession(); accordRepondu = null; }
         nav("Discuter");
-        snack("Dossier de travail : " + (b.dataset.cwd || "celui d'Hermès")
-          + " — la prochaine session s'y ouvrira.");
+        majLieu();
+        snack(filOuvert
+          ? "Le prochain fil s’ouvrira dans " + (chemin || "le dossier d’Hermès")
+            + ". Celui-ci continue là où il est."
+          : "Dossier de travail : " + (chemin || "celui d’Hermès")
+            + " — la prochaine session s’y ouvrira.");
       };
     });
     $("projets").querySelectorAll("[data-voir]").forEach((b) => {

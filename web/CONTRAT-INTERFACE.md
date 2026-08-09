@@ -172,6 +172,11 @@ créer d'`id` qui leur ressemble) : `gzoom` `doorBtn` `densSeg` `livCrumbs`
 > répond sur celui-là. Il dirait « vous êtes dans tel projet » d'un fil qui
 > travaille ailleurs. Le piège reste épinglé dans `test_reel.py`.
 >
+> ⚠ **« Travailler ici » ne ferme PAS le fil ouvert.** Il appelait
+> `resetSession()` d'abord — la conversation disparaissait sans un mot, et
+> l'état « deux dossiers à la fois » devenait inatteignable. La fermeture est
+> un choix nommé, dans le repli : « Ouvrir un fil là-bas ».
+>
 > ⚠ **En mode Chat, PAS de gélule.** Ce mode n'ouvre aucune session : `cwd` ne
 > viendra jamais, et « dossier en attente » annoncerait indéfiniment un dossier
 > qui n'arrive pas. Signalé par kuchu, capture à l'appui.
