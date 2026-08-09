@@ -2204,12 +2204,28 @@ function drawTerm(){
     /* En plein écran, la barre de titre du panneau n'est plus là : cette
        ligne porte le retour, l'état, et rien d'autre. On sort par Échap ou
        par elle — jamais sans savoir comment. */
+    /* Les outils SUIVENT. Décidé le 2026-08-09, après le retour du code :
+       « en plein écran, l'aide-mémoire est hors d'atteinte ».
+
+       C'est en plein écran qu'on travaille, donc c'est là qu'on veut poser
+       une commande ou grossir le texte. En sortir pour chercher, puis y
+       revenir, est un aller-retour qu'on ne fait pas — on renonce.
+
+       Ils ne changent ni d'ordre ni de côté : **les outils ne bougent pas,
+       c'est la barre qui les porte qui change.** Le troisième devient
+       « quitter » au lieu de « agrandir », et c'est la seule différence. */
     (propose
-      ? '<div class="p-sortie"><button class="ghost-btn" id="pSort2"'
-        + ' style="height:32px;padding:0 14px">' + svg("restaurer", { size: 17 })
-        + " Quitter le plein écran</button>"
-        + '<kbd>Échap</kbd><span class="sp"></span>'
-        + '<span>Terminal CLI · ' + ech(TCMD) + " --tui</span></div>"
+      ? '<div class="p-sortie">'
+        /* Le bouton NOMMÉ reste, et il reste le premier. Le code a montré
+           pourquoi : Échap appartient au terminal quand on tape dedans, donc
+           ce bouton est le seul chemin de sortie fiable. Une icône muette ne
+           ferait pas l'affaire. */
+        + '<button class="ghost-btn" id="pSort2" style="height:32px;padding:0 14px">'
+        + svg("restaurer", { size: 17 }) + " Quitter le plein écran</button>"
+        + '<kbd>Échap</kbd>'
+        + '<span class="sp"></span>'
+        + '<span>' + ech(TCMD) + " --tui</span>"
+        + '<span class="p-outils" id="pOutils2"></span></div>'
       : "")
     + '<div class="tscreen u-tscreen" style="background:' + T.bg + ";color:" + T.fg
     + ";font-size:" + px + 'px">'
@@ -2282,7 +2298,13 @@ function drawTerm(){
      l'autre sens. */
   if (propose){
     const grp = $("tside").querySelectorAll(".tgrp");
-    H("pOutils",
+    /* Les outils vivent dans la barre de titre, ou — en plein écran, qui la
+       recouvre — dans la ligne de sortie. Un seul jeu, jamais deux : deux
+       jeux de boutons pour les mêmes replis, ce serait deux endroits où les
+       chercher. */
+    const hote = (plein && $("pOutils2")) ? "pOutils2" : "pOutils";
+    if (hote === "pOutils2") H("pOutils", "");
+    H(hote,
       '<span style="position:relative"><button class="icon-btn" id="pApp"'
       + ' aria-label="Apparence du terminal" title="Apparence">'
       + svg("regler", { size: 20 }) + "</button>"
@@ -2291,9 +2313,13 @@ function drawTerm(){
       + ' aria-label="Aide-mémoire" title="Aide-mémoire">'
       + svg("doc", { size: 20 }) + "</button>"
       + '<div class="pop p-pop" id="popMem"></div></span>'
-      + '<button class="icon-btn" id="pFull" aria-label="Plein écran"'
-      + ' title="Plein écran">' + svg(plein ? "restaurer" : "agrandir", { size: 20 })
-      + "</button>");
+      /* Le bouton d'agrandissement n'apparaît QUE hors plein écran : dedans,
+         la ligne de sortie porte déjà un bouton nommé qui fait la même
+         chose. Deux commandes pour un même geste, à deux endroits, c'est une
+         de trop — et c'est celle qui n'a pas de mot qui saute. */
+      + (plein ? ""
+          : '<button class="icon-btn" id="pFull" aria-label="Plein écran"'
+            + ' title="Plein écran">' + svg("agrandir", { size: 20 }) + "</button>"));
     if (grp[0]) $("popApp").appendChild(grp[0]);
     if (grp[1]) $("popMem").appendChild(grp[1]);
 
@@ -2308,7 +2334,8 @@ function drawTerm(){
     bascule("pMem", "popApp");
     $("popApp").onclick = (e) => e.stopPropagation();
     $("popMem").onclick = (e) => e.stopPropagation();
-    $("pFull").onclick = () => { plein = !plein; drawTerm(); };
+    const bf = $("pFull");
+    if (bf) bf.onclick = () => { plein = true; drawTerm(); };
   } else {
     H("pOutils", "");
   }

@@ -1701,6 +1701,22 @@ body{overflow:auto}
 
 .m-sheet-acts{display:flex;align-items:center;gap:10px;margin-top:22px}
 .m-sheet-acts .sp{flex:1}
+
+/* ── TROIS NIVEAUX DE GARANTIE, ET TROIS COULEURS ────────────────────────
+   Peindre les trois en vert serait plus rassurant et moins vrai. La
+   troisième ligne n'est pas une alerte — c'est une limite, et elle a le
+   droit d'être dite calmement. */
+.m-niv{margin-top:18px}
+.m-niv-l{display:flex;gap:12px;align-items:flex-start;padding:12px 0;
+  border-bottom:1px solid var(--surface)}
+.m-niv-l:last-child{border-bottom:none}
+.m-niv-l .pt{flex:none;display:grid;margin-top:1px}
+.m-niv-l.ok .pt{color:var(--green)}
+.m-niv-l.warn .pt{color:var(--amber)}
+.m-niv-l .nm{display:block;font-weight:500;font-size:15px}
+.m-niv-l .tx{display:block;font-size:var(--font-size-sm);color:var(--muted);
+  margin-top:3px;line-height:1.55}
+.m-niv-l.warn .nm{color:var(--text)}
 </style>
 </head>
 <body>
@@ -1958,9 +1974,13 @@ function dessine(){
     + FICHIERS.map(fichierHTML).join("")
 
     /* La doctrine, dite une fois, en haut — pas répétée à chaque ligne. */
+    /* Ce que le socle garantit vraiment, constaté le 2026-08-09 : la copie
+       précède l'écriture, et si elle échoue **l'écriture n'a pas lieu**.
+       C'est plus fort que ce que je promettais, et ça se dit. */
     + '<div class="m-garde"><span class="pt">' + svg("coche", { size: 18 }) + "</span>"
-    + "<span><b>Rien ne s'écrase.</b> Chaque écriture met la version d'avant de côté, "
-    + "datée. On peut y revenir tant qu'elle est là — et elle y reste : ces fichiers "
+    + "<span><b>Rien ne s'écrase.</b> Chaque écriture met la version d'avant de côté "
+    + "d'abord — et <b>si la copie échoue, l'écriture n'a pas lieu</b>. Les versions "
+    + "vivent dans <code>versions-ulysse/</code> ; elles y restent, ces fichiers "
     + "pèsent quelques kilo-octets.</span></div>"
 
     + '<div class="seth" style="margin-top:26px">Les versions gardées'
@@ -1971,17 +1991,23 @@ function dessine(){
         + (cur ? "" : '<button data-rev="1">Revenir à celle-ci</button>')
         + "</div>").join("") + "</div>"
 
-    + '<div class="u-todo" style="margin-top:22px"><b>Ce que le code devra tenir.</b> '
-    + "<code>/api/fs/write-text</code> ne sait qu'écrire. La copie datée, la liste "
-    + "des versions et le retour en arrière n'existent pas encore. "
-    + "<b>Tant qu'ils n'existent pas, cet écran ne doit pas être branché</b> — il "
-    + "promettrait un retour en arrière qui n'a pas lieu.</div>");
+    + '<div class="u-todo" style="margin-top:22px"><b>Le socle existe depuis le '
+    + "2026-08-09.</b> Copie datée avant écriture, versions dans "
+    + "<code>versions-ulysse/</code>, retour en arrière qui garde ce qu'il quitte, "
+    + "et trois routes locales à même origine. Une version gardée ne peut pas être "
+    + "écrasée, et deux copies simultanées ne peuvent pas se choisir le même nom. "
+    + "<b>Cet écran n'est plus bloqué.</b> Restent le diff côté page et les trois "
+    + "modes distingués.</div>");
 
   $("setbody").querySelectorAll("[data-f]").forEach((b) => {
     b.onclick = () => ouvrir(b.dataset.f, b.dataset.mode);
   });
+  /* Le retour en arrière garde d'abord ce qu'il quitte — sinon revenir
+     serait devenu un aller simple. C'est le socle qui le fait ; l'écran le
+     dit, parce que c'est la seule façon de savoir qu'on peut revenir du
+     retour. */
   $("setbody").querySelectorAll("[data-rev]").forEach((b) => {
-    b.onclick = () => snack("Version du 7 août rétablie. La précédente est gardée.",
+    b.onclick = () => snack("Version du 7 août rétablie — celle d'avant est gardée.",
       () => snack("Retour annulé."));
   });
 
@@ -2025,21 +2051,53 @@ function ouvrir(nom, mode){
      gardent. Ce n'est pas un réglage prudent, c'est une frontière : elle ne
      s'ouvre pas, même à la demande. */
   if (mode === "refus"){
+    /* CORRIGÉ le 2026-08-09. La première version disait : « Ce fichier n'est
+       modifiable que par vous, et jamais depuis une conversation. »
+       **C'était faux**, et le code l'a établi en cherchant dans Hermès :
+
+         · `serve.py` refuse SOUL.md pour tout ce qui passe par Ulysse. Ça,
+           c'est garanti.
+         · **L'agent écrit avec ses propres outils, dans le processus Hermès,
+           sans passer par ce serveur.** Hermès n'expose aucun refus
+           d'écriture par chemin — `agent/file_safety.py` se documente
+           lui-même comme « not a security boundary ».
+
+       Écrire « jamais depuis une conversation » aurait été promettre une
+       frontière qui n'existe pas — exactement le reproche que cette passe
+       fait à l'écran non branché. On dit donc les trois niveaux, tels
+       qu'ils sont.
+
+       Ce qui reste vrai, et qui n'est pas rien : une écriture ne
+       s'autorisant pas « toujours » (§5 de la passe), l'agent devra la
+       demander à chaque fois. C'est un garde-fou par un autre chemin — mais
+       il ne tient que si les accords sont demandés. */
     return feuille("Modifier ce qu'Ulysse s'autorise",
       '<div class="sub">soul.md · 1,8 ko · 29 lignes</div>'
       + '<div class="irrev" style="margin-top:18px"><span class="pt">'
       + svg("alerte", { size: 19 }) + "</span><span>"
-      + "<b>Ce fichier n'est modifiable que par vous, et jamais depuis une "
-      + "conversation.</b> Il dit ce qu'Ulysse s'autorise et ce qu'il refuse. Si "
-      + "l'agent pouvait le réécrire, il pourrait lever ses propres garde-fous — et "
-      + "il n'y aurait plus rien pour l'en empêcher.</span></div>"
-      + "<p style=\"margin-top:16px\">Ouvrez-le dans votre éditeur. Ulysse le relira "
-      + "au prochain lancement.</p>"
+      + "<b>Ce fichier dit ce qu'Ulysse s'autorise et ce qu'il refuse.</b> "
+      + "Il n'a pas la même protection selon qui écrit — et mieux vaut le savoir "
+      + "que le croire.</span></div>"
+
+      + '<div class="m-niv">'
+      + niveau("ok", "Ulysse ne l'écrira jamais",
+          "Le serveur refuse ce fichier avant toute écriture, quelle que soit la "
+          + "casse du nom. Aucun écran, aucun bouton d'ici ne peut le toucher.")
+      + niveau("ok", "Cet écran ne vous le propose pas",
+          "Il n'y a pas de champ, pas de « écrire quand même ». Ouvrez-le dans "
+          + "votre éditeur ; Ulysse le relira au prochain lancement.")
+      + niveau("warn", "L'agent, lui, en a les moyens",
+          "Il écrit avec ses propres outils, sans passer par ce serveur, et Hermès "
+          + "n'interdit aucun chemin. Ce qui l'arrête est votre accord : une "
+          + "écriture ne s'autorise pas « toujours », donc il devra vous la "
+          + "demander — à condition que les accords soient demandés.")
+      + "</div>"
+
       + '<div class="m-sheet-acts">'
       + '<button class="validate" data-a="ouvrir-dossier">Ouvrir le dossier</button>'
       + '<button class="quiet-link" data-a="copier">Copier le chemin</button>'
       + '<span class="sp"></span>'
-      + '<button class="txt-btn" data-a="fermer">Fermer</button></div>');
+      + '<button class="txt-btn" data-a="regler">Voir mes accords</button></div>');
   }
 
   /* ── CRÉER : rien à perdre, donc rien à faire peser ────────────────────
@@ -2095,6 +2153,16 @@ function ouvrir(nom, mode){
     + '<button class="txt-btn" data-a="fermer">Annuler</button></div>');
 }
 
+/* Trois niveaux de garantie, et on ne les peint pas de la même couleur. Un
+   écran qui dit « protégé » sur les trois serait plus rassurant et moins
+   vrai. */
+function niveau(k, titre, texte){
+  return '<div class="m-niv-l ' + k + '"><span class="pt">'
+    + svg(k === "ok" ? "coche" : "alerte", { size: 17 }) + "</span>"
+    + '<span><span class="nm">' + ech(titre) + "</span>"
+    + '<span class="tx">' + ech(texte) + "</span></span></div>";
+}
+
 function diffHTML(moins, plus){
   return '<div class="m-bilan" style="margin-top:16px">'
     + '<span class="moins">' + moins + " lignes retirées</span>"
@@ -2122,6 +2190,7 @@ function feuille(titre, corps){
         return;
       }
       snack(b.dataset.a === "copier" ? "Chemin copié."
+        : b.dataset.a === "regler" ? "Ouvrirait Réglages › Sécurité et accords."
         : "Ouvrirait le dossier de mémoire.");
     };
   });
@@ -2171,12 +2240,19 @@ function majNote(){
     + "<b>« Annuler » six secondes ne suffit pas.</b> Une mémoire fausse, on s'en "
     + "aperçoit des jours plus tard. La version d'avant est <b>gardée, datée</b>, et "
     + "on y revient depuis l'écran. Le snack reste — il évite d'avoir à s'en servir."
-    + "<h4>3 · Ce qu'on refuse</h4>"
-    + "<b><code>soul.md</code> n'est modifiable que par vous</b>, jamais depuis une "
-    + "conversation. Il dit ce qu'Ulysse s'autorise et ce qu'il refuse : si l'agent "
-    + "pouvait le réécrire, il pourrait lever ses propres garde-fous, et il n'y "
-    + "aurait plus rien pour l'en empêcher. Ce n'est pas un réglage prudent, c'est "
-    + "une <b>frontière</b>."
+    + "<h4>3 · Ce qu'on refuse — corrigé</h4>"
+    + "Ma première version disait : <i>« soul.md n'est modifiable que par vous, "
+    + "jamais depuis une conversation »</i>. <b>C'était faux.</b> Le code est allé "
+    + "chercher dans Hermès : <code>serve.py</code> refuse bien ce fichier, mais "
+    + "<b>l'agent écrit avec ses propres outils</b>, sans passer par ce serveur — et "
+    + "Hermès n'interdit aucun chemin (<code>file_safety.py</code> se documente "
+    + "lui-même comme <i>« not a security boundary »</i>).<br><br>"
+    + "L'écran dit donc <b>les trois niveaux</b>, tels qu'ils sont : garanti, "
+    + "garanti, et pas garanti. Promettre la frontière aurait été exactement le "
+    + "reproche que cette passe fait à l'écran non branché.<br><br>"
+    + "Ce qui reste vrai, et qui n'est pas rien : <b>une écriture ne s'autorisant "
+    + "pas « toujours »</b>, l'agent devra la demander à chaque fois. Le garde-fou "
+    + "tient par un autre chemin — <i>tant que les accords sont demandés</i>."
     + "<h4>Et une quatrième, qui n'était pas demandée</h4>"
     + "<b>Une écriture ne s'autorise pas « toujours ».</b> Les autres actions se "
     + "ressemblent d'une fois sur l'autre ; deux écritures dans un même fichier n'ont "

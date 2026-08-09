@@ -59,9 +59,35 @@ l'application* pour agrandir un de ses panneaux. Une classe sur `.term`,
 bouton de retour, la mention `Échap`, et le rappel de ce qu'on regarde.
 
 > Un plein écran dont on ne sait pas sortir n'est pas un agrandissement, c'est
-> un piège. Échap en sort, le bouton reste visible, et la même touche ferme
-> d'abord un repli s'il y en a un d'ouvert — on ne perd jamais deux choses
-> d'un coup.
+> un piège.
+
+> ⚠ **Et le bouton nommé est le seul chemin fiable** — constaté par le code le
+> 2026-08-09 : **Échap appartient au terminal quand on tape dedans.** C'est une
+> touche de travail dans une TUI : elle sort d'un mode, ferme une complétion,
+> annule une saisie. La confisquer rendrait le terminal inutilisable en plein
+> écran, précisément là où on y travaille. Elle lui est rendue quand le focus
+> est dans l'écran.
+>
+> D'où : **jamais une icône muette pour sortir.** Le bouton porte son mot.
+
+### Les outils suivent en plein écran
+
+*Ajouté le 2026-08-09, après la question du code : « en plein écran,
+l'aide-mémoire est hors d'atteinte ».*
+
+C'est en plein écran qu'on travaille, donc c'est là qu'on veut poser une
+commande ou grossir le texte. En sortir pour chercher, puis y revenir, est un
+aller-retour qu'on ne fait pas : **on renonce.**
+
+Les deux replis passent donc dans la ligne de sortie. Ils ne changent ni
+d'ordre ni de côté — **les outils ne bougent pas, c'est la barre qui les porte
+qui change.**
+
+**Un seul jeu, jamais deux.** Les mêmes replis à deux endroits, ce serait deux
+endroits où les chercher. Et le bouton « agrandir » disparaît en plein écran :
+la ligne de sortie porte déjà un bouton nommé qui fait la même chose. Deux
+commandes pour un même geste, c'est une de trop — et c'est celle qui n'a pas de
+mot qui saute.
 
 ### `#tecran` survit à tout
 

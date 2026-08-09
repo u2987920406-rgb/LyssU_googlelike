@@ -96,7 +96,19 @@ et leurs boutons : `travRefresh` `livRefresh` `projRefresh` `autoRefresh`
 créer d'`id` qui leur ressemble) : `gzoom` `doorBtn` `densSeg` `livCrumbs`
 `livHome` `livList` `mIncog` `mNew` `mEtabli` `nClose` `fClose` `vAct`
 `etabliClose` `tGo` `tSize` `tCout` `tecran` `tstate` `tApp` `tMem` `tFull`
-`tPopApp` `tPopMem` `tSortie` `tRepli` `detteGo` `detteAct` `detteRed`
+`tPopApp` `tPopMem` `tSortie` `tOutils2` `tRepli` `detteGo` `detteAct` `detteRed`
+`uMemFiles` `uMemTexte` `uMemDiff` `uMemVers` `uMemGo`
+
+> **`#sEcrire` / `#ecrireBody` sont dans le HTML** — la feuille où l'on écrit
+> dans la mémoire. Elle est à part de `#sFile` : ce qu'on y montre — la
+> différence, ce qui se perd, ce qu'on pourra défaire — n'a rien à voir avec
+> l'aperçu d'un fichier.
+>
+> ⚠ **L'écriture passe par `serve.py`, jamais par `/api/fs/write-text`.**
+> Trois routes locales : `POST /ulysse/ecrire` · `GET /ulysse/versions` ·
+> `POST /ulysse/restaurer`. Appeler l'API d'Hermès en direct contournerait la
+> copie datée — et l'écran promettrait alors un retour en arrière qui n'existe
+> pas. Un test l'exige.
 
 > **`#tOutils` est dans le HTML**, vide — c'est le seul `id` ajouté au gabarit
 > par la passe 2. `drawTerm()` y écrit les trois boutons, puis **déplace** les
@@ -221,6 +233,10 @@ sans que rien ne le signale.
 | `u-outils` / `u-pop` | Terminal | **à nous**, passe 2 : les trois boutons de la barre de titre, et les deux replis où la colonne a emménagé |
 | `u-plein` / `u-plein-actif` / `u-sortie` | Terminal | **à nous** : le plein écran **applicatif** posé sur `.term`, la levée du panneau qui le fait passer devant le rail, et la ligne qui porte le chemin de sortie |
 | `u-sep` | Terminal | **à nous** : le filet qui sépare `/clear` de ses voisines |
+| `u-mfile` / `u-verrou` / `u-cadenas` | Réglages › Ce qu'Ulysse sait | **à nous** : une ligne de fichier de mémoire, celle qui ne s'écrit pas, et son signe |
+| `u-diff` / `u-bilan` / `u-garde` / `u-vers` | l'écriture | **à nous** : la différence, ses deux nombres, la garantie de retour, les versions gardées |
+| `u-niv` / `u-niv-l` (`ok` / `warn`) | l'écriture | **à nous** : les trois niveaux de garantie de `SOUL.md`, et leurs **trois** couleurs |
+| `u-memtexte` / `u-macts` | l'écriture | **à nous** : le champ, et la rangée d'actions de la feuille |
 | `u-term-<état>` | **`#pTerminal`** | **à nous** : l'état de session porté par le panneau, **une seule** classe parmi `u-term-repos` · `u-term-ouverture` · `u-term-ouvert` · `u-term-coupe`. Posée par `majTermEtat()`, et par rien d'autre. |
 | `u-hint` | `#composerHint` | **à nous**, pas à la maquette : voir plus bas |
 

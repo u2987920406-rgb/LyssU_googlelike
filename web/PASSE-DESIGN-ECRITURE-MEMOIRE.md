@@ -72,30 +72,53 @@ jeter.
 Le snack « Annuler » **reste** — il ne remplace pas la version gardée, il évite
 d'avoir à s'en servir dans les six secondes qui suivent la bêtise.
 
-> ⚠ **C'est ce qui bloque.** `/api/fs/write-text` ne sait qu'écrire. La copie
-> datée, la liste des versions et le retour en arrière **n'existent pas**.
-> **Tant qu'ils n'existent pas, cet écran ne doit pas être branché** : il
-> promettrait un retour en arrière qui n'a pas lieu. C'est exactement la
-> réserve qu'on a levée pour « Autoriser toujours », et elle se pose ici dans
-> les mêmes termes.
+> ~~⚠ **C'est ce qui bloque.**~~ **Levé le 2026-08-09 : le socle existe.**
+> Copie datée **avant** l'écriture — et si la copie échoue, l'écriture n'a pas
+> lieu, ce qui est plus fort que ce que je demandais. Versions dans
+> `versions-ulysse/` (le sous-dossier, comme je penchais : un dossier se
+> replie, un nom de fichier non). Retour en arrière qui **garde d'abord ce
+> qu'il quitte** — sinon revenir serait devenu un aller simple.
+>
+> Deux protections que je n'avais pas vues, et qui manquaient : une version
+> gardée ne peut pas être écrasée (on aurait pu détruire précisément ce qui
+> existe pour empêcher une destruction), et deux copies simultanées ne peuvent
+> plus se choisir le même nom.
 
 ---
 
 ## 4. Ce qu'on refuse de faire du tout
 
-**`soul.md` n'est modifiable que par vous, jamais depuis une conversation.**
+> **Réécrit le 2026-08-09.** La première version disait : *« `soul.md` n'est
+> modifiable que par vous, jamais depuis une conversation. »* **C'était faux**,
+> et le code l'a établi en cherchant dans Hermès. Je laisse la correction
+> visible : c'est exactement le reproche que cette passe fait à l'écran non
+> branché, retourné contre elle.
 
-Il dit ce qu'Ulysse s'autorise et ce qu'il refuse. Si l'agent pouvait le
-réécrire, **il pourrait lever ses propres garde-fous** — et il n'y aurait plus
-rien pour l'en empêcher.
+`soul.md` dit ce qu'Ulysse s'autorise et ce qu'il refuse. Si l'agent pouvait le
+réécrire, **il pourrait lever ses propres garde-fous**. C'est donc le fichier
+qu'on voudrait le plus protéger — et c'est celui dont la protection est la
+moins totale.
 
-Ce n'est pas un réglage prudent qu'on pourrait desserrer un jour : c'est une
-**frontière**. L'écran ne propose donc pas de champ, pas de bouton « écrire
-quand même », pas de case à cocher dans les Réglages. Il ouvre le dossier et
-dit qu'Ulysse relira au prochain lancement.
+### Trois niveaux, et l'écran les dit tels quels
 
-C'est la même nature de décision que « le serveur n'écoute que sur cette
-machine » : ça ne se règle pas, ça se constate.
+| | |
+|---|---|
+| **Ulysse ne l'écrira jamais** | garanti. `serve.py` refuse ce nom, quelle que soit la casse, avant toute écriture |
+| **L'écran ne le propose pas** | pas de champ, pas de « écrire quand même », pas de case dans les Réglages |
+| **L'agent, lui, en a les moyens** | **non garanti.** Il écrit avec ses propres outils, dans le processus Hermès, sans passer par ce serveur — et Hermès n'expose aucun refus d'écriture par chemin (`agent/file_safety.py` se documente comme *« not a security boundary »*) |
+
+Peindre les trois en vert serait plus rassurant et moins vrai. Le troisième
+n'est pas une alerte : c'est une limite, et elle a le droit d'être dite
+calmement.
+
+### Ce qui reste, et qui n'est pas rien
+
+Une écriture ne s'autorisant pas « toujours » (§5), **l'agent devra la demander
+à chaque fois**. Le garde-fou tient par un autre chemin — la demande d'accord —
+et c'est ce que l'écran dit, avec sa condition : *tant que les accords sont
+demandés.*
+
+C'est moins net qu'une frontière. C'est ce qu'il y a.
 
 ---
 

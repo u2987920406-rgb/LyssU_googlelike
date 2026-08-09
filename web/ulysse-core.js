@@ -108,6 +108,23 @@ const REST = {
   readFile: (path) => api("/api/files/read?path=" + encodeURIComponent(path)),
   // web_server.py:12820 — {active, providers, builtin_files}
   memory: () => api("/api/memory"),
+  // web_server.py:2627 — {text, byteSize, binary, truncated, path, …}
+  readText: (path) => api("/api/fs/read-text?path=" + encodeURIComponent(path)),
+
+  /* ── Ecrire dans la memoire ───────────────────────────────────────────
+     PAS `/api/fs/write-text` en direct : ces trois routes sont LOCALES a
+     serve.py, et c'est la tout leur objet. Hermes ecrit proprement mais ne
+     garde AUCUNE copie ; serve.py met la version d'avant de cote AVANT de
+     laisser passer, et si la copie echoue l'ecriture n'a pas lieu.
+
+     Passer par `/api/fs/write-text` depuis la page contournerait la copie
+     datee — et l'ecran promettrait alors un retour en arriere qui n'existe
+     pas. C'est exactement ce que la passe de design interdit. */
+  ecrireMemoire: (path, content) =>
+    api("/ulysse/ecrire", { method: "POST", body: { path: path, content: content } }),
+  versionsDe: (path) => api("/ulysse/versions?path=" + encodeURIComponent(path)),
+  restaurerVersion: (path, nom) =>
+    api("/ulysse/restaurer", { method: "POST", body: { path: path, nom: nom } }),
   // web_routers/skills.py:395 — une LISTE, pas un objet
   skills: () => api("/api/skills"),
   // web_server.py:12486 — {enabled, base_url, subscriptions:[{name,…}]}

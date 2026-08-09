@@ -29,7 +29,7 @@ function check(claim, ok, detail){
 
 /* --- Les reponses du faux Hermes, dans les formes REELLES ---------------- */
 const FIXTURES = {
-  "/api/status": { version: "0.20.0", gateway_running: true, gateway_state: "running",
+  "/api/status": { version: "0.20.0", gateway_running: true, hermes_home: "D:/FauxHermesHome", gateway_state: "running",
                    gateway_platforms: { webhook: {} }, active_sessions: 1, auth_required: true },
   "/api/sessions": { sessions: [
       { id: "s1", title: "Site vitrine", message_count: 12, cwd: "C:/Projets/poterie",
@@ -43,8 +43,14 @@ const FIXTURES = {
       { name: "gros.bin", path: "gros.bin", is_directory: false, size: 210 * 1024 * 1024 }] },
   "/api/files/read": { name: "notes.md", path: "notes.md", size: 12, mime_type: "text/markdown",
                        data_url: "data:text/markdown;base64," + Buffer.from("# Notes\nreel\n").toString("base64") },
+  /* ⚠ `builtin_files` est un OBJET nom -> octets, pas une liste d'objets.
+     Ce fixture affirmait `[{name, path, exists}]` : une forme que le backend
+     n'envoie jamais. Le code appelait `.filter` dessus et levait
+     « files.filter is not a function » contre le vrai Hermes — sans qu'aucune
+     de ces vérifications ne le voie. Un faux qui ne ment pas comme le vrai ne
+     prouve rien. Forme constatée le 2026-08-09 : {"memory": 2263, "user": 1380}. */
   "/api/memory": { active: "builtin", providers: [],
-                   builtin_files: [{ name: "SOUL.md", path: "SOUL.md", exists: true }] },
+                   builtin_files: { memory: 2263, user: 1380, projet: 0 } },
   // Une LISTE, pas un objet. Et chaque competence porte sa `provenance` —
   // le vrai /api/skills le fait (verifie en direct : « agent », « personnel »,
   // « projet:… »), et c'est elle qui range les 99 du Vestiaire.
@@ -69,11 +75,39 @@ const FIXTURES = {
 
 const fetched = [];
 
+/* Les fichiers de mémoire, tels qu'un disque les rendrait. Le vrai
+   `/api/fs/read-text` renvoie le texte ET sa taille ; l'écran d'écriture s'en
+   sert pour la ligne d'état ET pour calculer la différence. */
+const MEM_DISQUE = {
+  "USER.md": "# Profil\n\nCéramiste à Nantes.\nJe tourne, je cuis au gaz.\n",
+  "MEMORY.md": "# Ce qu'Ulysse a retenu\n\n- Préfère le tutoiement.\n"
+};
+
 function fakeFetch(url, opts){
   const p = String(url).replace(/^https?:\/\/[^/]+/, "");
   const bare = p.split("?")[0];
   fetched.push({ path: p, method: (opts && opts.method) || "GET" });
   let body = FIXTURES[bare];
+
+  // `/api/fs/read-text?path=…` : 404 si le fichier n'est pas sur le faux
+  // disque — c'est ainsi que l'écran distingue une CRÉATION d'une panne.
+  if (body === undefined && bare === "/api/fs/read-text"){
+    const nom = decodeURIComponent(p.split("path=")[1] || "").split(/[\\/]/).pop();
+    const texte = MEM_DISQUE[nom];
+    if (texte === undefined){
+      return Promise.resolve({ ok: false, status: 404,
+        text: () => Promise.resolve(JSON.stringify({ detail: "Not Found" })) });
+    }
+    body = { text: texte, byteSize: texte.length, binary: false, truncated: false };
+  }
+  if (body === undefined && bare === "/ulysse/versions"){
+    body = { versions: [{ nom: "USER.md.2026-08-09-101500", quand: "2026-08-09-101500",
+                          octets: 40, horodatage: 1786000000 }] };
+  }
+  if (body === undefined && (bare === "/ulysse/ecrire" || bare === "/ulysse/restaurer")){
+    body = { ok: true, version_gardee: "USER.md.2026-08-09-120000",
+             creation: false, versions: 2 };
+  }
   if (body === undefined && bare === "/proxy/chat"){
     body = { choices: [{ message: { role: "assistant", content: "Réponse sans outils." } }] };
   }
@@ -1349,6 +1383,27 @@ async function main(){
     FakeTerminal.crees - creesAv + " terminal(aux) recréé(s)");
   check("0b · ...et il n'appelle jamais le plein écran du navigateur",
     !win.document.fullscreenElement);
+  // Les outils SUIVENT : c'est en plein écran qu'on travaille, donc c'est là
+  // qu'on veut poser une commande. UN SEUL jeu, jamais deux — les mêmes
+  // replis à deux endroits seraient deux endroits où les chercher.
+  check("0b · en plein écran, les outils sont dans la ligne de sortie",
+    win.document.querySelectorAll("#tOutils2 .icon-btn").length >= 2
+    && win.document.querySelectorAll("#tOutils .icon-btn").length === 0,
+    win.document.querySelectorAll("#tOutils2 .icon-btn").length + " ici · "
+    + win.document.querySelectorAll("#tOutils .icon-btn").length + " restés en haut");
+  check("0b · ...et « agrandir » disparaît : la ligne a déjà un bouton nommé",
+    !win.document.getElementById("tFull")
+    && /Quitter le plein écran/.test(
+         win.document.getElementById("tSortie").textContent));
+  // ⚠ LE PIÈGE. Au moment du bascule, les deux groupes ne sont plus dans
+  // `#tside` — ils vivent dans les replis. Les y rechercher les perdrait.
+  check("0b · les deux aides-mémoire ont suivi, aucun n'est perdu",
+    win.document.querySelectorAll("#tPopApp .tgrp").length === 1
+    && win.document.querySelectorAll("#tPopMem .tgrp").length === 2
+    && win.document.querySelectorAll("#tPopMem [data-poser]").length > 0,
+    win.document.querySelectorAll("#tPopApp .tgrp").length + " + "
+    + win.document.querySelectorAll("#tPopMem .tgrp").length);
+
   // Un plein écran dont on ne sait pas sortir n'est pas un agrandissement.
   const sortie = win.document.querySelector("#tmain .u-sortie");
   check("0b · le chemin pour sortir est écrit à l'écran, et visible",
@@ -1458,6 +1513,127 @@ async function main(){
   const dimPleine = win.document.querySelector("#tmain .dim").textContent;
   check("...et quand l'état arrive en retard, elle se met à jour toute seule",
     /0\.20\.0/.test(dimPleine), dimPleine.trim());
+
+  console.log("\n--- Écrire dans la mémoire ---");
+
+  win.eval("ouvrirReglages(1)");
+  await wait(200);
+  const memCorps = win.document.getElementById("setbody");
+
+  // Les trois gestes n'ont pas le même risque : créer ne perd rien,
+  // remplacer perd tout ce qui était là.
+  const memRangs = memCorps.querySelectorAll(".u-mfile");
+  const memBoutons = Array.from(memCorps.querySelectorAll("[data-mf]"))
+    .map((b) => b.dataset.mf + ":" + b.dataset.mode);
+  // ⚠ La forme RÉELLE de `builtin_files` : un objet nom -> octets. Le code
+  //    appelait `.filter` dessus et levait contre le vrai Hermès.
+  const norm = JSON.parse(win.eval(
+    'JSON.stringify(memFichiersApi({builtin_files:{memory:2263,user:1380,projet:0}}))'));
+  check("`builtin_files` est lu comme un objet nom → octets, pas comme une liste",
+    norm.length === 3 && norm[0].nom === "memory" && norm[0].octets === 2263,
+    JSON.stringify(norm));
+  check("...et un fichier de 0 octet compte comme non renseigné",
+    JSON.parse(win.eval(
+      'JSON.stringify(memManquants({builtin_files:{memory:2263,projet:0}}))'))
+      .join() === "projet");
+
+  check("les trois fichiers de mémoire sont là, avec le bon geste",
+    memRangs.length === 3
+    && memBoutons.includes("USER.md:remplacer")     // existe sur le faux disque
+    && memBoutons.includes("MEMORY.md:remplacer")
+    && memBoutons.includes("SOUL.md:verrou"),       // jamais « remplacer »
+    memBoutons.join(" · "));
+  check("...et SOUL.md ne propose AUCUN chemin vers l'écriture",
+    !memBoutons.includes("SOUL.md:remplacer") && !memBoutons.includes("SOUL.md:creer")
+    && /Protégé/.test(memCorps.querySelector(".u-mfile.u-verrou").textContent));
+
+  // Le diff est ce qu'on lit avant d'écraser. S'il est faux, tout ment.
+  const memBrut1 = win.eval('JSON.stringify(diffLignes("a\\nb\\nc", "a\\nX\\nc"))');
+  const memD1 = JSON.parse(memBrut1);
+  check("le diff compte juste : une ligne changée = une retirée, une ajoutée",
+    memD1.moins === 1 && memD1.plus === 1 && memD1.egales === 2,
+    "−" + memD1.moins + " +" + memD1.plus + " =" + memD1.egales);
+  const memD2 = JSON.parse(win.eval('JSON.stringify(diffLignes("a\\nb", "a\\nb"))'));
+  check("...et deux textes identiques ne montrent aucune différence",
+    memD2.moins === 0 && memD2.plus === 0 && memD2.lignes.every((l) => l[0] === "rien"));
+  const memD3 = JSON.parse(win.eval('JSON.stringify(diffLignes("", "neuf"))'));
+  check("...un fichier vide qu'on remplit n'affiche rien comme « retiré »",
+    memD3.moins === 0 && memD3.plus >= 1, "−" + memD3.moins + " +" + memD3.plus);
+
+  // La memFeuille de remplacement : le seul cas où quelque chose se perd.
+  Array.from(memCorps.querySelectorAll("[data-mf]"))
+    .find((b) => b.dataset.mf === "USER.md").click();
+  await wait(180);
+  const memFeuille = win.document.getElementById("ecrireBody");
+  check("la feuille s'ouvre sur le contenu ACTUEL, pas sur une page blanche",
+    win.document.getElementById("sEcrire").classList.contains("on")
+    && /Céramiste à Nantes/.test(win.document.getElementById("uMemTexte").value),
+    win.document.getElementById("uMemTexte").value.slice(0, 30));
+  check("...et la garantie de retour est dite, avec sa condition",
+    /version d'avant sera gardée/.test(memFeuille.textContent)
+    && /rien ne sera écrit/i.test(memFeuille.textContent));
+  check("...les versions gardées sont listées, avec un retour possible",
+    memFeuille.querySelectorAll("[data-rv]").length === 1);
+
+  // ⚠ LES FINS DE LIGNE. Sur Windows ces fichiers sont en CRLF ; un textarea
+  //    rend du LF. Sans normalisation, TOUTES les lignes diffèrent : l'écran
+  //    annonçait « 5 retirées, 6 ajoutées, 0 inchangée » pour une seule ligne
+  //    ajoutée — un diff qui ment sur ce qu'on s'apprête à perdre.
+  const crlfD = JSON.parse(win.eval(
+    'JSON.stringify(diffLignes("a\\r\\nb\\r\\nc".replace(/\\r\\n/g, "\\n"), "a\\nb\\nc"))'));
+  check("un fichier en CRLF ne fait pas passer tout le contenu pour changé",
+    crlfD.moins === 0 && crlfD.plus === 0 && crlfD.egales === 3,
+    "−" + crlfD.moins + " +" + crlfD.plus + " =" + crlfD.egales);
+
+  // Le diff se recalcule à la frappe : c'est lui qu'on lit, pas le champ.
+  const memChamp = win.document.getElementById("uMemTexte");
+  memChamp.value = "# Profil\n\nCéramiste à Nantes.\nEt je donne des cours.\n";
+  memChamp.dispatchEvent(new win.Event("input"));
+  await wait(40);
+  const memBilan = win.document.querySelector("#uMemDiff .u-bilan");
+  check("le bilan se recalcule à chaque frappe",
+    /1 ligne retirée/.test(memBilan.textContent) && /1 ajoutée/.test(memBilan.textContent),
+    memBilan.textContent.trim());
+
+  // ⚠ L'écriture passe par serve.py, JAMAIS par /api/fs/write-text en direct :
+  //    ce serait contourner la copie datée, et l'écran promettrait alors un
+  //    retour en arrière qui n'existe pas.
+  fetched.length = 0;
+  win.document.getElementById("uMemGo").click();
+  await wait(150);
+  const memEnvois = fetched.filter((f) => f.method === "POST");
+  check("écrire passe par serve.py, jamais par /api/fs/write-text en direct",
+    memEnvois.some((f) => f.path === "/ulysse/ecrire")
+    && !fetched.some((f) => f.path.indexOf("/api/fs/write-text") === 0),
+    memEnvois.map((f) => f.path).join(" "));
+  check("...et la feuille se ferme en le disant",
+    !win.document.getElementById("sEcrire").classList.contains("on")
+    && /version d'avant est gardée/.test(win.document.getElementById("snack").textContent),
+    win.document.getElementById("snack").textContent);
+
+  // Le verrou : trois niveaux, trois couleurs. Les peindre tous en vert
+  // serait plus rassurant et moins vrai.
+  Array.from(win.document.querySelectorAll("[data-mf]"))
+    .find((b) => b.dataset.mf === "SOUL.md").click();
+  await wait(120);
+  const memNiv = win.document.querySelectorAll("#ecrireBody .u-niv-l");
+  check("le verrou dit TROIS niveaux, pas une promesse",
+    memNiv.length === 3 && memNiv[0].classList.contains("ok")
+    && memNiv[1].classList.contains("ok") && memNiv[2].classList.contains("warn"),
+    Array.from(memNiv).map((n) => n.className.replace("u-niv-l ", "")).join(" · "));
+  check("...et le troisième dit que l'agent, lui, en a les moyens",
+    /l'agent, lui, en a les moyens/i.test(memNiv[2].textContent)
+    && /accords soient demandés/.test(memNiv[2].textContent),
+    memNiv[2].textContent.trim().slice(0, 50));
+  // On cherche l'absence de CONTRÔLE, pas de mots : l'écran contient bien la
+  // phrase « pas de « écrire quand même » » — pour la nier.
+  check("...la feuille du verrou n'offre aucun chemin vers l'écriture",
+    !win.document.querySelector("#ecrireBody textarea")
+    && !win.document.querySelector("#ecrireBody .validate")
+    && !win.document.querySelector("#ecrireBody [data-mf]"),
+    Array.from(win.document.querySelectorAll("#ecrireBody button"))
+      .map((b) => b.textContent.trim()).join(" · "));
+  win.eval("fermerEcriture()");
 
   console.log("\n--- Aucune erreur JavaScript pendant tout ça ---");
   check("la console est restée propre", errors.length === 0, errors.slice(0, 3).join(" | "));

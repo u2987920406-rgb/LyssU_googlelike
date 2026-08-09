@@ -137,6 +137,28 @@ function pinRail(){
 
 let detteMini = false, memoireEtat = null;
 
+/* ⚠ `/api/memory` rend `builtin_files` comme un OBJET nom → octets —
+   `{"memory": 2263, "user": 1380}` — et NON une liste d'objets
+   `[{name, path, exists}]`. Le fixture des tests supposait la seconde forme :
+   le code appelait `.filter` sur un objet et levait « files.filter is not a
+   function » contre le vrai backend, sans qu'aucun test ne le voie. C'est le
+   même défaut que les tests d'apparence sans feuille de style — un faux qui
+   ne ment pas comme le vrai ne prouve rien.
+
+   Un fichier VIDE (0 octet) est un fichier non renseigné : c'est ce que la
+   dette de profil signale. Un fichier absent du dictionnaire ne s'y distingue
+   pas d'un fichier absent du disque — on ne prétend donc pas le savoir. */
+function memFichiersApi(d){
+  const bf = (d && d.builtin_files) || {};
+  if (Array.isArray(bf)) return bf.map((f) => ({ nom: f.name || f.path || String(f),
+                                                 octets: f.size, vide: f.exists === false }));
+  return Object.keys(bf).map((nom) => ({ nom: nom, octets: bf[nom], vide: !bf[nom] }));
+}
+
+function memManquants(d){
+  return memFichiersApi(d).filter((f) => f.vide).map((f) => f.nom);
+}
+
 function majDette(){
   const w = $("dettewrap");
   if (!w) return;
@@ -1808,6 +1830,353 @@ let setSel = 0, memCache = null;
 /* Les renvois croisés passent par ici : le Terminal renvoie aux Dépenses,
    Projets à la mémoire. Un renvoi qui ouvre les Réglages sur la mauvaise
    section fait chercher — autant ne pas renvoyer du tout. */
+/* ═══ Écrire dans la mémoire ═════════════════════════════════════════════
+   « Rien ne disparaît d'un geste » — la doctrine de la maquette, appliquée à
+   un geste qu'elle n'avait pas nommé. Trois gestes, trois risques : créer ne
+   perd rien, compléter non plus, remplacer perd ce qui était là. */
+
+/* Un vrai diff par lignes, pas une comparaison de longueurs. C'est ce que
+   quelqu'un lit AVANT d'écraser une mémoire : s'il est faux, tout le reste
+   de cet écran ment.
+
+   Plus longue sous-suite commune, en table. Les fichiers de mémoire font
+   quelques centaines de lignes — la table O(n·m) y est instantanée, et sa
+   justesse se relit, ce qui vaut mieux qu'une heuristique ici. On borne tout
+   de même, et on le DIT plutôt que de rendre un diff faux en silence. */
+const DIFF_MAX_LIGNES = 4000;
+
+/* `"".split("\n")` rend `[""]` — UNE ligne vide, pas zéro. Sans ça, remplir
+   un fichier vide affichait « 1 ligne retirée », c'est-à-dire une perte qui
+   n'a pas lieu. Et `"a\n".split("\n")` rend `["a", ""]` : le saut de ligne
+   final n'est pas une ligne de plus, il termine la dernière. */
+function enLignes(t){
+  if (!t) return [];
+  const l = t.split("\n");
+  if (l.length && l[l.length - 1] === "") l.pop();
+  return l;
+}
+
+function diffLignes(avant, apres){
+  const a = enLignes(avant), b = enLignes(apres);
+  if (a.length > DIFF_MAX_LIGNES || b.length > DIFF_MAX_LIGNES){
+    return { trop: true, lignes: [], moins: 0, plus: 0, egales: 0 };
+  }
+  // c[i][j] = longueur de la plus longue sous-suite commune de a[i:] et b[j:]
+  const c = [];
+  for (let i = 0; i <= a.length; i++) c.push(new Uint32Array(b.length + 1));
+  for (let i = a.length - 1; i >= 0; i--){
+    for (let j = b.length - 1; j >= 0; j--){
+      c[i][j] = a[i] === b[j] ? c[i + 1][j + 1] + 1
+        : Math.max(c[i + 1][j], c[i][j + 1]);
+    }
+  }
+  const lignes = [];
+  let i = 0, j = 0, moins = 0, plus = 0, egales = 0;
+  while (i < a.length && j < b.length){
+    if (a[i] === b[j]){ lignes.push(["rien", a[i]]); egales++; i++; j++; }
+    else if (c[i + 1][j] >= c[i][j + 1]){ lignes.push(["moins", a[i]]); moins++; i++; }
+    else { lignes.push(["plus", b[j]]); plus++; j++; }
+  }
+  while (i < a.length){ lignes.push(["moins", a[i++]]); moins++; }
+  while (j < b.length){ lignes.push(["plus", b[j++]]); plus++; }
+  return { trop: false, lignes: lignes, moins: moins, plus: plus, egales: egales };
+}
+
+/* On montre ce qui change, et on annonce ce qu'on ne déroule pas. Une longue
+   étendue inchangée n'apprend rien ; la cacher sans le dire ferait croire que
+   le fichier est court. */
+function diffHTML(d){
+  if (d.trop){
+    return '<div class="u-todo">Ce fichier est trop long pour être comparé ligne '
+      + "à ligne ici (plus de " + DIFF_MAX_LIGNES + " lignes). L'écriture reste "
+      + "possible, et la version d'avant sera gardée — mais vous ne verriez pas "
+      + "ce qui change, alors on ne le prétend pas.</div>";
+  }
+  const CONTEXTE = 3;
+  const garde = d.lignes.map((l, k) => {
+    if (l[0] !== "rien") return true;
+    for (let v = Math.max(0, k - CONTEXTE); v <= Math.min(d.lignes.length - 1, k + CONTEXTE); v++){
+      if (d.lignes[v][0] !== "rien") return true;
+    }
+    return false;
+  });
+  let html = "", saut = 0;
+  d.lignes.forEach(([k, t], idx) => {
+    if (!garde[idx]){ saut++; return; }
+    if (saut){
+      html += '<div class="coupe">' + saut + " ligne" + (saut > 1 ? "s" : "")
+        + " inchangée" + (saut > 1 ? "s" : "") + ", non dépliée"
+        + (saut > 1 ? "s" : "") + ".</div>";
+      saut = 0;
+    }
+    html += '<div class="l ' + k + '"><span class="g">'
+      + (k === "moins" ? "−" : k === "plus" ? "+" : " ") + "</span>"
+      + (t ? esc(t) : " ") + "</div>";
+  });
+  if (saut){
+    html += '<div class="coupe">' + saut + " ligne" + (saut > 1 ? "s" : "")
+      + " inchangée" + (saut > 1 ? "s" : "") + " à la fin.</div>";
+  }
+  return '<div class="u-bilan" style="margin-top:16px">'
+    + '<span class="moins">' + d.moins + " ligne" + (d.moins > 1 ? "s" : "")
+    + " retirée" + (d.moins > 1 ? "s" : "") + "</span>"
+    + '<span class="plus">' + d.plus + " ajoutée" + (d.plus > 1 ? "s" : "") + "</span>"
+    + "<span>" + d.egales + " inchangée" + (d.egales > 1 ? "s" : "") + "</span></div>"
+    + '<div class="u-diff">' + (html || '<div class="coupe">Aucune différence.</div>')
+    + "</div>";
+}
+
+/* Les trois fichiers de mémoire. `GET /api/memory` ne rend que des NOMS
+   (`["memory", "user"]`) — pas de chemin, pas de taille. Le chemin se
+   reconstitue avec `hermes_home`, que `/api/status` expose vraiment ; la
+   taille et le nombre de lignes se lisent avec `/api/fs/read-text`.
+   Rien n'est supposé : un fichier qu'on n'a pas pu lire le dit. */
+const MEM_FICHIERS = [
+  { n: "USER.md", quoi: "Qui vous êtes, ce que vous faites, comment vous voulez qu'on vous parle." },
+  { n: "MEMORY.md", quoi: "Ce qu'Ulysse a retenu de vos échanges, au fil du temps." },
+  { n: "SOUL.md", quoi: "Ce qu'il s'autorise et ce qu'il refuse.", verrou: true }
+];
+
+let memLus = {};
+
+function memChemin(nom){
+  const home = lastStatus && lastStatus.hermes_home;
+  return home ? home.replace(/[\\/]+$/, "") + "\\" + nom : null;
+}
+
+async function drawMemFiles(){
+  const hote = $("uMemFiles");
+  if (!hote) return;
+  if (!memChemin("USER.md")){
+    hote.innerHTML = '<div class="u-todo">Le dossier d\'Hermès n\'est pas encore '
+      + "connu — <code>/api/status</code> n'a pas répondu. Rien n'est affiché "
+      + "plutôt qu'un chemin deviné.</div>";
+    return;
+  }
+  await Promise.all(MEM_FICHIERS.map(async (f) => {
+    const chemin = memChemin(f.n);
+    try {
+      const r = await REST.readText(chemin);
+      memLus[f.n] = { texte: r.text || "", octets: r.byteSize || 0,
+                      lignes: (r.text || "").split("\n").length, existe: true };
+    } catch (e){
+      // 404 = le fichier n'existe pas encore : c'est une CRÉATION, pas une
+      // panne. Toute autre erreur se dit telle quelle.
+      memLus[f.n] = { existe: false, souci: /404|not found/i.test(e.message) ? null : e.message };
+    }
+  }));
+  hote.innerHTML = MEM_FICHIERS.map(memFichierHTML).join("");
+  hote.querySelectorAll("[data-mf]").forEach((btn) => {
+    btn.onclick = () => ouvrirEcriture(btn.dataset.mf, btn.dataset.mode);
+  });
+}
+
+function memFichierHTML(f){
+  const l = memLus[f.n] || {};
+  let sous = f.quoi;
+  if (l.existe) sous += " · " + fmtBytes(l.octets) + " · " + l.lignes + " lignes";
+  else if (l.souci) sous += " · illisible : " + l.souci;
+  else sous += " · n'existe pas encore";
+  return '<div class="u-mfile' + (f.verrou ? " u-verrou" : "") + '">'
+    + '<span class="ic">' + svg(l.existe ? "fichier" : "plus", { size: 20 }) + "</span>"
+    + '<span class="tx"><span class="nm">' + esc(f.n) + "</span>"
+    + '<span class="sub">' + esc(sous) + "</span></span>"
+    + '<span class="act">'
+    + (f.verrou
+        ? '<span class="u-cadenas">' + svg("coffre", { size: 15 }) + "Protégé</span>"
+          + '<button class="btn-pick" data-mf="' + esc(f.n) + '" data-mode="verrou">'
+          + "En savoir plus</button>"
+        : '<button class="btn-pick" data-mf="' + esc(f.n) + '" data-mode="'
+          + (l.existe ? "remplacer" : "creer") + '">'
+          + (l.existe ? "Remplacer" : "Créer") + "</button>")
+    + "</span></div>";
+}
+
+function feuilleEcrire(titreTxt, corps){
+  H("ecrireBody", "<h2>" + esc(titreTxt) + "</h2>" + corps);
+  $("sEcrire").classList.add("on");
+  return $("ecrireBody");
+}
+
+function fermerEcriture(){ $("sEcrire").classList.remove("on"); }
+
+function niveauHTML(k, t, texte){
+  return '<div class="u-niv-l ' + k + '"><span class="pt">'
+    + svg(k === "ok" ? "coche" : "alerte", { size: 17 }) + "</span>"
+    + '<span><span class="nm">' + esc(t) + "</span>"
+    + '<span class="tx">' + esc(texte) + "</span></span></div>";
+}
+
+async function ouvrirEcriture(nom, mode){
+  const chemin = memChemin(nom);
+
+  /* ── CE QU'ON REFUSE DE FAIRE DU TOUT ────────────────────────────────
+     La première version de cet écran disait « ce fichier n'est modifiable
+     que par vous, jamais depuis une conversation ». C'était FAUX, et le
+     code source d'Hermès l'a établi. On dit donc les trois niveaux, avec
+     trois couleurs : les peindre tous en vert serait plus rassurant et
+     moins vrai. Le troisième n'est pas une alerte — c'est une limite. */
+  if (mode === "verrou"){
+    const b = feuilleEcrire("Ce qu'Ulysse s'autorise",
+      '<div class="sub">' + esc(nom) + " · " + esc(chemin) + "</div>"
+      + '<div class="irrev" style="margin-top:18px"><span class="pt">'
+      + svg("alerte", { size: 19 }) + "</span><span>"
+      + "<b>Ce fichier dit ce qu'Ulysse s'autorise et ce qu'il refuse.</b> "
+      + "Il n'a pas la même protection selon qui écrit — et mieux vaut le "
+      + "savoir que le croire.</span></div>"
+      + '<div class="u-niv">'
+      + niveauHTML("ok", "Ulysse ne l'écrira jamais",
+          "Le serveur refuse ce nom avant toute écriture, quelle que soit la "
+          + "casse. Aucun écran, aucun bouton d'ici ne peut le toucher.")
+      + niveauHTML("ok", "Cet écran ne vous le propose pas",
+          "Il n'y a pas de champ, pas de « écrire quand même ». Ouvrez-le dans "
+          + "votre éditeur ; Hermès le relira au prochain lancement.")
+      + niveauHTML("warn", "L'agent, lui, en a les moyens",
+          "Il écrit avec ses propres outils, sans passer par ce serveur, et "
+          + "Hermès n'interdit aucun chemin. Ce qui l'arrête est votre accord : "
+          + "une écriture ne s'autorise pas « toujours », donc il devra vous la "
+          + "demander — à condition que les accords soient demandés.")
+      + "</div>"
+      + '<div class="u-macts">'
+      + '<button class="btn-pick" data-ea="copier">Copier le chemin</button>'
+      + '<span class="sp"></span>'
+      + '<button class="txt-btn" data-ea="accords">Voir mes accords</button>'
+      + '<button class="txt-btn" data-ea="fermer">Fermer</button></div>');
+    b.querySelectorAll("[data-ea]").forEach((x) => {
+      x.onclick = () => {
+        if (x.dataset.ea === "fermer") return fermerEcriture();
+        if (x.dataset.ea === "copier") return copier(chemin, "Le chemin");
+        fermerEcriture();
+        ouvrirReglages(3);            // Sécurité et accords
+      };
+    });
+    return;
+  }
+
+  const lu = memLus[nom] || {};
+  /* ⚠ LES FINS DE LIGNE. Sur Windows ces fichiers sont en CRLF ; la valeur
+     d'un `<textarea>` est normalisée en LF par le navigateur. Comparer les
+     deux telles quelles fait différer TOUTES les lignes : le diff annonçait
+     « 5 retirées, 6 ajoutées, 0 inchangée » pour une seule ligne ajoutée.
+
+     On compare donc en LF — c'est le CONTENU qu'on veut montrer — et on
+     réécrit avec la fin de ligne d'origine au moment d'écrire. Convertir le
+     fichier de quelqu'un en silence serait modifier chacune de ses lignes
+     sans le dire, ce qui est exactement ce que cet écran existe pour éviter. */
+  const brut = lu.existe ? lu.texte : "";
+  const crlf = brut.indexOf("\r\n") >= 0;
+  const avant = brut.replace(/\r\n/g, "\n");
+  const creation = mode === "creer" || !lu.existe;
+
+  const b = feuilleEcrire(creation ? "Créer " + nom : "Remplacer " + nom,
+    '<div class="sub">' + esc(chemin)
+    + (creation ? " · ce fichier n'existe pas encore, rien ne sera remplacé"
+       : " · " + fmtBytes(lu.octets) + " · " + lu.lignes + " lignes") + "</div>"
+    + '<textarea id="uMemTexte" class="u-memtexte" spellcheck="false"'
+    + ' aria-label="Nouveau contenu de ' + esc(nom) + '"></textarea>'
+    + '<div id="uMemDiff"></div>'
+    // La garantie ne s'affiche que quand quelque chose se perd. L'afficher
+    // sur une création serait de la prudence gratuite — celle qu'on n'aura
+    // plus quand elle comptera.
+    + (creation ? ""
+       : '<div class="u-garde"><span class="pt">' + svg("coche", { size: 18 })
+         + "</span><span><b>La version d'avant sera gardée</b>, datée. Vous "
+         + "pourrez y revenir depuis cet écran, sans limite de temps. Et si "
+         + "cette copie ne peut pas se faire, <b>rien ne sera écrit</b>.</span></div>")
+    + '<div id="uMemVers"></div>'
+    + '<div class="u-macts">'
+    + '<button class="validate" id="uMemGo">'
+    + (creation ? "Créer le fichier" : "Remplacer") + "</button>"
+    + '<span class="sp"></span>'
+    + '<button class="txt-btn" data-ea="fermer">Annuler</button></div>');
+
+  const zone = $("uMemTexte");
+  zone.value = avant;
+  const majDiff = () => {
+    H("uMemDiff", creation
+      ? '<div class="u-bilan" style="margin-top:16px"><span class="plus">'
+        + zone.value.split("\n").length + " lignes seront écrites</span>"
+        + "<span>rien n'est remplacé</span></div>"
+      : diffHTML(diffLignes(avant, zone.value)));
+  };
+  majDiff();
+  zone.oninput = majDiff;
+
+  b.querySelector('[data-ea="fermer"]').onclick = fermerEcriture;
+
+  if (!creation) chargerVersions(chemin);
+
+  $("uMemGo").onclick = async () => {
+    const bouton = $("uMemGo");
+    bouton.disabled = true;
+    try {
+      // On rend au fichier ses fins de ligne d'origine.
+      const aEcrire = crlf ? zone.value.replace(/\r?\n/g, "\r\n") : zone.value;
+      const r = await REST.ecrireMemoire(chemin, aEcrire);
+      fermerEcriture();
+      snack(r.creation ? "« " + nom + " » créé."
+        : "Écrit. La version d'avant est gardée (" + r.versions + " au total).");
+      await drawMemFiles();
+    } catch (e){
+      bouton.disabled = false;
+      // Le serveur dit POURQUOI il refuse : on relaie sa phrase, on n'en
+      // invente pas une plus vague.
+      snack(e.message);
+    }
+  };
+}
+
+/* Les versions gardées, et le retour en arrière. Il garde lui-même ce qu'il
+   quitte — sinon revenir serait un aller simple. */
+async function chargerVersions(chemin){
+  const hote = $("uMemVers");
+  if (!hote) return;
+  let liste = [];
+  try { liste = (await REST.versionsDe(chemin)).versions || []; }
+  catch (e){
+    // Ne PAS rester muet : l'écran vient de promettre qu'on pourra revenir en
+    // arrière. Une zone vide laisserait croire qu'il n'y a rien à retrouver,
+    // alors qu'on n'a pas pu le savoir.
+    // Un 404 ou un 405 ici veut dire une chose précise : le `serve.py` qui
+    // tourne a été lancé avant que ces routes n'existent. On le dit, plutôt
+    // que de recracher sa page d'erreur HTML.
+    const vieux = /\b(404|405)\b/.test(e.message);
+    hote.innerHTML = '<div class="u-todo" style="margin-top:12px">'
+      + (vieux
+          ? "<b>Le serveur qui tourne ne connaît pas encore les versions.</b> "
+            + "Il a été lancé avant ces routes — relancez "
+            + "<code>lancer_ulysse.bat</code> pour qu'elles existent. Rien "
+            + "n'est perdu : les copies se feront à partir de là."
+          : "Les versions gardées n'ont pas pu être lues : "
+            + esc(String(e.message).replace(/<[^>]*>/g, " ").slice(0, 120)))
+      + "</div>";
+    return;
+  }
+  if (!liste.length){
+    hote.innerHTML = '<div class="u-vers"><div class="r"><span class="n">'
+      + "Aucune version gardée pour l'instant — la première le sera à la "
+      + "prochaine écriture.</span></div></div>";
+    return;
+  }
+  hote.innerHTML = '<div class="u-vers">' + liste.map((v) =>
+    '<div class="r"><span class="q">' + esc(fmtWhen(v.horodatage))
+    + '</span><span class="n">' + fmtBytes(v.octets) + "</span>"
+    + '<button data-rv="' + esc(v.nom) + '">Revenir à celle-ci</button></div>').join("")
+    + "</div>";
+  hote.querySelectorAll("[data-rv]").forEach((x) => {
+    x.onclick = async () => {
+      x.disabled = true;
+      try {
+        await REST.restaurerVersion(chemin, x.dataset.rv);
+        fermerEcriture();
+        snack("Revenu à la version du " + x.previousElementSibling.previousElementSibling.textContent
+          + ". Ce qu'elle remplace est gardé aussi.");
+        await drawMemFiles();
+      } catch (e){ x.disabled = false; snack(e.message); }
+    };
+  });
+}
+
 function ouvrirReglages(i){
   setSel = i;
   nav("Reglages");
@@ -1851,25 +2220,14 @@ async function drawSet(){
     try {
       const d = await REST.memory();
       memCache = d;
-      const files = (d && d.builtin_files) || [];
-      memoireEtat = {
-        manquants: files.filter((f) => f.exists === false).map((f) => f.name || f.path)
-      };
+      memoireEtat = { manquants: memManquants(d) };
       majDette();
       b.innerHTML = titre("Ce qu'Ulysse sait")
         + ligne("Fournisseur de mémoire", "Ce qui garde ce qu'Ulysse retient d'une fois sur l'autre.",
             '<span class="tag">' + esc((d && d.active) || "—") + "</span>")
         + titre("Les fichiers de mémoire")
-        + files.map((f) => {
-            const nom = f.name || f.path || String(f);
-            return '<div class="row"><span class="ic">' + svg("fichier", { size: 18 }) + "</span>"
-              + '<span class="nm">' + esc(nom) + '</span><span class="sp"></span>'
-              + '<span class="chip">' + (f.exists === false ? "absent" : "présent") + "</span></div>";
-          }).join("")
-        + '<div class="u-todo"><b>Modifier ces fichiers depuis Ulysse</b> passera par '
-        + "<code>/api/fs/write-text</code>, qui existe déjà. Non branché tant que les "
-        + "garde-fous d'écriture ne sont pas décidés — écraser une mémoire par erreur "
-        + "n'est pas rattrapable.</div>";
+        + '<div id="uMemFiles"><div class="u-load">Lecture des fichiers…</div></div>';
+      await drawMemFiles();
     } catch (e){
       b.innerHTML = titre("Ce qu'Ulysse sait")
         + '<div class="u-todo">Lecture impossible : ' + esc(e.message) + "</div>";
@@ -2278,11 +2636,14 @@ function basculerPlein(v){
   // (`z-index:1`), donc le `z-index:200` de la fenêtre ne peut pas en sortir,
   // et le rail — à 60 dans le contexte parent — passait devant le terminal.
   $("pTerminal").classList.toggle("u-plein-actif", termPlein);
-  const b = $("tFull");
-  if (b) H("tFull", svg(termPlein ? "restaurer" : "agrandir", { size: 20 }));
-  // La fenêtre change de taille du tout au tout : le terminal doit se
-  // réajuster, sinon il garde le gabarit de l'autre taille.
-  ajusterTerm();
+  // On REDESSINE plutôt que de déplacer les replis à la main : les deux
+  // groupes ne sont plus dans `#tside` à ce moment-là, ils vivent déjà dans
+  // les replis. Les rechercher là où ils ne sont plus les perdrait. `drawTerm`
+  // réécrit la colonne, puis `poserOutils` les redéplace vers le bon hôte —
+  // et la séquence sortir/réécrire/réinstaller protège l'écran vivant, comme
+  // à chaque changement de thème. `ajusterTerm` suit, la fenêtre ayant changé
+  // de taille du tout au tout.
+  drawTerm();
 }
 
 function fermerReplis(){
@@ -2302,18 +2663,34 @@ function fermerReplis(){
    Deux boutons, pas deux « ⋯ » : deux kebabs côte à côte sont
    indistinguables, il faudrait les ouvrir pour savoir lequel est lequel. */
 function poserOutils(){
-  const hote = $("tOutils");
-  if (!hote) return;
-  H("tOutils",
+  // Les outils vivent dans la barre de titre — ou, en plein écran qui la
+  // recouvre, dans la ligne de sortie. C'est là qu'on travaille, donc c'est là
+  // qu'on veut poser une commande : en sortir pour la chercher puis y revenir
+  // est un aller-retour qu'on ne fait pas, on renonce.
+  //
+  // UN SEUL JEU, jamais deux : les mêmes replis à deux endroits, ce seraient
+  // deux endroits où les chercher. On vide donc l'hôte qu'on quitte.
+  const enPlein = termPlein && !!$("tOutils2");
+  const hote = enPlein ? "tOutils2" : "tOutils";
+  const quitte = enPlein ? "tOutils" : "tOutils2";
+  if (!$(hote)) return;
+  if ($(quitte)) H(quitte, "");
+  H(hote,
     '<span><button class="icon-btn" id="tApp" aria-label="Apparence du terminal"'
     + ' title="Apparence">' + svg("regler", { size: 20 }) + "</button>"
     + '<div class="pop u-pop" id="tPopApp"></div></span>'
     + '<span><button class="icon-btn" id="tMem" aria-label="Aide-mémoire"'
     + ' title="Aide-mémoire">' + svg("doc", { size: 20 }) + "</button>"
     + '<div class="pop u-pop" id="tPopMem"></div></span>'
-    + '<button class="icon-btn" id="tFull" aria-label="Plein écran"'
-    + ' title="Plein écran">' + svg(termPlein ? "restaurer" : "agrandir", { size: 20 })
-    + "</button>");
+    // Le bouton d'agrandissement n'existe QUE hors plein écran : dedans, la
+    // ligne de sortie porte déjà un bouton NOMMÉ qui fait la même chose. Deux
+    // commandes pour un même geste, à deux endroits, c'est une de trop — et
+    // c'est celle qui n'a pas de mot qui saute. D'autant qu'Échap appartient
+    // au terminal quand on tape dedans : le bouton nommé est le seul chemin
+    // de sortie fiable, il ne peut pas être une icône muette.
+    + (termPlein ? ""
+        : '<button class="icon-btn" id="tFull" aria-label="Plein écran"'
+          + ' title="Plein écran">' + svg("agrandir", { size: 20 }) + "</button>"));
 
   // Le premier groupe est l'apparence ; TOUT le reste est de l'aide-mémoire.
   // Depuis que les familles sont séparées, il y en a deux — « Dans votre
@@ -2336,7 +2713,8 @@ function poserOutils(){
   bascule("tMem", "tPopMem", "tPopApp");
   $("tPopApp").onclick = (e) => e.stopPropagation();
   $("tPopMem").onclick = (e) => e.stopPropagation();
-  $("tFull").onclick = (e) => { e.stopPropagation(); basculerPlein(); };
+  const plein = $("tFull");
+  if (plein) plein.onclick = (e) => { e.stopPropagation(); basculerPlein(true); };
 }
 
 function ligneTui([c, q]){
@@ -2401,7 +2779,10 @@ function drawTerm(){
     + ' style="height:32px;padding:0 14px">' + svg("restaurer", { size: 17 })
     + " Quitter le plein écran</button>"
     + "<kbd>Échap</kbd><span class=\"sp\"></span>"
-    + "<span>Terminal CLI · " + esc(TCMD) + " --tui</span></div>"
+    + "<span>" + esc(TCMD) + " --tui</span>"
+    // Les deux replis viennent ici en plein écran : même ordre, même côté.
+    // Les outils ne bougent pas, c'est la barre qui les porte qui change.
+    + '<span class="u-outils" id="tOutils2"></span></div>'
 
     + '<div class="tscreen u-tscreen" style="background:' + T.bg + ";color:" + T.fg
     + ";font-size:" + px + 'px">'
@@ -2895,9 +3276,7 @@ async function lancerFirst(){
   });
 
   REST.memory().then((d) => {
-    const files = (d && d.builtin_files) || [];
-    memoireEtat = { manquants: files.filter((f) => f.exists === false)
-      .map((f) => f.name || f.path) };
+    memoireEtat = { manquants: memManquants(d) };
     majDette();
     drawFirst();
   }).catch(() => {});
@@ -3191,9 +3570,7 @@ function boot(){
   setInterval(loadStatus, 15000);
   // La mémoire alimente la barre de dette : on la lit une fois au démarrage.
   REST.memory().then((d) => {
-    const files = (d && d.builtin_files) || [];
-    memoireEtat = { manquants: files.filter((f) => f.exists === false)
-      .map((f) => f.name || f.path) };
+    memoireEtat = { manquants: memManquants(d) };
     majDette();
   }).catch(() => {});
 

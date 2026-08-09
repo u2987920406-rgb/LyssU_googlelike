@@ -403,6 +403,95 @@
   border:1px solid var(--outline-var);font-size:var(--font-size-xs);color:var(--muted)}
 .u-exp-acts button:hover{background:var(--hover-bg);color:var(--text)}
 
+/* ═══ Écrire dans la mémoire ═════════════════════════════════════════════
+   « Rien ne disparaît d'un geste » — la doctrine de la maquette, appliquée
+   à un geste qu'elle n'avait pas nommé : écrire par-dessus une mémoire EST
+   une destruction, même si ça s'appelle écrire.
+
+   Les trois gestes n'ont pas le même risque. Créer ne perd rien, compléter
+   non plus, remplacer perd tout ce qui était là. Les traiter pareil ferait
+   payer à la création la prudence que mérite le remplacement — et
+   l'habituerait, si bien qu'on ne la lirait plus le jour où elle compte. */
+.u-mfile{display:flex;align-items:center;gap:14px;padding:14px 0;
+  border-bottom:1px solid var(--outline-var)}
+.u-mfile:last-of-type{border-bottom:none}
+.u-mfile .ic{color:var(--muted);flex:none;display:grid}
+.u-mfile .tx{flex:1;min-width:0}
+/* `display:block` sur les deux : ce sont des `span`, et sans ça le nom du
+   fichier et sa description se collent — « USER.mdQui vous êtes… ». C'est le
+   cas dans `.srow2` de la maquette, qui a la même construction ; signalé à
+   Cowork plutôt que corrigé ici, la feuille leur appartient. */
+.u-mfile .nm{font-weight:500;display:block}
+.u-mfile .sub{font-size:var(--font-size-xs);color:var(--muted);margin-top:2px;
+  display:block;line-height:1.45}
+.u-mfile .act{flex:none;display:flex;gap:6px;align-items:center}
+.u-mfile.u-verrou .nm{color:var(--muted)}
+.u-cadenas{display:inline-flex;align-items:center;gap:6px;
+  font-size:var(--font-size-xs);color:var(--amber);white-space:nowrap}
+
+/* Ce qu'on montre avant : LA DIFFÉRENCE, pas le fichier. Montrer le nouveau
+   texte ne dit pas ce qu'on perd ; les montrer côte à côte demande de
+   comparer soi-même. Deux nombres et quelques lignes suffisent. */
+.u-diff{border:1px solid var(--outline-var);border-radius:var(--radius-md);
+  overflow:hidden;margin:14px 0 4px;font-size:12.5px;
+  font-family:ui-monospace,Menlo,Consolas,monospace;line-height:1.55;
+  max-height:44vh;overflow-y:auto}
+.u-diff .l{display:flex;gap:10px;padding:2px 12px;white-space:pre-wrap;
+  word-break:break-word}
+.u-diff .l .g{flex:none;width:14px;text-align:center;opacity:.5;user-select:none}
+.u-diff .l.moins{background:#FCE8E6;color:#8C1D18}
+.u-diff .l.plus{background:#E6F4EA;color:#0D652D}
+.u-diff .l.rien{color:var(--muted)}
+.u-diff .coupe{padding:5px 12px;background:var(--surface);color:var(--faint);
+  font-size:11px;font-family:var(--font-ui)}
+.u-bilan{display:flex;gap:16px;font-size:var(--font-size-xs);color:var(--muted);
+  margin-bottom:2px}
+.u-bilan .moins{color:#B3261E}
+.u-bilan .plus{color:var(--green)}
+
+/* Ce qu'on permet de défaire : une version GARDÉE, pas six secondes. Une
+   mémoire fausse, on s'en aperçoit des jours plus tard — au moment où Ulysse
+   répond à côté. Six secondes ne sont pas un garde-fou, c'est une politesse. */
+.u-garde{display:flex;gap:12px;align-items:flex-start;background:var(--surface);
+  border-radius:var(--radius-md);padding:12px 16px;font-size:var(--font-size-sm);
+  color:var(--muted);line-height:1.55;margin-top:14px}
+.u-garde b{color:var(--text);font-weight:500}
+.u-garde .pt{color:var(--green);flex:none;display:grid}
+.u-vers{margin-top:10px;font-size:var(--font-size-xs)}
+.u-vers .r{display:flex;align-items:center;gap:10px;padding:7px 0;
+  border-bottom:1px solid var(--surface)}
+.u-vers .r:last-child{border-bottom:none}
+.u-vers .q{color:var(--faint);flex:none;min-width:132px;
+  font-variant-numeric:tabular-nums}
+.u-vers .n{flex:1;color:var(--muted)}
+.u-vers button{color:var(--accent);font-size:var(--font-size-xs);padding:4px 10px;
+  border-radius:var(--radius-pill)}
+.u-vers button:hover{background:var(--accent-container)}
+/* Le champ où l'on écrit. Il part du contenu ACTUEL, et non d'une page
+   blanche : on modifie une mémoire, on ne la retape pas. La différence
+   au-dessous se recalcule à chaque frappe — c'est elle qu'on lit, pas lui. */
+.u-memtexte{width:100%;min-height:190px;margin-top:16px;resize:vertical;
+  border:1px solid var(--outline-var);border-radius:var(--radius-md);
+  padding:12px 14px;font-family:ui-monospace,Menlo,Consolas,monospace;
+  font-size:12.5px;line-height:1.55;color:var(--text);background:var(--bg)}
+.u-memtexte:focus{outline:2px solid var(--accent);outline-offset:-1px}
+.u-macts{display:flex;align-items:center;gap:10px;margin-top:22px;flex-wrap:wrap}
+.u-macts .sp{flex:1}
+
+/* Trois niveaux de garantie, et TROIS COULEURS. Les peindre tous en vert
+   serait plus rassurant et moins vrai. Le troisième n'est pas une alerte :
+   c'est une limite, et elle a le droit d'être dite calmement. */
+.u-niv{margin-top:18px}
+.u-niv-l{display:flex;gap:12px;align-items:flex-start;padding:12px 0;
+  border-bottom:1px solid var(--surface)}
+.u-niv-l:last-child{border-bottom:none}
+.u-niv-l .pt{flex:none;display:grid;margin-top:1px}
+.u-niv-l.ok .pt{color:var(--green)}
+.u-niv-l.warn .pt{color:var(--amber)}
+.u-niv-l .nm{display:block;font-weight:500;font-size:15px}
+.u-niv-l .tx{display:block;font-size:var(--font-size-sm);color:var(--muted);
+  margin-top:3px;line-height:1.55}
+
 /* ═══ Le terminal ════════════════════════════════════════════════════════
    `.tscreen` de la maquette dessinait une fenêtre en hauteur libre : elle
    montrait trois lignes écrites d'avance. Un vrai terminal a besoin d'une
@@ -931,6 +1020,11 @@
 
   <!-- La fiche d'un fichier ouvert depuis l'Établi ou les Livrables. -->
   <div class="sheet-bg" id="sFile"><div class="sheet" id="fileBody"></div></div>
+
+  <!-- Écrire dans la mémoire. Une feuille à part : ce qu'on y montre — la
+       différence, ce qui se perd, ce qu'on pourra défaire — n'a rien à voir
+       avec l'aperçu d'un fichier. -->
+  <div class="sheet-bg" id="sEcrire"><div class="sheet" id="ecrireBody"></div></div>
 
 </section>
 

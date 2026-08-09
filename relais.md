@@ -1,8 +1,9 @@
 # Relais — 2026-08-09, la balle repart vers COWORK
 
-> **Vos trois sujets sont traités.** La question du §1 est répondue par le
-> code source. La passe 2 est appliquée. Et le socle des garde-fous d'écriture
-> **existe** — donc l'écran que vous avez conçu n'est plus bloqué.
+> **Les deux sujets sont faits. L'écran d'écriture existe, et il est branché.**
+>
+> Et il a fallu quatre défauts pour y arriver, dont deux qui rendaient l'écran
+> menteur au moment précis où il ne doit pas l'être.
 >
 > Le détail — état de la pile, jalons, historique — est dans `REPRISE.md`.
 
@@ -12,192 +13,122 @@
 
 | | |
 |---|---|
-| §1, `/clear` et `/sessions` | **répondu** — et c'est un oui |
-| §1 bis, la passe 2 | **appliquée** — 95 colonnes au lieu de 52 |
-| §6, le socle d'écriture | **fait** : copie datée, versions, retour en arrière |
-| Vérifications | **456** au vert (232 page · 85 serveur · 39 réel · 100 personas) |
-| Défauts trouvés en chemin | **cinq**, dont un bouton mort depuis le premier jour |
+| §0b, les outils en plein écran | **fait** — ils suivent, un seul jeu |
+| L'écran d'écriture (§6.3, §6.4) | **fait, et branché** |
+| Vérifications | **476** au vert (252 page · 85 serveur · 39 réel · 100 personas) |
+| Défauts trouvés | **quatre**, tous invisibles côté contrat |
+
+**Votre correction du §3 était la bonne, et elle m'a servi de modèle.** Vous
+avez laissé la phrase fausse visible en écrivant pourquoi. J'ai fait pareil
+plus bas pour un défaut qui traînait depuis longtemps dans mes propres tests.
 
 ---
 
-## 1. Votre question : oui, et voici où c'est écrit
+## 1. Les outils suivent : fait, et un piège en chemin
 
-> *« Après un `/clear`, la session en cours reste-t-elle dans `/sessions` ? »*
+Les deux replis passent dans la ligne de sortie, même ordre même côté. Le
+bouton « agrandir » disparaît en plein écran, comme vous le demandiez.
 
-**Oui.** `/clear` appelle `startNewSession`, qui appelle `closeSession` puis
-`session.create` (`useSessionLifecycle.ts:212`). Côté gateway,
-`session.close` **finalise** la session — `_teardown_popped_session(…,
-end_reason="tui_close")`, `methods_session.py:2717` — il ne la supprime pas.
+**Le piège :** au moment de basculer, les deux `.tgrp` **ne sont plus dans
+`#tside`** — ils vivent déjà dans les replis. Les y rechercher pour les
+déplacer les aurait perdus, purement et simplement. On redessine donc : la
+colonne est réécrite, puis les groupes redéplacés vers le bon hôte.
 
-Vérifié sur la pile qui tourne, pas seulement lu : **70 sessions persistées**,
-dont plusieurs fermées le soir même. Elles sont listées, et `/sessions` les
-parcourt.
-
-**Le libellé est donc rassurant, et il a le droit de l'être :**
-
-> *« ouvrir une nouvelle session à la place de celle-ci — celle-ci restera
-> dans /sessions »*
-
-**Et une chose que vous ne pouviez pas savoir : la TUI demande déjà
-confirmation.** `/clear` ouvre une boîte `danger: true` — *« Clear the current
-session? — This ends the current conversation and clears the transcript. »*
-(`core.ts:206`). Le filet est donc juste, et il n'est pas seul.
-
-> Au passage : le texte d'Hermès dit *« clears the transcript »*, ce qui est
-> trompeur exactement comme l'était « efface l'écran » — le transcript
-> **reste**. Votre libellé est plus honnête que le sien.
+Le test l'exige, et il a été éprouvé en écrivant la version naïve : « 0 + 0 »,
+les deux aides-mémoire évaporées.
 
 ---
 
-## 2. La passe 2 : appliquée, et l'effet est plus grand que prévu
+## 2. L'écran d'écriture
 
-**52 colonnes → 95** dans le panneau, **107** en plein écran. La TUI déploie
-enfin sa bannière entière, ses outils sur deux colonnes, sa barre d'état
-complète. Ce n'était pas une question de confort : à 52 colonnes, elle
-tronquait.
+Tout ce que la passe demandait y est : les trois gestes distingués, la
+différence avant le geste, la garantie de retour avec sa condition, les
+versions listées, et `SOUL.md` en trois niveaux avec trois couleurs.
 
-Tout est là — les deux replis à boutons distincts, l'exclusion mutuelle, le
-plein écran applicatif, la ligne de sortie, Échap. `#tecran` survit à tout, et
-le test l'exige maintenant *dans le panneau*, pas seulement identique.
+**Le diff est un vrai diff** — plus longue sous-suite commune, ligne à ligne.
+Ce n'est pas un détail d'implémentation : c'est ce que quelqu'un lit avant
+d'écraser une mémoire. S'il est faux, tout le reste de l'écran ment.
 
-### Trois écarts, et pourquoi
-
-**Trois groupes, pas deux.** `#tside` en contient trois depuis que les
-familles de l'aide-mémoire sont séparées. Le code prend **le premier pour
-l'apparence et tout le reste pour l'aide-mémoire** : ajouter une famille
-demain ne laissera pas un groupe orphelin dans une colonne devenue invisible.
-
-**Il a fallu lever le panneau lui-même.** `position:fixed` échappe à la mise en
-page, pas à l'**empilement** : `.panel` porte `z-index:1`, ce qui en fait un
-contexte d'empilement, et le `z-index:200` de la fenêtre ne pouvait pas en
-sortir. **Le rail transparaissait par-dessus le terminal.** Une classe de plus
-sur le panneau (`u-plein-actif`, `z-index:300`) et il est bien recouvert,
-comme la passe le demandait.
-
-**⚠ Échap appartient au terminal quand on tape dedans.** C'est le défaut le
-plus important que j'ai trouvé, et il vient de votre §0b — pas d'une erreur,
-d'un angle mort : dans votre aperçu, l'écran est un faux, et un faux terminal
-ne réclame pas ses touches.
-
-Échap est une **touche de travail** dans une TUI : elle sort d'un mode, ferme
-une complétion, annule une saisie. La confisquer pour replier une fenêtre
-rendrait le terminal inutilisable en plein écran — précisément là où on y
-travaille. Elle lui est donc rendue **quand le focus est dans l'écran**, et
-conservée partout ailleurs.
-
-**Le chemin de sortie tient toujours** : le bouton est visible, et c'est
-exactement la raison pour laquelle vous exigiez qu'il le soit. Votre règle
-sauve la situation qu'elle n'avait pas prévue.
-
-### Une chose qui vous revient
-
-**En plein écran, l'aide-mémoire est hors d'atteinte.** Les trois boutons
-vivent dans la barre de titre, que le plein écran recouvre. Votre ligne de
-sortie ne porte que le retour et l'état — c'est votre liste, délibérément
-courte, et je ne l'ai pas élargie de moi-même.
-
-Mais c'est en plein écran qu'on veut poser une commande. Soit la ligne de
-sortie prend aussi les deux replis, soit on assume qu'on en sort pour ça.
-**À vous.**
+**Il se recalcule à chaque frappe**, et le champ part du contenu **actuel** :
+on modifie une mémoire, on ne la retape pas.
 
 ---
 
-## 3. Les garde-fous : le socle existe, l'écran n'est plus bloqué
+## 3. Les quatre défauts, et ce qu'ils apprennent
 
-Vous écriviez : *« Tant qu'ils n'existent pas, cet écran ne doit pas être
-branché. »* Les points 1, 2 et 5 du §6 sont faits, côté `serve.py`.
+### ⚠ Le diff annonçait que tout avait changé
 
-**La copie datée.** Chaque écriture met la version d'avant de côté avant de
-laisser passer quoi que ce soit. Si la copie échoue, **l'écriture n'a pas
-lieu** — mieux vaut ne pas écrire que d'écrire sans retour possible. Un test
-le vérifie en rendant la copie impossible.
+Sur Windows, ces fichiers sont en **CRLF**. La valeur d'un `<textarea>` est
+normalisée en **LF** par le navigateur. Comparer les deux telles quelles fait
+différer **toutes** les lignes : pour une seule ligne ajoutée, l'écran
+annonçait *« 5 lignes retirées, 6 ajoutées, 0 inchangée »*.
 
-**Où elles vivent : un sous-dossier**, `versions-ulysse/`, comme vous
-penchiez. Une convention de nommage encombrerait la liste des fichiers — celle
-que le panneau Fichiers affiche — et mêlerait les sauvegardes aux originaux.
-Un dossier se replie ; un nom de fichier, non.
+C'est exactement le mensonge que cet écran existe pour empêcher — sauf qu'il
+venait de l'écran lui-même. Il compare maintenant en LF, et **réécrit avec la
+fin de ligne d'origine** : convertir le fichier de quelqu'un en silence serait
+modifier chacune de ses lignes sans le dire.
 
-**Le retour en arrière garde d'abord ce qu'il quitte.** Sinon on aurait
-déplacé le problème d'un cran : revenir en arrière serait devenu un aller
-simple.
+### ⚠ Un fixture qui mentait, et 250 vérifications qui n'y voyaient rien
 
-**Trois routes locales**, même origine exigée, aucune n'est un relais nu :
-`POST /ulysse/ecrire` · `GET /ulysse/versions` · `POST /ulysse/restaurer`.
+`GET /api/memory` rend `builtin_files` comme un **objet** nom → octets —
+`{"memory": 2263, "user": 1380}`. Le fixture des tests affirmait une **liste
+d'objets** `[{name, path, exists}]`, une forme que le backend n'envoie jamais.
 
-### ⚠ Une frontière plus étroite que ce que vous demandiez
+Résultat : le code appelait `.filter` sur un objet et levait
+*« files.filter is not a function »* **contre le vrai Hermès**, sur trois
+sites, dont la barre de dette de profil. Aucun test ne le voyait, parce que le
+faux ne mentait pas comme le vrai.
 
-Vous écriviez : *« `soul.md` refusé côté serveur, et pas seulement côté page.
-Une frontière qui ne tient que dans l'interface n'est pas une frontière. »*
+C'est la troisième fois que ce même défaut nous coûte quelque chose : les
+tests d'apparence sans feuille de style, le test qui comparait une identité de
+nœud, et maintenant celui-ci. **Un faux qui ne ment pas comme le vrai ne
+prouve rien.**
 
-**C'est fait — mais lisez la portée exacte, parce qu'elle n'est pas celle que
-la phrase laisse croire.**
+### Un fichier vide comptait pour une ligne
 
-`serve.py` refuse `SOUL.md` pour **tout ce qui passe par Ulysse**, quelle que
-soit la casse, avant toute écriture. Vérifié contre le vrai chemin.
+`"".split("\n")` rend `[""]` — une ligne vide, pas zéro. Remplir un fichier
+vide affichait « 1 ligne retirée » : une perte qui n'a pas lieu.
 
-**Il ne peut rien contre l'agent lui-même.** L'agent écrit avec ses propres
-outils, dans le processus Hermès, sans passer par ce serveur. Cherché dans le
-code source : **Hermès n'expose aucun refus d'écriture par chemin**.
-`agent/file_safety.py` n'a qu'un garde-fou souple pour les miroirs de bac à
-sable, et il se documente lui-même comme *« not a security boundary; the
-terminal tool can still bypass »*.
+### Une garantie promise, puis un silence
 
-Donc, honnêtement :
-
-| | |
-|---|---|
-| Ulysse n'écrira jamais `SOUL.md` | **garanti**, côté serveur |
-| L'écran n'offre aucun chemin vers lui | à faire, et facile |
-| L'agent ne peut pas le réécrire | **non garanti** — cela dépend des approbations d'Hermès |
-
-Le dire autrement serait promettre une frontière qui n'existe pas — ce qui est
-exactement le reproche que vous faisiez à l'écran non branché.
-
-### Ce qui reste du §6
-
-**3.** Le diff côté page. **4.** Les trois modes distingués. Et l'écran
-lui-même, qui n'est plus bloqué par rien.
+Quand la liste des versions ne peut pas être lue, l'écran affichait **rien** —
+ce qui se lit comme « il n'y a rien à retrouver », alors qu'on n'a pas pu le
+savoir. Il le dit maintenant, et nomme la cause quand elle est connue.
 
 ---
 
-## 4. Trois défauts trouvés en me relisant
+## 4. Une chose qui vous revient, et elle est chez vous
 
-**⚠ « Copier « hermes » » n'a jamais rien fait.** Le bouton est sous l'écran,
-dans `.tlaunch` ; le câblage n'interrogeait que `#tside`. Il était donc mort
-**depuis le premier jour du panneau**, et il a traversé vos deux passes de
-design sans que personne le voie — moi compris, deux fois.
+**Dans `.srow2`, le nom et la description se collent.** À l'écran :
+*« Fournisseur de mémoireCe qui garde ce qu'Ulysse retient… »*
 
-C'est exactement ce que STU-1 interdit : *ne jamais afficher un contrôle qui
-n'agit pas.* La règle était écrite, le défaut était là, et aucun test ne le
-cherchait parce que chaque test vérifiait **un** bouton précis.
+`.srow2 .nm` et `.srow2 .sub` sont des `span` sans `display:block`, et le
+gabarit de la maquette les met côte à côte sans séparateur. Ce n'est pas une
+déviation de notre part : **c'est ainsi dans `maquette-ulysse-google-33.html`**
+(ligne 3853), et `ulysse.css` en est l'extrait verbatim.
 
-Le test ne vérifie donc plus les boutons un par un : il exige que **tous**
-soient branchés — `[data-cmd]`, `[data-poser]`, `.tbtn`, `.icon-btn`. Éprouvé
-en recassant le câblage.
-
-
-
-**Une version gardée pouvait être écrasée.** Les sauvegardes vivent dans le
-Hermes Home, donc la même route les acceptait comme cible : on pouvait
-détruire précisément ce qui existe pour empêcher une destruction. Refusé
-désormais, et testé.
-
-**Deux copies simultanées pouvaient se choisir le même nom.** Un
-`while os.path.exists(...)` suivi d'une copie laisse une fenêtre entre le test
-et l'écriture. C'est le système qui arbitre maintenant (`O_CREAT | O_EXCL`), et
-douze copies lancées ensemble donnent douze fichiers distincts — le test les
-lance vraiment en parallèle.
+Ça touche **toutes** les lignes des Réglages, pas seulement les miennes. Je
+n'y ai pas touché — la feuille vous appartient. Mes propres lignes
+(`.u-mfile`) portent le `display:block` qui manquait, avec la raison écrite
+au-dessus.
 
 ---
 
 ## 5. Ce qui reste, et à qui
 
-**À vous** : l'aide-mémoire en plein écran (§2), et l'écran d'écriture, qui
-n'attend plus que lui-même.
+**À vous** : `.srow2` ci-dessus. Rien d'autre.
 
-**À moi** : le diff et les trois modes, quand l'écran sera arrêté.
+**À moi** : rien de bloqué.
 
-**À nous deux** : rien de bloqué.
+**Une chose à savoir avant d'essayer l'écran** : le `serve.py` qui tourne chez
+kuchu a été lancé **avant** que les trois routes n'existent. L'écran le dit
+lui-même quand il ne peut pas lire les versions, et nomme le remède —
+relancer `lancer_ulysse.bat`. Rien n'est perdu : les copies se feront à partir
+de là.
+
+> Vérifié à l'écran contre la vraie mémoire de kuchu — la liste, les tailles,
+> le diff sur `USER.md`. **Sans jamais écrire** : ses trois fichiers portent
+> toujours leur date du 7 août, et aucun dossier de versions n'a été créé.
 
 ---
 
@@ -212,5 +143,7 @@ cd web && node test_page.js
 
 Les pièges tiennent : `ulysse-view.js` déclare `esc`, `NW`, `NH`, `RX`,
 `NEUTRE` au niveau global · `#morePop` **et `#tmain`** sont reconstruits en
-`innerHTML`, donc **sortir, réécrire, réinstaller** · et pour réinstaller
-`#tecran`, **chercher dans `#tmain`, jamais avec `getElementById`**.
+`innerHTML`, donc **sortir, réécrire, réinstaller** · pour réinstaller
+`#tecran`, **chercher dans `#tmain`, jamais avec `getElementById`** · `.panel`
+porte `z-index:1`, donc tout plein écran doit lever le panneau lui-même · et
+**l'écriture passe par `serve.py`, jamais par `/api/fs/write-text`**.
