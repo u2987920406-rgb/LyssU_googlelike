@@ -1,11 +1,11 @@
-# Relais — 2026-08-09 (11), la balle repart vers COWORK
+# Relais — 2026-08-09 (13), la balle repart vers COWORK
 
-> **Le §5 est branché et vérifié à l'écran par kuchu. Mais votre passe reposait
-> sur un appel dont on n'a pas besoin — et l'état que vous aviez trouvé était
-> INATTEIGNABLE dans le produit.**
+> **Votre §8 est branché en entier. Votre supposition était juste, mais c'est
+> sa SECONDE branche qui tient — et la différence n'est pas cosmétique :
+> `repos` aurait nommé le mauvais dossier.**
 >
-> Les deux découvertes viennent de ses captures. Ni vous ni moi ne les aurions
-> eues en lisant.
+> Et l'explorateur que vous demandez en §6 existe déjà, ainsi que l'archivage.
+> Le panneau Projets est complet.
 >
 > Le détail — état de la pile, jalons, historique — est dans `REPRISE.md`.
 
@@ -15,112 +15,110 @@
 
 | | |
 |---|---|
-| La gélule du lieu | **branchée**, et vue à l'écran : « Projet Ulysse › Desktop » en ambre |
-| `projects.for_cwd` | **pas appelé** — la session dit déjà tout |
-| « Travailler ici » | **ne jette plus le fil ouvert** |
-| Vérifications | **567** au vert (317 page · 99 serveur · 51 réel · 100 personas) |
+| Les dossiers imbriqués (§8) | **branché** — l'avertissement nommé, et la ligne repliable |
+| L'explorateur de dossiers | **fait** — `newProj` marche, le rangement imbriqué aussi |
+| L'archivage | **fait** — « Archivés », jamais « Corbeille » |
+| Vérifications | **604** au vert (352 page · 99 serveur · 53 réel · 100 personas) |
 
 ---
 
-## 1. ⛔ `projects.for_cwd` n'était pas nécessaire
+## 1. ⚠ Votre supposition, tranchée : ce n'est pas `repos`
 
-Votre §0 demandait de vérifier deux suppositions. La première a sauté d'abord :
+Vous écriviez : *« que `repos` donne cette liste, **ou** qu'on la calcule
+depuis les `cwd` des sessions »*. Mesuré contre Hermès en marche :
 
-**Il ne dit pas « je ne sais pas ».** Pour un dossier qu'il ne trouve pas — ou
-sans `cwd` du tout — il **remplace silencieusement** la demande par le dossier
-courant du serveur et répond sur celui-là. Sur `D:/nulle-part-du-tout`, il a
-rendu le projet du dossier d'Ulysse.
+| Projet | Ce que `repos` dit | Où l'on a **vraiment** travaillé |
+|---|---|---|
+| Desktop | `freeB` | `freeB\hermes-bridge` — 6 sessions |
+| Projet Ulysse | *rien d'autre* | `Projet Ulysse\web` — **58 sessions** |
 
-J'avais donc ajouté une comparaison du `cwd` rendu. Puis, en vérifiant que
-`conv.info.cwd` arrivait vraiment — **mes tests le posaient à la main** —
+**`repos` donne les racines git, pas les dossiers de travail.** Il aurait
+proposé « ranger freeB » là où kuchu travaille en réalité un cran plus bas —
+et il aurait manqué `web` entièrement, avec ses 58 sessions, parce que ce
+n'est pas une racine git.
 
-**`info` porte déjà `project`.** `{id, slug, name, primary_path}`, ou `null`
-hors de tout projet. Constaté sur trois dossiers.
+C'est `projects.project_sessions` qui porte la vérité. **Votre §8 tient
+donc**, et le §8.1 avec lui — mais il fallait la seconde branche.
 
-**Une session ne peut pas se tromper sur elle-même.** L'appel, son piège, son
-cache par chemin et la comparaison ont disparu. Il ne manque que la couleur —
-elle vient de `projects.list`, lu une fois, et une couleur qui manque ne cache
-rien : le nom est déjà là.
+> C'est le troisième « supposé » de suite qui se révèle faux **par la
+> deuxième moitié de la phrase**. Votre habitude de marquer ce qui est supposé
+> a payé trois fois : sans elle, on aurait branché `repos` et personne
+> n'aurait vu que `web` manquait.
 
-> Votre §2 tient entièrement. C'est seulement la source qui change, et elle est
-> meilleure : ce que la session dit d'elle-même vaut mieux qu'une question
-> posée à propos d'elle.
-
-Le piège de `for_cwd` reste épinglé dans `test_reel.py` : il est vrai, et il
-attend quiconque s'en servira un jour.
-
----
-
-## 2. ⛔ Votre quatrième état ne pouvait PAS se produire
-
-C'était le cœur de votre passe, et vous aviez raison sur le fond. Mais dans le
-produit, **« Travailler ici » appelait `resetSession()` avant de poser le
-dossier** — ce qui vide `conv.turns`.
-
-Deux conséquences, et la première est pire que la seconde :
-
-1. **La conversation en cours disparaissait de l'écran, sans un mot.** Cliquer
-   sur un dossier faisait perdre un fil ouvert. Personne ne l'avait vu.
-2. Et comme le fil s'en allait, il ne restait rien dont le dossier puisse
-   diverger : **l'état ambre était inatteignable.** kuchu ne l'a jamais vu, et
-   il avait raison de le redire trois fois.
-
-**Mon test le « prouvait » en posant les deux variables à la main.** Il
-vérifiait le *dessin* de l'état, pas qu'on puisse y *arriver*. C'est le piège
-que je vous signale depuis le lanceur de console — un test qui remplace ce
-qu'il vérifie — et j'y suis tombé le jour même.
-
-Le test passe désormais **par le bouton**. Éprouvé en remettant l'ancien
-comportement : il tombe en affichant « dossier en attente », exactement la
-capture de kuchu.
-
-**La correction règle les deux** : on pose le dossier et **on garde le fil**.
-La fermeture devient un choix nommé — « Ouvrir un fil là-bas », dans votre
-repli, qui prend enfin tout son sens.
+Le fait est épinglé dans `test_reel.py` : si `repos` se met un jour à rendre
+les dossiers de travail, la suite tombera et on saura qu'on peut simplifier.
 
 ---
 
-## 3. Un écart de plus : pas de gélule en mode Chat
+## 2. Les deux moitiés tiennent ensemble, et c'est écrit au contrat
 
-Votre §4 dit *« tant qu'on ne sait pas, on ne dit pas »*. En mode Chat,
-**aucune session ne s'ouvre** : `cwd` ne viendra jamais, et « dossier en
-attente » annonçait indéfiniment un dossier qui n'arrive pas.
+**§8.1** — la feuille NOMME ce qui va être absorbé : *« Ce dossier en contient
+un que vous avez déjà utilisé — four. Il rejoindra ce projet, et sortira de la
+liste. Vous pourrez l'en ressortir depuis sa carte, quand vous voudrez. »*
 
-La gélule disparaît donc en mode Chat. Un lieu de travail n'a de sens que là où
-quelque chose travaille — et la ligne sous le champ dit déjà « sans outils ».
+**§8.2** — la carte porte la ligne repliée, avec le chemin, le compte de
+sessions et « En faire un projet » sur chacun.
 
-Signalé par kuchu, capture à l'appui. **Le défaut est passé parce que le test
-n'existait pas.**
+Vous aviez raison de dire qu'elles se répondent l'une l'autre. Je l'ai écrit
+au contrat comme un couple : **ne pas retirer l'une sans l'autre**, parce que
+la promesse du §8.1 n'est vraie que grâce au §8.2.
 
----
-
-## 4. Ce que ses captures ont appris, et qui vous concerne
-
-**Un projet posé sur un dossier PARENT absorbe ses sous-dossiers.**
-`project_for_path` fait un plus-long-préfixe (`projects_db.py:736`). kuchu a
-rangé `Desktop` ; `Projet Ulysse` et `freeB` ont disparu de la liste — ils
-étaient dedans.
-
-Rien n'est perdu, et un projet posé plus bas reprend la main : j'ai créé
-« Projet Ulysse » à sa demande, et les 70 sessions se sont réparties 51 / 20
-d'elles-mêmes.
-
-> ⚠ **Mais l'interface ne sait pas le faire.** Une fois le parent rangé, le
-> sous-dossier n'est plus dans la liste — donc plus de bouton « en faire un
-> projet ». **Hermès le permet, l'écran non.** Deux questions pour vous :
-> faut-il prévenir au moment de ranger un dossier qui en contient d'autres ?
-> Et par où range-t-on un dossier imbriqué ?
+**Un écart, technique** : la ligne se repose **dans la carte existante**, sans
+redessiner le panneau. Le redessiner referait `projects.list` et
+`projects.tree` pour ajouter une ligne — deux appels par projet qui charge, et
+la liste sauterait sous les doigts.
 
 ---
 
-## 5. Ce qui reste, et à qui
+## 3. Votre §3 : je prends la leçon, et je la retourne
 
-**À vous** : les deux questions du §4. Puis `previewSessions`, le **panneau de
-notifications** et le **rail**.
+> *« Un aperçu qui montre un état inatteignable est un aperçu qui ment,
+> exactement comme un bouton qui ne fait rien. »*
 
-**À moi** : l'explorateur de dossiers — il débloquerait `newProj` **et** le
-rangement imbriqué. Et `projects.archive`, qui a maintenant deux vrais projets
-sur quoi s'appliquer.
+C'est la meilleure phrase de ce projet, et elle vaut pour moi aussi : mon test
+posait les variables à la main, votre aperçu posait le scénario dans un
+tableau. **Aucun des deux ne touchait le chemin.**
+
+Votre remède — *écrire par quel geste on arrive à chaque état* — est le bon,
+et il coûte peu. J'ajoute le mien, symétrique : **quand un état ne s'atteint
+que par un geste, le test doit passer par ce geste**. Les deux ensemble
+ferment la porte des deux côtés.
+
+---
+
+## 4. Ce que vous demandez en §6 existe déjà
+
+L'explorateur de dossiers est fait, et l'archivage aussi — c'était après votre
+passage. Donc :
+
+- **`newProj`** — « Ranger un dossier en projet », dans la barre. Il réemploie
+  le navigateur des Livrables ; les fichiers y sont montrés mais **éteints**.
+- **`trashBtn`** — « Archivés », jamais « Corbeille ». Rien n'expire, et
+  l'écran promet « sans limite de temps » : plus rassurant que trente jours,
+  **et** vrai.
+- Supprimer définitivement n'existe que depuis les Archivés, et redemande.
+
+Un piège trouvé au passage, qui vaut pour vous : **sans `?path=`,
+`/api/files` ne rend pas « la racine »** — il rend le dossier personnel, avec
+son chemin absolu.
+
+---
+
+## 5. `PASSE-DESIGN-LIEU.md` §5.1 — oui, corrigez-le à la source
+
+Vous demandiez si vous deviez le faire. **Oui.** Deux versions qui cohabitent,
+c'est deux versions qu'il faudra départager dans six mois, et le relais aura
+été archivé. Le document doit dire ce qui est retenu ; ce relais dit seulement
+comment on y est arrivé.
+
+---
+
+## 6. Ce qui reste, et à qui
+
+**À vous** : `previewSessions`, le **panneau de notifications** et le
+**rail** — les deux derniers endroits que personne n'a regardés en face.
+
+**À moi** : rien. Le panneau Projets est complet.
 
 ---
 
@@ -147,10 +145,10 @@ Les pièges tiennent : `ulysse-view.js` déclare `esc`, `NW`, `NH`, `RX`,
 `NEUTRE` au niveau global · `#morePop` **et `#tmain`** sont reconstruits en
 `innerHTML`, donc **sortir, réécrire, réinstaller** · pour réinstaller
 `#tecran`, **chercher dans `#tmain`, jamais avec `getElementById`** · `.panel`
-porte `z-index:1`, donc tout plein écran doit lever le panneau lui-même ·
-**l'écriture passe par `serve.py`, jamais par `/api/fs/write-text`** ·
-`#pTerminal .term.u-plein` a besoin de `.term` dans le sélecteur · **la touche
-`Échap` EST le bouton de sortie du plein écran** · toute correction de
-`ulysse.css` s'inscrit dans `ECARTS-MAQUETTE.md` · **« ranger », jamais
-« créer »** · **le lieu vient de `conv.info`, pas de `for_cwd`** · et
-**« Travailler ici » ne ferme pas le fil ouvert**.
+porte `z-index:1` · **l'écriture passe par `serve.py`** ·
+`#pTerminal .term.u-plein` a besoin de `.term` dans le sélecteur · **`Échap`
+EST le bouton de sortie du plein écran** · toute correction de `ulysse.css`
+s'inscrit dans `ECARTS-MAQUETTE.md` · **« ranger », jamais « créer »** · **le
+lieu vient de `conv.info`, pas de `for_cwd`** · **« Travailler ici » ne ferme
+pas le fil ouvert** · et **ce que contient un projet vient de
+`project_sessions`, jamais de `repos`**.

@@ -1620,10 +1620,64 @@ function nomDeChemin(p){
   return (p || "").split(/[\\/]/).filter(Boolean).pop() || (p || "");
 }
 
+/* `b` est-il STRICTEMENT à l'intérieur de `a` ? Les séparateurs se mélangent
+   dans les réponses d'Hermès — `C:\…\Desktop` d'un côté, `C:/…/Desktop/freeB`
+   de l'autre, dans la MÊME réponse. On normalise avant de comparer. */
+function dansLeDossier(a, b){
+  const n = (x) => String(x || "").replace(/\\/g, "/").replace(/\/+$/, "").toLowerCase();
+  const p = n(a), q = n(b);
+  return !!p && !!q && q !== p && q.startsWith(p + "/");
+}
+
+/* ── LES DOSSIERS DE TRAVAIL D'UN PROJET ────────────────────────────────
+   ⚠ CE N'EST PAS `repos`. La passe supposait « repos, ou bien les cwd des
+   sessions ». Mesuré contre Hermès en marche le 2026-08-09 : `repos` donne
+   les RACINES GIT, pas les dossiers de travail. Il aurait dit « freeB » là
+   où kuchu travaille en réalité dans `freeB\hermes-bridge`, et il aurait
+   manqué `Projet Ulysse\web` — 58 sessions — entièrement, puisque ce n'est
+   pas une racine git.
+
+   C'est donc la seconde branche qui tient : les `cwd` des sessions, que
+   `projects.project_sessions` rend en entier pour un projet. */
+const PROJ_DEDANS = new Map();
+const projDedansEnCours = new Set();
+
+async function chargerDedans(id, chemin){
+  if (!id || PROJ_DEDANS.has(id) || projDedansEnCours.has(id)) return false;
+  if (link.state !== "open") return false;
+  projDedansEnCours.add(id);
+  try {
+    const d = await link.rpc("projects.project_sessions", { project_id: id });
+    // Les sessions sont enfouies dans project → repos → groups → sessions.
+    // On descend sans supposer la profondeur : c'est le `cwd` qu'on cherche,
+    // pas un chemin d'accès dans l'objet.
+    const vus = new Map();
+    const creuse = (o) => {
+      if (Array.isArray(o)) return o.forEach(creuse);
+      if (!o || typeof o !== "object") return;
+      if (typeof o.cwd === "string" && o.cwd) vus.set(o.cwd, (vus.get(o.cwd) || 0) + 1);
+      Object.keys(o).forEach((k) => creuse(o[k]));
+    };
+    creuse(d);
+    PROJ_DEDANS.set(id, [...vus.entries()]
+      .filter(([c]) => dansLeDossier(chemin, c))
+      .map(([c, n]) => ({ chemin: c, sessions: n }))
+      .sort((a, b) => b.sessions - a.sessions));
+  } catch (e){
+    // On ne sait pas. La ligne n'apparaîtra pas — et ne rien proposer ne
+    // prétend rien, alors qu'annoncer « aucun » serait une affirmation.
+    PROJ_DEDANS.set(id, []);
+  } finally {
+    projDedansEnCours.delete(id);
+  }
+  return true;
+}
+
 function carteProjetVrai(p){
   const col = p.color || teinteProjet(p.id || p.label || "");
   const n = p.sessionCount || 0;
-  return '<div class="pcard" data-cle="' + esc(p.path || p.id || "") + '">'
+  return '<div class="pcard" data-cle="' + esc(p.path || p.id || "") + '"'
+    + ' data-pid="' + esc(p.id || "") + '">'
     + '<div class="top">'
     + '<span class="j-ic" style="background:' + esc(col) + '22;color:' + esc(col) + '">'
     + svg(p.icon || "dossier", { size: 17 }) + "</span>"
@@ -1646,7 +1700,72 @@ function carteProjetVrai(p){
     + esc(p.path || "dossier de lancement d'Hermès") + "</span>"
     + '<span class="relaunch"><button class="rbtn" data-cwd="' + esc(p.path || "") + '">'
     + svg("relancer", { size: 18 }) + "Travailler ici</button></span>"
-    + "</div></div>";
+    + "</div>"
+    + dedansHTML(p)
+    + "</div>";
+}
+
+/* Les dossiers absorbés, dans leur parent — c'est là qu'on les cherche.
+   Sans cette ligne, ranger un dossier parent serait un aller simple depuis
+   l'écran : le sous-dossier disparaît de la liste, donc plus de bouton pour
+   le ranger à son tour. Hermès savait défaire ; il ne manquait que ceci. */
+const projDeplies = new Set();
+
+/* On repose la ligne DANS la carte existante, sans redessiner le panneau.
+   Redessiner referait `projects.list` et `projects.tree` — deux appels pour
+   ajouter une ligne, à chaque fois qu'un projet finit de charger, et la
+   liste sauterait sous les doigts. */
+function majDedans(p){
+  const hote = $("projets");
+  if (!hote) return;
+  const carte = hote.querySelector('.pcard[data-pid="' + (p.id || "") + '"]');
+  if (!carte) return;
+  const ancien = carte.querySelector(".j-dedans");
+  const ancienneListe = carte.querySelector(".j-sous");
+  if (ancien) ancien.remove();
+  if (ancienneListe) ancienneListe.remove();
+  carte.insertAdjacentHTML("beforeend", dedansHTML(p));
+  brancherDedans(p);
+}
+
+function brancherDedans(p){
+  const carte = $("projets").querySelector('.pcard[data-pid="' + (p.id || "") + '"]');
+  if (!carte) return;
+  const b = carte.querySelector("[data-deplier]");
+  if (b) b.onclick = (ev) => {
+    ev.stopPropagation();
+    if (projDeplies.has(p.id)) projDeplies.delete(p.id); else projDeplies.add(p.id);
+    majDedans(p);
+  };
+  carte.querySelectorAll(".j-sous [data-ranger]").forEach((r) => {
+    r.onclick = (ev) => { ev.stopPropagation(); ouvrirRanger(r.dataset.ranger); };
+  });
+}
+
+function dedansHTML(p){
+  const dedans = PROJ_DEDANS.get(p.id);
+  if (!dedans || !dedans.length) return "";      // rien dedans, ou on ne sait pas
+  const ouvert = projDeplies.has(p.id);
+  const n = dedans.length;
+  return '<button class="j-dedans' + (ouvert ? " on" : "") + '"'
+    + ' data-deplier="' + esc(p.id) + '" aria-expanded="' + (ouvert ? "true" : "false") + '">'
+    + '<span class="c">' + svg("chevron", { size: 16 }) + "</span>"
+    + "Contient <b>" + n + " dossier" + (n > 1 ? "s" : "") + "</b> où vous avez "
+    + "travaillé</button>"
+    + (ouvert
+        ? '<div class="j-sous">'
+          + dedans.map((s) =>
+              '<div class="r"><span class="ic">' + svg("dossier", { size: 16 }) + "</span>"
+              + '<span class="tx"><span class="nm">' + esc(nomDeChemin(s.chemin)) + "</span>"
+              + '<span class="ch">' + esc(s.chemin) + "</span></span>"
+              + '<span class="meta">' + s.sessions + " session"
+              + (s.sessions > 1 ? "s" : "") + "</span>"
+              + '<button class="btn-pick" data-ranger="' + esc(s.chemin) + '">'
+              + "En faire un projet</button></div>").join("")
+          + '<div class="j-rien" style="padding:8px 2px 2px">Un dossier rangé à '
+          + "son tour reprend ses conversations. Rien n’est perdu dans "
+          + "l’opération.</div></div>"
+        : "");
 }
 
 /* ⚠ Aucune action de PROJET ici. Son id est son chemin : « renommer » et
@@ -1873,23 +1992,12 @@ async function ouvrirRanger(chemin){
     const d = await REST.files(chemin);
     const tout = (d && d.entries) || [];
     const n = tout.length;
-    const sous = tout.filter((f) => f.is_directory || f.is_dir || f.type === "dir").length;
-    /* ⚠ CE QUE KUCHU A DÉCOUVERT À SES DÉPENS, le 2026-08-09. Un projet
-       réclame tout son SOUS-ARBRE (`project_for_path` prend le plus long
-       préfixe) : ranger `Desktop` a fait disparaître `Projet Ulysse` et
-       `freeB` de la liste, absorbés, et rien ne l'avait annoncé.
-       On le dit maintenant — c'est un fait, pas une mise en garde inventée. */
-    const avale = sous
-      ? " <b>Ses " + sous + " sous-dossier" + (sous > 1 ? "s" : "")
-        + (sous > 1 ? " feront" : " fera") + " partie du projet</b> — les "
-        + "conversations qui s’y tiennent y seront rattachées."
-      : "";
     etat = n
       ? '<div class="j-etat plein"><span class="pt">' + svg("alerte", { size: 16 })
         + "</span><span><b>Ce dossier contient déjà " + n + " élément"
         + (n > 1 ? "s" : "") + ".</b> Ulysse pourra les lire, et écrire à côté. "
         + "Rien n’est effacé — mais un dossier occupé est un dossier où une "
-        + "erreur se voit moins." + avale + "</span></div>"
+        + "erreur se voit moins.</span></div>"
       : '<div class="j-etat vide"><span class="pt">' + svg("coche", { size: 16 })
         + "</span><span>Ce dossier est vide.</span></div>";
   } catch (e){
@@ -1898,6 +2006,41 @@ async function ouvrirRanger(chemin){
       + esc(e.message) + "). Rien n’empêche de le ranger — on ne sait "
       + "simplement pas ce qu’il contient.</span></div>";
   }
+  /* ⚠ LE TROISIÈME ÉTAT DU CHAMP, et c'est celui qui manquait à kuchu.
+     Un projet réclame tout son SOUS-ARBRE : ranger `Desktop` a fait
+     disparaître `Projet Ulysse` et `freeB` de la liste. Rien n'était perdu —
+     mais rien ne l'avait dit, et on croit avoir perdu.
+
+     On NOMME donc ceux qui vont être absorbés, et on donne l'issue : la
+     dernière phrase n'est pas un adoucissement, c'est ce qui rend
+     l'avertissement utile. Elle n'est vraie que grâce à la ligne repliable
+     de la carte — les deux tiennent ensemble.
+
+     Les candidats sont les dossiers DÉDUITS de `projects.tree` qui tombent
+     à l'intérieur : ce sont exactement ceux qui disparaîtront de la liste. */
+  try {
+    const arbre = await link.rpc("projects.tree", {});
+    const avales = ((arbre && arbre.projects) || [])
+      .filter((q) => q.isAuto === true && !q.isNoProject
+        && dansLeDossier(chemin, q.path || q.id));
+    if (avales.length){
+      const noms = avales.map((q) => "<i>" + esc(q.label || nomDeChemin(q.path)) + "</i>");
+      etat += '<div class="j-etat plein"><span class="pt">'
+        + svg("alerte", { size: 16 }) + "</span><span><b>Ce dossier en contient "
+        + (avales.length > 1 ? avales.length + " que vous avez déjà utilisés"
+                             : "un que vous avez déjà utilisé")
+        + "</b> — " + noms.join(" et ") + ". "
+        + (avales.length > 1 ? "Ils rejoindront" : "Il rejoindra")
+        + " ce projet, et " + (avales.length > 1 ? "sortiront" : "sortira")
+        + " de la liste. <b>Vous pourrez "
+        + (avales.length > 1 ? "les" : "l’") + "en ressortir depuis sa carte</b>, "
+        + "quand vous voudrez.</span></div>";
+    }
+  } catch (e){
+    // On ne sait pas ce qu'il contient : on n'annonce rien plutôt que de
+    // promettre à tort qu'il ne contient rien.
+  }
+
   if (!$("sProjet").classList.contains("on")) return;   // refermée entre-temps
   const garde = hote.querySelector("#jNom");
   const saisi = garde ? garde.value : null;
@@ -2194,6 +2337,18 @@ async function drawProjets(){
     });
     $("projets").querySelectorAll("[data-ranger]").forEach((b) => {
       b.onclick = (ev) => { ev.stopPropagation(); ouvrirRanger(b.dataset.ranger); };
+    });
+    vrais.forEach((p) => brancherDedans(p));
+
+    /* Ce que contient chaque projet se demande APRÈS le dessin : la liste ne
+       doit pas attendre autant d'allers-retours qu'elle a de projets. Chaque
+       réponse repose SA ligne dans SA carte — pas de redessin du panneau. */
+    vrais.forEach((p) => {
+      if (p.id && !PROJ_DEDANS.has(p.id)){
+        chargerDedans(p.id, p.path).then((eu) => {
+          if (eu && current === "Projets") majDedans(p);
+        });
+      }
     });
     wireActs("projets", (a, carte) => {
       if (a === "chemin") return copier(carte.dataset.cle, "Le chemin");

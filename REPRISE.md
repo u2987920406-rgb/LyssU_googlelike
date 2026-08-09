@@ -13,7 +13,7 @@
   (tout le visuel) et ce qui porte la logique (88 `id`, 25 `data-*`, les
   cinq classes d'état). Décidé le 2026-08-08 : le design en dialogue ici prenait
   trop de temps.
-- **Ce qu'on fait au retour** : `cd web && node test_page.js`. 344 vérifications
+- **Ce qu'on fait au retour** : `cd web && node test_page.js`. 352 vérifications
   sur la vraie page dans un DOM réel. **S'il passe au rouge, ce n'est pas le
   test qui a tort** — un `id` ou un `data-*` du contrat a disparu, et le
   contrat dit lequel. Ne jamais adapter `ulysse-core.js` pour faire passer un
@@ -64,8 +64,8 @@ dictée, terminal intégré, 4 suites de tests dont une contre le VRAI Hermès.
 Au 2026-08-08 au soir : elle est **côté Cowork**. Les six réparations ET les
 cinq passes de design sont appliquées.
 
-1. kuchu revient de Cowork → `node test_page.js` (**344** vérifications ;
-   les quatre suites font **594** : 344 page · 99 serveur · 51 réel · 100 personas)
+1. kuchu revient de Cowork → `node test_page.js` (**352** vérifications ;
+   les quatre suites font **604** : 352 page · 99 serveur · 53 réel · 100 personas)
 2. ~~Appliquer les cinq passes~~ — **FAIT le 2026-08-08** : la passe
    d'accord, les trois décisions, et le style des cinq panneaux.
    La dette des Repères est éteinte (43 signes sur 43).
@@ -126,6 +126,14 @@ cinq passes de design sont appliquées.
    `projects.tree` masque les archivés, `projects.list` les rend : le panneau
    appelle les deux. Supprimer définitivement n'existe que depuis les
    Archivés, avec une seconde demande.
+   ✅ **Les dossiers imbriqués** (2026-08-09) : la feuille NOMME ce qui va
+   être absorbé et dit par où le ressortir ; la carte du projet porte une
+   ligne repliable « Contient N dossiers où vous avez travaillé », avec
+   « En faire un projet » sur chacun. **Les deux tiennent ensemble** — un
+   avertissement sans issue n'est qu'une inquiétude.
+   ⚠ La source n'est PAS `repos` (racines git) mais
+   `projects.project_sessions` : `repos` annonçait « freeB » là où le travail
+   a lieu dans `freeB\hermes-bridge`, et manquait `Projet Ulysse\web`.
    **Le panneau Projets est complet.**
 6. **Où le fil travaille** — branché le 2026-08-09
    (`web/PASSE-DESIGN-LIEU.md`). Une gélule dans la barre de Discuter.

@@ -848,6 +848,30 @@
 .j-acts{display:flex;align-items:center;gap:10px;margin-top:24px}
 .j-acts .sp{flex:1}
 
+/* ── LES DOSSIERS ABSORBÉS, DANS LEUR PARENT ────────────────────────────
+   Une ligne repliable au pied de la carte : on ne l'ouvre que si on la
+   cherche, et elle n'existe que s'il y a quelque chose dedans. C'est le
+   chemin de sortie sans lequel l'avertissement du rangement ne serait
+   qu'une inquiétude. */
+.j-dedans{display:flex;align-items:center;gap:8px;margin-top:12px;padding:7px 2px;
+  font-size:var(--font-size-sm);color:var(--muted);width:100%}
+.j-dedans:hover{color:var(--text)}
+.j-dedans b{font-weight:500;color:var(--text)}
+.j-dedans .c{display:grid;place-items:center;color:var(--faint);
+  transform:rotate(-90deg);transition:transform .2s ease}
+.pcard .j-dedans.on .c{transform:none}
+@media (prefers-reduced-motion:reduce){ .j-dedans .c{transition:none} }
+.j-sous{margin-top:2px;padding-left:24px}
+.j-sous .r{display:flex;align-items:center;gap:12px;padding:9px 0;
+  border-bottom:1px solid var(--surface)}
+.j-sous .r:last-of-type{border-bottom:none}
+.j-sous .ic{flex:none;color:var(--muted);display:grid}
+.j-sous .tx{flex:1;min-width:0}
+.j-sous .nm{display:block;font-size:var(--font-size-sm);font-weight:500}
+.j-sous .ch{display:block;font-family:ui-monospace,Menlo,monospace;font-size:11px;
+  color:var(--faint);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.j-sous .meta{flex:none;font-size:var(--font-size-xs);color:var(--muted)}
+
 /* ═══ Où ce fil travaille ════════════════════════════════════════════════
    Préfixe `l-`, donné par `PASSE-DESIGN-LIEU.md` §6 — même raison que `j-`
    pour les projets : `apercu-lieu.html` l'emploie, renommer casserait la

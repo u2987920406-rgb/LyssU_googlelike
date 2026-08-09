@@ -484,6 +484,38 @@ def main():
              len(projets) if isinstance(projets, list) else "?"))
 
     # La question qui pouvait tout arrêter. Elle ne l'arrête pas.
+    # ⚠ « repos » N'EST PAS LA LISTE DES DOSSIERS DE TRAVAIL.
+    #
+    # La passe de design supposait « `repos`, ou bien les `cwd` des sessions ».
+    # Mesuré le 2026-08-09 : `repos` donne les RACINES GIT. Sur cette machine,
+    # il annonçait « freeB » là où le travail a lieu dans
+    # `freeB\hermes-bridge`, et il manquait `Projet Ulysse\web` — 58 sessions —
+    # entièrement, ce dossier n'étant pas une racine git.
+    #
+    # C'est donc `projects.project_sessions` qui porte la vérité. Si un jour
+    # `repos` se met à rendre les dossiers de travail, ces vérifications
+    # tombent et on saura qu'on peut simplifier.
+    vrais_p = [q for q in (vrais or []) if not q.get("archived")]
+    for q in vrais_p[:2]:
+        ses = wsp.rpc("projects.project_sessions", {"project_id": q["id"]}) or {}
+        trouves = {}
+
+        def creuse(o):
+            if isinstance(o, dict):
+                if isinstance(o.get("cwd"), str) and o["cwd"]:
+                    trouves[o["cwd"]] = trouves.get(o["cwd"], 0) + 1
+                for v in o.values():
+                    creuse(v)
+            elif isinstance(o, list):
+                for v in o:
+                    creuse(v)
+
+        creuse(ses)
+        check("« project_sessions » rend les dossiers de travail de « %s »" % q["name"],
+              len(trouves) > 0, "%d dossier(s) distinct(s)" % len(trouves))
+        note(" · ".join("%s (%d)" % (c, n) for c, n in
+                        sorted(trouves.items(), key=lambda x: -x[1])[:3]))
+
     # ⚠ LE PIÈGE DE `projects.for_cwd`, mesuré le 2026-08-09 — ET LA RAISON
     # POUR LAQUELLE LA PAGE NE S'EN SERT PAS.
     #

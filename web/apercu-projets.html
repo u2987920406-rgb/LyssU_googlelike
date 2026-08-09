@@ -1713,6 +1713,27 @@ body{overflow:auto}
 .j-home svg{flex:none;color:var(--faint)}
 .j-home b{color:var(--text);font-weight:500}
 .j-home button{margin-left:auto;flex:none}
+
+/* ── LES DOSSIERS ABSORBÉS, DANS LEUR PARENT ─────────────────────────────
+   Une ligne repliable au pied de la carte : on ne l'ouvre que si on la
+   cherche, et elle n'existe que s'il y a quelque chose dedans. */
+.j-dedans{display:flex;align-items:center;gap:8px;margin-top:12px;padding:7px 2px;
+  font-size:var(--font-size-sm);color:var(--muted);width:100%}
+.j-dedans:hover{color:var(--text)}
+.j-dedans b{font-weight:500;color:var(--text)}
+.j-dedans .c{display:grid;place-items:center;color:var(--faint);
+  transform:rotate(-90deg);transition:transform .2s ease}
+.pcard .j-dedans.on .c{transform:none}
+.j-sous{margin-top:2px;padding-left:24px}
+.j-sous .r{display:flex;align-items:center;gap:12px;padding:9px 0;
+  border-bottom:1px solid var(--surface)}
+.j-sous .r:last-of-type{border-bottom:none}
+.j-sous .ic{flex:none;color:var(--muted);display:grid}
+.j-sous .tx{flex:1;min-width:0}
+.j-sous .nm{display:block;font-size:var(--font-size-sm);font-weight:500}
+.j-sous .ch{display:block;font-family:ui-monospace,Menlo,monospace;font-size:11px;
+  color:var(--faint);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.j-sous .meta{flex:none;font-size:var(--font-size-xs);color:var(--muted)}
 </style>
 </head>
 <body>
@@ -1726,6 +1747,7 @@ body{overflow:auto}
     <button data-c="liste">Avec un projet</button>
     <button data-c="neuf">Ranger — dossier connu</button>
     <button data-c="occupe">Ranger — dossier occupé</button>
+    <button data-c="absorbe">Ranger — dossier qui en contient</button>
     <button data-c="suppr">Archiver</button>
   </div>
 </div>
@@ -1924,6 +1946,7 @@ const ech = (s) => String(s).replace(/[&<>"]/g, (c) =>
   ({ "&":"&amp;", "<":"&lt;", ">":"&gt;", '"':"&quot;" }[c]));
 
 let cas = "reel", couleur = "#1A73E8", archives = false;
+const deplies = new Set();   // les cartes dont on a ouvert « contient… »
 
 /* ══════════════════════════════════════════════════════════════════════
    CE QUE `projects.tree` REND VRAIMENT — constaté sur la machine de kuchu
@@ -1944,7 +1967,17 @@ let cas = "reel", couleur = "#1A73E8", archives = false;
 /* Les vrais projets. Zéro chez kuchu — d'où le cas « réel ». */
 const VRAIS = [
   { id:"p1", label:"Migration des factures", color:"#9334E6", icon:"doc",
-    path:"%USERPROFILE%/Documents/Factures", sessions:11, quand:"hier, 18 h 40" }
+    path:"%USERPROFILE%/Documents/Factures", sessions:11, quand:"hier, 18 h 40" },
+  /* Le cas de kuchu, le 2026-08-09 : il a rangé `Desktop`, qui contenait deux
+     dossiers déjà utilisés. `project_for_path` fait un plus-long-préfixe
+     (`projects_db.py:736`) — ils ont donc disparu de la liste, et avec eux le
+     bouton qui aurait permis de les en sortir. */
+  { id:"p2", label:"Desktop", color:"#1A73E8", icon:"dossier",
+    path:"%USERPROFILE%/Desktop", sessions:20, quand:"il y a 3 minutes",
+    dedans:[
+      { path:"%USERPROFILE%/Desktop/Projet Ulysse", sessions:51 },
+      { path:"%USERPROFILE%/Desktop/freeB", sessions:6 }
+    ] }
 ];
 
 /* Les dossiers déduits : `isAuto`. Pas de nom propre, pas de couleur. */
@@ -2013,7 +2046,45 @@ function carteVraie(p, arch){
     + "<span>" + svg("bac", { size: 17 }) + " " + ech(p.path) + "</span>"
     + (arch ? "" : '<span class="relaunch"><button class="rbtn" data-a="ouvrir">'
         + svg("relancer", { size: 18 }) + "Travailler ici</button></span>")
-    + "</div></div>";
+    + "</div>"
+
+    /* ── LE CHEMIN DE SORTIE DES DOSSIERS ABSORBÉS ───────────────────────
+       Réponse à la deuxième question du code : **par où range-t-on un
+       dossier imbriqué ?**
+
+       Là où on le cherche : **dans son parent.** Une fois `Desktop` rangé,
+       `Projet Ulysse` n'est plus dans « Dossiers où vous avez travaillé » —
+       il est *dedans*. C'est donc la carte du parent qui doit le montrer.
+
+       Hermès sait déjà le faire (un projet posé plus bas reprend la main,
+       et les sessions se répartissent seules). Il ne manquait que l'écran.
+
+       ⚠ SUPPOSÉ : que `repos` de `projects.tree` donne cette liste, ou
+       qu'on puisse la calculer depuis les `cwd` des sessions du projet.
+       Si ni l'un ni l'autre, cette section n'est pas affichable. */
+    + (!arch && p.dedans && p.dedans.length
+        ? '<button class="j-dedans' + (deplies.has(p.id) ? " on" : "")
+          + '" data-a="deplier" data-p="' + ech(p.id) + '">'
+          + '<span class="c">' + svg("chevron", { size: 16 }) + "</span>"
+          + "Contient <b>" + p.dedans.length + " dossiers</b> où vous avez "
+          + "travaillé</button>"
+          + (deplies.has(p.id)
+              ? '<div class="j-sous">'
+                + p.dedans.map((s) =>
+                    '<div class="r"><span class="ic">' + svg("dossier", { size: 16 })
+                    + "</span>"
+                    + '<span class="tx"><span class="nm">'
+                    + ech(s.path.split(/[\\/]/).filter(Boolean).pop()) + "</span>"
+                    + '<span class="ch">' + ech(s.path) + "</span></span>"
+                    + '<span class="meta">' + s.sessions + " sessions</span>"
+                    + '<button class="btn-pick" data-a="promouvoir" data-p="'
+                    + ech(s.path) + '">En faire un projet</button></div>').join("")
+                + '<div class="j-rien" style="padding:8px 2px 2px">Un dossier rangé '
+                + "à son tour reprend ses conversations. Rien n'est perdu dans "
+                + "l'opération.</div></div>"
+              : "")
+        : "")
+    + "</div>";
 }
 
 /* Un dossier déduit n'a qu'un geste propre : devenir un projet. Lui
@@ -2091,6 +2162,7 @@ function dessine(){
   $("trashBtn").onclick = () => { archives = !archives; dessine(); };
 
   if (cas === "neuf") feuilleNouveau(false);
+  else if (cas === "absorbe") feuilleNouveau(false);
   else if (cas === "occupe") feuilleNouveau(true);
   else if (cas === "suppr") feuilleSuppr();
   else fermer();
@@ -2119,7 +2191,20 @@ function feuilleNouveau(occupe){
     + '<div class="j-in"><span class="ic">' + svg("dossier", { size: 18 }) + "</span>"
     + '<span class="j-chemin" style="flex:1">' + ech(chemin) + "</span>"
     + '<button class="btn-pick" data-a="choisir">Choisir…</button></div>'
-    + (occupe
+    /* Trois états, pas deux. Le troisième vient de kuchu : ranger un dossier
+       qui en contient d'autres les ABSORBE, et ils disparaissent de la liste.
+       Ce n'est pas un danger — rien n'est perdu — mais c'est une conséquence
+       qu'on doit connaître AVANT, sinon on croit avoir perdu quelque chose.
+
+       Et la phrase ne se contente pas d'avertir : elle dit **où les
+       retrouver**. Un avertissement sans issue est une inquiétude. */
+    + (cas === "absorbe"
+        ? '<div class="j-etat plein"><span class="pt">' + svg("alerte", { size: 16 })
+          + "</span><span><b>Ce dossier en contient deux que vous avez déjà "
+          + "utilisés</b> — <i>Projet Ulysse</i> et <i>freeB</i>. Ils rejoindront "
+          + "ce projet, et sortiront de la liste. Vous pourrez les en ressortir "
+          + "depuis sa carte, quand vous voudrez.</span></div>"
+        : occupe
         ? '<div class="j-etat plein"><span class="pt">' + svg("alerte", { size: 16 })
           + "</span><span><b>Ce dossier contient déjà 340 fichiers.</b> Ulysse "
           + "pourra les lire, et écrire à côté. Rien n'est effacé — mais un dossier "
@@ -2205,7 +2290,15 @@ function feuille(titre, corps){
 
 function action(a, p){
   if (a === "fermer") return fermer();
-  if (a === "promouvoir"){ cas = "neuf"; majSeg(); return dessine(); }
+  if (a === "deplier"){
+    if (deplies.has(p)) deplies.delete(p); else deplies.add(p);
+    return dessine();
+  }
+  if (a === "promouvoir"){
+    /* Ranger un sous-dossier depuis la carte du parent : c'est le même
+       geste, sur un autre dossier. */
+    cas = "neuf"; majSeg(); return dessine();
+  }
   if (a === "archiver"){ cas = "suppr"; majSeg(); return dessine(); }
   if (a === "creer"){
     fermer(); cas = "liste"; majSeg(); dessine();

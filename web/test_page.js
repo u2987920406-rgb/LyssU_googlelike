@@ -1094,6 +1094,11 @@ async function main(){
     { id: "D:/Atelier", label: "Atelier", path: "D:/Atelier", color: null,
       icon: null, isAuto: true, isNoProject: false, sessionCount: 4,
       lastActive: 1786270000, repos: [], previewSessions: [] },
+    // Un dossier déduit À L'INTÉRIEUR d'un autre : c'est celui qui sera
+    // absorbé, et qu'il faut nommer avant de ranger le parent.
+    { id: "D:/Atelier/four", label: "four", path: "D:/Atelier/four", color: null,
+      icon: null, isAuto: true, isNoProject: false, sessionCount: 1,
+      lastActive: 1786260000, repos: [], previewSessions: [] },
     { id: "__no_project__", label: "Home", path: null, color: null, icon: null,
       isAuto: false, isNoProject: true, sessionCount: 39,
       lastActive: 1786290000, repos: [], previewSessions: [] }
@@ -1136,6 +1141,55 @@ async function main(){
   // La mémoire n'est PAS cloisonnée par projet. On ne l'affiche pas comme
   // promesse — et on ne se tait pas non plus : le silence laisserait croire
   // ce que la phrase de la maquette disait.
+  /* ── CE QUE LE PROJET CONTIENT, ET COMMENT L'EN RESSORTIR ───────────────
+     ⚠ LA SOURCE N'EST PAS `repos`. La passe supposait « repos, ou bien les
+     cwd des sessions ». Mesuré contre Hermès en marche : `repos` donne les
+     RACINES GIT, pas les dossiers de travail — il aurait dit « freeB » là où
+     kuchu travaille dans `freeB\hermes-bridge`, et il aurait manqué
+     `Projet Ulysse\web` (58 sessions) entièrement.
+     C'est `projects.project_sessions` qui rend la vérité. */
+  const dmdSes = FakeWS.sent.map((s) => JSON.parse(s.trim()))
+    .filter((m) => m.method === "projects.project_sessions").pop();
+  check("Dedans · ce que contient le projet est demandé aux SESSIONS, pas à « repos »",
+    !!dmdSes && dmdSes.params.project_id === "p1",
+    dmdSes ? JSON.stringify(dmdSes.params) : "aucun appel");
+  FakeWS.last.push({ jsonrpc: "2.0", id: dmdSes && dmdSes.id, result: { project: {
+    repos: [{ path: "D:/Fact", groups: [{ sessions: [
+      { id: "a", cwd: "D:/Fact" },
+      { id: "b", cwd: "D:/Fact/scans" },
+      { id: "c", cwd: "D:/Fact/scans" },
+      { id: "d", cwd: "D:/ailleurs" }
+    ] }] }] } } });
+  await wait(150);
+
+  const carteVraie2 = [...win.document.querySelectorAll("#projets .pcard")]
+    .find((c) => !c.classList.contains("j-auto") && /Migration/.test(c.textContent));
+  const repli = carteVraie2 && carteVraie2.querySelector("[data-deplier]");
+  check("Dedans · la carte porte la ligne, avec le bon compte",
+    !!repli && /1 dossier</.test(repli.innerHTML),
+    repli ? repli.textContent.trim() : "absente");
+  // ⚠ `D:/ailleurs` n'est PAS dans le projet : il ne doit pas être compté.
+  check("Dedans · ...et ce qui est HORS du dossier n'est pas compté",
+    !!repli && !/2 dossiers/.test(repli.textContent),
+    repli ? repli.textContent.trim() : "absente");
+  check("Dedans · elle est repliée par défaut — on ne l'ouvre que si on la cherche",
+    !carteVraie2.querySelector(".j-sous"));
+
+  repli.click();
+  await wait(150);
+  const ouvert = [...win.document.querySelectorAll("#projets .pcard")]
+    .find((c) => /Migration/.test(c.textContent));
+  check("Dedans · dépliée, elle montre le chemin et le compte de sessions",
+    !!ouvert.querySelector(".j-sous")
+    && /D:\/Fact\/scans/.test(ouvert.textContent)
+    && /2 sessions/.test(ouvert.textContent),
+    ouvert.textContent.replace(/\s+/g, " ").slice(0, 100));
+  // C'est CE bouton qui rend vraie la promesse de la feuille de rangement.
+  check("Dedans · ...et le geste promis est là : « En faire un projet »",
+    !!ouvert.querySelector('.j-sous [data-ranger="D:/Fact/scans"]'));
+  check("Dedans · ...avec la phrase qui dit que rien n'est perdu",
+    /Rien n’est perdu/.test(ouvert.textContent));
+
   /* ── ARCHIVER, ET NON « METTRE À LA CORBEILLE » ─────────────────────────
      `archive` pose un drapeau, `restore` le retire, et RIEN N'EXPIRE : le
      drapeau est posé à un seul endroit et retiré à un seul autre, aucune
@@ -1252,6 +1306,18 @@ async function main(){
     ranger ? ranger.textContent.trim() : "aucun bouton");
   ranger.click();
   await wait(60);
+  /* La feuille redemande l'arbre pour savoir ce qu'elle absorbe : ce sont les
+     dossiers DÉDUITS qui tombent à l'intérieur, exactement ceux qui vont
+     disparaître de la liste. Sans cette réponse, elle n'annonce rien —
+     ce qui est le bon défaut : on ne promet pas qu'un dossier est vide. */
+  const arbreRan = FakeWS.sent.map((s) => JSON.parse(s.trim()))
+    .filter((m) => m.method === "projects.tree").pop();
+  FakeWS.last.push({ jsonrpc: "2.0", id: arbreRan && arbreRan.id, result: {
+    projects: [
+      { id: "D:/Atelier/four", label: "four", path: "D:/Atelier/four",
+        isAuto: true, isNoProject: false, sessionCount: 1 }
+    ], active_id: null, scoped_session_ids: [] } });
+  await wait(120);
   const feuilleRanger = win.document.getElementById("projetBody");
   check("Ranger · la feuille s'ouvre",
     win.document.getElementById("sProjet").classList.contains("on"));
@@ -1272,10 +1338,17 @@ async function main(){
      `freeB` de la liste, absorbés, et rien ne l'avait annoncé. C'est un fait
      mesuré (`project_for_path` prend le plus long préfixe), pas une mise en
      garde inventée — donc on le dit. */
-  check("Ranger · on annonce que les sous-dossiers feront partie du projet",
-    /sous-dossier/.test(feuilleRanger.textContent)
-    && /partie du projet/.test(feuilleRanger.textContent),
-    feuilleRanger.textContent.slice(0, 60));
+  /* ⚠ On NOMME ce qui va être absorbé, et on donne l'issue. La dernière
+     phrase n'est pas un adoucissement : sans elle, l'avertissement ne serait
+     qu'une inquiétude — on saurait qu'on perd quelque chose sans savoir
+     comment le récupérer. Elle n'est vraie que grâce à la ligne repliable de
+     la carte : les deux tiennent ensemble. */
+  check("Ranger · le dossier absorbé est NOMMÉ, pas seulement compté",
+    /four/.test(feuilleRanger.textContent)
+    && /sortira de la liste/.test(feuilleRanger.textContent),
+    feuilleRanger.textContent.replace(/\s+/g, " ").slice(0, 110));
+  check("Ranger · ...et on dit par où le ressortir — sinon c'est une inquiétude",
+    /ressortir depuis sa carte/.test(feuilleRanger.textContent));
   check("Ranger · le nom est prérempli avec celui du dossier",
     feuilleRanger.querySelector("#jNom") && feuilleRanger.querySelector("#jNom").value === "Atelier",
     feuilleRanger.querySelector("#jNom") ? feuilleRanger.querySelector("#jNom").value : "absent");

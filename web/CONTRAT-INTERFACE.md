@@ -44,7 +44,8 @@ supprimez les `id` et les `data-*` listés plus bas.
   > (`j-ic` `j-vide` `j-auto` `j-rien` `j-home` `j-champ` `j-in` `j-chemin`
   > `j-etat` `j-cols` `j-col` `j-trois` `j-acts`) portent le nom donné par
   > `PASSE-DESIGN-PROJETS.md` §6, et `apercu-projets.html` les emploie.
-  > Même chose pour `l-lieu` / `l-pop` (`PASSE-DESIGN-LIEU.md` §6,
+  > Même chose pour `j-dedans` / `j-sous` (les dossiers absorbés) et pour
+  > `l-lieu` / `l-pop` (`PASSE-DESIGN-LIEU.md` §6,
   > `apercu-lieu.html`), avec `projet` `dossier` `attente` `change` en
   > classe jointe.
   > Renommer en `u-` casserait la correspondance entre l'aperçu et le produit.
@@ -151,6 +152,23 @@ créer d'`id` qui leur ressemble) : `gzoom` `doorBtn` `densSeg` `livCrumbs`
 > ou « archiver » afficherait une commande qui n'agit pas.
 > **Trois apparences, pas une étiquette sur trois cartes identiques.**
 >
+> **La carte d'un vrai projet porte `data-pid`** — c'est par là que la ligne
+> « Contient N dossiers » se repose, **sans redessiner le panneau**. La
+> redessiner referait `projects.list` et `projects.tree` pour ajouter une
+> ligne, et la liste sauterait sous les doigts.
+>
+> ⚠ **La source n'est PAS `repos`.** Mesuré : `repos` donne les **racines
+> git**, pas les dossiers de travail — il annonçait « freeB » là où le travail
+> a lieu dans `freeB\hermes-bridge`, et manquait `Projet Ulysse\web`
+> (58 sessions) entièrement. C'est `projects.project_sessions` qui porte la
+> vérité, et il est demandé **par projet, après le dessin**.
+>
+> ⚠ **L'avertissement du rangement NOMME les dossiers absorbés et donne
+> l'issue.** La dernière phrase — « vous pourrez les en ressortir depuis sa
+> carte » — n'est pas un adoucissement : sans elle, l'avertissement ne serait
+> qu'une inquiétude. Elle n'est vraie que grâce à la ligne repliable. **Les
+> deux tiennent ensemble : ne retirez pas l'une sans l'autre.**
+
 > **`#trashBtn` est dans le HTML**, vide — « **Archivés** », jamais
 > « Corbeille » : `archive` pose un drapeau, `restore` le retire, et **rien
 > n'expire** (`projects_db.py:570`). « Trente jours » serait une promesse

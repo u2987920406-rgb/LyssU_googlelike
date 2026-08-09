@@ -159,3 +159,59 @@ Pour mémoire, et pour qu'on ne le réintroduise pas :
 Cinq points sur six venaient de la même erreur : **j'ai supposé ce que l'API
 faisait au lieu de le demander.** C'est la troisième fois dans ce projet, et
 les trois fois le code l'a rattrapé en allant lire.
+
+---
+
+## 8. Les dossiers imbriqués (ajouté le 2026-08-09, v3)
+
+Trouvé par kuchu à l'écran : ranger `Desktop` a fait **disparaître**
+`Projet Ulysse` et `freeB` de la liste. `project_for_path` fait un
+plus-long-préfixe (`projects_db.py:736`) — ils étaient dedans.
+
+Rien n'est perdu, et Hermès sait défaire : un projet posé plus bas reprend la
+main, et les sessions se répartissent seules. **Mais l'écran ne savait pas le
+faire** : une fois le parent rangé, le sous-dossier n'est plus dans « Dossiers
+où vous avez travaillé », donc plus de bouton.
+
+Deux questions, et elles se répondent l'une l'autre.
+
+### 8.1 Prévenir, oui — mais en donnant l'issue
+
+Un troisième état du champ « quel dossier », à côté de *vide* et *occupé* :
+
+> **Ce dossier en contient deux que vous avez déjà utilisés** — *Projet Ulysse*
+> et *freeB*. Ils rejoindront ce projet, et sortiront de la liste. **Vous
+> pourrez les en ressortir depuis sa carte**, quand vous voudrez.
+
+Ce n'est pas un danger : rien n'est perdu. C'est une **conséquence**, et elle
+doit être connue *avant*, sinon on croit avoir perdu quelque chose.
+
+**Un avertissement sans issue est une inquiétude.** La dernière phrase n'est
+donc pas un adoucissement : c'est ce qui rend l'avertissement utile — et elle
+n'est vraie que grâce au §8.2.
+
+### 8.2 On range un sous-dossier là où on le cherche : dans son parent
+
+La carte d'un vrai projet gagne une ligne repliable au pied :
+
+> ▸ Contient **2 dossiers** où vous avez travaillé
+
+Dépliée, chacun avec son chemin, son compte de sessions, et **« En faire un
+projet »**. Plus une phrase : *« un dossier rangé à son tour reprend ses
+conversations. Rien n'est perdu dans l'opération. »*
+
+Elle n'existe que s'il y a quelque chose dedans, et elle est repliée par
+défaut : on ne l'ouvre que si on la cherche.
+
+> ⚠ **SUPPOSÉ** : que `repos` de `projects.tree` donne cette liste, ou qu'on
+> puisse la calculer depuis les `cwd` des sessions du projet. Si ni l'un ni
+> l'autre, **cette section n'est pas affichable** — et alors la promesse du
+> §8.1 tombe avec elle. Les deux tiennent ensemble.
+
+### 8.3 Ce que ça ouvre, et que je ne dessine pas
+
+Si un projet peut en contenir d'autres, la liste devient un **arbre** —
+`projects.tree` porte d'ailleurs ce mot dans son nom. Je n'y vais pas : deux
+niveaux se lisent, trois se replient, et personne n'a encore trois niveaux.
+
+**À rouvrir le jour où quelqu'un en aura**, pas avant.
