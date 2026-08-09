@@ -13,11 +13,32 @@
   (tout le visuel) et ce qui porte la logique (88 `id`, 25 `data-*`, les
   cinq classes d'état). Décidé le 2026-08-08 : le design en dialogue ici prenait
   trop de temps.
-- **Ce qu'on fait au retour** : `cd web && node test_page.js`. 283 vérifications
+- **Ce qu'on fait au retour** : `cd web && node test_page.js`. 299 vérifications
   sur la vraie page dans un DOM réel. **S'il passe au rouge, ce n'est pas le
   test qui a tort** — un `id` ou un `data-*` du contrat a disparu, et le
   contrat dit lequel. Ne jamais adapter `ulysse-core.js` pour faire passer un
   changement de design.
+- **Les serveurs et les tests : la règle exacte.** Question de kuchu,
+  2026-08-09. La réponse tient en deux temps, et le premier jet écrit ici
+  était trop large.
+
+  **Pour lancer les suites : ne rien fermer.** `test_serve.py` et
+  `test_personas.py` montent leur propre pile sur des ports **décalés de
+  +10000** (18080 · 19123 · 18644 · 18645) — aucune collision possible avec la
+  pile réelle (8080 · 8644 · 9123). `test_page.js` ne touche pas au réseau. Et
+  `test_reel.py` **exige** que la pile tourne : l'éteindre le rend aveugle.
+
+  **⚠ Mais pour RELANCER `serve.py` : fermer d'abord.** Mesuré le 2026-08-09 :
+  sous Windows, `allow_reuse_address` laisse un second serveur se lier au même
+  port **sans erreur** — et c'est le **premier** qui continue de répondre (six
+  requêtes, six réponses de l'ancien). Relancer sans fermer ne fait donc rien :
+  la bannière s'affiche, et l'ancien code répond. C'est arrivé deux fois.
+  Et comme un serveur garde le code qu'il avait au démarrage, `test_reel.py`
+  mesurerait alors un `serve.py` périmé.
+
+  **On ne compte pas là-dessus** : `serve.py` sonde le port avant de se lier
+  et **refuse de démarrer** en disant quoi faire. Un test l'exige.
+
 - **Ce qu'on ne touche pas côté design** : `ulysse-core.js` (câblage vérifié
   contre le code source d'Hermès) et `serve.py` (secrets + frontières).
 - **`ulysse.css` n'est plus purement verbatim depuis le 2026-08-09.** Les
@@ -43,8 +64,8 @@ dictée, terminal intégré, 4 suites de tests dont une contre le VRAI Hermès.
 Au 2026-08-08 au soir : elle est **côté Cowork**. Les six réparations ET les
 cinq passes de design sont appliquées.
 
-1. kuchu revient de Cowork → `node test_page.js` (**283** vérifications ;
-   les quatre suites font **529** : 283 page · 96 serveur · 45 réel · 100 personas)
+1. kuchu revient de Cowork → `node test_page.js` (**299** vérifications ;
+   les quatre suites font **543** : 299 page · 99 serveur · 45 réel · 100 personas)
 2. ~~Appliquer les cinq passes~~ — **FAIT le 2026-08-08** : la passe
    d'accord, les trois décisions, et le style des cinq panneaux.
    La dette des Repères est éteinte (43 signes sur 43).
@@ -66,8 +87,9 @@ cinq passes de design sont appliquées.
    ⚠ Ce refus ne vaut que pour ce qui passe par Ulysse : **Hermès n'a aucune
    frontière d'écriture par chemin contre l'agent** (`agent/file_safety.py` se
    dit lui-même « not a security boundary »).
-5. **Création de projet / coffre** — dessinée le 2026-08-09
-   (`web/PASSE-DESIGN-PROJETS.md`), **pas encore branchée**. L'API d'Hermès est
+5. **Projets** — dessinés (`web/PASSE-DESIGN-PROJETS.md` v2) et **branchés le
+   2026-08-09** : la liste vient de `projects.tree`, et « ranger un dossier en
+   projet » appelle `projects.create`. L'API d'Hermès est
    complète : `projects.create/list/get/update/add_folder/remove_folder/
    set_primary/archive/delete/set_active/for_cwd` (`tui_gateway/server.py`).
    Trois faits vérifiés contre Hermès en marche, et qui contraignent l'écran :
@@ -79,11 +101,17 @@ cinq passes de design sont appliquées.
      même fichier que tout le reste.
    - **`archive` est réversible et n'expire jamais** : un drapeau, posé à un
      seul endroit, retiré à un seul autre. Aucune purge, aucune échéance.
-   ⚠ Et `projects.tree` mêle **trois espèces** : le vrai projet, le dossier
+   ⚠ `projects.tree` mêle **trois espèces** : le vrai projet, le dossier
    **déduit** (`isAuto`, dont l'id est le chemin) et `__no_project__`
    (`isNoProject`). Les deux dernières n'ont ni nom propre, ni couleur, ni
-   identifiant à soi — leur offrir « renommer » ou « supprimer » serait
-   afficher une commande qui n'agit pas. En attente d'arbitrage côté design.
+   identifiant à soi. **Trois apparences, pas une étiquette** : le déduit n'a
+   qu'« en faire un projet », et « Home » n'est pas une carte mais une ligne
+   en pied de liste.
+   ⚠ **`projects.create` n'a jamais été appelé pour de vrai** : le lancer
+   créerait un projet dans la liste de kuchu. Vérifié en jsdom seulement, et
+   c'est dit plutôt qu'oublié.
+   Restent à brancher : l'explorateur de dossiers (qui débloquerait « ranger »
+   depuis la barre) et `projects.archive`.
 
 ---
 

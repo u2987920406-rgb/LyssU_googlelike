@@ -1316,6 +1316,39 @@ class ThreadingServer(socketserver.ThreadingTCPServer):
     daemon_threads = True
 
 
+# ===========================================================================
+# Le piege du serveur deja en marche
+#
+# Sous Windows, `allow_reuse_address` laisse un SECOND serveur se lier au meme
+# port SANS ERREUR — et c'est le PREMIER qui continue de repondre. Mesure du
+# 2026-08-09 : deux serveurs sur le meme port, six requetes, six reponses du
+# premier.
+#
+# Consequence : relancer sans fermer l'ancienne fenetre ne fait RIEN. Le
+# nouveau serveur demarre, affiche sa banniere, dit « Ulysse : http://... » —
+# et c'est l'ANCIEN CODE qui repond. On croit avoir relance, on mesure
+# l'etat d'avant. C'est arrive deux fois dans ce projet.
+#
+# On ne peut pas compter sur le fait d'y penser. Le serveur le dit lui-meme.
+# ===========================================================================
+
+def port_deja_pris(host, port, delai=0.4):
+    """Quelqu'un repond-il deja sur ce port ? Rend True, False, ou None.
+
+    None veut dire « on n'a pas pu savoir » — et on ne bloque pas sur un
+    doute : refuser de demarrer pour une raison qu'on ne sait pas nommer
+    serait pire que le piege qu'on essaie d'eviter.
+    """
+    cible = "127.0.0.1" if host in ("", "0.0.0.0") else host
+    try:
+        with socket.create_connection((cible, port), timeout=delai):
+            return True
+    except (ConnectionRefusedError, socket.timeout, OSError):
+        # Refus = personne n'ecoute, c'est le cas normal. Les autres erreurs
+        # (nom introuvable, pile reseau capricieuse) ne prouvent rien.
+        return False
+
+
 def main():
     global BACKEND, WEBHOOK_BACKEND, PROXY_BACKEND, ALLOWED_HOSTS, ALLOWED_ORIGINS
     os.chdir(os.path.dirname(os.path.abspath(__file__)))
@@ -1347,6 +1380,21 @@ def main():
         "http://127.0.0.1:%d" % PORT, "http://localhost:%d" % PORT,
         "http://[::1]:%d" % PORT,
     })
+
+    # AVANT toute banniere : si quelqu'un repond deja ici, se lier par-dessus
+    # ne prendrait pas la main — on le dit et on s'arrete, plutot que de
+    # laisser croire a un demarrage qui n'a pas lieu.
+    if port_deja_pris(HOST, PORT):
+        print("Un serveur repond DEJA sur http://127.0.0.1:%d" % PORT)
+        print("")
+        print("Ulysse ne demarre pas : sous Windows, se lier par-dessus")
+        print("reussit sans erreur mais c'est l'ANCIEN qui continue de")
+        print("repondre. Vous croiriez avoir relance, et vous mesureriez")
+        print("l'etat d'avant.")
+        print("")
+        print("Fermez la fenetre « Ulysse-Serve » deja ouverte, puis")
+        print("relancez lancer_ulysse.bat.")
+        return 2
 
     shown = (token[:6] + "…" + token[-3:]) if len(token) > 12 else ("(aucun)" if not token else "…")
     base = "http://127.0.0.1:%d" % PORT

@@ -1,156 +1,161 @@
-# Passe de design — créer un projet / coffre
+# Passe de design — les projets
 
-Dessiné **avant** le branchement, comme les garde-fous d'écriture. C'est la
-leçon qu'on a tirée à deux : ce genre de décision se prend avant qu'une ligne
-de code n'existe.
+> **Réécrite le 2026-08-09 (v2), après les cinq vérifications du code contre
+> le vrai Hermès.** Trois faits ont changé le dessin, et l'un contredisait une
+> prémisse de ma v1. La v1 est résumée en §7, pour qu'on sache ce qui a été
+> abandonné et pourquoi.
 
 Aperçu : `apercu-projets.html` (autonome, cinq cas).
 
 ---
 
-## 0. Ce que le relevé a trouvé d'abord, et qui change l'ordre des choses
+## 0. Les trois faits qui commandent
 
-**Le produit n'appelle pas `projects.tree`.**
-
-`drawProjets()` groupe les sessions par `cwd` — le commentaire du code le dit
-lui-même : *« Hermès n'a pas de notion de projet Ulysse. »* C'était vrai quand
-il a été écrit. Ça ne l'est plus : `projects.tree` renvoie `id, label, path,
-color, icon, sessionCount, lastActive, repos, previewSessions`.
-
-Il y a donc **deux notions incompatibles** dans le produit :
+Constatés contre Hermès en marche, pas supposés.
 
 | | |
 |---|---|
-| Ce qu'on **affiche** | un regroupement déduit d'un `cwd`, sans existence propre |
-| Ce qu'Hermès **a** | un objet nommé, coloré, avec un identifiant |
-
-**On ne peut pas créer un objet dans une liste qui ne le montre pas.** Le
-premier point de cette passe n'est donc pas un écran : c'est
-**brancher `projects.tree`**. La création vient après, et elle est simple.
-
-> Tant que la liste est déduite, « créer un projet » ne peut vouloir dire que
-> « créer un dossier » — et ce n'est pas la même chose. Un dossier n'a ni nom
-> propre, ni couleur, ni mémoire.
+| ✅ **`projects.create` existe** | et toute la famille : `list`, `get`, `update`, `archive`, `delete`, `add_folder`, `set_primary`… |
+| ⚠ **`create` n'écrit rien sur le disque** | il insère une ligne et enregistre des chemins. **On ne crée pas un dossier : on en désigne un** |
+| ⛔ **Le cloisonnement de la mémoire n'existe pas** | `<hermes_home>/memories/MEMORY.md` et `USER.md` : deux fichiers, globaux, sans dimension projet |
+| ⚠ **Rien n'expire** | `archive` pose un drapeau, `restore` le retire. Aucune tâche ne purge |
+| ⚠ **`projects.tree` rend trois espèces** | et `projects.list` en rend **zéro** aujourd'hui |
 
 ---
 
-## 1. La phrase de la maquette, enfin affichée
+## 1. Trois espèces cohabitent dans la même liste
 
-`.warnbox` est dans `ulysse.css` depuis la maquette. **Elle n'a jamais servi.**
-Elle porte pourtant la décision de conception la plus lourde du produit :
+C'est le vrai sujet de design, et il vient d'un fait : `projects.tree` mélange
 
-> « Chaque projet a **son propre coffre**, **son bac à sable** et **sa
-> mémoire**. Qui vous êtes descend dans chacun ; ce qu'un projet apprend n'en
-> sort jamais tout seul. »
+| Espèce | Ce qu'elle a | Ce qu'on peut lui faire |
+|---|---|---|
+| **Le vrai projet** | nom, couleur, icône, id | renommer, colorer, archiver |
+| **Le dossier déduit** (`isAuto`) | rien — **son id EST son chemin** | l'ouvrir, en faire un projet |
+| **« Home »** (`isNoProject`) | rien, et ce n'est pas un lieu | rien |
 
-C'est ce qui distingue un projet d'un dossier, et c'est ce qui justifie qu'on
-puisse en créer.
+**Trois apparences, donc, et pas une étiquette sur trois cartes identiques.**
 
-> ⚠ **Ne l'afficher que si le cloisonnement est réel côté Hermès.** Une phrase
-> qui promet un cloisonnement inexistant est le pire mensonge possible dans ce
-> produit : elle porte sur ce qui **sort** d'un projet. C'est à vérifier avant
-> de l'écrire à l'écran — comme la frontière `soul.md`, qui s'est révélée plus
-> étroite que ma première formulation.
+- Le **vrai projet** garde la carte pleine, sa pastille colorée, ses trois
+  actions.
+- Le **dossier déduit** a une carte au contour, une pastille grise et vide, un
+  nom en romain. Sa seule action propre : **« En faire un projet »**. On ne lui
+  propose ni « renommer » ni « archiver » — ce serait afficher une commande qui
+  n'agit pas, et il faudrait cliquer pour comprendre pourquoi.
+- **« Home » n'est pas une carte.** C'est le *reste* : une ligne en pied de
+  liste, *« 39 conversations n'appartiennent à aucun dossier »*. Lui donner
+  l'apparence d'un projet en ferait un projet qu'on ne peut ni régler ni
+  supprimer.
 
----
+Et deux sections, parce que la différence se lit avant les actions :
+**« Vos projets »** puis **« Dossiers où vous avez travaillé »**.
 
-## 2. Un seul champ engage
-
-| Champ | Engage ? |
-|---|---|
-| Le nom | non — il se change |
-| La couleur | non — elle se change |
-| **Le dossier** | **oui.** C'est là que l'agent écrira, et ce qui y est déjà y restera |
-
-Le dossier est donc le seul montré **en entier**, en monospace, et le seul dont
-on dit **ce qu'il contient déjà** :
-
-- *dossier vide* → « Il sera créé s'il n'existe pas encore. » Rien de plus.
-- *dossier occupé* → « Ce dossier contient déjà 340 fichiers. Ulysse pourra les
-  lire, et écrire à côté. Rien n'est effacé — mais un dossier occupé est un
-  dossier où une erreur se voit moins. »
-
-**On ne devine pas, on regarde.** Le second cas n'est pas interdit : il est
-dit. C'est la même règle que partout — distinguer sans empêcher.
-
-> La couleur n'est pas décorative : c'est elle qu'on verra dans la liste, et
-> c'est elle qui remplace la pastille tirée au rang (voir
-> `PASSE-DESIGN-LISTES.md` §6). Six couleurs, celles des familles d'outils du
-> Plan — le produit n'a pas besoin d'une septième palette.
+> **L'état réel de kuchu est le cas à dessiner en premier** : zéro projet, trois
+> dossiers déduits. La section « Vos projets » est donc vide, et elle dit
+> comment se remplir — *« un projet se fabrique à partir d'un dossier où vous
+> avez déjà travaillé — ci-dessous »*.
 
 ---
 
-## 3. On dit ce qu'on fabrique, avant de le fabriquer
+## 2. `.warnbox` ne doit pas être affichée — mais se taire ne suffit pas
 
-Trois lignes, dans la feuille de création, avant le bouton :
+Elle disait : *« ce qu'un projet apprend n'en sort jamais tout seul »*.
+**C'est faux.** Le code l'a vérifié : une seule mémoire, globale.
 
-| | |
-|---|---|
-| **Un bac à sable** | le dossier. L'agent y travaille, et n'en sort pas de lui-même |
-| **Un coffre** | ce que le projet produit et garde. Il ne voit pas celui d'un autre |
-| **Une mémoire** | ce qu'Ulysse retient de ce projet-ci |
+C'est le piège `soul.md`, deuxième prise. Et ma v1 le nommait elle-même :
+*« une phrase qui promet un cloisonnement inexistant porte sur ce qui sort d'un
+projet »*. Elle avait raison sur le risque, et elle allait quand même l'écrire.
 
-On ne découvre pas un coffre après coup. Et ces trois lignes sont la version
-détaillée de la `.warnbox` — même contenu, au moment où il devient concret.
+**Mais l'omettre ne suffit pas.** Quelqu'un qui voit des projets séparés
+*suppose* que ce qu'il y dit y reste. Le silence laisserait croire exactement
+ce que la phrase disait.
 
----
+On garde donc `.warnbox` — le composant — et on y met **l'inverse**, une fois,
+en tête de liste :
 
-## 4. Supprimer suit la doctrine, sans exception
+> Un projet range **un dossier et ses conversations**. En revanche, **ce
+> qu'Ulysse retient est commun à tous** : la mémoire est un seul fichier, elle
+> ne se cloisonne pas par projet.
 
-> « Ce qui porte des données va à la corbeille, et y reste. »
-
-Un projet porte des données. Il ne part donc **pas** sur place avec un
-« Annuler » de six secondes : il va à la corbeille, **trente jours**.
-
-La feuille de confirmation dit trois choses, et **l'ordre compte** :
-
-1. Le projet va à la corbeille — trente jours, tout revient.
-2. **Votre dossier n'est pas touché.** ← *c'est ce qui compte le plus, donc
-   c'est dit tôt*
-3. Les conversations restent dans Travaux — elles perdent leur rattachement,
-   pas leur contenu.
-
-La corbeille reprend `.trashbtn`, `.trashnote` et `.pcard.gone` de la
-maquette — **aucun des trois n'avait servi**.
-
-> **L'effacement définitif est le seul écran qui demande deux fois** (doctrine
-> de la maquette). Il n'est pas dessiné ici : il n'a lieu que depuis la
-> corbeille, et il mérite sa propre passe si vous le branchez.
+Et la feuille de création le répète là où ça compte, en troisième ligne de
+« ce que ça change » : *« La mémoire, elle, reste commune. »*
 
 ---
 
-## 5. Ce qu'il faut vérifier avant de coder
+## 3. « Ranger en projet », pas « Créer un projet »
 
-Dans cet ordre :
+`create` n'écrit rien sur le disque. « Créer un projet » laissait croire qu'on
+fabrique un dossier ; on **désigne** un dossier qui existe déjà.
 
-1. **`projects.tree` d'abord.** La liste doit montrer de vrais projets avant
-   qu'on puisse en créer un.
-2. **Y a-t-il un `projects.create` ?** Je ne l'ai pas vu passer dans les
-   relais. S'il n'existe pas, la création n'est pas une question de design mais
-   d'API — et l'écran attend.
-3. **Le cloisonnement de la mémoire est-il réel ?** (voir §1) Sans lui, la
-   `.warnbox` ne doit pas être affichée.
-4. **Que devient un projet supprimé côté Hermès ?** La corbeille de trente
-   jours suppose un état « supprimé » qui se garde. S'il n'existe pas, il faut
-   le tenir côté `serve.py` — ou renoncer à la corbeille et demander deux fois
-   d'emblée.
-5. **`repos` et `previewSessions`** sont renvoyés par `projects.tree` et ne
-   sont employés nulle part. À regarder : ils disent peut-être quelque chose
-   qu'on affiche mal en le déduisant.
+Tout le vocabulaire suit : le bouton de la barre dit **« Ranger un dossier en
+projet »**, la feuille aussi, et son premier champ n'est plus le nom mais **le
+dossier** — parce que c'est lui qui existe d'abord.
+
+Le nom vient ensuite, prérempli avec celui du dossier. La couleur en dernier.
+
+> Ma v1 ordonnait nom → dossier → couleur, et disait « il sera créé s'il
+> n'existe pas encore ». Les deux étaient faux pour la même raison : je croyais
+> qu'on partait de rien.
+
+---
+
+## 4. Archiver, pas mettre à la corbeille
+
+`archive` pose un drapeau ; `restore` le retire. **Rien n'expire.**
+
+« Trente jours » aurait été une promesse qu'Hermès ne tient pas — et
+« corbeille » suggère une échéance même sans la nommer. Le mot juste est
+**archiver** : on ne jette pas, on range.
+
+Ce qui se dit, et l'ordre compte :
+
+1. Il sort de la liste — et revient quand vous voulez, **sans limite de temps**.
+2. **Votre dossier n'est pas touché.**
+3. Les conversations restent dans Travaux.
+
+> C'est plus rassurant que trente jours, et c'est vrai. Les deux à la fois,
+> pour une fois.
+
+---
+
+## 5. Ce qui reste à trancher, et qui n'est pas du design
+
+- **`repos` et `previewSessions`** sont pleins et ignorés. `previewSessions`
+  (3 sessions par projet) donnerait une carte plus vivante — mais ça demande
+  une passe à soi, pas un ajout en passant.
+- **`projects.for_cwd`** existe : Discuter pourrait savoir dans quel projet il
+  se trouve. C'est peut-être plus utile que tout le reste de cette passe.
 
 ---
 
 ## 6. Contrat d'interface
 
-`pProjets` et `projets` sont au contrat et inchangés. `trashBtn` et `newProj`
-existent **dans la maquette** et jamais dans le produit : ils y entrent.
+`pProjets` et `projets` inchangés. `trashBtn` et `newProj` viennent de la
+maquette et entrent au contrat — `trashBtn` porte désormais « Archivés ».
 
-**Classes nouvelles**, préfixées `j-` : `j-ic`, `j-champ`, `j-in`, `j-chemin`,
-`j-etat`, `j-cols`, `j-col`, `j-trois`, `j-acts`.
+**Classes nouvelles**, préfixées `j-` : `j-ic`, `j-vide`, `j-auto`, `j-rien`,
+`j-home`, `j-champ`, `j-in`, `j-chemin`, `j-etat`, `j-cols`, `j-col`,
+`j-trois`, `j-acts`.
 
-**Réemployées de la maquette, jamais servies jusqu'ici** : `.warnbox`,
-`.trashbtn`, `.trashnote`, `.pcard.gone`, `.dangerlink`.
+**Réemployées de la maquette, jamais servies** : `.warnbox` (avec un autre
+texte), `.trashbtn`, `.trashnote`, `.pcard.gone`, `.dangerlink`.
 
-Vérifié en jsdom sur les cinq cas, sans erreur — et **aucun bouton mort** :
-c'est la règle que j'applique depuis que vous en avez trouvé un qui avait
-traversé deux de mes passes.
+Vérifié en jsdom sur les cinq cas, sans erreur — **aucun bouton mort**, et
+aucune action de projet proposée sur un dossier déduit.
+
+---
+
+## 7. Ce que la v1 disait, et qui est abandonné
+
+Pour mémoire, et pour qu'on ne le réintroduise pas :
+
+| v1 | Pourquoi c'est tombé |
+|---|---|
+| « `projects.tree` montre de vrais projets » | il rend surtout des dossiers déduits, et `list` en rend zéro |
+| « Créer un projet » | `create` n'écrit rien : on désigne, on ne crée pas |
+| « Il sera créé s'il n'existe pas » | idem |
+| `.warnbox` affichée telle quelle | la mémoire n'est pas cloisonnée |
+| « corbeille, trente jours » | rien n'expire |
+
+Cinq points sur six venaient de la même erreur : **j'ai supposé ce que l'API
+faisait au lieu de le demander.** C'est la troisième fois dans ce projet, et
+les trois fois le code l'a rattrapé en allant lire.

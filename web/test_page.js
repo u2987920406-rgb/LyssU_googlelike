@@ -252,6 +252,30 @@ async function main(){
   if (html.indexOf(lien) < 0) throw new Error("ulysse.html ne charge plus ulysse.css");
   check("« ulysse.css » est bien référencé par la page", true);
 
+  /* ⚠ `svg()` fait `I[k] || {}` : un nom d'icône inconnu ne lève RIEN, il
+     rend un carré vide. Le défaut ne casse pas, il ne se voit qu'à l'œil et
+     seulement sur l'écran concerné — j'ai écrit `svg("horloge")` le
+     2026-08-09, et l'icône n'existe pas.
+
+     On compare donc tous les noms appelés au registre des icônes. Statique,
+     donc sans avoir à ouvrir chaque écran. */
+  {
+    const icones = fs.readFileSync(path.join(DIR, "ulysse-icons.js"), "utf8");
+    const table = icones.slice(icones.indexOf("const I"), icones.indexOf("function svg"));
+    const connus = new Set((table.match(/(?:^|[\s{,])([a-zA-Zé]+)\s*:/gm) || [])
+      .map((m) => m.replace(/[\s{,:]/g, "")));
+    const appeles = new Set();
+    for (const f of ["ulysse-app.js", "ulysse-view.js"]){
+      const code = fs.readFileSync(path.join(DIR, f), "utf8");
+      for (const m of code.matchAll(/\bsvg\(\s*"([^"]+)"/g)) appeles.add(m[1]);
+    }
+    const orphelins = [...appeles].filter((n) => !connus.has(n)).sort();
+    check("chaque icône appelée existe vraiment dans le registre",
+      orphelins.length === 0,
+      orphelins.length ? "inconnue(s) : " + orphelins.join(", ")
+        : appeles.size + " nom(s) vérifié(s)");
+  }
+
   /* ⚠ LES DIX APERCUS RECOPIENT LA FEUILLE, ils ne la lient pas — il faut
      qu'ils s'ouvrent d'un double-clic, seuls. Autant de copies que de fichiers,
      donc autant d'occasions de diverger EN SILENCE : Cowork retouche la feuille et les
@@ -842,15 +866,124 @@ async function main(){
   check("Listes · une ligne de fichier a ses actions",
     win.document.querySelectorAll("#livList .row .acts [data-a]").length >= 2);
 
+  /* ── PROJETS ────────────────────────────────────────────────────────────
+     Le panneau groupait les sessions par `cwd`. Il lit maintenant
+     `projects.tree`, qui fait autorité — et qui mêle TROIS espèces.
+
+     Le fixture les porte toutes les trois, avec les drapeaux tels qu'Hermès
+     les envoie vraiment (relevé sur la machine, 2026-08-09). Un faux qui ne
+     mentirait pas comme le vrai ne prouverait rien : c'est le défaut qui a
+     déjà coûté trois fois à ce projet. */
   win.eval('nav("Projets")');
-  await wait(150);
+  await wait(80);
+  const dmd = FakeWS.sent.map((s) => JSON.parse(s.trim()))
+    .find((m) => m.method === "projects.tree");
+  check("Projets · la liste est demandée à « projects.tree », pas déduite",
+    !!dmd, JSON.stringify(FakeWS.sent.map((s) => JSON.parse(s.trim()).method)));
+  FakeWS.last.push({ jsonrpc: "2.0", id: dmd && dmd.id, result: { projects: [
+    { id: "p1", label: "Migration des factures", path: "D:/Fact", color: "#9334E6",
+      icon: "doc", isAuto: false, isNoProject: false, sessionCount: 11,
+      lastActive: 1786280000, repos: [], previewSessions: [] },
+    { id: "D:/Atelier", label: "Atelier", path: "D:/Atelier", color: null,
+      icon: null, isAuto: true, isNoProject: false, sessionCount: 4,
+      lastActive: 1786270000, repos: [], previewSessions: [] },
+    { id: "__no_project__", label: "Home", path: null, color: null, icon: null,
+      isAuto: false, isNoProject: true, sessionCount: 39,
+      lastActive: 1786290000, repos: [], previewSessions: [] }
+  ], active_id: null, scoped_session_ids: [] } });
+  await wait(120);
+
   const proj = win.document.getElementById("projets");
-  check("Listes · Projets montre la Mémoire, avec de vraies séances",
-    /Mémoire — \d+ séance/.test(proj.textContent), proj.textContent.slice(0, 120));
-  // Le Coffre demanderait une taille et un nombre de fichiers que
-  // `projects.tree` ne donne pas. STU-1 : on ne l'affiche pas.
-  check("Listes · et PAS le Coffre, qu'Hermès ne sait pas mesurer",
-    !/Coffre/.test(proj.textContent));
+  const cartes = proj.querySelectorAll(".pcard");
+  check("Projets · les deux sections se lisent AVANT les actions",
+    /Vos projets/.test(proj.textContent)
+    && /Dossiers où vous avez travaillé/.test(proj.textContent),
+    proj.textContent.slice(0, 90));
+
+  // ⚠ LE POINT QUI PORTE TOUT. Un dossier déduit n'a ni nom propre ni id :
+  // « renommer » et « archiver » n'agiraient sur rien. Les afficher
+  // obligerait à cliquer pour comprendre pourquoi — STU-1.
+  const deduite = proj.querySelector(".pcard.j-auto");
+  check("Projets · le dossier déduit a sa propre apparence, pas une étiquette",
+    !!deduite && !!deduite.querySelector(".j-ic.j-vide"),
+    deduite ? deduite.className : "aucune carte déduite");
+  check("Projets · ...et AUCUNE action de projet ne lui est proposée",
+    !!deduite && !deduite.querySelector('[data-a="regler"]')
+    && !deduite.querySelector('[data-a="archiver"]'),
+    deduite ? [...deduite.querySelectorAll("[data-a]")]
+      .map((b) => b.dataset.a).join(",") || "aucune" : "?");
+  const vraie = [...cartes].find((c) => !c.classList.contains("j-auto"));
+  check("Projets · le vrai projet, lui, garde ses réglages",
+    !!vraie && !!vraie.querySelector('[data-a="regler"]'),
+    vraie ? vraie.className : "aucune carte pleine");
+
+  // « Home » n'est pas un lieu : lui donner une carte en ferait un projet
+  // qu'on ne peut ni régler ni supprimer.
+  check("Projets · « Home » n'est PAS une carte, c'est le reste en pied de liste",
+    !!proj.querySelector(".j-home")
+    && ![...cartes].some((c) => /Home/.test(c.textContent)),
+    proj.querySelector(".j-home") ? "ligne présente" : "absente");
+  check("Projets · ...et il dit combien de conversations n'appartiennent à rien",
+    /39 conversations/.test(proj.textContent));
+
+  // La mémoire n'est PAS cloisonnée par projet. On ne l'affiche pas comme
+  // promesse — et on ne se tait pas non plus : le silence laisserait croire
+  // ce que la phrase de la maquette disait.
+  check("Projets · la note dit que la mémoire N'EST PAS cloisonnée",
+    /commun à tous/.test(proj.textContent)
+    && !/n'en sort jamais/.test(proj.textContent),
+    proj.textContent.slice(0, 60));
+
+  /* ── RANGER UN DOSSIER EN PROJET ────────────────────────────────────────
+     `projects.create` n'écrit RIEN sur le disque : il désigne un dossier qui
+     existe. Le vocabulaire de cet écran en dépend entièrement. */
+  const ranger = deduite && deduite.querySelector("[data-ranger]");
+  check("Ranger · le dossier déduit offre le seul geste qui a un sens sur lui",
+    !!ranger && /En faire un projet/.test(ranger.textContent),
+    ranger ? ranger.textContent.trim() : "aucun bouton");
+  ranger.click();
+  await wait(60);
+  const feuilleRanger = win.document.getElementById("projetBody");
+  check("Ranger · la feuille s'ouvre",
+    win.document.getElementById("sProjet").classList.contains("on"));
+  check("Ranger · elle dit « ranger », jamais « créer » — rien n'est fabriqué",
+    /Ranger un dossier en projet/.test(feuilleRanger.textContent)
+    && !/Créer un projet/.test(feuilleRanger.textContent));
+  // Le dossier est déjà connu : un bouton « Choisir… » ouvrirait le vide.
+  check("Ranger · ...et AUCUN « Choisir… », qui n'ouvrirait rien",
+    !/Choisir/.test(feuilleRanger.textContent));
+  check("Ranger · le chemin est montré en entier, c'est le seul champ qui engage",
+    /D:\/Atelier/.test(feuilleRanger.textContent));
+  check("Ranger · le nom est prérempli avec celui du dossier",
+    feuilleRanger.querySelector("#jNom") && feuilleRanger.querySelector("#jNom").value === "Atelier",
+    feuilleRanger.querySelector("#jNom") ? feuilleRanger.querySelector("#jNom").value : "absent");
+  // ⚠ La troisième ligne est celle qui manquait : la mémoire reste commune.
+  check("Ranger · « ce que ça change » dit AUSSI ce qui ne change pas",
+    /reste commune/.test(feuilleRanger.textContent)
+    && /Aucun fichier n’est créé/.test(feuilleRanger.textContent));
+
+  // Un nom vide : Hermès le refuse (`project name must not be empty`). On ne
+  // laisse pas partir l'appel pour se faire refuser — on le dit avant.
+  const avantCreate = FakeWS.sent.length;
+  feuilleRanger.querySelector("#jNom").value = "   ";
+  feuilleRanger.querySelector('[data-jp="creer"]').click();
+  await wait(40);
+  check("Ranger · un nom vide ne part même pas — on le dit avant",
+    !FakeWS.sent.slice(avantCreate).map((s) => JSON.parse(s.trim()))
+      .some((m) => m.method === "projects.create"));
+
+  feuilleRanger.querySelector("#jNom").value = "Atelier de poterie";
+  feuilleRanger.querySelectorAll("[data-col]")[2].click();
+  feuilleRanger.querySelector('[data-jp="creer"]').click();
+  await wait(60);
+  const cree = FakeWS.sent.map((s) => JSON.parse(s.trim()))
+    .find((m) => m.method === "projects.create");
+  check("Ranger · l'appel part avec le nom, le dossier et la couleur choisis",
+    !!cree && cree.params.name === "Atelier de poterie"
+    && cree.params.primary_path === "D:/Atelier"
+    && (cree.params.folders || [])[0] === "D:/Atelier"
+    && !!cree.params.color,
+    cree ? JSON.stringify(cree.params) : "aucun appel");
 
   win.eval('nav("Automatisations")');
   await wait(200);

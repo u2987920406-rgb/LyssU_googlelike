@@ -805,6 +805,34 @@ def main():
     # Le seul endroit ou Ulysse lance un processus. On detourne le lanceur :
     # une suite de verifications ne doit ouvrir aucune fenetre sur la machine
     # de quelqu'un.
+    # ------------------------------------------------------------------
+    # Le piege du serveur deja en marche
+    #
+    # Sous Windows, se lier a un port deja pris REUSSIT (allow_reuse_address)
+    # et c'est le PREMIER qui continue de repondre. Relancer sans fermer ne
+    # fait donc rien du tout — sauf donner l'illusion d'avoir relance.
+    # Mesure du 2026-08-09 : six requetes, six reponses de l'ancien.
+    # ------------------------------------------------------------------
+    print("\n-- Le serveur dit quand il n'a pas pris la main --")
+
+    check("un port ou quelqu'un repond est vu comme PRIS",
+          serve.port_deja_pris("127.0.0.1", ULYSSE_PORT) is True)
+
+    # Un port libre : on en prend un et on le relache aussitot, plutot que
+    # d'esperer qu'un numero choisi au hasard soit libre.
+    s_libre = socket.socket()
+    s_libre.bind(("127.0.0.1", 0))
+    port_libre = s_libre.getsockname()[1]
+    s_libre.close()
+    check("...et un port libre est vu comme libre",
+          serve.port_deja_pris("127.0.0.1", port_libre) is False,
+          "port %d" % port_libre)
+
+    # Le doute ne doit pas bloquer : refuser de demarrer pour une raison
+    # qu'on ne sait pas nommer serait pire que le piege qu'on evite.
+    check("...le refus de demarrer ne vaut que pour une reponse CONSTATEE",
+          serve.port_deja_pris("127.0.0.1", port_libre) is not None)
+
     print("\n-- Ouvrir une console Hermes, hors d'Ulysse --")
 
     lances = []

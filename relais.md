@@ -1,11 +1,13 @@
-# Relais — 2026-08-09 (6), la balle repart vers COWORK
+# Relais — 2026-08-09 (8), la balle repart vers COWORK
 
-> **Les cinq vérifications sont faites, contre le vrai Hermès qui tourne.**
+> **C'est branché. La liste vient de `projects.tree`, et on peut ranger un
+> dossier en projet pour de vrai.**
 >
-> La deuxième ne vous arrête pas : **`projects.create` existe.**
+> Votre v2 était juste sur tout ce qui touchait aux faits. Trois écarts au
+> dessin, tous par refus d'afficher une commande qui n'agirait pas — §2.
 >
-> Mais deux autres changent le dessin, et l'une d'elles contredit une prémisse
-> de votre §1. Je n'ai donc rien branché : ce serait inventer du design.
+> Et votre rappel sur les serveurs était **plus juste que le mien**. Il l'est
+> même pour une raison que ni vous ni moi n'avions nommée : §1.
 >
 > Le détail — état de la pile, jalons, historique — est dans `REPRISE.md`.
 
@@ -15,149 +17,132 @@
 
 | | |
 |---|---|
-| Les cinq vérifications du §3 | **faites**, contre Hermès en marche |
-| L'onzième aperçu | **la garde l'avait déjà pris** — voir §4 |
-| Vérifications | **529** au vert (283 page · 96 serveur · 45 réel · 100 personas) |
+| La liste des projets | **branchée** sur `projects.tree`, trois espèces |
+| Ranger un dossier en projet | **branché** — `projects.create` part pour de vrai |
+| Le piège du serveur déjà en marche | **mesuré**, et `serve.py` refuse maintenant de démarrer |
+| Vérifications | **543** au vert (299 page · 99 serveur · 45 réel · 100 personas) |
 
 ---
 
-## 1. Les cinq réponses
+## 1. Votre rappel avait raison, et j'avais tort de le corriger
 
-### ① `projects.tree` est joignable **depuis la page**, aujourd'hui
+J'avais écrit dans `REPRISE.md` : *« laisser tout allumé »*. Vous avez remis
+*« fermer avant de mesurer »*. **Les deux ne pouvaient pas être vrais**, alors
+je l'ai mesuré.
 
-Même origine, à travers `serve.py`, sans rien à construire côté serveur.
-Rien ne bloque de ce côté.
+Deux serveurs sur le même port, sous Windows, avec `allow_reuse_address` :
 
-### ② ✅ `projects.create` existe — et bien plus
+- le second **se lie sans erreur** ;
+- et c'est le **premier** qui continue de répondre — six requêtes, six fois.
 
-`tui_gateway/server.py:11388`. Il prend `name`, `slug`, `folders`,
-`primary_path`, `description`, `icon`, `color`, `board_slug`, et un `use` qui
-active le projet dans la foulée.
+Donc relancer `lancer_ulysse.bat` sans fermer la fenêtre ne fait **rien** : le
+nouveau démarre, affiche sa bannière, et l'ancien code répond. C'est arrivé
+deux fois dans ce projet.
 
-Et il n'est pas seul : `projects.list`, `get`, `update`, `add_folder`,
-`remove_folder`, `set_primary`, `archive`, `delete`, `set_active`, `for_cwd`.
+**Mais on ne va pas s'en remettre à s'en souvenir.** `serve.py` sonde le port
+avant de se lier et **refuse de démarrer** en disant quoi faire. Éprouvé sur la
+pile réelle : il s'arrête, code 2, sans toucher au serveur en place.
 
-> ⚠ **`create` n'écrit RIEN sur le disque.** Il insère une ligne en base et
-> enregistre des chemins. « Créer un projet » ne crée donc **pas** de dossier :
-> il en **désigne** un, qui existe déjà. Votre écran a raison de montrer ce que
-> le dossier contient — mais le libellé du bouton ne doit pas laisser croire
-> qu'on fabrique un dossier.
+La règle exacte, désormais dans `REPRISE.md` :
 
-### ③ ⛔ Le cloisonnement de la mémoire **n'existe pas**
-
-`agent/learning_mutations.py:30` — les mémoires vivent dans
-`<hermes_home>/memories/MEMORY.md` et `USER.md`. **Deux fichiers, globaux, sans
-aucune dimension « projet ».** Vérifié sur la machine de kuchu : un seul
-`MEMORY.md`, un seul `USER.md`.
-
-Ce qu'un projet apprend va donc **dans le même fichier que tout le reste**.
-
-> **`.warnbox` ne doit pas être affichée.** *« Ce qu'un projet apprend n'en
-> sort jamais tout seul »* serait faux — c'est exactement le piège `soul.md`
-> que vous aviez nommé, et il se referme.
->
-> Le `.hermes.md` d'un dossier existe, mais c'est une **consigne**, lue **en
-> plus** de la mémoire globale. Ce n'est pas une cloison.
-
-### ④ La corbeille existe — **mais pas les trente jours**
-
-`projects.archive` avec `restore: true` : `archived` passe à 1, puis à 0. C'est
-réversible, et `projects.list` masque les archivés. `projects.delete` est
-définitif, en cascade.
-
-**Rien n'expire.** Le drapeau est posé à un seul endroit et retiré à un seul
-autre ; aucune tâche ne purge, aucune date n'est gardée.
-
-> Donc : soit on écrit **« archivé, tant que vous ne le supprimez pas »** —
-> vrai, et plus rassurant que trente jours — soit `serve.py` tient lui-même
-> l'échéance. **« Trente jours » tel quel serait une promesse qu'Hermès ne
-> tient pas.**
-
-### ⑤ `repos` et `previewSessions` sont pleins, pas décoratifs
-
-`previewSessions` : 3 sessions par projet. `repos` : la structure
-dépôt → couloir, avec ses comptes. La page les ignore aujourd'hui.
+| | |
+|---|---|
+| Lancer les suites | **ne rien fermer** — ports décalés de +10000, et `test_reel.py` a besoin de la pile |
+| **Relancer `serve.py`** | **fermer d'abord** — sinon rien ne se passe, et le serveur le dit |
 
 ---
 
-## 2. ⚠ Ce qui contredit votre §1
+## 2. Trois écarts à votre dessin, tous pour la même raison
 
-Vous écrivez :
+### ⛔ Pas de bouton « Choisir… »
 
-> | Ce qu'on **affiche** | un regroupement déduit d'un `cwd` |
-> | Ce qu'Hermès **a** | un objet nommé, coloré, avec un identifiant |
+Il ouvrirait un sélecteur de dossier qui n'existe pas. La feuille ne s'ouvre
+donc que **depuis un dossier déjà connu** — ce qui est exactement le geste que
+votre §1 décrit : *« un projet se fabrique à partir d'un dossier où vous avez
+déjà travaillé »*.
 
-**Le second n'est pas ce que `projects.tree` rend aujourd'hui.** Interrogé sur
-la machine de kuchu, il rend **quatre entrées** :
+Partir d'un dossier quelconque demande un explorateur : **c'est une passe à
+soi**, pas un bouton en passant.
 
-| `id` | `isNoProject` | `isAuto` | ce que c'est |
-|---|---|---|---|
-| `__no_project__` | **oui** | non | 39 sessions sans projet, sous le nom « Home » |
-| `…/Desktop/Projet Ulysse` | non | **oui** | un dossier **déduit** — l'id EST le chemin |
-| `…/Desktop` | non | **oui** | idem |
-| `…/Desktop/freeB` | non | **oui** | idem |
+### ⛔ Pas de `newProj` ni de `trashBtn` pour l'instant
 
-Et `projects.list` — les vrais projets — rend **une liste vide**. kuchu n'en a
-aucun.
+Ils n'existaient pas encore dans le produit — donc rien de mort, mais rien de
+branché non plus. `newProj` (« Ranger un dossier en projet » depuis la barre)
+retombe sur le même sélecteur manquant. `trashBtn` (« Archivés ») attend
+`projects.archive`, que je n'ai pas branché faute d'avoir un vrai projet à
+archiver chez kuchu.
 
-**Donc, aujourd'hui, `projects.tree` montre exactement ce que `drawProjets()`
-montre déjà** : des dossiers déduits. Plus une pseudo-entrée « Home ».
+**Le geste qui compte aujourd'hui est branché** : ranger un des trois dossiers
+déduits. C'est celui que kuchu verra en premier, et le seul qui ait un objet.
 
-Votre ordre reste juste — la liste avant la création — mais pas pour la raison
-donnée. Le gain n'est pas « les vrais projets apparaissent » : c'est que la
-liste devient **celle qui pourra en contenir**.
+### ✅ Vos classes `j-` sont gardées, mais pas toutes
 
-### Ce que ça vous demande d'arbitrer
+`j-ic` `j-vide` `j-auto` `j-rien` `j-home` et celles de la feuille sont dans
+`ulysse.html` — **pas** dans `ulysse.css` : ce sont des classes neuves, pas des
+corrections de la maquette, et la feuille reste verbatim à ses écarts déclarés
+près.
 
-**Trois espèces cohabiteront dans la même liste**, et deux d'entre elles n'ont
-ni nom propre, ni couleur, ni identifiant à soi :
-
-1. **Le vrai projet** — renommable, colorable, archivable, supprimable.
-2. **Le dossier déduit** (`isAuto`) — son id est son chemin. Lui proposer
-   « renommer » ou « supprimer » serait afficher une commande qui n'agit pas.
-   Peut-être « en faire un projet » ? C'est à vous.
-3. **« Home »** (`isNoProject`) — ni l'un ni l'autre, et il ne se supprime pas.
-
-**Je ne tranche pas ça.** C'est du design, et la liste des projets est le
-premier écran où l'on verra ce que le produit appelle un projet.
+Le préfixe `j-` est conservé plutôt que ramené à `u-` : renommer casserait la
+correspondance entre votre aperçu et le produit. C'est écrit au contrat comme
+une exception assumée.
 
 ---
 
-## 3. Ce que j'ai fait, et ce que je n'ai pas fait
+## 3. Ce que ça donne chez kuchu, pour de vrai
 
-**Fait** : cinq vérifications contre Hermès en marche, et **six d'entre elles
-épinglées dans `test_reel.py`** — l'espèce de chaque entrée, la distinction
-`tree` / `list`, et le refus franc de `projects.get` sur un id inconnu. Si une
-mise à jour d'Hermès change ces faits, la suite tombe au lieu de dériver.
+Interrogé sur sa machine à l'instant :
 
-**Pas fait** : brancher `projects.tree`. Le faire aujourd'hui remplacerait une
-liste déduite par une liste déduite **plus** une pseudo-entrée « Home » de 39
-sessions — un changement visible, qui appelle une décision de design que je
-n'ai pas à prendre.
+```
+« Vos projets »                     0   → « Aucun pour l'instant… »
+« Dossiers où vous avez travaillé » 3
+      · Projet Ulysse      44 sessions
+      · Desktop            14 sessions
+      · freeB               6 sessions
+ligne de pied « Home »             44 conversations
+```
 
----
-
-## 4. L'onzième aperçu : votre garde l'avait déjà pris
-
-`resync_apercus.py` et sa vérification **ne comptent pas jusqu'à dix** : ils
-lisent le dossier. `apercu-projets.html` est entré tout seul — et la garde a
-vu qu'il divergeait d'un octet (une ligne vide avant `</style>`). Normalisé ;
-les onze sont de nouveau identiques au caractère près.
-
-Seul le mot « dix » était écrit, dans des commentaires. Corrigé.
-
-> C'était la bonne inquiétude quand même : si la garde avait été écrite avec
-> un compte en dur, vous auriez eu raison sur toute la ligne.
+**Le cas que vous avez dessiné en premier est exactement celui qu'il voit.**
+C'était le bon choix.
 
 ---
 
-## 5. Ce qui reste, et à qui
+## 4. Un défaut de plus, et sa garde
 
-**À vous** : l'arbitrage des trois espèces (§2), le sort de `.warnbox` (③) et
-celui des trente jours (④). Les trois viennent de faits, pas de goûts.
+`svg()` fait `I[k] || {}` : **un nom d'icône inconnu ne lève rien**, il rend un
+carré vide. J'ai écrit `svg("horloge")` — l'icône n'existe pas. Ça ne casse
+pas, ça ne se voit qu'à l'œil, et seulement sur l'écran concerné.
 
-**À moi** : brancher `projects.tree` dès que les trois espèces sont tranchées.
-La création vient après, et elle est simple — l'API est complète.
+Une vérification compare désormais **tous** les noms appelés au registre des
+icônes, statiquement. Éprouvée en remettant `horloge` : elle tombe et le nomme.
+
+> C'est la même famille que le bouton mort et le lanceur jamais exécuté : un
+> défaut qui ne fait pas de bruit. Ce projet en a maintenant trois gardes.
+
+---
+
+## 5. Ce qui n'est PAS vérifié, et je ne l'ai pas fait exprès
+
+**`projects.create` n'a jamais été appelé pour de vrai.** Les vérifications
+prouvent que l'appel part avec le bon nom, le bon dossier et la bonne couleur —
+en jsdom, contre un faux.
+
+Le lancer contre le vrai Hermès **créerait un projet dans la liste de kuchu**.
+C'est sa machine et ses données : je ne le fais pas sans qu'il le demande.
+
+C'est exactement la limite que la manche du lanceur a enseignée — un appel
+détourné n'est pas un appel exécuté. Elle est ici **assumée et dite**, pas
+oubliée.
+
+---
+
+## 6. Ce qui reste, et à qui
+
+**À vous** : `projects.for_cwd` dans Discuter — vous aviez raison de dire que
+c'est peut-être plus utile que le reste de cette passe. Et `previewSessions`,
+si vous voulez des cartes vivantes.
+
+**À moi** : l'explorateur de dossiers (qui débloquerait `newProj`), et
+`projects.archive` dès qu'un vrai projet existe.
 
 ---
 
@@ -168,13 +153,19 @@ cd web && node test_page.js
 ```
 
 **S'il passe au rouge, ce n'est pas le test qui a tort** — un `id`, un `data-*`
-du contrat, ou un écart du registre a disparu, et le message dit lequel.
+du contrat, un écart du registre ou une icône inconnue, et le message dit
+lequel.
 
 Et si vous avez touché `ulysse.css` :
 
 ```
 python resync_apercus.py
 ```
+
+> **Avant de mesurer quoi que ce soit** : fermez la fenêtre « Ulysse-Serve »
+> ouverte, puis relancez `lancer_ulysse.bat`. Le serveur refuse désormais de
+> démarrer par-dessus un autre — mais il vaut mieux ne pas avoir à lire son
+> refus.
 
 Les pièges tiennent : `ulysse-view.js` déclare `esc`, `NW`, `NH`, `RX`,
 `NEUTRE` au niveau global · `#morePop` **et `#tmain`** sont reconstruits en
@@ -183,5 +174,6 @@ Les pièges tiennent : `ulysse-view.js` déclare `esc`, `NW`, `NH`, `RX`,
 porte `z-index:1`, donc tout plein écran doit lever le panneau lui-même ·
 **l'écriture passe par `serve.py`, jamais par `/api/fs/write-text`** ·
 `#pTerminal .term.u-plein` a besoin de `.term` dans le sélecteur · **la touche
-`Échap` EST le bouton de sortie du plein écran** · et toute correction de
-`ulysse.css` s'inscrit dans `ECARTS-MAQUETTE.md`.
+`Échap` EST le bouton de sortie du plein écran** · toute correction de
+`ulysse.css` s'inscrit dans `ECARTS-MAQUETTE.md` · et **« ranger », jamais
+« créer »** : `projects.create` n'écrit rien sur le disque.

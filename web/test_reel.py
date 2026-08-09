@@ -66,6 +66,13 @@ def http(method, path, body=None):
             return r.status, json.loads(raw), raw
         except ValueError:
             return r.status, None, raw
+    except OSError as exc:
+        # Pile éteinte : on rend un statut 0 plutôt que de laisser filer
+        # l'exception. Sans ça, la première vérification n'était JAMAIS
+        # atteinte, et le message « Lancez lancer_ulysse.bat » — écrit juste
+        # en dessous — restait du code mort : on n'avait qu'une trace de pile
+        # à lire. Constaté le 2026-08-09.
+        return 0, None, "%s: %s" % (type(exc).__name__, exc)
     finally:
         c.close()
 
@@ -76,7 +83,23 @@ def http(method, path, body=None):
 
 class WS:
     def __init__(self, path="/api/ws"):
-        self.sock = socket.create_connection(("127.0.0.1", PORT), timeout=30)
+        # Même raison que dans `http()` : pile éteinte, on rend un objet mort
+        # avec `status = 0`, et c'est la vérification qui le DIT. Une trace de
+        # pile ne dit pas quoi faire ; « lancez lancer_ulysse.bat », si.
+        self.status = 0
+        self.head = ""
+        self.buf = b""
+        self.events, self.replies = [], {}
+        self.nextid = 1
+        self.lock = threading.Lock()
+        self.alive = False
+        self.closed_code = None
+        try:
+            self.sock = socket.create_connection(("127.0.0.1", PORT), timeout=30)
+        except OSError as exc:
+            self.sock = None
+            self.head = "%s: %s" % (type(exc).__name__, exc)
+            return
         key = base64.b64encode(os.urandom(16)).decode()
         lines = ["GET %s HTTP/1.1" % path, "Host: %s" % HOST, "Origin: %s" % ORIGIN,
                  "Upgrade: websocket", "Connection: Upgrade",
@@ -202,6 +225,8 @@ class WS:
 
     def close(self):
         self.alive = False
+        if self.sock is None:          # pile éteinte : rien à fermer
+            return
         try:
             self.sock.close()
         except OSError:

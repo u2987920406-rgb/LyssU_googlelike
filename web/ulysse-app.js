@@ -1383,73 +1383,334 @@ async function drawLivrables(){
   }
 }
 
-/* ═══ Projets — chacun son bac à sable ═══════════════════════════════════
-   Hermès n'a pas de notion « projet Ulysse ». Le regroupement RÉEL qu'il
-   connaît est le dossier de travail des sessions : c'est donc lui qu'on
-   montre, plutôt que d'inventer des projets qui n'en sont pas. */
+/* ═══ Projets ════════════════════════════════════════════════════════════
+   Ce panneau groupait les sessions par `cwd` — il montrait des DOSSIERS, et
+   son commentaire disait « Hermès n'a pas de notion de projet ». Ce n'est
+   plus vrai : `projects.tree` est la liste qui fait autorité, et c'est elle
+   qu'on lit maintenant.
+
+   ⚠ MAIS ELLE MÊLE TROIS ESPÈCES, et deux n'ont ni nom propre, ni couleur,
+   ni identifiant à soi. Vérifié contre Hermès en marche le 2026-08-09 :
+
+     · le VRAI projet      — nom, couleur, icône, id ; renommable, archivable.
+                             `projects.list` en rendait ZÉRO chez kuchu.
+     · le DOSSIER DÉDUIT   — `isAuto`. Son id EST son chemin. Lui proposer
+                             « renommer » ou « archiver » afficherait une
+                             commande qui n'agit pas (STU-1). Son seul geste
+                             propre : en faire un projet.
+     · « Home »            — `isNoProject`. Ce n'est pas un lieu, c'est le
+                             RESTE. Lui donner l'apparence d'une carte en
+                             ferait un projet qu'on ne peut ni régler ni
+                             supprimer. D'où une ligne en pied de liste.
+
+   Trois apparences, donc, et non une étiquette sur trois cartes identiques :
+   la différence doit se lire AVANT les actions.
+   ─────────────────────────────────────────────────────────────────────── */
+
+/* Ce qui remplace `.warnbox`.
+
+   La maquette y écrivait « ce qu'un projet apprend n'en sort jamais tout
+   seul ». C'est FAUX : `agent/learning_mutations.py:30` — les mémoires
+   vivent dans `<hermes_home>/memories/MEMORY.md` et `USER.md`, deux fichiers
+   globaux, sans aucune dimension projet.
+
+   On ne l'affiche donc pas. Mais SE TAIRE NE SUFFIT PAS : quelqu'un qui voit
+   des projets séparés suppose que ce qu'il y dit y reste. Le silence
+   laisserait croire exactement ce que la phrase disait. On dit l'inverse. */
+function noteProjets(){
+  return '<div class="warnbox">' + svg("boussole", { size: 22 })
+    + "<span>Un projet range <b>un dossier et ses conversations</b>. "
+    + "En revanche, <b>ce qu'Ulysse retient est commun à tous</b> : la mémoire "
+    + "est un seul fichier, elle ne se cloisonne pas par projet.</span></div>";
+}
+
+/* La couleur d'un vrai projet vient d'Hermès. Celle qu'on invente pour un
+   dossier déduit viendrait de nous — donc on n'en invente pas : sa pastille
+   reste grise et vide, et c'est ce qui le distingue au premier coup d'œil. */
+const PROJ_COL = ["#1A73E8", "#9334E6", "#E8710A", "#00838F", "#D96570", "#188038"];
+function teinteProjet(cle){
+  let n = 0;
+  for (let k = 0; k < cle.length; k++) n = (n * 31 + cle.charCodeAt(k)) >>> 0;
+  return PROJ_COL[n % PROJ_COL.length];
+}
+
+function nomDeChemin(p){
+  return (p || "").split(/[\\/]/).filter(Boolean).pop() || (p || "");
+}
+
+function carteProjetVrai(p){
+  const col = p.color || teinteProjet(p.id || p.label || "");
+  const n = p.sessionCount || 0;
+  return '<div class="pcard" data-cle="' + esc(p.path || p.id || "") + '">'
+    + '<div class="top">'
+    + '<span class="j-ic" style="background:' + esc(col) + '22;color:' + esc(col) + '">'
+    + svg(p.icon || "dossier", { size: 17 }) + "</span>"
+    + '<span class="nm">' + esc(p.label || nomDeChemin(p.path)) + "</span>"
+    + '<span class="chip">' + n + " session" + (n > 1 ? "s" : "") + "</span>"
+    + '<span class="sp"></span>'
+    + '<span class="meta">' + esc(fmtWhen(p.lastActive)) + "</span>"
+    + acts([{ a: "regler", ic: "regler", t: "Régler la mémoire et les accords" },
+            { a: "chemin", ic: "copier", t: "Copier le chemin du dossier" }])
+    + "</div>"
+    + '<div class="iso">'
+    + "<span>" + svg("bac", { size: 17 }) + " "
+    + esc(p.path || "dossier de lancement d'Hermès") + "</span>"
+    + '<span class="relaunch"><button class="rbtn" data-cwd="' + esc(p.path || "") + '">'
+    + svg("relancer", { size: 18 }) + "Travailler ici</button></span>"
+    + "</div></div>";
+}
+
+/* ⚠ Aucune action de PROJET ici. Son id est son chemin : « renommer » et
+   « archiver » n'auraient rien à quoi s'appliquer, et il faudrait cliquer
+   pour comprendre pourquoi. */
+function carteProjetDeduit(p){
+  const n = p.sessionCount || 0;
+  return '<div class="pcard j-auto" data-cle="' + esc(p.path || p.id || "") + '">'
+    + '<div class="top">'
+    + '<span class="j-ic j-vide">' + svg("dossier", { size: 17 }) + "</span>"
+    + '<span class="nm">' + esc(p.label || nomDeChemin(p.path || p.id)) + "</span>"
+    + '<span class="chip">' + n + " session" + (n > 1 ? "s" : "") + "</span>"
+    + '<span class="sp"></span>'
+    + '<span class="meta">' + esc(fmtWhen(p.lastActive)) + "</span>"
+    + acts([{ a: "chemin", ic: "copier", t: "Copier le chemin du dossier" }])
+    + "</div>"
+    + '<div class="iso">'
+    + "<span>" + svg("bac", { size: 17 }) + " "
+    + esc(p.path || p.id || "") + "</span>"
+    + '<span class="relaunch">'
+    + '<button class="btn-pick" data-ranger="' + esc(p.path || p.id || "") + '">'
+    + svg("plus", { size: 17 }) + "En faire un projet</button>"
+    + '<button class="rbtn" data-cwd="' + esc(p.path || p.id || "") + '">'
+    + svg("relancer", { size: 18 }) + "Travailler ici</button></span>"
+    + "</div></div>";
+}
+
+/* ═══ Ranger un dossier en projet ════════════════════════════════════════
+   ⚠ `projects.create` N'ÉCRIT RIEN SUR LE DISQUE. Il insère une ligne en
+   base et enregistre des chemins (`hermes_cli/projects_db.py:322`). « Créer
+   un projet » laissait donc croire qu'on fabrique un dossier : on en DÉSIGNE
+   un, qui existe déjà. Tout le vocabulaire suit.
+
+   On n'ouvre cette feuille QUE depuis un dossier déjà connu. Il n'y a donc
+   pas de bouton « Choisir… » — il faudrait un explorateur de fichiers, et un
+   bouton qui ouvre le vide est un bouton mort (STU-1). Le jour où l'on
+   voudra partir d'un dossier quelconque, ce sera une passe à soi.
+   ─────────────────────────────────────────────────────────────────────── */
+
+function feuilleProjet(titreTxt, corps){
+  H("projetBody", "<h2>" + esc(titreTxt) + "</h2>" + corps);
+  $("sProjet").classList.add("on");
+  return $("projetBody");
+}
+
+function fermerProjet(){ $("sProjet").classList.remove("on"); }
+
+function ligneTrois(ic, nom, texte){
+  return '<div class="l"><span class="ic">' + svg(ic, { size: 18 }) + "</span>"
+    + '<span><span class="nm">' + esc(nom) + "</span>"
+    + '<span class="tx">' + esc(texte) + "</span></span></div>";
+}
+
+async function ouvrirRanger(chemin){
+  let couleur = teinteProjet(chemin);
+  const nom = nomDeChemin(chemin);
+
+  const corps = (etat) =>
+    '<div class="sub" style="color:var(--muted);margin-bottom:20px">'
+    + "Le dossier existe déjà et ne bouge pas. Un projet lui donne un nom, une "
+    + "couleur, et rassemble ses conversations.</div>"
+
+    + '<div class="j-champ"><span class="lb">Quel dossier</span>'
+    + '<span class="ai">C’est là qu’Ulysse lit et écrit. Rien n’y sera créé ni '
+    + "déplacé.</span>"
+    + '<div class="j-in"><span class="ic">' + svg("dossier", { size: 18 }) + "</span>"
+    + '<span class="j-chemin" style="flex:1">' + esc(chemin) + "</span></div>"
+    + etat
+    + "</div>"
+
+    + '<div class="j-champ"><span class="lb">Comment l’appeler</span>'
+    + '<span class="ai">Par défaut, le nom du dossier. Il se change.</span>'
+    + '<div class="j-in"><span class="ic">' + svg("doc", { size: 18 }) + "</span>"
+    + '<input id="jNom" value="' + esc(nom) + '" autocomplete="off"></div></div>'
+
+    + '<div class="j-champ"><span class="lb">Sa couleur</span>'
+    + '<span class="ai">Pour le reconnaître d’un coup d’œil dans la liste.</span>'
+    + '<div class="j-cols">' + PROJ_COL.map((c) =>
+        '<button class="j-col' + (c === couleur ? " on" : "") + '"'
+        + ' style="background:' + c + '" data-col="' + c + '"'
+        + ' aria-label="Couleur ' + esc(c) + '"></button>').join("")
+    + "</div></div>"
+
+    // Ce qu'on fabrique — et ce qu'on ne fabrique PAS. La troisième ligne est
+    // celle qui manquait : la mémoire n'est pas cloisonnée, et le taire
+    // laisserait croire le contraire.
+    + '<div class="seth">Ce que ça change<span class="l"></span></div>'
+    + '<div class="j-trois">'
+    + ligneTrois("bac", "Le dossier devient le sien",
+        "L’agent y travaille. Aucun fichier n’est créé, déplacé ni copié.")
+    + ligneTrois("chat", "Ses conversations se regroupent",
+        "Celles qui ont eu lieu dans ce dossier, et celles à venir.")
+    + ligneTrois("boussole", "La mémoire, elle, reste commune",
+        "Ce qu’Ulysse retient ici sert partout ailleurs. Elle ne se cloisonne "
+        + "pas par projet.")
+    + "</div>"
+
+    + '<div class="j-acts">'
+    + '<button class="validate" data-jp="creer">Ranger en projet</button>'
+    + '<span class="sp"></span>'
+    + '<button class="txt-btn" data-jp="fermer">Annuler</button></div>';
+
+  // On ouvre AVANT de savoir ce que le dossier contient : la feuille ne doit
+  // pas attendre une lecture de disque pour paraître. L'état arrive après.
+  const att = '<div class="j-etat flou"><span class="pt">'
+    + svg("points", { size: 16 }) + "</span><span>Lecture du dossier…</span></div>";
+  const hote = feuilleProjet("Ranger un dossier en projet", corps(att));
+
+  const brancher = () => {
+    hote.querySelectorAll("[data-col]").forEach((b) => {
+      b.onclick = () => {
+        couleur = b.dataset.col;
+        hote.querySelectorAll("[data-col]").forEach((x) =>
+          x.classList.toggle("on", x.dataset.col === couleur));
+      };
+    });
+    hote.querySelectorAll("[data-jp]").forEach((b) => {
+      b.onclick = () => {
+        if (b.dataset.jp === "fermer") return fermerProjet();
+        rangerEnProjet(chemin, hote, couleur, b);
+      };
+    });
+  };
+  brancher();
+
+  // Ce que le dossier contient déjà. On ne le devine pas — et quand on n'a
+  // pas pu le lire, on le DIT plutôt que de rassurer à tort.
+  let etat;
+  try {
+    const d = await REST.files(chemin);
+    const n = ((d && d.entries) || []).length;
+    etat = n
+      ? '<div class="j-etat plein"><span class="pt">' + svg("alerte", { size: 16 })
+        + "</span><span><b>Ce dossier contient déjà " + n + " élément"
+        + (n > 1 ? "s" : "") + ".</b> Ulysse pourra les lire, et écrire à côté. "
+        + "Rien n’est effacé — mais un dossier occupé est un dossier où une "
+        + "erreur se voit moins.</span></div>"
+      : '<div class="j-etat vide"><span class="pt">' + svg("coche", { size: 16 })
+        + "</span><span>Ce dossier est vide.</span></div>";
+  } catch (e){
+    etat = '<div class="j-etat flou"><span class="pt">' + svg("alerte", { size: 16 })
+      + "</span><span>Le contenu du dossier n’a pas pu être lu ("
+      + esc(e.message) + "). Rien n’empêche de le ranger — on ne sait "
+      + "simplement pas ce qu’il contient.</span></div>";
+  }
+  if (!$("sProjet").classList.contains("on")) return;   // refermée entre-temps
+  const garde = hote.querySelector("#jNom");
+  const saisi = garde ? garde.value : null;
+  H("projetBody", "<h2>Ranger un dossier en projet</h2>" + corps(etat));
+  // La feuille est réécrite : on rend ce qui avait déjà été tapé, sinon on
+  // efface sous les doigts de quelqu'un en train d'écrire.
+  const neuf = hote.querySelector("#jNom");
+  if (neuf && saisi !== null) neuf.value = saisi;
+  brancher();
+}
+
+async function rangerEnProjet(chemin, hote, couleur, bouton){
+  const champ = hote.querySelector("#jNom");
+  const nom = (champ && champ.value || "").trim();
+  if (!nom){
+    snack("Un projet a besoin d’un nom. Hermès refuse un nom vide.");
+    if (champ) champ.focus();
+    return;
+  }
+  bouton.disabled = true;
+  try {
+    // projects.create — tui_gateway/server.py:11388. `primary_path` entre
+    // dans l'ensemble des dossiers et devient le principal.
+    await link.rpc("projects.create", {
+      name: nom, primary_path: chemin, folders: [chemin], color: couleur
+    });
+    fermerProjet();
+    snack("« " + nom + " » est rangé en projet. Le dossier n’a pas bougé.");
+    if (current === "Projets") drawProjets();
+  } catch (e){
+    // On relaie ce qu'Hermès dit — un nom vide, un dossier illisible. Une
+    // phrase à nous inventerait une cause.
+    snack("Hermès a refusé : " + String(e.message).slice(0, 140));
+    bouton.disabled = false;
+  }
+}
 
 async function drawProjets(){
   H("projets", '<div class="u-load">Chargement…</div>');
+
+  /* `projects.tree` est un RPC sur la WebSocket, pas un appel REST : si le
+     lien n'est pas ouvert, on le DIT plutôt que d'afficher une liste vide,
+     qui se lirait « vous n'avez aucun projet ». Et on redessine dès qu'il
+     s'ouvre, sans que personne ait à recharger. */
+  if (link.state !== "open"){
+    H("projets", "<div class=\"u-todo\">Le lien avec Hermès n’est pas ouvert ("
+      + esc(link.reason || link.state) + "). La liste des projets vient de lui.</div>");
+    if (link.state === "connecting" || link.state === "idle"){
+      const repasser = (etat) => {
+        if (etat !== "open") return;
+        link.stateListeners.delete(repasser);
+        if (current === "Projets") drawProjets();
+      };
+      link.onState(repasser);
+    }
+    return;
+  }
+
   try {
-    const d = await REST.sessions(100, "recent");
-    const par = new Map();
-    ((d && d.sessions) || []).forEach((s) => {
-      const k = s.cwd || "";
-      if (!par.has(k)) par.set(k, []);
-      par.get(k).push(s);
-    });
-    if (!par.size){
+    const d = await link.rpc("projects.tree", {});
+    const tout = (d && d.projects) || [];
+
+    /* LE TRI QUI PORTE TOUT LE PANNEAU. Deux drapeaux, trois piles — et
+       aucune supposition : une entrée qui ne dit rien d'elle-même tombe
+       dans « vrai projet », l'espèce qui reçoit le plus d'actions. C'est le
+       mauvais défaut. On exige donc `isAuto === false` explicitement. */
+    const home = tout.filter((p) => p.isNoProject === true);
+    const deduits = tout.filter((p) => !p.isNoProject && p.isAuto === true);
+    const vrais = tout.filter((p) => !p.isNoProject && p.isAuto !== true);
+
+    if (!tout.length){
       H("projets", '<div class="empty"><div class="big">Aucun dossier de travail.</div>'
         + "<div>Il s'en créera un dès la première conversation dans un dossier.</div></div>");
       return;
     }
-    // La couleur était tirée du RANG dans la liste (`COL[i % COL.length]`) :
-    // elle changeait dès qu'un projet en dépassait un autre. Une couleur qui
-    // bouge n'est pas un repère. Elle vient maintenant du CHEMIN, qui, lui,
-    // ne bouge pas.
-    const COL = ["#1A73E8", "#9334E6", "#E8710A", "#00838F", "#D96570", "#188038"];
-    const teinte = (cle) => {
-      let n = 0;
-      for (let k = 0; k < cle.length; k++) n = (n * 31 + cle.charCodeAt(k)) >>> 0;
-      return COL[n % COL.length];
-    };
 
-    let h = "";
-    par.forEach((sessions, cwd) => {
-      const nom = cwd ? (cwd.split(/[\\/]/).filter(Boolean).pop() || cwd) : "Sans dossier";
-      const actif = sessions.some((s) => s.is_active);
-      const dernier = Math.max(...sessions.map((s) => s.last_active || s.started_at || 0));
-      const msgs = sessions.reduce((a, s) => a + (s.message_count || 0), 0);
-      h += '<div class="pcard" data-cle="' + esc(cwd) + '"><div class="top">'
-        + '<span class="dot" style="background:' + teinte(cwd || "sans") + '"></span>'
-        + '<span class="nm">' + esc(nom) + "</span>"
-        + '<span class="chip">' + sessions.length + " session"
-        + (sessions.length > 1 ? "s" : "") + "</span>"
-        + '<span class="sp"></span>'
-        + '<span class="meta">' + esc(fmtWhen(dernier)) + "</span>"
-        + '<span class="chip b">' + (actif ? "En cours" : "Au repos") + "</span>"
-        + acts([{ a: "chemin", ic: "copier", t: "Copier le chemin du dossier" },
-                { a: "regler", ic: "regler", t: "Régler la mémoire et les accords" }])
-        + "</div>"
-        + '<div class="iso">'
-        + "<span>" + svg("bac", { size: 17 }) + " Bac à sable — "
-        + esc(cwd || "dossier de lancement d'Hermès") + "</span>"
-        // La MÉMOIRE, avec ce qu'Hermès donne réellement : des séances et une
-        // date. Pas des journaux — il n'en expose pas.
-        + "<span>" + svg("coffre", { size: 17 }) + " Mémoire — " + sessions.length
-        + " séance" + (sessions.length > 1 ? "s" : "")
-        + (msgs ? ", " + msgs + " message" + (msgs > 1 ? "s" : "") : "")
-        + ", dernière " + esc(fmtWhen(dernier)) + "</span>"
-        // La troisième tuile de la maquette — le COFFRE, sa taille et son
-        // nombre de fichiers — n'est PAS affichée : `projects.tree` ne donne
-        // ni l'une ni l'autre, et les calculer voudrait dire parcourir tout
-        // l'arbre. Mieux vaut deux tuiles vraies que trois dont une ment
-        // (règle STU-1).
-        + '<span class="relaunch"><button class="rbtn" data-cwd="' + esc(cwd) + '">'
-        + svg("relancer", { size: 18 }) + "Travailler ici</button></span>"
-        + "</div></div>";
+    let h = noteProjets();
+
+    // Section 1 — les vrais projets. Vide chez kuchu aujourd'hui, et c'est le
+    // cas que tout le monde verra le premier jour : elle dit comment se remplir.
+    h += '<div class="seth">Vos projets<span class="l"></span></div>';
+    h += vrais.length
+      ? vrais.map(carteProjetVrai).join("")
+      : "<div class=\"j-rien\">Aucun pour l’instant. Un projet se fabrique à "
+        + "partir d'un dossier où vous avez déjà travaillé — ci-dessous.</div>";
+
+    // Section 2 — les dossiers déduits. La section dit ce qu'ils ne sont pas,
+    // AVANT que l'absence d'actions ne le montre.
+    if (deduits.length){
+      h += '<div class="seth">Dossiers où vous avez travaillé<span class="l"></span></div>'
+        + "<div class=\"j-rien\">Ulysse les reconnaît à vos conversations. Ils n’ont "
+        + "ni nom, ni couleur, ni réglages tant qu'ils ne sont pas rangés en "
+        + "projet.</div>"
+        + deduits.map(carteProjetDeduit).join("");
+    }
+
+    // « Home » n'est pas une carte : c'est le reste.
+    home.forEach((p) => {
+      const n = p.sessionCount || 0;
+      h += '<div class="j-home">' + svg("chat", { size: 17 })
+        + "<span><b>" + n + " conversation" + (n > 1 ? "s" : "") + "</b> "
+        + (n > 1 ? "n'appartiennent" : "n'appartient") + " à aucun dossier. "
+        + (n > 1 ? "Elles restent" : "Elle reste") + " dans Travaux.</span>"
+        + '<button class="quiet-link" data-voir="travaux">Les voir</button></div>';
     });
+
     H("projets", h);
+
     $("projets").querySelectorAll("[data-cwd]").forEach((b) => {
       b.onclick = () => {
         resetSession(); accordRepondu = null;
@@ -1458,6 +1719,12 @@ async function drawProjets(){
         snack("Dossier de travail : " + (b.dataset.cwd || "celui d'Hermès")
           + " — la prochaine session s'y ouvrira.");
       };
+    });
+    $("projets").querySelectorAll("[data-voir]").forEach((b) => {
+      b.onclick = () => nav("Travaux");
+    });
+    $("projets").querySelectorAll("[data-ranger]").forEach((b) => {
+      b.onclick = (ev) => { ev.stopPropagation(); ouvrirRanger(b.dataset.ranger); };
     });
     wireActs("projets", (a, carte) => {
       if (a === "chemin") return copier(carte.dataset.cle, "Le chemin");

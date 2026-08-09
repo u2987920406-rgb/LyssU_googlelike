@@ -29,14 +29,24 @@ supprimez les `id` et les `data-*` listés plus bas.
   > coquilles.** Neuf vérifications les tiennent, sinon la prochaine extraction
   > verbatim les restaurerait en silence.
 
-  > ⚠ **Les dix `apercu-*.html` RECOPIENT la feuille** — ils s'ouvrent seuls,
-  > sans serveur. Dix copies, dix occasions de diverger sans bruit. Le test le
+  > ⚠ **Les `apercu-*.html` RECOPIENT la feuille** — ils s'ouvrent seuls,
+  > sans serveur. Autant de copies que de fichiers, autant d'occasions de
+  > diverger sans bruit. (Ni le test ni le script ne comptent jusqu'à un
+  > nombre écrit : ils lisent le dossier.) Le test le
   > voit, et `python resync_apercus.py` répare. **Après toute retouche de
   > `ulysse.css`, lancez-le.** Il recopie la feuille et rien d'autre : le
   > gabarit et les notes d'un aperçu restent à vous.
 - **Le bloc `<style>` de `ulysse.html`** — entièrement. Toutes ses règles sont
   préfixées `u-` pour ne jamais recouvrir la maquette ; gardez cette habitude,
   ou dites-le si vous la changez.
+
+  > **Une exception, assumée : le préfixe `j-`.** Les classes des projets
+  > (`j-ic` `j-vide` `j-auto` `j-rien` `j-home` `j-champ` `j-in` `j-chemin`
+  > `j-etat` `j-cols` `j-col` `j-trois` `j-acts`) portent le nom donné par
+  > `PASSE-DESIGN-PROJETS.md` §6, et `apercu-projets.html` les emploie.
+  > Renommer en `u-` casserait la correspondance entre l'aperçu et le produit.
+  > Elles vivent dans `ulysse.html`, **pas** dans `ulysse.css` : ce sont des
+  > classes neuves, pas des corrections de la maquette.
 - **Tous les textes visibles** — libellés, titres, phrases d'aide, messages.
 - **La structure autour** — ajouter des conteneurs, des wrappers, des sections.
   Ce qui compte, c'est que les éléments listés en §2 existent toujours et
@@ -104,14 +114,14 @@ en avait le moins besoin.
 et leurs boutons : `travRefresh` `livRefresh` `projRefresh` `autoRefresh`
 
 **Le flottant** — `npanel` `toasts` `snack` `sNode` `ficheBody` `sFile`
-`fileBody`
+`fileBody` `sEcrire` `ecrireBody` `sProjet` `projetBody`
 
 **Créés à l'exécution** (ne pas les mettre dans le HTML, mais ne pas non plus
 créer d'`id` qui leur ressemble) : `gzoom` `doorBtn` `densSeg` `livCrumbs`
 `livHome` `livList` `mIncog` `mNew` `mEtabli` `nClose` `fClose` `vAct`
 `etabliClose` `tGo` `tSize` `tCout` `tecran` `tstate` `tApp` `tMem` `tFull`
 `tPopApp` `tPopMem` `tSortie` `tOutils2` `tRepli` `detteGo` `detteAct` `detteRed`
-`uMemFiles` `uMemTexte` `uMemDiff` `uMemVers` `uMemGo` `tConsole`
+`uMemFiles` `uMemTexte` `uMemDiff` `uMemVers` `uMemGo` `tConsole` `jNom`
 
 > **`#sEcrire` / `#ecrireBody` sont dans le HTML** — la feuille où l'on écrit
 > dans la mémoire. Elle est à part de `#sFile` : ce qu'on y montre — la
@@ -123,6 +133,24 @@ créer d'`id` qui leur ressemble) : `gzoom` `doorBtn` `densSeg` `livCrumbs`
 > `POST /ulysse/restaurer`. Appeler l'API d'Hermès en direct contournerait la
 > copie datée — et l'écran promettrait alors un retour en arrière qui n'existe
 > pas. Un test l'exige.
+
+> **`#sProjet` / `#projetBody` sont dans le HTML** — la feuille où l'on range
+> un dossier en projet. À part de `#sFile` et `#sEcrire` : ce qu'on y montre —
+> ce qui se fabrique, ce qui **ne** se fabrique pas, et ce qui reste commun —
+> n'a rien à voir avec un aperçu ni avec une écriture.
+>
+> ⚠ **La liste des projets vient de `projects.tree`, un RPC sur la
+> WebSocket**, et elle mêle **trois espèces**. Deux n'ont ni nom propre, ni
+> couleur, ni identifiant à soi : le dossier déduit (`isAuto`, dont l'id est
+> le chemin) et `__no_project__` (`isNoProject`). Leur proposer « renommer »
+> ou « archiver » afficherait une commande qui n'agit pas.
+> **Trois apparences, pas une étiquette sur trois cartes identiques.**
+>
+> ⚠ **« Ranger », jamais « Créer ».** `projects.create` n'écrit rien sur le
+> disque (`hermes_cli/projects_db.py:322`) : il désigne un dossier existant.
+> Et il n'y a **pas** de bouton « Choisir… » — la feuille ne s'ouvre que
+> depuis un dossier déjà connu ; un sélecteur de dossier serait une passe à
+> soi, et le bouton sans lui serait mort.
 
 > **`#tConsole` — « Ouvrir une console Hermès » — ouvre pour de vrai.**
 > `POST /ulysse/console`, quatrième route locale. C'est **le seul endroit où

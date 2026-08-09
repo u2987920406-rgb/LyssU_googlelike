@@ -765,6 +765,88 @@
 #pDiscuter:not(.accueil) .work:not(.atelier) .u-languette{display:flex}
 /* `.work` est déjà `position:relative` dans la maquette — on ne la redéclare
    pas pour ça, la languette s'y ancre telle quelle. */
+
+/* ═══ Les projets : trois espèces, trois apparences ══════════════════════
+   Préfixe `j-` et non `u-` : c'est le nom donné par la passe de design des
+   projets (`PASSE-DESIGN-PROJETS.md` §6), et `apercu-projets.html` l'emploie.
+   Renommer ici casserait la correspondance entre l'aperçu et le produit.
+   La règle du préfixe `u-` reste vraie pour tout le reste de ce bloc.
+
+   Ces règles ne sont PAS dans `ulysse.css` : ce ne sont pas des corrections
+   de la maquette, ce sont des classes neuves. La feuille reste verbatim, à
+   ses écarts déclarés près (`ECARTS-MAQUETTE.md`).
+
+   ⚠ On n'apporte ici QUE ce dont la liste se sert. Les classes de la feuille
+   de création (`j-champ`, `j-in`, `j-cols`, `j-col`, `j-etat`, `j-trois`,
+   `j-acts`) restent dans l'aperçu tant que cette feuille n'existe pas :
+   du style pour un écran absent n'aide personne à le trouver. */
+.j-ic{width:30px;height:30px;flex:none;border-radius:9px;display:grid;
+  place-items:center}
+
+/* Un dossier déduit n'a ni nom propre, ni couleur, ni identifiant à soi :
+   son id EST son chemin. Lui donner l'apparence d'un projet en ferait un
+   projet qu'on ne peut pas régler — et il faudrait cliquer pour comprendre
+   pourquoi. Pastille vide et grise, carte au contour, nom en romain. */
+.j-ic.j-vide{background:var(--surface-hi);color:var(--muted)}
+.j-auto{background:transparent;border:1px solid var(--outline-var)}
+.j-auto:hover{background:var(--surface)}
+.j-auto .nm{font-weight:400}
+
+/* Ce qu'on dit quand une section est vide, ou qu'elle a besoin d'un mot
+   avant ses cartes. Ni une carte, ni un état vide : une phrase. */
+.j-rien{color:var(--muted);font-size:var(--font-size-sm);line-height:1.55;
+  padding:2px 2px 12px;max-width:620px}
+
+/* « Home » n'est PAS une carte. C'est le reste — les conversations qui
+   n'appartiennent à rien. Lui donner l'apparence d'un projet en ferait un
+   projet qu'on ne peut ni renommer, ni régler, ni supprimer. */
+.j-home{display:flex;align-items:center;gap:12px;margin-top:22px;padding:14px 18px;
+  border-top:1px solid var(--outline-var);font-size:var(--font-size-sm);
+  color:var(--muted)}
+.j-home svg{flex:none;color:var(--faint)}
+.j-home b{color:var(--text);font-weight:500}
+.j-home button{margin-left:auto;flex:none}
+
+/* ── La feuille : ranger un dossier en projet ────────────────────────────
+   LE CHOIX DU DOSSIER EST LE SEUL QUI ENGAGE. Un nom se change, une couleur
+   se change ; le dossier, non — c'est là que l'agent écrira, et ce qui y est
+   déjà y restera. C'est donc le seul champ montré en entier et commenté. */
+.j-champ{margin-bottom:20px}
+.j-champ .lb{display:block;font-weight:500;margin-bottom:3px}
+.j-champ .ai{display:block;font-size:var(--font-size-xs);color:var(--muted);
+  margin-bottom:9px;line-height:1.5}
+.j-in{display:flex;align-items:center;gap:10px;background:var(--surface);
+  border-radius:var(--radius-md);padding:11px 14px}
+.j-in input{flex:1;font-size:15px;min-width:0}
+.j-in .ic{color:var(--muted);flex:none;display:grid}
+.j-chemin{font-family:ui-monospace,Menlo,monospace;font-size:12.5px;
+  word-break:break-all;color:var(--text)}
+
+/* Ce que le dossier contient déjà. On ne le devine pas, on le dit — et
+   quand on n'a pas pu le lire, on dit ça aussi plutôt que de rassurer. */
+.j-etat{display:flex;gap:10px;align-items:flex-start;margin-top:10px;
+  font-size:var(--font-size-xs);line-height:1.55}
+.j-etat .pt{flex:none;display:grid;margin-top:1px}
+.j-etat.vide{color:var(--muted)} .j-etat.vide .pt{color:var(--green)}
+.j-etat.plein{color:#5F4200} .j-etat.plein .pt{color:var(--amber)}
+.j-etat.flou{color:var(--muted)} .j-etat.flou .pt{color:var(--muted)}
+
+/* Les six couleurs des familles d'outils du Plan. */
+.j-cols{display:flex;gap:8px;flex-wrap:wrap}
+.j-col{width:30px;height:30px;border-radius:9px;position:relative}
+.j-col.on{box-shadow:0 0 0 2px var(--bg),0 0 0 4px var(--accent)}
+
+/* « Ce que ça change » — trois lignes, dont la troisième est celle qui
+   manquait : elle dit ce que le produit NE sait pas faire. */
+.j-trois{display:flex;flex-direction:column;gap:14px;margin:14px 0 4px}
+.j-trois .l{display:flex;gap:12px;align-items:flex-start}
+.j-trois .ic{flex:none;display:grid;color:var(--muted);margin-top:1px}
+.j-trois .nm{font-weight:500}
+.j-trois .tx{font-size:var(--font-size-xs);color:var(--muted);line-height:1.5;
+  margin-top:1px}
+
+.j-acts{display:flex;align-items:center;gap:10px;margin-top:24px}
+.j-acts .sp{flex:1}
 </style>
 </head>
 <body>
@@ -1071,6 +1153,11 @@
        différence, ce qui se perd, ce qu'on pourra défaire — n'a rien à voir
        avec l'aperçu d'un fichier. -->
   <div class="sheet-bg" id="sEcrire"><div class="sheet" id="ecrireBody"></div></div>
+
+  <!-- Ranger un dossier en projet. À part de `#sFile` et de `#sEcrire` : ce
+       qu'on y montre — ce qui se fabrique, ce qui NE se fabrique pas, et ce
+       qui reste commun — n'a rien à voir avec un aperçu ni avec une écriture. -->
+  <div class="sheet-bg" id="sProjet"><div class="sheet" id="projetBody"></div></div>
 
 </section>
 
