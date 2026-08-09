@@ -1121,6 +1121,9 @@
     <!-- ─── Projets ─── -->
     <div class="panel" id="pProjets">
       <div class="topbar"><span class="title">Projets</span><span class="sep"></span>
+        <!-- « Ranger », jamais « Créer » : `projects.create` n'écrit rien sur
+             le disque, il désigne un dossier qui existe déjà. -->
+        <button class="btn-pick" id="newProj"></button>
         <button class="icon-btn sm" id="projRefresh" aria-label="Rafraîchir"
                 title="Rafraîchir"></button></div>
       <div class="body"><div class="body-in" id="projets"></div></div>

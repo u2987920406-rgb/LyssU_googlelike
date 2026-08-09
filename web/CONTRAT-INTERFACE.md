@@ -115,7 +115,7 @@ en avait le moins besoin.
 **Les autres panneaux** — `works` `livrables` `projets` `autos`
 `vgrid` `vdet` `vmeta` `vseg` `vq` `icSearch` `setnav` `setbody`
 `tside` `tmain` `glossary`
-et leurs boutons : `travRefresh` `livRefresh` `projRefresh` `autoRefresh`
+et leurs boutons : `travRefresh` `livRefresh` `projRefresh` `autoRefresh` `newProj`
 
 **Le flottant** — `npanel` `toasts` `snack` `sNode` `ficheBody` `sFile`
 `fileBody` `sEcrire` `ecrireBody` `sProjet` `projetBody`
@@ -126,7 +126,7 @@ créer d'`id` qui leur ressemble) : `gzoom` `doorBtn` `densSeg` `livCrumbs`
 `etabliClose` `tGo` `tSize` `tCout` `tecran` `tstate` `tApp` `tMem` `tFull`
 `tPopApp` `tPopMem` `tSortie` `tOutils2` `tRepli` `detteGo` `detteAct` `detteRed`
 `uMemFiles` `uMemTexte` `uMemDiff` `uMemVers` `uMemGo` `tConsole` `jNom`
-`lieuBtn` `lieuPop`
+`lieuBtn` `lieuPop` `ranFil` `ranList` `ranPrendre` `ranAnnuler`
 
 > **`#sEcrire` / `#ecrireBody` sont dans le HTML** — la feuille où l'on écrit
 > dans la mémoire. Elle est à part de `#sFile` : ce qu'on y montre — la
@@ -150,6 +150,20 @@ créer d'`id` qui leur ressemble) : `gzoom` `doorBtn` `densSeg` `livCrumbs`
 > le chemin) et `__no_project__` (`isNoProject`). Leur proposer « renommer »
 > ou « archiver » afficherait une commande qui n'agit pas.
 > **Trois apparences, pas une étiquette sur trois cartes identiques.**
+>
+> **`#newProj` est dans le HTML**, vide — « Ranger un dossier en projet »,
+> dans la barre des Projets. Il ouvre le choix de dossier, qui réemploie le
+> navigateur des Livrables (mêmes `.row`, même fil d'Ariane). Les fichiers y
+> sont **montrés mais éteints** : les cacher ferait croire à un dossier vide,
+> les rendre cliquables proposerait de ranger un fichier.
+>
+> ⚠ **Sans `?path=`, `/api/files` rend le DOSSIER PERSONNEL**, pas une racine
+> vide (`path` absolu, `parent` renseigné — vérifié). Le bouton doit nommer le
+> dossier réellement à l'écran.
+>
+> ⚠ **Un projet réclame tout son SOUS-ARBRE.** Ranger un dossier parent absorbe
+> ses sous-dossiers, et les conversations qui s'y tiennent. C'est arrivé à
+> kuchu sans qu'on l'ait annoncé — la feuille le dit maintenant.
 >
 > ⚠ **« Ranger », jamais « Créer ».** `projects.create` n'écrit rien sur le
 > disque (`hermes_cli/projects_db.py:322`) : il désigne un dossier existant.

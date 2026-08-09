@@ -13,7 +13,7 @@
   (tout le visuel) et ce qui porte la logique (88 `id`, 25 `data-*`, les
   cinq classes d'état). Décidé le 2026-08-08 : le design en dialogue ici prenait
   trop de temps.
-- **Ce qu'on fait au retour** : `cd web && node test_page.js`. 317 vérifications
+- **Ce qu'on fait au retour** : `cd web && node test_page.js`. 328 vérifications
   sur la vraie page dans un DOM réel. **S'il passe au rouge, ce n'est pas le
   test qui a tort** — un `id` ou un `data-*` du contrat a disparu, et le
   contrat dit lequel. Ne jamais adapter `ulysse-core.js` pour faire passer un
@@ -64,8 +64,8 @@ dictée, terminal intégré, 4 suites de tests dont une contre le VRAI Hermès.
 Au 2026-08-08 au soir : elle est **côté Cowork**. Les six réparations ET les
 cinq passes de design sont appliquées.
 
-1. kuchu revient de Cowork → `node test_page.js` (**317** vérifications ;
-   les quatre suites font **567** : 317 page · 99 serveur · 51 réel · 100 personas)
+1. kuchu revient de Cowork → `node test_page.js` (**328** vérifications ;
+   les quatre suites font **578** : 328 page · 99 serveur · 51 réel · 100 personas)
 2. ~~Appliquer les cinq passes~~ — **FAIT le 2026-08-08** : la passe
    d'accord, les trois décisions, et le style des cinq panneaux.
    La dette des Repères est éteinte (43 signes sur 43).
@@ -115,8 +115,13 @@ cinq passes de design sont appliquées.
    connaître : un projet posé sur un dossier PARENT absorbe ses sous-dossiers
    (`project_for_path` réclame tout le sous-arbre) — « Projet Ulysse » et
    « freeB » ont disparu de l'arbre en tant que dossiers déduits.
-   Restent à brancher : l'explorateur de dossiers (qui débloquerait « ranger »
-   depuis la barre) et `projects.archive`.
+   ✅ **L'explorateur de dossiers existe** (2026-08-09) : il réemploie le
+   navigateur des Livrables, et débloque « Ranger un dossier en projet » depuis
+   la barre **et** le rangement d'un dossier imbriqué.
+   ⚠ Sans `?path=`, `/api/files` rend le **dossier personnel**, pas une racine
+   vide. Le fixture des tests affirmait le contraire — quatrième fois qu'un
+   faux ne ment pas comme le vrai.
+   Reste à brancher : `projects.archive`.
 6. **Où le fil travaille** — branché le 2026-08-09
    (`web/PASSE-DESIGN-LIEU.md`). Une gélule dans la barre de Discuter.
    **Le lieu vient de la SESSION** : `conv.info` porte `cwd` ET `project`.

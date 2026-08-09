@@ -1679,6 +1679,92 @@ function carteProjetDeduit(p){
    voudra partir d'un dossier quelconque, ce sera une passe à soi.
    ─────────────────────────────────────────────────────────────────────── */
 
+/* ── Choisir un dossier ─────────────────────────────────────────────────
+   Il manquait, et son absence bloquait deux choses : « Ranger un dossier en
+   projet » depuis la barre, et le rangement d'un dossier IMBRIQUÉ. Ce
+   second cas est arrivé pour de vrai : kuchu a rangé `Desktop`, ses
+   sous-dossiers ont disparu de la liste (un projet réclame tout son
+   sous-arbre), et il n'avait plus aucun moyen de ranger `Projet Ulysse`.
+   Hermès le permettait — `project_for_path` prend le plus long préfixe —
+   mais l'écran, non.
+
+   On ne dessine RIEN de neuf : c'est le navigateur des Livrables, mêmes
+   `.row`, même fil d'Ariane. Un explorateur qui ne ressemble pas à celui
+   d'à côté est un second explorateur à apprendre.
+
+   Seule différence, et elle est nécessaire : **les fichiers sont montrés
+   mais éteints**. Les cacher ferait croire à un dossier vide ; les rendre
+   cliquables proposerait de ranger un fichier en projet, ce qui n'a pas de
+   sens. On les montre, en gris, sans action. */
+async function feuilleChoisirDossier(depart, choisi){
+  let ici = depart || "";
+
+  const dessiner = async () => {
+    feuilleProjet("Quel dossier ?",
+      '<div class="sub" style="color:var(--muted);margin-bottom:14px">'
+      + "Le dossier doit exister. Ulysse n’en crée aucun — il en désigne un."
+      + "</div>"
+      + '<div class="crumbs" id="ranFil"></div>'
+      + '<div class="u-load" id="ranList">Lecture…</div>'
+      + '<div class="j-acts"><button class="validate" id="ranPrendre"></button>'
+      + '<span class="sp"></span>'
+      + '<button class="txt-btn" id="ranAnnuler">Annuler</button></div>');
+
+    H("ranFil", livFil(ici));
+    $("ranFil").querySelectorAll("[data-cr]").forEach((b) => {
+      b.onclick = () => { ici = b.dataset.cr; dessiner(); };
+    });
+    const prendre = $("ranPrendre");
+    prendre.textContent = "Lecture…";
+    prendre.disabled = true;
+    $("ranAnnuler").onclick = fermerProjet;
+
+    let d;
+    try {
+      d = await REST.files(ici || undefined);
+    } catch (e){
+      H("ranList", '<div class="u-todo">Lecture impossible : ' + esc(e.message) + "</div>");
+      prendre.textContent = "Choisissez un dossier";
+      return;
+    }
+    /* ⚠ SANS CHEMIN, `/api/files` NE REND PAS « la racine » : il rend le
+       dossier personnel (vérifié — `path` vaut `C:\Users\<vous>`). Le bouton
+       doit donc parler du dossier RÉELLEMENT à l'écran, pas d'un chemin vide.
+       Sinon il dirait « choisissez un dossier » alors qu'on en regarde un. */
+    const reel = (d && d.path) || ici;
+    prendre.textContent = reel ? "Ranger « " + nomDeChemin(reel) + " »"
+                               : "Choisissez un dossier";
+    prendre.disabled = !reel;
+    prendre.onclick = () => { if (reel) choisi(reel); };
+    H("ranFil", livFil(reel));
+    $("ranFil").querySelectorAll("[data-cr]").forEach((b) => {
+      b.onclick = () => { ici = b.dataset.cr; dessiner(); };
+    });
+    const tout = (d && d.entries) || [];
+    const haut = (d && d.parent !== null && d.parent !== undefined && d.path)
+      ? '<div class="row" data-dir="' + esc(d.parent) + '"><span class="ic">'
+        + svg("retour", { size: 18 }) + '</span><span class="nm">.. dossier parent</span>'
+        + '<span class="sp"></span></div>'
+      : "";
+    const lignes = tout.map((f) => {
+      const dir = f.is_directory || f.is_dir || f.type === "dir";
+      return '<div class="row"' + (dir ? ' data-dir="' + esc(f.path) + '"' : "")
+        + (dir ? "" : ' style="opacity:.45"') + ">"
+        + '<span class="ic">' + svg(dir ? "dossier" : "fichier", { size: 18 }) + "</span>"
+        + '<span class="nm">' + esc(f.name) + "</span>"
+        + '<span class="sp"></span>'
+        + '<span class="meta">' + (dir ? "dossier" : "fichier") + "</span></div>";
+    }).join("");
+    H("ranList", haut + (lignes || '<div class="u-load">Aucun sous-dossier ici. '
+      + "Vous pouvez ranger ce dossier tel quel.</div>"));
+    $("ranList").querySelectorAll("[data-dir]").forEach((r) => {
+      r.onclick = () => { ici = r.dataset.dir; dessiner(); };
+    });
+  };
+
+  await dessiner();
+}
+
 function feuilleProjet(titreTxt, corps){
   H("projetBody", "<h2>" + esc(titreTxt) + "</h2>" + corps);
   $("sProjet").classList.add("on");
@@ -1706,7 +1792,10 @@ async function ouvrirRanger(chemin){
     + '<span class="ai">C’est là qu’Ulysse lit et écrit. Rien n’y sera créé ni '
     + "déplacé.</span>"
     + '<div class="j-in"><span class="ic">' + svg("dossier", { size: 18 }) + "</span>"
-    + '<span class="j-chemin" style="flex:1">' + esc(chemin) + "</span></div>"
+    + '<span class="j-chemin" style="flex:1">' + esc(chemin) + "</span>"
+    // Le bouton n'existait pas tant qu'aucun explorateur ne l'attendait :
+    // un bouton qui ouvre le vide est un bouton mort.
+    + '<button class="btn-pick" data-jp="choisir">Choisir…</button></div>'
     + etat
     + "</div>"
 
@@ -1759,6 +1848,11 @@ async function ouvrirRanger(chemin){
     hote.querySelectorAll("[data-jp]").forEach((b) => {
       b.onclick = () => {
         if (b.dataset.jp === "fermer") return fermerProjet();
+        if (b.dataset.jp === "choisir"){
+          // On repart du dossier courant : changer d'avis ne doit pas
+          // renvoyer à la racine.
+          return feuilleChoisirDossier(chemin, (neuf) => ouvrirRanger(neuf));
+        }
         rangerEnProjet(chemin, hote, couleur, b);
       };
     });
@@ -1770,13 +1864,25 @@ async function ouvrirRanger(chemin){
   let etat;
   try {
     const d = await REST.files(chemin);
-    const n = ((d && d.entries) || []).length;
+    const tout = (d && d.entries) || [];
+    const n = tout.length;
+    const sous = tout.filter((f) => f.is_directory || f.is_dir || f.type === "dir").length;
+    /* ⚠ CE QUE KUCHU A DÉCOUVERT À SES DÉPENS, le 2026-08-09. Un projet
+       réclame tout son SOUS-ARBRE (`project_for_path` prend le plus long
+       préfixe) : ranger `Desktop` a fait disparaître `Projet Ulysse` et
+       `freeB` de la liste, absorbés, et rien ne l'avait annoncé.
+       On le dit maintenant — c'est un fait, pas une mise en garde inventée. */
+    const avale = sous
+      ? " <b>Ses " + sous + " sous-dossier" + (sous > 1 ? "s" : "")
+        + (sous > 1 ? " feront" : " fera") + " partie du projet</b> — les "
+        + "conversations qui s’y tiennent y seront rattachées."
+      : "";
     etat = n
       ? '<div class="j-etat plein"><span class="pt">' + svg("alerte", { size: 16 })
         + "</span><span><b>Ce dossier contient déjà " + n + " élément"
         + (n > 1 ? "s" : "") + ".</b> Ulysse pourra les lire, et écrire à côté. "
         + "Rien n’est effacé — mais un dossier occupé est un dossier où une "
-        + "erreur se voit moins.</span></div>"
+        + "erreur se voit moins." + avale + "</span></div>"
       : '<div class="j-etat vide"><span class="pt">' + svg("coche", { size: 16 })
         + "</span><span>Ce dossier est vide.</span></div>";
   } catch (e){
@@ -4023,6 +4129,12 @@ function boot(){
   $("travRefresh").onclick = drawWorks;
   $("livRefresh").onclick = drawLivrables;
   $("projRefresh").onclick = drawProjets;
+  // Il n'existait pas tant qu'aucun explorateur ne l'attendait. Il part du
+  // dossier du fil en cours quand il y en a un : on range presque toujours
+  // là où l'on travaille.
+  H("newProj", svg("plus", { size: 18 }) + " Ranger un dossier en projet");
+  $("newProj").onclick = () => feuilleChoisirDossier(
+    (conv.info && conv.info.cwd) || "", (neuf) => ouvrirRanger(neuf));
   $("autoRefresh").onclick = drawAutos;
 
   // Travaux charge 50 sessions, Livrables ouvre des dossiers qui en

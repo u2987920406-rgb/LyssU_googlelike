@@ -37,10 +37,20 @@ const FIXTURES = {
       { id: "s2", title: "Factures", message_count: 4, cwd: "C:/Docs/compta",
         source: "cli", last_active: Date.now() / 1000 - 60, is_active: true }],
     total: 2, limit: 50, offset: 0 },
-  "/api/files": { path: "", parent: null, entries: [
-      { name: "Projets", path: "Projets", is_directory: true },
-      { name: "notes.md", path: "notes.md", is_directory: false, size: 84, mime_type: "text/markdown" },
-      { name: "gros.bin", path: "gros.bin", is_directory: false, size: 210 * 1024 * 1024 }] },
+  /* ⚠ SANS `?path=`, `/api/files` NE REND PAS « la racine ». Vérifié contre
+     le vrai Hermès le 2026-08-09 : il rend le DOSSIER PERSONNEL, avec son
+     chemin absolu et son parent (`path: "C:/Users/<vous>"`, `parent:
+     "C:/Users"`). Ce fixture affirmait `path: ""` et `parent: null` — une
+     forme que le backend n'envoie jamais.
+     Le choix de dossier s'y trompait : il aurait dit « choisissez un
+     dossier » alors qu'on en regardait un. Un faux qui ne ment pas comme le
+     vrai ne prouve rien — c'est la quatrième fois ici. */
+  "/api/files": { path: "D:/faux-home", parent: "D:/", entries: [
+      { name: "Projets", path: "D:/faux-home/Projets", is_directory: true },
+      { name: "notes.md", path: "D:/faux-home/notes.md", is_directory: false,
+        size: 84, mime_type: "text/markdown" },
+      { name: "gros.bin", path: "D:/faux-home/gros.bin", is_directory: false,
+        size: 210 * 1024 * 1024 }] },
   "/api/files/read": { name: "notes.md", path: "notes.md", size: 12, mime_type: "text/markdown",
                        data_url: "data:text/markdown;base64," + Buffer.from("# Notes\nreel\n").toString("base64") },
   /* ⚠ `builtin_files` est un OBJET nom -> octets, pas une liste d'objets.
@@ -1122,11 +1132,24 @@ async function main(){
   check("Ranger · elle dit « ranger », jamais « créer » — rien n'est fabriqué",
     /Ranger un dossier en projet/.test(feuilleRanger.textContent)
     && !/Créer un projet/.test(feuilleRanger.textContent));
-  // Le dossier est déjà connu : un bouton « Choisir… » ouvrirait le vide.
-  check("Ranger · ...et AUCUN « Choisir… », qui n'ouvrirait rien",
-    !/Choisir/.test(feuilleRanger.textContent));
+  /* « Choisir… » a longtemps été ABSENT — un bouton qui ouvre le vide est un
+     bouton mort. L'explorateur existe depuis le 2026-08-09, et son absence
+     bloquait le rangement d'un dossier IMBRIQUÉ : kuchu avait rangé
+     `Desktop`, ses sous-dossiers avaient disparu de la liste, et plus rien ne
+     permettait de ranger `Projet Ulysse`. Hermès le permettait, l'écran non. */
+  check("Ranger · « Choisir… » existe, et il OUVRE quelque chose",
+    !!feuilleRanger.querySelector('[data-jp="choisir"]'));
   check("Ranger · le chemin est montré en entier, c'est le seul champ qui engage",
     /D:\/Atelier/.test(feuilleRanger.textContent));
+  /* ⚠ CE QUE KUCHU A DÉCOUVERT À SES DÉPENS. Un projet réclame tout son
+     SOUS-ARBRE : ranger `Desktop` a fait disparaître `Projet Ulysse` et
+     `freeB` de la liste, absorbés, et rien ne l'avait annoncé. C'est un fait
+     mesuré (`project_for_path` prend le plus long préfixe), pas une mise en
+     garde inventée — donc on le dit. */
+  check("Ranger · on annonce que les sous-dossiers feront partie du projet",
+    /sous-dossier/.test(feuilleRanger.textContent)
+    && /partie du projet/.test(feuilleRanger.textContent),
+    feuilleRanger.textContent.slice(0, 60));
   check("Ranger · le nom est prérempli avec celui du dossier",
     feuilleRanger.querySelector("#jNom") && feuilleRanger.querySelector("#jNom").value === "Atelier",
     feuilleRanger.querySelector("#jNom") ? feuilleRanger.querySelector("#jNom").value : "absent");
@@ -1157,6 +1180,67 @@ async function main(){
     && (cree.params.folders || [])[0] === "D:/Atelier"
     && !!cree.params.color,
     cree ? JSON.stringify(cree.params) : "aucun appel");
+
+  /* ── L'EXPLORATEUR DE DOSSIERS ──────────────────────────────────────────
+     Son absence bloquait le cas réel : un dossier IMBRIQUÉ dans un projet
+     déjà rangé n'apparaît plus dans la liste (un projet réclame tout son
+     sous-arbre), donc plus aucun bouton pour le ranger — alors qu'Hermès le
+     permet, `project_for_path` prenant le plus long préfixe. */
+  win.eval('nav("Projets")');
+  await wait(60);
+  const bNewProj = win.document.getElementById("newProj");
+  check("Explorateur · la barre des Projets porte « Ranger un dossier »",
+    !!bNewProj && /Ranger un dossier/.test(bNewProj.textContent),
+    bNewProj ? bNewProj.textContent.trim() : "absent");
+  bNewProj.click();
+  await wait(120);
+  const vueChoix = win.document.getElementById("projetBody");
+  check("Explorateur · il ouvre le choix du dossier",
+    !!win.document.getElementById("ranList")
+    && win.document.getElementById("sProjet").classList.contains("on"));
+  check("Explorateur · ...et dit qu'aucun dossier ne sera créé",
+    /n’en crée aucun/.test(vueChoix.textContent), vueChoix.textContent.slice(0, 80));
+  check("Explorateur · le fil d'Ariane est là pour remonter",
+    !!win.document.getElementById("ranFil"));
+
+  // ⚠ Les FICHIERS sont montrés mais éteints. Les cacher ferait croire à un
+  //    dossier vide ; les rendre cliquables proposerait de ranger un fichier
+  //    en projet, ce qui n'a pas de sens.
+  const rangees = win.document.querySelectorAll("#ranList .row");
+  const fichiers = [...rangees].filter((r) => !r.hasAttribute("data-dir"));
+  check("Explorateur · les fichiers se voient, mais ne se choisissent pas",
+    rangees.length > 0 && fichiers.length > 0
+    && fichiers.every((r) => !r.hasAttribute("data-dir")),
+    rangees.length + " ligne(s), dont " + fichiers.length + " fichier(s)");
+
+  /* ⚠ Sans `?path=`, l'API rend le DOSSIER PERSONNEL, pas une racine vide.
+     Le bouton doit donc nommer le dossier RÉELLEMENT à l'écran — sinon il
+     dirait « choisissez un dossier » alors qu'on en regarde un. */
+  const prendre = win.document.getElementById("ranPrendre");
+  check("Explorateur · le bouton nomme le dossier qu'on a SOUS LES YEUX",
+    !!prendre && !prendre.disabled && /Ranger « faux-home »/.test(prendre.textContent),
+    prendre ? prendre.textContent.trim() : "absent");
+  check("Explorateur · ...et le fil d'Ariane le situe, il ne dit pas « racine » seule",
+    /faux-home/.test(win.document.getElementById("ranFil").textContent),
+    win.document.getElementById("ranFil").textContent.trim());
+
+  // On descend dans un dossier, puis on le range : c'est le geste qui manquait.
+  const sousDossier = win.document.querySelector("#ranList [data-dir]");
+  check("Explorateur · on peut descendre dans un dossier", !!sousDossier);
+  sousDossier.click();
+  await wait(120);
+  const prendre2 = win.document.getElementById("ranPrendre");
+  check("Explorateur · ...et le ranger devient possible, sous son nom",
+    !!prendre2 && !prendre2.disabled && /Ranger « /.test(prendre2.textContent),
+    prendre2 ? prendre2.textContent.trim() : "absent");
+  prendre2.click();
+  await wait(120);
+  check("Explorateur · le choix ramène à la feuille, sur le dossier choisi",
+    !!win.document.getElementById("jNom")
+    && /Ranger un dossier en projet/.test(
+         win.document.getElementById("projetBody").textContent),
+    win.document.getElementById("projetBody").textContent.slice(0, 60));
+  win.eval("fermerProjet()");
 
   win.eval('nav("Automatisations")');
   await wait(200);
