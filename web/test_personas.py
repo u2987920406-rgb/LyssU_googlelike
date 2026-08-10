@@ -409,7 +409,7 @@ def p3():
     journal_clear()
     st, d, raw = http("POST", "/webhooks/resume-lundi",
                       {"sujet": "Ulysse", "user": "Sophie"})
-    check("le déclenchement est accepté par le gateway", st == 200, "HTTP %d — %s" % (st, raw[:120]))
+    check("le déclenchement est accepté par le gateway", st == 202, "HTTP %d — %s" % (st, raw[:120]))
     j = [e for e in journal() if e["kind"] == "webhook_ok"]
     check("il est arrivé SIGNÉ (le gateway refuse le reste)", len(j) == 1, str(journal()[-2:]))
     if j:
@@ -622,7 +622,7 @@ def p8():
     scenario("P8", "8b. Un événement entrant déclenche l'agent sans elle")
     journal_clear()
     st, d, raw = http("POST", "/webhooks/resume-lundi", {"depuis": "telegram"})
-    check("l'événement entrant est accepté", st == 200, "HTTP %d — %s" % (st, raw[:100]))
+    check("l'événement entrant est accepté", st == 202, "HTTP %d — %s" % (st, raw[:100]))
     ok = [e for e in journal() if e["kind"] == "webhook_ok"]
     check("il arrive signé, donc le gateway l'accepte", len(ok) == 1)
 
@@ -824,6 +824,233 @@ def start_bench():
     raise RuntimeError("serve.py n'a pas ouvert le port %d" % ULYSSE_PORT)
 
 
+# ===========================================================================
+# TORDU — ce que les gens font vraiment, et qu'aucun scénario propre ne fait
+#
+# Les dix personas jouent l'usage NORMAL. Celles-ci jouent ce qui arrive
+# quand même : on ferme la fenêtre au milieu, on ouvre deux onglets, on
+# double-clique, on met des accents partout, on essaie de sortir du dossier.
+#
+# Demandé par kuchu le 2026-08-10 : « des scénarios tordus, et qu'ils
+# poussent plus loin dans leur utilisation ». Aucun n'est gratuit — chacun
+# correspond à un geste qu'un vrai client fera dès la première semaine.
+# ===========================================================================
+
+def menage_tordu(home):
+    """Efface les fichiers de ces scénarios ET leurs copies datées.
+
+    Les copies ne vivent pas à côté du fichier mais dans `versions-ulysse/`
+    (serve.py:351). Un ménage qui n'y descend pas laisse les versions du tour
+    précédent, et le tour suivant en compte quatre là où il en attendait deux :
+    le test échoue sur son propre reliquat, pas sur un défaut. Appelé AVANT
+    aussi bien qu'après, pour qu'une exécution interrompue ne pollue pas la
+    suivante.
+    """
+    for dossier in (home, os.path.join(home, "versions-ulysse")):
+        try:
+            noms = os.listdir(dossier)
+        except OSError:
+            continue
+        for f in noms:
+            if f.startswith("TORDU") or f.startswith("Mémoire de Léa"):
+                try:
+                    os.remove(os.path.join(dossier, f))
+                except OSError:
+                    pass
+
+
+def tordu():
+    persona("TORDU — ce qui arrive quand on n'utilise pas l'app comme prévu")
+    home = os.path.join(os.getcwd(), ".faux-home")
+    menage_tordu(home)
+
+    # ── T1 ─────────────────────────────────────────────────────────────────
+    scenario("T1", "Camille ferme la fenêtre en pleine réponse, puis revient")
+    ws = WS()
+    cree = ws.rpc("session.create", {"cols": 100, "source": "ulysse"})
+    sid = cree["session_id"]
+    # C'est la clef PERSISTÉE qu'on reprend, jamais la poignée vive —
+    # ulysse-core.js:603 envoie bien `storedId`.
+    cle = cree["stored_session_id"]
+    ws.rpc("prompt.submit", {"session_id": sid, "text": "Explique-moi la cuisson"})
+    time.sleep(0.15)
+    ws.close()                      # elle ferme l'onglet, la réponse coule encore
+
+    ws2 = WS()
+    check("le lien se rouvre après une fermeture brutale", ws2.status == 101,
+          "HTTP %d" % ws2.status)
+    try:
+        r = ws2.rpc("session.resume", {"session_id": cle})
+        repris = bool(r)
+    except Exception as exc:
+        r, repris = {}, False
+        check("la session se reprend", False, str(exc)[:90])
+    if repris:
+        check("sa session existe toujours côté Hermès", bool(r), str(r)[:90])
+        # ⚠ Ce qui compte n'est PAS que l'identifiant soit le même.
+        #
+        # `session.resume` ouvre une POIGNÉE NEUVE — un uuid4 tout frais
+        # (methods_session.py:417). La continuité est portée par `session_key`
+        # et `resumed`, qui désignent la conversation persistée. Vérifier
+        # l'égalité des `session_id` demanderait à Hermès l'inverse de ce
+        # qu'il promet ; ce qui doit tenir, c'est qu'on retombe sur LE MÊME
+        # FIL, avec ses messages.
+        check("...et elle rouvre le MÊME fil, pas un vide",
+              r.get("session_key") == cle and r.get("resumed") == cle,
+              "key=%s resumed=%s attendu=%s"
+              % (r.get("session_key"), r.get("resumed"), cle))
+        check("...avec ce qui s'y était dit avant la fermeture",
+              (r.get("message_count") or 0) > 0 and bool(r.get("messages")),
+              "%s message(s)" % r.get("message_count"))
+    ws2.close()
+
+    # Et l'inverse : reprendre un fil qui n'existe pas doit ÉCHOUER. Sinon on
+    # croit reprendre et on écrit dans le vide (methods_session.py:359).
+    ws3 = WS()
+    try:
+        ws3.rpc("session.resume", {"session_id": "fil_qui_n_existe_pas"})
+        check("reprendre un fil inconnu est refusé", False, "accepté sans broncher")
+    except Exception as exc:
+        check("reprendre un fil inconnu est refusé", "not found" in str(exc).lower()
+              or "4007" in str(exc), str(exc)[:70])
+    ws3.close()
+
+    # ── T2 ─────────────────────────────────────────────────────────────────
+    scenario("T2", "Karim travaille dans deux onglets à la fois")
+    a, b = WS(), WS()
+    sa = a.rpc("session.create", {"cols": 100, "source": "ulysse"})["session_id"]
+    sb = b.rpc("session.create", {"cols": 100, "source": "ulysse"})["session_id"]
+    check("deux onglets obtiennent deux sessions distinctes", sa != sb,
+          "%s vs %s" % (sa, sb))
+    a.rpc("prompt.submit", {"session_id": sa, "text": "Écris le fichier rapport.md"})
+    ap = a.wait_event("approval.request", 8)
+    check("l'accord est demandé dans l'onglet qui l'a provoqué", ap is not None)
+    # ⚠ LE POINT. Un accord qui apparaîtrait dans l'autre onglet ferait
+    #   autoriser une action qu'on n'a pas demandée.
+    autres = [e for e in b.events if e.get("type") == "approval.request"]
+    check("...et PAS dans l'autre onglet — on n'autorise que ce qu'on a demandé",
+          not autres, str(autres)[:90])
+    a.rpc("approval.respond", {"session_id": sa, "choice": "deny"})
+    a.close(); b.close()
+
+    # ── T3 ─────────────────────────────────────────────────────────────────
+    scenario("T3", "Léa enregistre depuis deux onglets en même temps")
+    cible = os.path.join(home, "TORDU.md")
+    with open(cible, "w", encoding="utf-8") as fh:
+        fh.write("depart\n")
+    resultats = []
+
+    def ecrire(txt):
+        st, d, _ = http("POST", "/ulysse/ecrire", {"path": cible, "content": txt})
+        resultats.append((st, d))
+
+    t1 = threading.Thread(target=ecrire, args=("version A\n",))
+    t2 = threading.Thread(target=ecrire, args=("version B\n",))
+    t1.start(); t2.start(); t1.join(); t2.join()
+    check("les deux enregistrements aboutissent",
+          all(st == 200 for st, _ in resultats), str([st for st, _ in resultats]))
+    st, d, _ = http("GET", "/ulysse/versions?path=" + urllib.parse.quote(cible))
+    vs = (d or {}).get("versions") or []
+    # ⚠ Deux écritures simultanées qui se choisiraient le même nom de copie
+    #   perdraient précisément ce qu'on essaie de garder.
+    check("...et DEUX copies distinctes sont gardées, aucune écrasée",
+          len(vs) == 2 and len({v["nom"] for v in vs}) == 2,
+          "%d copie(s) : %s" % (len(vs), [v["nom"] for v in vs]))
+
+    # ── T4 ─────────────────────────────────────────────────────────────────
+    scenario("T4", "Nadia met des accents, des espaces et des parenthèses partout")
+    nom = "Mémoire de Léa (2026) — brouillon.md"
+    chemin = os.path.join(home, nom)
+    with open(chemin, "w", encoding="utf-8") as fh:
+        fh.write("des accents : éàüç\n")
+    st, d, _ = http("GET", "/api/fs/read-text?path=" + urllib.parse.quote(chemin))
+    check("un nom accentué se lit sans être mutilé",
+          st == 200 and "éàüç" in ((d or {}).get("text") or ""),
+          "HTTP %d — %r" % (st, ((d or {}).get("text") or "")[:30]))
+    st, d, _ = http("POST", "/ulysse/ecrire", {"path": chemin, "content": "modifié ✓\n"})
+    check("...et s'enregistre", st == 200, "HTTP %d" % st)
+    st, d, _ = http("GET", "/ulysse/versions?path=" + urllib.parse.quote(chemin))
+    check("...avec sa copie datée, retrouvable sous le même nom",
+          st == 200 and len((d or {}).get("versions") or []) == 1,
+          str(len((d or {}).get("versions") or [])))
+
+    # ── T5 ─────────────────────────────────────────────────────────────────
+    scenario("T5", "Tom essaie de sortir du dossier, de plusieurs façons")
+    dehors = [
+        ("un détour par « .. »",        os.path.join(home, "..", "serve.py")),
+        ("un chemin absolu ailleurs",   os.path.abspath("serve.py")),
+        ("des « .. » empilés",          os.path.join(home, "..", "..", "serve.py")),
+    ]
+    for quoi, p in dehors:
+        st, d, _ = http("POST", "/ulysse/ecrire", {"path": p, "content": "# effacé"})
+        check("écrire refusé — %s" % quoi, st == 403, "HTTP %d" % st)
+        check("...et le refus DIT pourquoi, il ne se contente pas de refuser",
+              bool((d or {}).get("error")), str(d)[:70])
+    # Le fichier visé n'a pas bougé : le refus n'est pas qu'un code de retour.
+    with open("serve.py", encoding="utf-8") as fh:
+        tete = fh.read(40)
+    check("le fichier visé est intact", tete.startswith("#!") or "coding" in tete
+          or "\"\"\"" in tete or tete.startswith("#"), repr(tete[:30]))
+
+    # ── T6 ─────────────────────────────────────────────────────────────────
+    scenario("T6", "Sophie clique trois fois de suite sur « déclencher »")
+    journal_clear()
+    codes = []
+    for _ in range(3):
+        st, _, _ = http("POST", "/webhooks/resume-lundi", {"n": 1})
+        codes.append(st)
+    # 202 Accepted, pas 200 : le gateway rend la main AVANT que la tâche
+    # tourne (gateway/platforms/webhook.py:926). Un 200 dirait « c'est fait ».
+    check("les trois déclenchements passent", all(c == 202 for c in codes), str(codes))
+    signes = [e for e in journal() if e["kind"] == "webhook_ok"]
+    check("...et les trois arrivent jusqu'au gateway", len(signes) == 3, str(len(signes)))
+    # ⚠ LE POINT. Chacun doit porter SA livraison. Le commentaire du gateway
+    #   (l.872) est explicite : deux déclenchements sur la même route doivent
+    #   obtenir deux exécutions indépendantes, et non se mettre en file ni
+    #   s'interrompre. Un identifiant partagé les confondrait.
+    livr = {e.get("delivery_id") for e in signes}
+    check("...et chacun est une livraison à part, pas trois fois la même",
+          len(livr) == 3, str(sorted(livr)))
+
+    # ── T7 ─────────────────────────────────────────────────────────────────
+    scenario("T7", "Un corps abîmé n'emporte pas le serveur")
+    conn = HTTPConnection("127.0.0.1", ULYSSE_PORT, timeout=15)
+    try:
+        corps = b"{ceci n'est pas du JSON"
+        conn.request("POST", "/ulysse/ecrire", body=corps,
+                     headers={"Host": HOST, "Origin": ORIGIN,
+                              "Content-Type": "application/json",
+                              "Content-Length": str(len(corps))})
+        r = conn.getresponse()
+        brut = r.read().decode("utf-8", "replace")
+        check("un JSON illisible donne un refus LISIBLE, pas une coupure",
+              r.status == 400 and "JSON" in brut, "HTTP %d — %s" % (r.status, brut[:60]))
+    except Exception as exc:
+        check("un JSON illisible donne un refus lisible", False, str(exc)[:90])
+    finally:
+        conn.close()
+    # Et le serveur répond encore juste après : c'est ça, « n'emporte pas ».
+    st, _, _ = http("GET", "/api/status")
+    check("...et le serveur répond encore juste après", st == 200, "HTTP %d" % st)
+
+    # ── T8 ─────────────────────────────────────────────────────────────────
+    scenario("T8", "Marc coupe le lien au milieu d'un tour, et recommence")
+    ws = WS()
+    sid = ws.rpc("session.create", {"cols": 100, "source": "ulysse"})["session_id"]
+    ws.rpc("prompt.submit", {"session_id": sid, "text": "Écris le fichier rapport.md"})
+    ws.wait_event("approval.request", 8)
+    ws.close()                       # il coupe sans répondre à la demande
+    ws2 = WS()
+    check("on peut rouvrir et travailler après une coupure sans réponse",
+          ws2.status == 101, "HTTP %d" % ws2.status)
+    sid2 = ws2.rpc("session.create", {"cols": 100, "source": "ulysse"})["session_id"]
+    check("...et une session neuve s'ouvre normalement", bool(sid2) and sid2 != sid,
+          "%s vs %s" % (sid, sid2))
+    ws2.close()
+
+    menage_tordu(home)
+
+
 def main():
     print("=" * 70)
     print(" TESTS DE PERSONA — Ulysse")
@@ -831,7 +1058,7 @@ def main():
     print("=" * 70)
     start_bench()
 
-    for fn in (p1, p2, p3, p4, p5, p6, p7, p8, p9, p10, transversal):
+    for fn in (p1, p2, p3, p4, p5, p6, p7, p8, p9, p10, transversal, tordu):
         try:
             fn()
         except Exception as exc:

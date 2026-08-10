@@ -128,6 +128,9 @@ CRON_JOBS = [
 
 WEBHOOK_ENABLED = True
 
+# Un compteur de livraisons : le vrai gateway en tire un par POST.
+LIVRAISONS = [0]
+
 
 class Dashboard(BaseHTTPRequestHandler):
     protocol_version = "HTTP/1.1"
@@ -155,6 +158,51 @@ class Dashboard(BaseHTTPRequestHandler):
             self.send_json(401, {"detail": "Unauthorized"})
             return False
         return True
+
+    LANGUES = {".md": "markdown", ".py": "python", ".js": "javascript",
+               ".json": "json", ".txt": "text", ".css": "css", ".html": "html"}
+    TEXTE_MAX = 2 * 1024 * 1024      # _FS_TEXT_SOURCE_MAX_BYTES
+
+    def lire_texte(self, brut):
+        """web_server.py:2627-2648 — meme forme, memes refus, meme ordre."""
+        brut = (brut or "").strip()
+        if not brut or "\0" in brut:
+            self.send_json(400, {"detail": "Path is required" if not brut
+                                 else "Invalid path"})
+            return
+        cible = os.path.abspath(os.path.expanduser(brut))
+        try:
+            st = os.stat(cible)
+        except FileNotFoundError:
+            self.send_json(404, {"detail": "File not found"})
+            return
+        except NotADirectoryError:
+            self.send_json(404, {"detail": "File not found"})
+            return
+        except PermissionError:
+            self.send_json(403, {"detail": "File is not readable"})
+            return
+        except OSError as exc:
+            self.send_json(400, {"detail": str(exc) or "Invalid path"})
+            return
+        if os.path.isdir(cible):
+            self.send_json(400, {"detail": "Path points to a directory"})
+            return
+        if st.st_size > self.TEXTE_MAX:
+            self.send_json(413, {"detail": "File too large"})
+            return
+        with open(cible, "rb") as fh:
+            data = fh.read()
+        ext = os.path.splitext(cible)[1].lower()
+        self.send_json(200, {
+            "binary": b"\0" in data[:4096],
+            "byteSize": st.st_size,
+            "language": self.LANGUES.get(ext, "text"),
+            "mimeType": "text/markdown" if ext == ".md" else "text/plain",
+            "path": cible,
+            "text": data.decode("utf-8", "replace"),
+            "truncated": False,
+        })
 
     # -- routes ---------------------------------------------------------
     def do_GET(self):
@@ -255,6 +303,18 @@ class Dashboard(BaseHTTPRequestHandler):
 
         elif p.path == "/api/cron/jobs":
             self.send_json(200, {"jobs": CRON_JOBS})
+
+        elif p.path == "/api/fs/read-text":
+            # hermes_cli/web_server.py:2627 — la route par laquelle Ulysse LIT
+            # un fichier de memoire. Elle manquait ici : tout le chemin de
+            # lecture de la memoire n'etait donc jamais joue par les personas,
+            # et un nom accentue n'avait jamais ete essaye. Trouve par T4.
+            #
+            # Le vrai `_fs_path` (l.1910) ne confine a AUCUN dossier : il
+            # resout un chemin absolu et le lit. C'est la frontiere d'Hermes,
+            # pas celle d'Ulysse — on la rejoue telle quelle, sinon ce faux
+            # serait plus severe que ce qu'il imite.
+            self.lire_texte((q.get("path") or [""])[0])
 
         elif p.path == "/api/config":
             self.send_json(200, {"model": {"default": "hy3"}, "approvals": {"mode": "smart"}})
@@ -395,14 +455,58 @@ def ws_read(sock):
     return data.decode("utf-8", "replace")
 
 
+# Les sessions vivent AU SERVEUR, pas dans une connexion.
+#
+# tui_gateway/server.py:143 — `_sessions: dict[str, dict] = {}` au niveau du
+# module. C'est ce qui permet a une deuxieme fenetre de reprendre une session
+# ouverte par la premiere ; un registre par connexion rendrait `session.resume`
+# impossible a jouer honnetement.
+#
+# Ce faux le gardait par connexion. Consequence : deux onglets recevaient tous
+# les deux « live_1 » — le vrai gateway tire un uuid4 (methods_session.py:417),
+# donc jamais le meme. Trouve par le scenario T2, qui ouvre deux onglets.
+SESSIONS_VIVES = {}
+SESS_LOCK = threading.Lock()
+_SESS_N = [0]
+
+
+def nouvelle_session(cwd="", jetable=False):
+    """Rend un identifiant vif, unique pour tout le serveur."""
+    with SESS_LOCK:
+        _SESS_N[0] += 1
+        n = _SESS_N[0]
+        sid, key = "live_%d" % n, "stored_%d" % n
+        SESSIONS_VIVES[sid] = {"key": key, "cwd": cwd, "jetable": bool(jetable)}
+    return sid, key
+
+
 class Gateway:
     """Rejoue les methodes RPC reelles et le decoupage en evenements."""
 
     def __init__(self, sock):
         self.sock = sock
-        self.sessions = {}
+        self.sessions = SESSIONS_VIVES     # partage : le registre est global
+        self.miennes = []                  # celles ouvertes SUR CETTE connexion
         self.lock = threading.Lock()
         self.pending_approval = None
+
+    def moisson(self):
+        """server.py:1074 `_close_sessions_for_transport` — a la deconnexion,
+        on ferme les sessions qui ont demande `close_on_disconnect`, et SEULEMENT
+        celles-la. Les autres survivent, sans quoi `session.resume` depuis une
+        nouvelle fenetre n'aurait rien a reprendre.
+
+        Ce faux ne l'implementait pas : son registre etait par connexion, donc
+        TOUT mourait avec le lien. Il donnait la bonne reponse a P4 et P10 pour
+        la mauvaise raison — et aurait donne la meme a une session qui n'avait
+        rien demande. Rendu explicite en branchant le registre global.
+        """
+        with SESS_LOCK:
+            for sid in self.miennes:
+                s = SESSIONS_VIVES.get(sid)
+                if s and s.get("jetable"):
+                    SESSIONS_VIVES.pop(sid, None)
+                    note("session_moissonnee", sid=sid)
 
     def send(self, obj):
         with self.lock:
@@ -437,6 +541,7 @@ class Gateway:
                         self.dispatch(json.loads(line))
         except (OSError, ValueError):
             pass
+        self.moisson()
         note("ws_close")
 
     def dispatch(self, req):
@@ -446,9 +551,9 @@ class Gateway:
         note("rpc", method=method, params=params)
 
         if method == "session.create":
-            sid = "live_%d" % (len(self.sessions) + 1)
-            key = "stored_%d" % (len(self.sessions) + 1)
-            self.sessions[sid] = {"key": key, "cwd": params.get("cwd", "")}
+            sid, key = nouvelle_session(params.get("cwd", ""),
+                                        params.get("close_on_disconnect", False))
+            self.miennes.append(sid)
             self.ok(rid, {
                 "session_id": sid, "stored_session_id": key,
                 "message_count": 0, "messages": [],
@@ -464,8 +569,23 @@ class Gateway:
             if not target:
                 self.err(rid, 4006, "session_id required")
                 return
-            sid = "live_resume_%s" % target
-            self.sessions[sid] = {"key": target, "cwd": ""}
+            # methods_session.py:341-359 — une session introuvable est une
+            # ERREUR 4007, pas une session neuve. Ce faux acceptait n'importe
+            # quel identifiant : le test « sa session existe toujours » passait
+            # donc pour un identifiant invente. Trouve par T1.
+            with SESS_LOCK:
+                connue = (target in {s["key"] for s in SESSIONS_VIVES.values()}
+                          or target in SESSIONS_VIVES
+                          or any(s["id"] == target for s in SESSIONS))
+            if not connue:
+                self.err(rid, 4007, "session not found")
+                return
+            # La reprise ouvre une POIGNEE NEUVE (methods_session.py:417 tire un
+            # uuid4) ; la continuite est portee par `session_key` / `resumed`,
+            # jamais par `session_id`. ulysse-core.js:599 le dit deja.
+            sid, _ = nouvelle_session("", params.get("close_on_disconnect", False))
+            self.sessions[sid]["key"] = target
+            self.miennes.append(sid)
             self.ok(rid, {
                 "session_id": sid, "resumed": target, "message_count": 2,
                 "messages": [{"role": "user", "content": "Où en est-on ?"},
@@ -616,9 +736,19 @@ class WebhookGateway(BaseHTTPRequestHandler):
             self.send_json(401, {"error": "Invalid signature"})
             return
 
+        # gateway/platforms/webhook.py:926 — 202 Accepted, PAS 200, et chaque
+        # livraison porte son propre `delivery_id` (le commentaire l.872 dit
+        # pourquoi : deux declenchements simultanes sur la meme route doivent
+        # obtenir deux runs independants, non mis en file). Ce faux rendait
+        # 200 « queued » — l'inverse du contrat. Trouve par T6.
+        with JLOCK:
+            LIVRAISONS[0] += 1
+            livraison = "dlv_%d" % LIVRAISONS[0]
         note("webhook_ok", name=name, body=body.decode("utf-8", "replace"),
+             delivery_id=livraison,
              leaked_token=self.headers.get("X-Hermes-Session-Token"))
-        self.send_json(200, {"status": "queued", "route": name})
+        self.send_json(202, {"status": "accepted", "route": name,
+                             "event": "generic", "delivery_id": livraison})
 
 
 # ===========================================================================
