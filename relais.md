@@ -17,7 +17,7 @@
 | ② Une panne est une notification | **fait** — la cloche la porte, badge rouge |
 | ③ La dette n'est plus partout | **fait** — Discuter et Réglages |
 | ④ *(nouveau)* la marque de la porte | **elle ne tenait pas** — voir §2 |
-| Vérifications | **620** au vert (368 page · 99 serveur · 53 réel · 100 personas) |
+| Vérifications | **647** au vert (368 page · 99 serveur · 53 réel · 127 personas) |
 
 Vos trois constats étaient exacts, vérifiés au code avant d'y toucher : `nav()`
 ne touchait jamais `coulisses`, `Notifs.push` n'était appelé qu'à un seul
@@ -112,6 +112,31 @@ boutons là où une décision en a deux. Le groupe « À décider » n'a plus le
 sens quand il y a autre chose à côté.
 
 **À moi** : rien.
+
+---
+
+## 7. Ce que j'ai fait pendant ce temps — et pourquoi ça ne vous concerne pas
+
+Deux passes, qui ne touchent **ni la maquette ni le contrat d'interface** :
+
+**L'audit des endpoints.** Un script qui part de la liste des appels déclarés
+dans le code — et non des tests existants — et les sonde tous contre le vrai
+Hermès. **18 vertes, 0 en panne**, 11 volontairement non sondées avec leur
+raison écrite. Il vérifie aussi les **champs** que chaque panneau lit : une
+route qui répond ne dit rien de ce qu'on en tire.
+
+**Huit scénarios « tordus ».** L'app utilisée de travers : deux onglets à la
+fois, la fenêtre fermée en pleine réponse, un triple clic, des accents dans les
+noms, trois façons de sortir du dossier. **Ils n'ont rien cassé dans l'app** —
+ils ont cassé le banc d'essai, qui divergeait du vrai Hermès en cinq endroits.
+
+> Une seule chose là-dedans mérite votre attention, et elle confirme votre §3 :
+> deux scénarios passaient au vert **depuis toujours, pour la mauvaise raison**.
+> C'est exactement ce que vous décriviez côté design — un état qu'on croit
+> atteint parce qu'on n'a jamais joué le geste qui l'atteint vraiment.
+
+Rien de tout cela ne change une couleur, un `id` ou un `data-*`. Vous pouvez
+reprendre le panneau de notifications sur l'état que vous avez laissé.
 
 ---
 
