@@ -863,9 +863,35 @@ svg.graph *{cursor:inherit}
   background:var(--bg);border-radius:var(--radius-card);box-shadow:var(--elev-3);
   padding:8px;z-index:70;display:none}
 .npanel.on{display:block;animation:rise .24s cubic-bezier(.2,0,0,1) both}
+/* `.ngroup` n'est plus employee par le produit : la passe du 2026-08-10 la
+   remplace par `.n-groupe`, qui separe sur ce que la bulle DEMANDE et non sur
+   sa duree. Cowork la laisse ici volontairement — « si la passe est retenue,
+   elle peut partir ; je ne la supprime pas d'ici » (PASSE-DESIGN-NOTIFICATIONS
+   §6). Elle est retenue ; la suppression leur revient. */
 .ngroup{font-size:var(--font-size-xs);color:var(--muted);font-weight:500;
   padding:12px 14px 6px;display:flex;align-items:center;gap:8px}
 .ngroup .l{flex:1;height:1px;background:var(--outline-var)}
+/* Trois groupes, et l'ordre n'est pas un detail : ce qui bloque l'agent passe
+   devant ce qui ne bloque personne. Repris verbatim de
+   `apercu-notifications.html`. */
+.n-groupe{font-size:var(--font-size-xs);color:var(--muted);font-weight:500;
+  display:flex;align-items:center;gap:10px;padding:14px 4px 6px}
+.n-groupe:first-child{padding-top:4px}
+.n-groupe .l{flex:1;height:1px;background:var(--outline-var)}
+.n-groupe .k{color:var(--faint);font-weight:400}
+/* Ce qui ne va pas porte sa couleur, des le titre du groupe. */
+.n-groupe.panne{color:#B3261E}
+.n-groupe.panne .l{background:#F2B8B5}
+/* « depuis 20 min » se lit sans calcul ; « 14:32 » demande de savoir quelle
+   heure il est. Pour ce qui dure, on dit la duree. */
+.n-depuis{color:#B3261E;font-weight:500}
+/* Une bulle sans boutons n'est pas une bulle ratee : c'est une bulle qui n'a
+   rien a demander. Elle dit alors ce qu'il y a a faire, en une ligne, sans
+   pretendre que c'est un choix. */
+.n-quoi{font-size:var(--font-size-xs);color:var(--muted);margin-top:9px;
+  line-height:1.5;padding-left:1px}
+.n-quoi code{background:var(--surface);border-radius:5px;padding:1px 6px;
+  font-family:ui-monospace,Menlo,monospace;font-size:11.5px}
 .nrow{display:flex;gap:12px;padding:12px 14px;border-radius:var(--radius-md);
   transition:background .14s ease;cursor:pointer}
 .nrow:hover{background:var(--surface)}

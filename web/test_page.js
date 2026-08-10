@@ -478,10 +478,89 @@ async function main(){
     win.eval("Notifs.list.filter(function(n){return n.kind==='panne';}).length") === 1,
     win.eval("Notifs.list.filter(function(n){return n.kind==='panne';}).length") + "");
 
+  /* ── LE PANNEAU DES NOTIFICATIONS ──────────────────────────────────────
+     Passe Cowork du 2026-08-10. Les cinq états du tableau « par quel geste »
+     sont joués ici PAR LEUR GESTE — on ouvre le panneau, on pousse une panne,
+     on laisse le temps passer. Poser `Notifs.list` à la main vérifierait que
+     `draw()` sait lire un tableau, pas que l'écran s'atteint. */
+  win.eval("Notifs.toggle()");                 // le panneau, panne seule en liste
+  await wait(40);
+  const nP = win.document.getElementById("npanel");
+  check("Notifs · une panne seule va sous « Ce qui ne va pas », pas sous « À décider »",
+    !!nP.querySelector(".n-groupe.panne")
+    && /Ce qui ne va pas/.test(nP.textContent)
+    && !/Votre réponse est attendue/.test(nP.textContent),
+    nP.textContent.slice(0, 90));
+  check("Notifs · ...et le groupe porte sa couleur dès son titre",
+    !!nP.querySelector(".n-groupe.panne .l"));
+  // §3 : elle n'a rien à demander, mais quelque chose à dire.
+  check("Notifs · ...sans boutons, mais avec ce qu'il y a à faire",
+    !nP.querySelector(".nacts") && !!nP.querySelector(".n-quoi")
+    && /lancer_ulysse\.bat/.test(nP.querySelector(".n-quoi").textContent),
+    nP.querySelector(".n-quoi") ? "conseil présent" : "aucun conseil");
+  check("Notifs · ...et ce conseil n'a l'air ni d'un bouton ni d'un lien",
+    !nP.querySelector(".n-quoi button") && !nP.querySelector(".u-lien"));
+
+  // ⚠ Le temps. `when` était figé à la création : « à l'instant », pour
+  //   toujours. On recule l'horodatage de la bulle — le geste réel étant
+  //   d'attendre vingt minutes — puis on REFERME et ROUVRE, parce que la
+  //   passe dit que le calcul a lieu à l'ouverture.
+  win.eval("Notifs.list[0].t = Date.now() - 20 * 60 * 1000;");
+  win.eval("Notifs.toggle(); Notifs.toggle();");
+  await wait(40);
+  const dep = nP.querySelector(".n-depuis");
+  check("Notifs · une panne qui dure dit DEPUIS QUAND, pas « à l'instant »",
+    !!dep && /depuis 20 min/.test(dep.textContent), dep ? dep.textContent : "absent");
+
+  // Deux groupes à la fois : une décision arrive pendant que la panne dure.
+  win.eval("Notifs.push({ kind:'decision', titre:'Votre accord est demandé',"
+    + " txt:'x', obj:'y', panel:'Discuter', oui:'Autoriser une fois', non:'Refuser' });");
+  win.eval("Notifs.toggle(); Notifs.toggle();");
+  await wait(40);
+  const grs = Array.from(nP.querySelectorAll(".n-groupe")).map((g) => g.textContent);
+  check("Notifs · une décision pendant une panne : deux groupes",
+    grs.length === 2, JSON.stringify(grs));
+  // L'ordre n'est pas un détail : ce qui bloque l'agent passe devant.
+  check("Notifs · ...et ce qui bloque l'agent passe devant ce qui ne bloque personne",
+    /Votre réponse est attendue/.test(grs[0] || "")
+    && /Ce qui ne va pas/.test(grs[1] || ""), JSON.stringify(grs));
+  check("Notifs · ...la décision garde ses boutons, la panne n'en prend pas",
+    nP.querySelectorAll(".nacts").length === 1
+    && nP.querySelectorAll(".n-quoi").length === 1,
+    nP.querySelectorAll(".nacts").length + " bouton(s), "
+    + nP.querySelectorAll(".n-quoi").length + " conseil(s)");
+
+  /* ⚠ Le point du rail se pose par IDENTIFIANT, pas par libellé affiché.
+     « Reglages » s'affiche « Réglages », et « Plan » s'affiche « Ce que fait
+     l'agent » : la boucle comparait le texte du bouton, donc ces deux
+     panneaux-là n'auraient JAMAIS eu leur point, en silence. Trouvé le
+     2026-08-10 en donnant enfin une destination à la panne.
+
+     Le geste : ouvrir les coulisses. Un panneau de niveau 3 n'a pas de bouton
+     tant que la porte est fermée — il n'y a alors rien à marquer. */
+  win.document.getElementById("doorBtn").click();
+  await wait(40);
+  check("Notifs · le point du rail suit l'identifiant, pas le libellé affiché",
+    !!win.document.querySelector('.rail-btn[data-nav="Reglages"] .raildot'),
+    win.eval("Notifs.list.map(function(n){return n.panel;}).join(',')"));
+  // Et il ne bave pas sur les voisins : un seul panneau est concerné.
+  check("Notifs · ...et seuls les panneaux concernés le portent",
+    win.document.querySelectorAll('.rail-btn[data-nav] .raildot').length === 2,
+    win.document.querySelectorAll('.rail-btn[data-nav] .raildot').length + " point(s)");
+  win.document.getElementById("doorBtn").click();
+  await wait(40);
+
+  win.eval("Notifs.list = Notifs.list.filter(function(n){return n.kind!=='decision';});");
   win.eval("lastStatus = { version: '0.20.0' }; majPanne();");
   await wait(40);
   check("Panne · quand Hermès revient, la notification s'en va",
     win.eval("Notifs.list.filter(function(n){return n.kind==='panne';}).length") === 0);
+  win.eval("Notifs.toggle(); Notifs.toggle();");
+  await wait(40);
+  check("Notifs · plus rien à signaler : le panneau le dit, et le promet",
+    /Rien à signaler/.test(nP.textContent) && /On vous préviendra/.test(nP.textContent),
+    nP.textContent.slice(0, 60));
+  win.eval("Notifs.close()");
 
   /* ── LA DETTE N'A PAS À ÊTRE PARTOUT ───────────────────────────────────
      `#dettewrap` vit dans `.stage` : elle s'affichait sur les dix panneaux
@@ -893,9 +972,17 @@ async function main(){
   await wait(50);
   const np = win.document.getElementById("npanel");
   check("le panneau des notifications s'ouvre", np.classList.contains("on"));
-  check("la demande y figure sous « À décider »",
-    /décider/.test(np.textContent) && np.textContent.includes("write_file"),
+  // Le groupe se nomme par ce qu'il DEMANDE, plus par sa duree (passe Cowork
+  // du 2026-08-10). « A decider » disait le contraire de ce qu'il contenait
+  // des qu'une panne y entrait.
+  check("la demande y figure sous « Votre réponse est attendue »",
+    /Votre réponse est attendue/.test(np.textContent)
+    && np.textContent.includes("write_file"),
     np.textContent.slice(0, 110));
+  const gRep = np.querySelector(".n-groupe:not(.panne)");
+  check("...et le groupe porte son compte", gRep && gRep.querySelector(".k")
+    && gRep.querySelector(".k").textContent === "1",
+    gRep ? gRep.textContent : "aucun groupe");
 
   FakeWS.sent.length = 0;
   np.querySelector("[data-yes]").click();

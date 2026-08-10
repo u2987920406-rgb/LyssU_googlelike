@@ -4057,7 +4057,6 @@ function onApproval(pl){
     txt: pl.reason ? pl.reason + " — " + quoi : quoi,
     obj: conv.info && conv.info.cwd ? conv.info.cwd : "Session en cours",
     panel: "Discuter",
-    when: "à l'instant",
     // Le libellé était INVERSÉ : quand Hermès proposait une portée large, le
     // bouton portait le mot le plus vague (« Autoriser ») et faisait l'action
     // la plus étroite (`once`). La bulle dit maintenant ce que son oui vaut.
@@ -4283,8 +4282,14 @@ function majPanne(){
       obj: "Toute l'application",
       // Pas de boutons : une panne ne s'autorise pas. Elle ne part pas toute
       // seule (`dur`), et elle s'en va quand Hermès revient — pas quand on
-      // clique. Le seul geste utile est écrit en dessous.
-      renvoi: "Relancez lancer_ulysse.bat si ça dure."
+      // clique.
+      //
+      // Et pas de `renvoi` non plus : il s'affiche en `.u-lien`, c'est-à-dire
+      // avec l'allure d'un lien. Le conseil est désormais porté par `.n-quoi`,
+      // en petit et sans rien qui ressemble à un bouton — « on ne déguise pas
+      // un conseil en choix » (Cowork, 2026-08-10). Un bouton engage le
+      // produit ; ici c'est la personne qui agit, ailleurs.
+      panel: "Reglages"
     });
     return;
   }

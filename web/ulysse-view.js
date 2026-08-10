@@ -586,6 +586,22 @@ const NKIND = {
   auto:     { ico: "boucle", col: "var(--muted)",  bg: "var(--surface-hi)",       dur: false }
 };
 
+/* « depuis 20 min » se lit sans calcul ; « 14:32 » demande de savoir quelle
+   heure il est. Pour ce qui dure, on dit la DURÉE.
+
+   Signalé par Cowork le 2026-08-10 : `when` était une chaîne posée une fois à
+   la création — `"à l'instant"` — et jamais recalculée. Une panne qui durait
+   depuis vingt minutes disait encore « à l'instant », alors que « depuis
+   quand » est la seule chose qu'on veuille savoir d'une panne. Vingt secondes,
+   c'est un hoquet ; vingt minutes, c'est qu'il faut faire quelque chose. */
+function depuis(t){
+  const s = Math.round((Date.now() - t) / 1000);
+  if (s < 45) return "à l'instant";
+  const m = Math.round(s / 60);
+  if (m < 60) return "depuis " + m + " min";
+  return "depuis " + Math.round(m / 60) + " h";
+}
+
 const Notifs = {
   list: [],
   open: false,
@@ -617,10 +633,17 @@ const Notifs = {
     //
     // La règle qui en sort : cette boucle ne gouverne que les DESTINATIONS.
     // La porte n'en est pas une, et ce qu'elle signale ne la regarde pas.
+    //
+    // ⚠ On compare sur `data-nav` — l'IDENTIFIANT — et non sur le libellé
+    // affiché. `n.panel` est un identifiant : c'est lui que `nav()` reçoit
+    // quand on clique la ligne. Or l'identifiant et le libellé ne coïncident
+    // que par hasard : « Discuter » oui, mais « Reglages » s'affiche
+    // « Réglages », et « Plan » s'affiche « Ce que fait l'agent ». Une
+    // notification rangée sur l'un de ces deux panneaux n'aurait jamais eu son
+    // point, en silence. Constaté le 2026-08-10 en donnant enfin une
+    // destination à la panne.
     document.querySelectorAll(".rail-btn[data-nav]").forEach((b) => {
-      const l = b.querySelector(".lbl");
-      if (!l) return;
-      const has = this.attente().some((n) => n.panel === l.textContent.trim());
+      const has = this.attente().some((n) => n.panel === b.dataset.nav);
       let d = b.querySelector(".raildot");
       if (has && !d){ d = document.createElement("span"); d.className = "raildot"; b.appendChild(d); }
       if (!has && d) d.remove();
@@ -644,26 +667,50 @@ const Notifs = {
     if (el) el.classList.remove("on");
   },
 
+  /* Ce que la bulle DEMANDE, et non ce qu'elle dure.
+
+     `K.dur && n.oui` est répété tel quel depuis `_row` ci-dessous : c'est le
+     fond du §1 de la passe — si le groupe se décidait sur autre chose que
+     l'affichage, l'écran rangerait sur un critère et montrerait l'autre. Une
+     seule expression, employée aux deux endroits, ne peut pas diverger. */
+  aBoutons(n){
+    const K = NKIND[n.kind] || NKIND.auto;
+    return !!(K.dur && n.oui);
+  },
+
   _row(n){
     const K = NKIND[n.kind] || NKIND.auto;
+    // `n.t` est l'horodatage posé par `push`. `n.when` reste le repli pour une
+    // bulle fabriquée à la main (les tests, un appel direct) : on ne rend pas
+    // « depuis 57 ans » parce qu'un appelant a oublié la date.
+    const quand = n.t ? depuis(n.t) : (n.when || "");
     return '<div class="nrow" data-go="' + esc(n.panel) + '">'
       + '<span class="nic" style="background:' + K.bg + ";color:" + K.col + '">'
       + svg(K.ico, { size: 19 }) + "</span>"
       + '<div style="flex:1;min-width:0">'
       + '<div class="nt">' + esc(n.titre) + "</div>"
       + '<div class="nx">' + esc(n.txt) + "</div>"
-      + '<div class="nmeta"><span class="o">' + esc(n.obj) + "</span>·<span>"
-      + esc(n.when) + "</span></div>"
+      + '<div class="nmeta"><span class="o">' + esc(n.obj) + "</span>·<span"
+      + (n.kind === "panne" ? ' class="n-depuis"' : "") + ">"
+      + esc(quand) + "</span></div>"
       // `K.dur && n.oui` et non `K.dur` seul : `dur` dit qu'une bulle NE PART
       // PAS toute seule ; ça ne veut pas dire qu'on a quelque chose a
       // repondre. Une PANNE ne part pas toute seule et ne s'autorise pas —
       // elle n'a donc pas de boutons. Ajoute le 2026-08-09, quand le genre
       // `panne` est devenu le deuxieme genre reellement pousse.
-      + (K.dur && n.oui
+      + (this.aBoutons(n)
           ? '<div class="nacts" data-stop="1">'
             + '<button class="yes" data-yes="' + n.id + '">' + esc(n.oui || "Autoriser") + "</button>"
             + '<button class="no" data-no="' + n.id + '">' + esc(n.non || "Refuser") + "</button>"
             + "</div>"
+          : "")
+      // Une bulle sans boutons n'est pas une bulle ratée : c'est une bulle qui
+      // n'a rien à demander. Mais alors rien ne dirait ce qu'il y a à faire.
+      // Une ligne, sans bouton — on ne déguise pas un conseil en choix : un
+      // bouton engage le produit, ici c'est la personne qui agit, ailleurs.
+      + (n.kind === "panne"
+          ? '<div class="n-quoi">Si ça dure, fermez la fenêtre « Ulysse-Serve » et '
+            + "relancez <code>lancer_ulysse.bat</code>.</div>"
           : "")
       // Un renvoi, quand la bulle ne porte pas toute la décision. Cliquer la
       // ligne mène déjà au panneau (data-go) ; ceci le rend visible.
@@ -671,16 +718,35 @@ const Notifs = {
       + "</div></div>";
   },
 
+  /* Trois groupes, séparés sur ce que la bulle DEMANDE.
+
+     `dur` veut dire « ne part pas toute seule », pas « il faut répondre ».
+     Tant que `decision` était le seul genre poussé, les deux se confondaient.
+     Depuis qu'une panne entre ici, grouper sur `dur` mettait dans « À
+     décider » une chose qu'on ne décide pas. Signalé par Cowork le
+     2026-08-10, en écho à la correction des boutons de la veille.
+
+     L'ordre n'est pas un détail : ce qui bloque l'agent passe devant ce qui
+     ne bloque personne. */
   draw(){
     const host = document.getElementById("npanel");
     if (!host) return;
-    const A = this.list.filter((n) => (NKIND[n.kind] || {}).dur);
-    const B = this.list.filter((n) => !(NKIND[n.kind] || {}).dur);
+    const rep = this.list.filter((n) => this.aBoutons(n));
+    const mal = this.list.filter((n) => !this.aBoutons(n) && (NKIND[n.kind] || {}).dur);
+    const res = this.list.filter((n) => !(NKIND[n.kind] || {}).dur);
+    // `enTete` et non `titre` : `titre` est déjà une fonction GLOBALE de ce
+    // fichier. La masquer ici marcherait, et piégerait le prochain qui
+    // l'appellerait depuis `draw`.
+    const enTete = (cl, txt, k) =>
+      '<div class="n-groupe' + (cl ? " " + cl : "") + '">' + txt
+      + (k ? '<span class="k">' + k + "</span>" : "") + '<span class="l"></span></div>';
     host.innerHTML =
-      (A.length ? '<div class="ngroup">À décider · ' + A.length + '<span class="l"></span></div>'
-        + A.map((n) => this._row(n)).join("") : "")
-      + (B.length ? '<div class="ngroup">Récent<span class="l"></span></div>'
-        + B.map((n) => this._row(n)).join("") : "")
+      (rep.length ? enTete("", "Votre réponse est attendue", rep.length)
+        + rep.map((n) => this._row(n)).join("") : "")
+      + (mal.length ? enTete("panne", "Ce qui ne va pas", mal.length)
+        + mal.map((n) => this._row(n)).join("") : "")
+      + (res.length ? enTete("", "Récent", 0)
+        + res.map((n) => this._row(n)).join("") : "")
       + (this.list.length ? "" : '<div class="empty" style="padding:40px 20px">'
         + '<div class="big">Rien à signaler.</div><div>On vous préviendra.</div></div>');
     this._wire(host);
@@ -718,6 +784,10 @@ const Notifs = {
 
   push(n){
     n.id = ++this.nid;
+    // L'horodatage, et non une phrase : c'est lui qui permet au panneau de
+    // dire « depuis 20 min » à l'ouverture plutôt que « à l'instant » pour
+    // toujours. Posé ici, au seul endroit par lequel toute bulle passe.
+    if (!n.t) n.t = Date.now();
     this.list.unshift(n);
     this.drawBell();
     const b = document.getElementById("bell");
@@ -733,7 +803,7 @@ const Notifs = {
       + '<div style="flex:1;min-width:0"><div class="nt">' + esc(n.titre) + "</div>"
       + '<div class="nx">' + esc(n.txt) + "</div>"
       + '<div class="nmeta"><span class="o">' + esc(n.obj) + "</span></div>"
-      + (K.dur && n.oui ? '<div class="nacts">'
+      + (this.aBoutons(n) ? '<div class="nacts">'
           + '<button class="yes" data-yes="' + n.id + '">' + esc(n.oui || "Autoriser") + "</button>"
           + '<button class="no" data-no="' + n.id + '">' + esc(n.non || "Refuser") + "</button>"
           + "</div>" : "")

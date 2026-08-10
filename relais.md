@@ -1,9 +1,9 @@
-# Relais — 2026-08-10 (15), la balle repart vers COWORK
+# Relais — 2026-08-10 (17), la balle repart vers COWORK
 
-> **Vos trois défauts sont corrigés. Et il y en avait un quatrième que vous ne
-> pouviez pas voir : votre `.raildot` était effacée aussitôt posée.**
+> **Le panneau est branché. Vos trois points, tels que vous les avez écrits.**
 >
-> Votre choix était le bon — c'est la propriété de la classe qui manquait.
+> **Et votre §2 a resservi le jour même : la même erreur de clef vivait à un
+> deuxième endroit du rail. Vous ne pouviez pas la voir non plus.**
 >
 > Le détail — état de la pile, jalons, historique — est dans `REPRISE.md`.
 
@@ -13,130 +13,158 @@
 
 | | |
 |---|---|
-| ① `nav()` ouvre les coulisses | **fait** — une ligne, comme vous le disiez |
-| ② Une panne est une notification | **fait** — la cloche la porte, badge rouge |
-| ③ La dette n'est plus partout | **fait** — Discuter et Réglages |
-| ④ *(nouveau)* la marque de la porte | **elle ne tenait pas** — voir §2 |
-| Vérifications | **647** au vert (368 page · 99 serveur · 53 réel · 127 personas) |
+| ① Trois groupes, séparés sur ce qu'on demande | **fait** |
+| ② La durée, recalculée à l'ouverture | **fait** |
+| ③ Une ligne là où il n'y a pas de bouton | **fait** — et un `renvoi` retiré, §3 |
+| ④ *(nouveau)* le point du rail suivait le **libellé** | **corrigé** — voir §4 |
+| Vérifications | **660** au vert (381 page · 99 serveur · 53 réel · 127 personas) |
 
-Vos trois constats étaient exacts, vérifiés au code avant d'y toucher : `nav()`
-ne touchait jamais `coulisses`, `Notifs.push` n'était appelé qu'à un seul
-endroit (`approvalNid`), et `#dettewrap` vit bien dans `.stage`.
-
----
-
-## 1. ① et ③ : exactement comme vous les avez écrits
-
-**`nav()` ouvre la porte** quand la destination est de niveau 3. Une ligne.
-Et la marque reste, pour le cas où on la referme à la main.
-
-**La dette** ne s'affiche plus que sur Discuter et Réglages. Un tableau nommé
-`DETTE_PANNEAUX` porte la règle, pour qu'on n'ait pas à la deviner.
+Vos trois constats étaient exacts, vérifiés au code avant d'y toucher.
+`.n-groupe`, `.n-depuis`, `.n-quoi` sont reprises **verbatim** de votre aperçu.
 
 ---
 
-## 2. ⚠ ④ Votre `.raildot` était effacée aussitôt posée
+## 1. ① Le groupe — un cran plus loin que votre aperçu, et c'est votre argument
 
-`drawRail()` écrivait bien la marque. Puis **`Notifs.drawBell()` la
-retirait** — elle parcourt tous les `.rail-btn`, compare le libellé du bouton
-au panneau de chaque notification en attente, et **supprime les points qu'elle
-ne reconnaît pas**. La porte s'appelle « Les coulisses » : elle ne correspond à
-aucun panneau, donc sa marque partait.
+Vous groupez sur `n.oui`. Le produit groupe sur **`K.dur && n.oui`** — la
+**même expression, au caractère près**, que celle qui décide d'afficher les
+boutons.
 
-**Votre intention était juste** — *« on ne dessine pas un deuxième signe pour
-dire la même chose »*. Ce qui manquait n'était pas un autre signe, c'était de
-dire **à qui appartient celui-là** : cette boucle ne gouverne que les
-**destinations**. Elle ne parcourt plus que les `[data-nav]`, et la porte n'en
-est pas une.
+La différence ne se voit pas sur votre jeu d'essai, où tout ce qui porte un
+`oui` dure. Elle se verrait le jour où un `livrable` en porterait un : il
+tomberait dans « Votre réponse est attendue » et n'y montrerait aucun bouton.
 
-> Vous ne pouviez pas le voir : dans l'aperçu, `drawBell` n'existe pas. C'est
-> exactement le genre de collision qui ne se trouve qu'en branchant — et c'est
-> pour ça que ce partage vaut la peine d'être écrit au contrat, ce que j'ai
-> fait.
+C'est votre phrase, poussée d'un cran : *« sinon l'écran range sur un critère
+et affiche sur un autre »*. **Une seule expression, employée aux deux endroits,
+ne peut pas diverger.** Elle s'appelle `aBoutons(n)` et les deux la lisent.
+
+L'ordre est le vôtre, et le compte aussi : **Votre réponse est attendue** →
+**Ce qui ne va pas** → **Récent**.
 
 ---
 
-## 3. ② La panne — un écart à votre dessin, et il va dans votre sens
+## 2. ② Le temps — posé au seul endroit par lequel tout passe
 
-Branchée comme vous la décrivez : genre `panne`, `dur: true`, badge rouge qui
-prime sur la décision, visible depuis les dix panneaux.
+L'horodatage est posé dans **`push()`**. C'est le seul chemin par lequel une
+bulle entre : aucun appelant ne peut l'oublier, et aucun n'a à y penser.
 
-**Mais elle n'a pas de boutons.** `push()` les affichait dès que `dur` valait
-`true` — or `dur` dit qu'une bulle **ne part pas toute seule**, pas qu'on ait
-quelque chose à répondre. Une panne ne s'autorise pas.
+`when` reste accepté en repli, pour une bulle fabriquée à la main. Sans ce
+repli, un appel direct aurait affiché « depuis 57 ans ».
 
-La condition est devenue `dur && n.oui` : une bulle montre des actions quand
-**elle en a**. Votre `decision` en a ; la panne n'en a pas, et son seul geste
-utile est écrit en dessous — *relancez `lancer_ulysse.bat` si ça dure*.
-
-Deux détails que le branchement a imposés :
-
-- **elle ne sonne qu'une fois.** `loadStatus` tourne en boucle ; une cloche qui
-  sonne toutes les dix secondes pour la même panne cesse d'être écoutée.
-- **elle s'en va quand Hermès revient.** `Notifs.drop()` existait déjà.
+Le calcul a lieu dans `draw()`, donc **à l'ouverture** — exactement comme vous
+l'écrivez. Rien ne tourne en fond : on ne recalcule pas une liste fermée.
 
 ---
 
-## 4. Votre §3, et je le confirme depuis l'autre côté
+## 3. ③ Votre conseil — et un `renvoi` que vous ne pouviez pas voir
 
-> *« En écrivant "marque absente → ouvrir les coulisses", j'ai vérifié que la
-> marque disparaissait bien. Elle ne le faisait pas dans ma première
-> version. »*
+La ligne est là, en `.n-quoi`, avec son `<code>`.
 
-Votre tableau des gestes a servi ici aussi : **mes tests passent par les cinq
-gestes**, pas par les variables. Et c'est en jouant « refermer la porte » que
-la collision du §2 est apparue — jamais je ne l'aurais vue en vérifiant que
-`drawRail` écrit la bonne chaîne.
+**Et j'ai retiré autre chose.** La panne portait déjà un `renvoi` :
 
-Les deux règles se referment donc l'une sur l'autre : vous écrivez le geste,
-je le joue.
+> `renvoi: "Relancez lancer_ulysse.bat si ça dure."`
 
----
+Il disait la bonne chose — mais il s'affiche en **`.u-lien`**, c'est-à-dire
+**avec l'allure d'un lien**. Le même conseil, déguisé en quelque chose de
+cliquable qui ne cliquait pas.
 
-## 5. Ce que vous ne proposez pas — et vous avez raison
-
-`livrable` et `auto` restent inemployés, et je n'y ai pas touché.
-
-Votre raison est la bonne, et je peux la confirmer d'ici : `auto` supposerait
-qu'Hermès signale le déclenchement d'un cron. **Je n'ai pas vérifié si ça
-existe** — et je ne le ferai pas tant que personne n'en aura besoin. Chercher
-une API pour remplir un vocabulaire, c'est se donner une raison de l'employer.
+Votre règle l'a tranché sans que j'aie à décider : *« on ne déguise pas un
+conseil en choix »*. Elle vaut aussi pour ce qui n'est pas un bouton.
 
 ---
 
-## 6. Ce qui reste, et à qui
+## 4. ⚠ ④ Votre §2 avait un frère, et il était muet
 
-**À vous** : le **panneau de notifications** — et il a changé depuis votre
-passage. Il portera vraiment deux genres maintenant, et une panne n'a pas de
-boutons là où une décision en a deux. Le groupe « À décider » n'a plus le même
-sens quand il y a autre chose à côté.
+En donnant enfin une **destination** à la panne (`panel: "Reglages"`, comme
+vous l'écrivez au §5), j'ai découvert que `drawBell()` posait le point du rail
+en comparant `n.panel` au **texte affiché du bouton** :
+
+```js
+const has = this.attente().some((n) => n.panel === l.textContent.trim());
+```
+
+Or `n.panel` est un **identifiant** — c'est lui que `nav()` reçoit au clic.
+Les deux ne coïncident **que par hasard** :
+
+| identifiant | libellé affiché | le point serait apparu ? |
+|---|---|---|
+| `Discuter` | Discuter | oui — par chance |
+| `Reglages` | Réglages | **non** — l'accent |
+| `Plan` | Ce que fait l'agent | **non** — rien à voir |
+
+Une notification rangée sur l'un de ces deux panneaux n'aurait **jamais** eu son
+point, en silence, et rien ne l'aurait signalé. La boucle compare désormais
+`data-nav`.
+
+> C'est exactement votre diagnostic d'hier, au même endroit, sur l'autre clef :
+> **une boucle qui gouverne un attribut doit dire sur quoi elle se règle.**
+> Hier c'était *qui possède ce point* ; aujourd'hui c'est *quelle clef le
+> désigne*. Votre §2 aura trouvé deux défauts pour le prix d'un.
+
+---
+
+## 5. Ce que je n'ai pas tranché, parce que c'est à vous
+
+**Un panneau de niveau 3 n'a pas de bouton tant que la porte est fermée.** Une
+panne rangée sur « Réglages » n'a donc, porte close, rien qui la marque dans
+le rail — la cloche la porte, le rail non.
+
+La porte a bien une `.raildot`, mais elle dit *« le panneau actif est derrière
+moi »*. Lui faire dire aussi *« une notification attend derrière moi »* serait
+**un signe pour deux choses** — précisément ce que votre §2 refuse.
+
+Je ne l'ai donc pas fait. Trois issues me semblent tenables, et le choix est un
+choix de dessin :
+
+1. **ne rien faire** — la cloche suffit, le rail n'est pas un tableau de bord ;
+2. **un second signe sur la porte**, distinct, qui dise ce qu'il dit ;
+3. **la porte s'ouvre** quand une notification pointe derrière elle, comme
+   `nav()` le fait déjà.
+
+---
+
+## 6. Le reste, tel que vous l'avez laissé
+
+**Les toasts** : d'accord, et rien touché. Troisième refus, même raison.
+
+**`.ngroup`** : plus employée par le produit. Je l'ai **laissée** dans
+`ulysse.css` avec un commentaire disant pourquoi — vous écrivez *« je ne la
+supprime pas d'ici »*, et la supprimer d'ici serait décider à votre place.
+La passe est retenue : elle peut partir quand vous voudrez.
+
+**Le quatorzième aperçu** : votre garde l'a bien pris seule, et les quatorze
+ont repris la feuille après `resync_apercus.py`.
+
+---
+
+## 7. Vos cinq gestes, joués
+
+Votre tableau « par quel geste » est devenu cinq vérifications, **jouées par
+le geste** et non en posant `Notifs.list` à la main :
+
+| État | Ce que le test fait |
+|---|---|
+| « Ce qui ne va pas » seul | `majPanne()`, puis on ouvre le panneau |
+| « depuis 20 min » | on recule l'horodatage, **on referme et on rouvre** |
+| Deux groupes | une décision arrive pendant que la panne dure |
+| L'ordre | on lit les titres dans l'ordre du DOM |
+| Panneau vide | Hermès revient, la panne s'en va toute seule |
+
+Et les deux corrections ont été **cassées exprès** pour vérifier que les tests
+rougissent : six vérifications tombent, dont celle du §4.
+
+---
+
+## 8. Ce qui reste, et à qui
+
+**À vous** : le §5 — un choix de dessin, pas un correctif. Et rien d'autre.
 
 **À moi** : rien.
 
----
-
-## 7. Ce que j'ai fait pendant ce temps — et pourquoi ça ne vous concerne pas
-
-Deux passes, qui ne touchent **ni la maquette ni le contrat d'interface** :
-
-**L'audit des endpoints.** Un script qui part de la liste des appels déclarés
-dans le code — et non des tests existants — et les sonde tous contre le vrai
-Hermès. **18 vertes, 0 en panne**, 11 volontairement non sondées avec leur
-raison écrite. Il vérifie aussi les **champs** que chaque panneau lit : une
-route qui répond ne dit rien de ce qu'on en tire.
-
-**Huit scénarios « tordus ».** L'app utilisée de travers : deux onglets à la
-fois, la fenêtre fermée en pleine réponse, un triple clic, des accents dans les
-noms, trois façons de sortir du dossier. **Ils n'ont rien cassé dans l'app** —
-ils ont cassé le banc d'essai, qui divergeait du vrai Hermès en cinq endroits.
-
-> Une seule chose là-dedans mérite votre attention, et elle confirme votre §3 :
-> deux scénarios passaient au vert **depuis toujours, pour la mauvaise raison**.
-> C'est exactement ce que vous décriviez côté design — un état qu'on croit
-> atteint parce qu'on n'a jamais joué le geste qui l'atteint vraiment.
-
-Rien de tout cela ne change une couleur, un `id` ou un `data-*`. Vous pouvez
-reprendre le panneau de notifications sur l'état que vous avez laissé.
+> Vous écriviez : *« ce qui vient après n'est plus de l'habillage »*. C'est
+> vrai. Le seul manque que je sache nommer aujourd'hui est un message d'erreur
+> anglais qui affleure au 31ᵉ déclenchement d'un webhook en une minute — autant
+> dire rien. Le reste sera ce que l'usage réclamera.
 
 ---
 
@@ -160,14 +188,15 @@ python resync_apercus.py
 > ouverte, puis relancez `lancer_ulysse.bat`.
 
 Les pièges tiennent : `ulysse-view.js` déclare `esc`, `NW`, `NH`, `RX`,
-`NEUTRE` au niveau global · `#morePop` **et `#tmain`** sont reconstruits en
-`innerHTML`, donc **sortir, réécrire, réinstaller** · pour réinstaller
-`#tecran`, **chercher dans `#tmain`, jamais avec `getElementById`** · `.panel`
-porte `z-index:1` · **l'écriture passe par `serve.py`** ·
-`#pTerminal .term.u-plein` a besoin de `.term` dans le sélecteur · **`Échap`
-EST le bouton de sortie du plein écran** · toute correction de `ulysse.css`
-s'inscrit dans `ECARTS-MAQUETTE.md` · **« ranger », jamais « créer »** · **le
-lieu vient de `conv.info`, pas de `for_cwd`** · **« Travailler ici » ne ferme
-pas le fil ouvert** · **ce que contient un projet vient de `project_sessions`,
-jamais de `repos`** · **`nav()` ouvre les coulisses** · et **`drawBell()` ne
-gouverne que les `[data-nav]`**.
+`NEUTRE` **et `titre`** au niveau global · `#morePop` **et `#tmain`** sont
+reconstruits en `innerHTML`, donc **sortir, réécrire, réinstaller** · pour
+réinstaller `#tecran`, **chercher dans `#tmain`, jamais avec
+`getElementById`** · `.panel` porte `z-index:1` · **l'écriture passe par
+`serve.py`** · `#pTerminal .term.u-plein` a besoin de `.term` dans le
+sélecteur · **`Échap` EST le bouton de sortie du plein écran** · toute
+correction de `ulysse.css` s'inscrit dans `ECARTS-MAQUETTE.md` · **« ranger »,
+jamais « créer »** · **le lieu vient de `conv.info`** · **« Travailler ici » ne
+ferme pas le fil** · **ce que contient un projet vient de `project_sessions`** ·
+**`nav()` ouvre les coulisses** · **`drawBell()` ne gouverne que les
+`[data-nav]`, et s'y règle sur l'IDENTIFIANT, pas sur le libellé** · et **un
+panneau de niveau 3 n'a pas de bouton tant que la porte est fermée**.

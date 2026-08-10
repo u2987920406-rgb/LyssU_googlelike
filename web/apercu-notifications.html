@@ -1,3 +1,33 @@
+<!DOCTYPE html>
+<html lang="fr" data-d="epure">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Aperçu — le panneau de notifications</title>
+
+<!-- ═══════════════════════════════════════════════════════════════════════
+     APERÇU DE DESIGN — le panneau de notifications
+
+     Le dernier écran. Après lui, plus aucun n'aura échappé à une passe.
+
+     Il a changé depuis qu'une panne y entre : il porte **deux genres** au
+     lieu d'un, et le premier défaut vient de là.
+
+     DEUX DÉFAUTS :
+       ① « À décider » groupe sur `dur`, pas sur « il faut répondre ». Une
+          panne y tombe — et on ne décide pas une panne.
+       ② `when` est une chaîne **figée à la création**. Une panne qui dure
+          depuis vingt minutes dit encore « à l'instant ».
+
+     PAGE AUTONOME : ulysse.css et ulysse-icons.js recopiés plus bas.
+     ═══════════════════════════════════════════════════════════════════════ -->
+
+<!-- ─────────────────────────────────────────────────────────────────────
+     PAGE AUTONOME. ulysse.css et ulysse-icons.js sont RECOPIÉS ci-dessous.
+     `resync_apercus.py` les tient à jour ; `test_page.js` le vérifie.
+     ───────────────────────────────────────────────────────────────────── -->
+<style>
+/* ══ ulysse.css, recopié ══ */
 /* ============================================================================
  * ulysse.css — le systeme visuel d'Ulysse
  * ----------------------------------------------------------------------------
@@ -1594,3 +1624,478 @@ svg.graph *{cursor:inherit}
 .dette .pt{color:var(--amber)}
 .dette.rouge .pt{color:#B3261E}
 .dette .tx b{color:var(--text)}
+</style>
+
+<style>
+.u-todo{border:1px dashed var(--outline-var);border-radius:var(--radius-card);
+  padding:18px;color:var(--muted);font-size:var(--font-size-sm);max-width:620px;
+  line-height:1.6;margin:12px 0}
+.u-todo b{color:var(--text);font-weight:500}
+.u-todo code{background:var(--surface);border-radius:6px;padding:1px 6px;
+  font-size:var(--font-size-xs)}
+
+/* ── Habillage de l'aperçu ─────────────────────────────────────────────── */
+body{overflow:auto;background:var(--surface)}
+.ap-bar{position:sticky;top:0;z-index:900;display:flex;align-items:center;gap:14px;
+  flex-wrap:wrap;padding:10px 20px;background:#1F1F1F;color:#fff;font-size:13px}
+.ap-bar .t{font-weight:500;margin-right:auto}
+.ap-bar .t span{color:#9AA0A6;font-weight:400}
+.ap-seg{display:flex;border:1px solid #5F6368;border-radius:999px;overflow:hidden}
+.ap-seg button{padding:5px 13px;font-size:12.5px;color:#DADCE0}
+.ap-seg button+button{border-left:1px solid #5F6368}
+.ap-seg button.on{background:#D3E3FD;color:#041E49;font-weight:500}
+.ap-scene{padding:40px 24px;display:flex;justify-content:center;min-height:70vh}
+/* Le panneau est posé à plat pour qu'on le voie en entier. */
+.ap-scene .npanel{position:static;display:block;width:394px;max-height:none;
+  animation:none}
+.ap-note{position:fixed;right:16px;bottom:16px;z-index:800;max-width:350px;
+  max-height:64vh;overflow:auto;background:#1F1F1F;color:#E8EAED;border-radius:14px;
+  padding:15px 17px;font-size:12.5px;line-height:1.55;box-shadow:0 4px 20px rgba(0,0,0,.4)}
+.ap-note b{color:#8AB4F8;font-weight:500}
+.ap-note h4{font-size:12.5px;color:#fff;margin:12px 0 5px}
+.ap-note ul{margin:4px 0 0 15px;padding:0}
+.ap-note li{margin-bottom:6px}
+.ap-note code{background:#3C4043;border-radius:4px;padding:1px 5px;font-size:11.5px}
+.ap-note .x{position:absolute;top:8px;right:11px;color:#9AA0A6;cursor:pointer}
+
+/* ═══════════════════════════════════════════════════════════════════════
+   CE QUI S'AJOUTE — préfixé `n-`.
+   ═══════════════════════════════════════════════════════════════════════ */
+
+/* ── ① LE GROUPE NE DIT PAS CE QU'IL CONTIENT ────────────────────────────
+   `draw()` sépare sur `dur` : « À décider » d'un côté, « Récent » de
+   l'autre. C'était juste quand `decision` était le seul genre poussé.
+
+   Depuis qu'une panne y entre, le groupe **mélange deux choses** : ce qui
+   attend une réponse, et ce qui ne va pas. `dur` veut dire « ne part pas
+   toute seule », pas « il faut répondre ».
+
+   On sépare donc sur ce que la bulle DEMANDE, pas sur sa durée. Et l'ordre
+   n'est pas un détail : ce qui bloque l'agent passe devant. */
+.n-groupe{font-size:var(--font-size-xs);color:var(--muted);font-weight:500;
+  display:flex;align-items:center;gap:10px;padding:14px 4px 6px}
+.n-groupe:first-child{padding-top:4px}
+.n-groupe .l{flex:1;height:1px;background:var(--outline-var)}
+.n-groupe .k{color:var(--faint);font-weight:400}
+/* Ce qui ne va pas porte sa couleur, dès le titre du groupe. */
+.n-groupe.panne{color:#B3261E}
+.n-groupe.panne .l{background:#F2B8B5}
+
+/* ── ② LE TEMPS EST FIGÉ À LA CRÉATION ───────────────────────────────────
+   `when` est une chaîne posée une fois — `"à l'instant"` — et jamais
+   recalculée. Une panne qui dure depuis vingt minutes dit encore
+   « à l'instant », et c'est justement la seule chose qu'on veuille savoir
+   d'une panne : **depuis quand**.
+
+   La bulle porte donc un horodatage, pas une phrase. Le panneau le rend en
+   clair au moment où il s'ouvre — ce qui suffit : on ne regarde pas une
+   liste de notifications fermée.
+
+   Et pour ce qui dure, on dit la **durée**, pas l'heure : « depuis 20 min »
+   se lit sans calcul, « 14:32 » demande de savoir quelle heure il est. */
+.n-depuis{color:#B3261E;font-weight:500}
+
+/* Une bulle sans boutons n'est pas une bulle ratée : c'est une bulle qui
+   n'a rien à demander. Elle dit alors ce qu'il y a à faire, en une ligne,
+   sans prétendre que c'est un choix. */
+.n-quoi{font-size:var(--font-size-xs);color:var(--muted);margin-top:9px;
+  line-height:1.5;padding-left:1px}
+.n-quoi code{background:var(--surface);border-radius:5px;padding:1px 6px;
+  font-family:ui-monospace,Menlo,monospace;font-size:11.5px}
+</style>
+</head>
+<body>
+
+<div class="ap-bar">
+  <span class="t">Aperçu — le <b>panneau de notifications</b>
+    <span>· le dernier écran</span></span>
+
+  <div class="ap-seg" id="apCas">
+    <button data-c="deux" class="on">Une panne + une décision</button>
+    <button data-c="decision">Une décision seule</button>
+    <button data-c="panne">Une panne seule</button>
+    <button data-c="vide">Rien</button>
+  </div>
+  <div class="ap-seg" id="apVers">
+    <button data-v="0" class="on">Actuel</button>
+    <button data-v="1">Proposé</button>
+  </div>
+</div>
+
+<div class="ap-scene">
+  <div class="npanel on" id="npanel"></div>
+</div>
+
+<div class="snack" id="snack"></div>
+
+<div class="ap-note" id="apNote">
+  <span class="x" onclick="document.getElementById('apNote').style.display='none'">✕</span>
+  <div id="apBody"></div>
+</div>
+
+<script>
+/* ══ ulysse-icons.js, recopié ══ */
+/* ============================================================================
+ * ulysse-icons.js — le jeu d'icones d'Ulysse
+ * ----------------------------------------------------------------------------
+ * EXTRAIT VERBATIM de maquette-ulysse-google-33.html (table `I` + fonction
+ * `svg()`). Chaque icone porte son nom en clair (`nm`) et sa raison d'etre
+ * (`r`) : c'est ce qui alimente le panneau Reperes. Ne pas remplacer par un
+ * jeu d'icones generique — la maquette est le produit fini.
+ * ========================================================================== */
+
+const I={
+ menu:{d:'M4 7h16M4 12h16M4 17h16',nm:'menu',
+   r:"Épingle le menu ouvert. Le survol du bord gauche suffit à le déplier — l'épingle sert à le garder."},
+ fermer:{d:'M6 6l12 12M18 6L6 18',nm:'fermer',
+   r:"Fait disparaître. Ne détruit jamais : ce qui est fermé se rouvre depuis le menu."},
+ reduire:{d:'M6 12h12',nm:'réduire',r:"Le volet reste là mais cède la place à son voisin."},
+ agrandir:{d:'M9 4H4v5M15 4h5v5M20 15v5h-5M9 20H4v-5',nm:'agrandir',
+   r:"Le volet prend toute la place. Son voisin s'efface, il ne se ferme pas."},
+ restaurer:{d:'M4 9h5V4M20 9h-5V4M20 15h-5v5M4 15h5v5',nm:'restaurer',
+   r:"Revient au partage d'origine. Remplace « agrandir » quand on y est déjà."},
+ chevron:{d:'M6 9l6 6 6-6',nm:'développer / replier',
+   r:"Montre ou cache le détail, sur place. La même icône pivote : jamais deux dessins pour un aller-retour."},
+ tout:{d:'M4 8h16M4 16h16M8 4l4 4 4-4M8 20l4-4 4 4',nm:'tout replier',
+   r:"Applique le repli à toute la liste d'un coup."},
+ retour:{d:'M15 6l-6 6 6 6',nm:'retour',r:"Revient d'où l'on vient. Toujours en haut à gauche."},
+ suivant:{d:'M9 6l6 6-6 6',nm:'suivant',
+   r:"Va vers le détail. Sur une carte, annonce qu'un clic ouvre quelque chose."},
+ plus:{d:'M12 5v14M5 12h14',nm:'ajouter',
+   r:"Ouvre le choix de ce qu'on ajoute — un fichier, un projet, un agent. Ne crée jamais tout seul."},
+ incognito:{raw:`<path d="M4.5 12c0-4 3.3-7 7.5-7s7.5 3 7.5 7"/><path d="M2.5 12h19"/>
+   <circle cx="7.4" cy="16.6" r="2.7"/><circle cx="16.6" cy="16.6" r="2.7"/>
+   <path d="M10.1 16.2h3.8"/>`,nm:'conversation privée',
+   r:"Le fil n'est pas retenu. La fenêtre entière change de teint : on ne peut pas s'y tromper."},
+ coffre:{raw:`<rect x="4" y="10" width="16" height="10" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/>`,
+   nm:'coffre',r:"Le contenu d'un projet. Chaque projet a le sien, aucun ne voit celui d'un autre."},
+ bac:{raw:`<path d="M12 3 3 7.5v9L12 21l9-4.5v-9z"/><path d="M3 7.5 12 12l9-4.5M12 12v9"/>`,
+   nm:'bac à sable',r:"L'espace d'exécution d'un projet. Il s'ouvre, il se ferme, il ne déborde pas."},
+ auto:{raw:`<path d="M11.5 3 13.3 7.7 18 9.5l-4.7 1.8L11.5 16 9.7 11.3 5 9.5l4.7-1.8z"/>
+   <path d="M18.2 15l.85 2.15L21.2 18l-2.15.85L18.2 21l-.85-2.15L15.2 18l2.15-.85z"/>`,
+   nm:'se fait tout seul',
+   r:"Marque une étape qui n'a besoin de personne : ni vous, ni un agent. Elle se fait, elle ne se décide pas."},
+ recherche:{raw:`<circle cx="11" cy="11" r="6"/><path d="M15.6 15.6 21 21"/>`,nm:'filtrer',
+   r:"Réduit la grille à ce qui correspond. Ne masque jamais définitivement : videz le champ, tout revient."},
+ relancer:{raw:`<path d="M20.5 12a8.5 8.5 0 1 1-2.5-6"/><path d="M20.5 2.5v5h-5"/>`,
+   nm:'relancer',
+   r:"Remet un projet en route. Le menu qui l'accompagne dit d'où : de là où ça s'est arrêté, ou du début."},
+ alerte:{raw:`<path d="M12 3.9 21.7 20.3H2.3z" fill="#F9AB00" stroke="#F9AB00"
+   stroke-width="1.7" stroke-linejoin="round"/>
+   <path d="M12 10v3.7" stroke="#3D2B00" stroke-width="1.9" stroke-linecap="round"/>
+   <circle cx="12" cy="16.7" r="1.05" fill="#3D2B00" stroke="none"/>`,
+   nm:'attention',
+   r:"Signale ce qui empêchera quelque chose de bien se passer. Jamais décoratif : s'il est là, il y a une action au bout."},
+ prise:{raw:`<path d="M9 2.5v6M15 2.5v6"/><path d="M5.5 8.5h13v3.5a6.5 6.5 0 0 1-13 0z"/>
+   <path d="M12 18.5V22"/>`,nm:'connexions',
+   r:"Ce à quoi Ulysse a le droit de se brancher. Rien n'est branché sans que vous l'ayez dit."},
+ cloche:{raw:`<path d="M18 16.5v-5.2a6 6 0 1 0-12 0v5.2L4.2 19.5h15.6z"/>
+   <path d="M9.8 22a2.6 2.6 0 0 0 4.4 0"/>`,nm:'notifications',
+   r:"Ce qui attend une réponse s'y compte, et le compteur bat tant qu'on n'a pas répondu."},
+ boucle:{raw:`<path d="M17 2.6 20.6 6 17 9.4"/><path d="M20.6 6H8.2A4.6 4.6 0 0 0 3.6 10.6v1.2"/>
+   <path d="M7 21.4 3.4 18 7 14.6"/><path d="M3.4 18h12.4a4.6 4.6 0 0 0 4.6-4.6v-1.2"/>`,
+   nm:'automatisation',
+   r:"Ce qui tourne en boucle, sans agent derrière. Un travail a une fin ; une automatisation, non."},
+ corbeille:{raw:`<path d="M4 7h16"/><path d="M9.5 7V5.2a1.2 1.2 0 0 1 1.2-1.2h2.6a1.2 1.2 0 0 1 1.2 1.2V7"/>
+   <path d="M6.5 7l.9 12.1a1.5 1.5 0 0 0 1.5 1.4h6.2a1.5 1.5 0 0 0 1.5-1.4L17.5 7"/>`,
+   nm:'supprimer',
+   r:"Met à la corbeille. Ne détruit pas : l'objet y reste, et la corbeille vit là où vivent les objets qu'elle recueille."},
+ point:{circle:true,nm:"marqueur d'état",
+   r:"Vert : terminé. Orange : en cours. Gris : en attente. Trois états, pas plus."},
+ /* Deux signes AJOUTÉS à la maquette, parce que le produit a gagné deux
+    pouvoirs qu'elle n'avait pas : `PATCH /api/sessions/{id}` sait épingler et
+    archiver. Ajouter une icône est sans risque ; en retirer casserait un
+    appel svg(). */
+ epingle:{raw:`<path d="M9 3h6M12 3v6.2a4 4 0 0 1-1.2 2.9L8.6 14.3h6.8l-2.2-2.2A4 4 0 0 1 12 9.2"/>
+   <path d="M12 14.3V21"/>`,nm:'épingler',
+   r:"Sort une conversation du fil du temps. Elle reste en tête quel que soit son âge — c'est la seule chose qui empêche une liste de devenir un journal."},
+ boite:{raw:`<path d="M3 8.5h18v10.5a1.5 1.5 0 0 1-1.5 1.5h-15A1.5 1.5 0 0 1 3 19z"/>
+   <rect x="2.2" y="3.8" width="19.6" height="4.7" rx="1.2"/><path d="M10 12.5h4"/>`,
+   nm:'archiver',
+   r:"Range sans jeter. Une conversation archivée sort de la liste et se retrouve quand on la demande — c'est ce qui permet de ne pas avoir à décider si on supprime."},
+ /* service */
+ micro:{d:'M12 2a3 3 0 0 1 3 3v6a3 3 0 0 1-6 0V5a3 3 0 0 1 3-3zM5 11a7 7 0 0 0 14 0M12 18v4',
+   nm:'parler',
+   r:"Dicte à la place d'écrire. Non branché à ce jour : Hermès expose /api/audio/transcribe, l'interface reste à faire — le bouton le dit plutôt que de faire semblant."},
+ envoi:{d:'M5 12h13M13 6l6 6-6 6',
+   nm:'envoyer',
+   r:"Part vers l'agent. C'est le seul geste de l'écran qui engage un tour de travail ; il porte l'accent, et rien d'autre autour du champ ne le porte."},
+ coche:{d:'M4 12l6 6L20 6',w:3.4,
+   nm:"c’est fait",
+   r:"Confirme après coup, jamais avant. Sur un accord donné, il garde la trace de ce qui a été autorisé."},
+ chat:{d:'M4 6a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2h-6l-5 4v-4H6a2 2 0 0 1-2-2z',
+   nm:'discuter',
+   r:"La conversation nue — le modèle répond, il n'agit pas. À distinguer de la bulle du menu, qui désigne la destination."},
+ atelier:{d:'M3 21h18M5 21V9l7-5 7 5v12M9 21v-6h6v6',
+   nm:"l’Établi",
+   r:"Les fichiers déjà sur la machine, ouverts à côté du fil. Il s'ouvre à côté, il ne pousse rien."},
+ fichier:{d:'M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8zM14 3v5h5',
+   nm:'fichier',
+   r:"Un fichier ordinaire, dans une liste. Le contour seul : c'est du contenu, pas une destination."},
+ lien:{d:'M10 13a5 5 0 0 0 7 0l2-2a5 5 0 0 0-7-7l-1 1M14 11a5 5 0 0 0-7 0l-2 2a5 5 0 0 0 7 7l1-1',
+   nm:'lien',
+   r:"Renvoie ailleurs sans quitter ce qu'on fait. Réservé à ce qui pointe hors d'Ulysse."},
+ regler:{tune:true,
+   nm:'réglages',
+   r:"La destination où l'on change ce qui vaut pour toutes les conversations, pas pour celle-ci."},
+ copier:{d:'M9 9h10v10H9zM5 15V5h10',
+   nm:'copier',
+   r:"Prend une valeur pour la coller ailleurs. Ne modifie rien : c'est le seul geste de la barre d'actions qui ne touche à rien."},
+ power:{d:'M12 3v9M6.5 6.5a8 8 0 1 0 11 0',
+   nm:'arrêter',
+   r:"Coupe pour de bon. Réservé à ce qui ne se rattrape pas par un simple retour."},
+ /* destinations */
+ bulle:{fillable:'M4 6a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2h-6l-5 4v-4H6a2 2 0 0 1-2-2z',
+   nm:'Discuter',
+   r:"La destination du fil en cours. Pleine quand on y est, en contour sinon — la même règle pour les dix entrées du menu."},
+ eclair:{fillable:'M13 2 4 14h7l-1 8 9-12h-7z',
+   nm:'Travaux',
+   r:"Les conversations déjà menées. L'éclair dit le travail fait, pas la vitesse."},
+ doc:{fillable:'M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z',
+   nm:'Livrables',
+   r:"Ce qui a été produit et qu'on peut emporter. Un livrable est un fichier qu'on montre à quelqu'un d'autre."},
+ dossier:{fillable:'M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z',
+   nm:'Projets',
+   r:"Le regroupement réel qu'Hermès connaît : le dossier de travail. Il ne prétend pas être autre chose."},
+ equipe:{people:true,
+   nm:'Vestiaire',
+   r:"Les rôles et les compétences — ce qu'on peut endosser. Trois silhouettes, parce qu'aucune n'est la bonne à elle seule."},
+ noeuds:{nodes:true,
+   nm:'Plan',
+   r:"Ce que fait l'agent, étape par étape. Des nœuds reliés : c'est une suite, pas une liste."},
+ boussole:{fillable:'M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18zm3.5 5.5-2 5-5 2 2-5z',
+   nm:'Repères',
+   r:"Le sens de chaque signe de l'interface. On y vient avec un dessin en tête, pas pour le lire en entier."},
+ points:{raw:`<circle cx="12" cy="5.6" r="1.7" fill="currentColor" stroke="none"/>
+   <circle cx="12" cy="12" r="1.7" fill="currentColor" stroke="none"/>
+   <circle cx="12" cy="18.4" r="1.7" fill="currentColor" stroke="none"/>`,nm:'agir sur',
+   r:"Range les actions d'un élément au lieu de les étaler. Elles ne disparaissent pas : elles attendent qu'on les demande."},
+ terminal:{raw:`<rect x="3" y="4.5" width="18" height="15" rx="2.5"/>
+   <path d="M7.2 10.2 10 12.6l-2.8 2.4M12.4 15.4h4.4"/>`,nm:'terminal',
+   r:"Ouvre la ligne de commande d'Hermès, en dehors d'Ulysse. Ce qui s'y tape ne passe par aucun de vos accords."}
+};
+
+function svg(k,{size=24,fill=false,w=2}={}){
+  const o=I[k]||{}, sw=o.w||w;
+  /* Un glyphe « plein » n'est jamais un aplat : c'est sa propre couleur
+     à 18 %. Le contour reste net, la masse reste légère. */
+  const wrap=(inner,f)=>`<svg width="${size}" height="${size}" viewBox="0 0 24 24"
+    fill="${f||'none'}" fill-opacity="${f&&f!=='none'?'.12':'1'}"
+    stroke="currentColor" stroke-width="${sw}" stroke-linecap="round"
+    stroke-linejoin="round">${inner}</svg>`;
+  if(o.circle) return `<svg width="${size}" height="${size}" viewBox="0 0 24 24">
+    <circle cx="12" cy="12" r="5" fill="currentColor"/></svg>`;
+  if(o.people) return wrap(`<circle cx="9" cy="8" r="3.2"/>
+    <path d="M3 19a6 6 0 0 1 12 0"/><circle cx="17" cy="9.5" r="2.4"/>
+    <path d="M15.5 19h5.5a4.5 4.5 0 0 0-3-4.2"/>`, fill?'currentColor':'none');
+  if(o.nodes) return wrap(`<circle cx="6" cy="6" r="2.6"/><circle cx="18" cy="10" r="2.6"/>
+    <circle cx="8" cy="18" r="2.6"/><path d="M8.4 7.1 15.5 9.3M7.4 8.5 7.9 15.4" fill="none"/>`,
+    fill?'currentColor':'none');
+  if(o.tune) return wrap(`<path d="M4 7h6M15 7h5M4 12h11M4 17h3M12 17h8" fill="none"/>
+    <circle cx="12.5" cy="7" r="2.3"/><circle cx="17.5" cy="12" r="2.3"/>
+    <circle cx="9.5" cy="17" r="2.3"/>`, fill?'currentColor':'none');
+  if(o.raw) return wrap(o.raw);
+  if(o.fillable) return wrap(`<path d="${o.fillable}"/>`,fill?'currentColor':'none');
+  return wrap(`<path d="${o.d}"/>`);
+}
+
+</script>
+<script>
+/* ═══ Banc d'essai. ═══ */
+const $ = (id) => document.getElementById(id);
+const H = (id, h) => { const n = $(id); if (n) n.innerHTML = h; };
+const ech = (s) => String(s).replace(/[&<>"]/g, (c) =>
+  ({ "&":"&amp;", "<":"&lt;", ">":"&gt;", '"':"&quot;" }[c]));
+
+let propose = false, cas = "deux";
+
+/* NKIND, verbatim d'ulysse-view.js. */
+const NKIND = {
+  decision:{ ico:"coffre", col:"var(--accent)", bg:"var(--accent-container)", dur:true },
+  panne:   { ico:"eclair", col:"#B3261E",       bg:"#FCE8E6",                 dur:true },
+  livrable:{ ico:"doc",    col:"var(--green)",  bg:"#C4EED0",                 dur:false },
+  auto:    { ico:"boucle", col:"var(--muted)",  bg:"var(--surface-hi)",       dur:false }
+};
+
+/* ⚠ `when` est une CHAÎNE dans le produit, posée une fois. Ici on garde
+   l'horodatage — c'est tout le §2. */
+const T0 = Date.now();
+function jeu(){
+  const L = [];
+  if (cas === "deux" || cas === "panne"){
+    L.push({ kind:"panne", titre:"Hermès ne répond plus",
+      txt:"Le service ne répond pas sur 127.0.0.1:9123. Aucune session ne peut "
+        + "s'ouvrir.",
+      obj:"Toutes les fenêtres", panel:"Reglages",
+      t: T0 - 20 * 60000, when:"à l'instant" });
+  }
+  if (cas === "deux" || cas === "decision"){
+    L.push({ kind:"decision", titre:"Votre accord est demandé",
+      txt:"L'agent veut écrire dans web/ulysse.html",
+      obj:"Projet Ulysse", panel:"Discuter",
+      t: T0 - 90000, when:"à l'instant",
+      oui:"Autoriser une fois", non:"Refuser" });
+  }
+  return L;
+}
+
+/* « il y a 20 min » se lit sans calcul ; « 14:32 » demande de savoir quelle
+   heure il est. Pour ce qui dure, on dit la durée. */
+function depuis(t){
+  const s = Math.round((Date.now() - t) / 1000);
+  if (s < 45) return "à l'instant";
+  const m = Math.round(s / 60);
+  if (m < 60) return "depuis " + m + " min";
+  const h = Math.round(m / 60);
+  return "depuis " + h + " h";
+}
+
+function ligne(n){
+  const K = NKIND[n.kind];
+  return '<div class="nrow" data-go="' + ech(n.panel) + '">'
+    + '<span class="nic" style="background:' + K.bg + ";color:" + K.col + '">'
+    + svg(K.ico, { size: 19 }) + "</span>"
+    + '<div style="flex:1;min-width:0">'
+    + '<div class="nt">' + ech(n.titre) + "</div>"
+    + '<div class="nx">' + ech(n.txt) + "</div>"
+    + '<div class="nmeta"><span class="o">' + ech(n.obj) + "</span>·<span"
+    /* ACTUEL : la chaîne figée. PROPOSÉ : la durée, recalculée à l'ouverture. */
+    + (propose && n.kind === "panne" ? ' class="n-depuis"' : "") + ">"
+    + ech(propose ? depuis(n.t) : n.when) + "</span></div>"
+
+    /* Une bulle montre des actions **quand elle en a** — la correction du
+       code : `dur && n.oui`, et non `dur` seul. Une panne ne s'autorise pas. */
+    + (n.oui
+        ? '<div class="nacts" data-stop="1">'
+          + '<button class="yes" data-a="oui">' + ech(n.oui) + "</button>"
+          + '<button class="no" data-a="non">' + ech(n.non) + "</button></div>"
+        : "")
+
+    /* PROPOSÉ : ce qu'il y a à faire, quand il n'y a rien à décider. Une
+       ligne, sans bouton — on ne déguise pas un conseil en choix. */
+    + (propose && n.kind === "panne"
+        ? '<div class="n-quoi">Si ça dure, fermez la fenêtre « Ulysse-Serve » et '
+          + "relancez <code>lancer_ulysse.bat</code>.</div>"
+        : "")
+    + "</div></div>";
+}
+
+function dessine(){
+  const L = jeu();
+
+  if (!L.length){
+    H("npanel", '<div class="empty" style="padding:40px 20px">'
+      + '<div class="big">Rien à signaler.</div><div>On vous préviendra.</div></div>');
+    return majNote();
+  }
+
+  if (!propose){
+    /* ACTUEL : le groupe se fait sur `dur`. Une panne tombe dans « À
+       décider », et on ne décide pas une panne. */
+    const A = L.filter((n) => NKIND[n.kind].dur);
+    const B = L.filter((n) => !NKIND[n.kind].dur);
+    H("npanel",
+      (A.length ? '<div class="ngroup">À décider · ' + A.length
+        + '<span class="l"></span></div>' + A.map(ligne).join("") : "")
+      + (B.length ? '<div class="ngroup">Récent<span class="l"></span></div>'
+        + B.map(ligne).join("") : ""));
+  } else {
+    /* PROPOSÉ : on sépare sur ce que la bulle DEMANDE. Et ce qui bloque
+       l'agent passe devant ce qui ne bloque personne. */
+    const rep = L.filter((n) => n.oui);
+    const mal = L.filter((n) => !n.oui && NKIND[n.kind].dur);
+    const res = L.filter((n) => !NKIND[n.kind].dur);
+    H("npanel",
+      (rep.length ? '<div class="n-groupe">Votre réponse est attendue'
+        + '<span class="k">' + rep.length + "</span><span class=\"l\"></span></div>"
+        + rep.map(ligne).join("") : "")
+      + (mal.length ? '<div class="n-groupe panne">Ce qui ne va pas'
+        + '<span class="k">' + mal.length + "</span><span class=\"l\"></span></div>"
+        + mal.map(ligne).join("") : "")
+      + (res.length ? '<div class="n-groupe">Récent<span class="l"></span></div>'
+        + res.map(ligne).join("") : ""));
+  }
+
+  $("npanel").querySelectorAll("[data-a]").forEach((b) => {
+    b.onclick = (e) => {
+      e.stopPropagation();
+      snack(b.dataset.a === "oui" ? "Autorisé une fois." : "Refusé.");
+    };
+  });
+  $("npanel").querySelectorAll(".nrow").forEach((r) => {
+    r.onclick = () => snack("Irait dans « " + r.dataset.go + " ».");
+  });
+  majNote();
+}
+
+let snackT = null;
+function snack(msg){
+  const el = $("snack");
+  el.innerHTML = "<span>" + ech(msg) + "</span>";
+  el.classList.add("on");
+  clearTimeout(snackT);
+  snackT = setTimeout(() => el.classList.remove("on"), 4000);
+}
+
+function majSeg(id, v){
+  $(id).querySelectorAll("button").forEach((b) =>
+    b.classList.toggle("on", (b.dataset.c || b.dataset.v) === v));
+}
+$("apCas").onclick = (e) => {
+  const b = e.target.closest("[data-c]"); if (!b) return;
+  cas = b.dataset.c; majSeg("apCas", cas); dessine();
+};
+$("apVers").onclick = (e) => {
+  const b = e.target.closest("[data-v]"); if (!b) return;
+  majSeg("apVers", b.dataset.v);
+  propose = b.dataset.v === "1";
+  dessine();
+};
+
+function majNote(){
+  $("apBody").innerHTML = propose
+    ? "<b>Proposé</b> — deux défauts, et rien de neuf."
+      + "<h4>① Le groupe ne dit pas ce qu'il contient</h4>"
+      + "<code>draw()</code> sépare sur <code>dur</code> : « À décider » d'un côté. "
+      + "C'était juste quand <code>decision</code> était le seul genre poussé.<br><br>"
+      + "Depuis qu'une panne y entre, <b>le groupe mélange deux choses</b> : ce qui "
+      + "attend une réponse, et ce qui ne va pas. <code>dur</code> veut dire « ne "
+      + "part pas toute seule », <b>pas</b> « il faut répondre ».<br><br>"
+      + "On sépare donc sur ce que la bulle <b>demande</b> — c'est déjà ce que votre "
+      + "correction <code>dur && n.oui</code> a établi pour les boutons. Le groupe "
+      + "suit la même règle, et l'ordre n'est pas un détail : <b>ce qui bloque "
+      + "l'agent passe devant</b>."
+      + "<h4>② Le temps est figé à la création</h4>"
+      + "<code>when</code> est une <b>chaîne</b> posée une fois — <code>\"à "
+      + "l'instant\"</code> — et jamais recalculée. Une panne qui dure depuis vingt "
+      + "minutes dit encore « à l'instant ».<br><br>"
+      + "Or c'est la seule chose qu'on veuille savoir d'une panne : <b>depuis "
+      + "quand</b>. La bulle porte donc un horodatage, et le panneau le rend en clair "
+      + "à l'ouverture — ce qui suffit : on ne regarde pas une liste fermée.<br><br>"
+      + "Et pour ce qui dure on dit la <b>durée</b>, pas l'heure : « depuis 20 min » "
+      + "se lit sans calcul, « 14:32 » demande de savoir quelle heure il est."
+      + "<h4>Une bulle sans boutons n'est pas ratée</h4>"
+      + "Elle n'a rien à demander. Elle dit alors <b>ce qu'il y a à faire</b>, en une "
+      + "ligne, sans prétendre que c'est un choix. On ne déguise pas un conseil en "
+      + "bouton."
+      + "<h4>⚠ Ce que je ne propose pas</h4>"
+      + "<b>Les toasts.</b> <code>.toast</code> et <code>#toasts</code> existent et "
+      + "ne sont employés <b>nulle part</b> — zéro appel. Ils serviraient à ce qui "
+      + "<i>ne dure pas</i> (<code>dur:false</code>) : <code>livrable</code> et "
+      + "<code>auto</code>. Or aucun des deux n'est poussé.<br><br>"
+      + "Le composant attend son usage, et c'est cohérent. <b>Le brancher à vide "
+      + "serait fabriquer un besoin pour employer une pièce.</b>"
+    : "<b>Actuel</b> — l'état du produit."
+      + "<h4>À regarder</h4><ul>"
+      + "<li>Avec « une panne + une décision » : les deux sont sous <b>« À décider »</b>. "
+      + "On ne décide pas une panne.</li>"
+      + "<li>La panne dit <b>« à l'instant »</b> — elle dure depuis vingt minutes.</li>"
+      + "<li>La panne n'a pas de boutons : c'est juste, et c'est la correction du "
+      + "code (<code>dur && n.oui</code>). Mais rien ne dit ce qu'il y a à faire.</li>"
+      + "</ul>Puis basculez sur « Proposé ».";
+}
+
+dessine();
+</script>
+</body>
+</html>
