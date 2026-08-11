@@ -156,7 +156,7 @@ SECRET_CONFIG_KEYS = ("SESSION_TOKEN", "PROXY_TOKEN")
 # part en clair. Avec une liste blanche, il faut un geste explicite pour
 # publier quoi que ce soit.
 STATIC_SUFFIXES = (".html", ".css", ".js", ".svg", ".png", ".jpg", ".jpeg",
-                   ".gif", ".webp", ".ico", ".woff", ".woff2", ".map")
+                   ".gif", ".webp", ".ico", ".woff", ".woff2", ".map", ".md")
 
 # Renseignes dans main().
 BACKEND = None
@@ -179,6 +179,22 @@ def read_config_value(text, key):
     """Retourne la valeur chaine de `key` dans ulysse-config.js, ou None."""
     m = re.search(_VALUE_RE % re.escape(key), text)
     return m.group(1) if m else None
+
+
+def set_config_value(text, key, value):
+    """Pose (ou ecrase) `key: "value"` dans ulysse-config.js.
+
+    La valeur est echappee pour ne pas casser le JavaScript : tout guillemet
+    double devient `\\"`, et les retours a la ligne sont interdits (une cle de
+    config ne doit pas en contenir). Retourne le nouveau texte. Si la cle
+    n'existe pas, le texte est rendu tel quel et l'appelant doit le verifier.
+    """
+    safe = str(value).replace("\\", "\\\\").replace('"', '\\"').replace("\n", " ")
+    new = '%s: "%s"' % (key, safe)
+    pat = re.compile(_VALUE_RE % re.escape(key))
+    if pat.search(text):
+        return pat.sub(new, text, count=1)
+    return text
 
 
 def read_config_text():
@@ -698,6 +714,11 @@ class Handler(http.server.SimpleHTTPRequestHandler):
         # donc il n'y a rien a echapper et rien a injecter. Un corps envoye
         # quand meme est vide puis jete (cf. vider_corps) : ne pas le lire du
         # tout brisait la connexion, et la reponse se perdait.
+        if self.route() == "/ulysse/set-model":
+            if self.guard():
+                return
+            self.set_modele_config()
+            return
         if self.route() == "/ulysse/console":
             if self.guard():
                 return
@@ -707,6 +728,17 @@ class Handler(http.server.SimpleHTTPRequestHandler):
             else:
                 self.json_error(500, souci)
             return
+        # ⚠ NI /ulysse/capture NI /ulysse/artifact. Les deux ont existe, les
+        # deux ecrivaient dans web/ — le dossier SERVI, donc le produit — et
+        # les deux doublaient un chemin qui marchait deja :
+        #   · la capture collee est une piece jointe (image.attach), et c'est
+        #     le gateway qui la materialise dans l'espace de la session ;
+        #   · un artefact est un fichier comme un autre : `/api/files/read`
+        #     sait deja le lire, ou qu'il soit.
+        # La regle S10 a ferme web/ a la publication parce que c'est du
+        # produit, pas un espace de travail. Ces deux routes le rouvraient par
+        # la fenetre. Voir PASSE-DESIGN-COLLER-IMAGE.md §2 et
+        # PASSE-DESIGN-FICHIERS.md §2.
         self.relay_or_405("POST")
 
     def do_PUT(self):
@@ -1218,6 +1250,68 @@ class Handler(http.server.SimpleHTTPRequestHandler):
             "version_gardee": os.path.basename(garde) if garde else None,
             "creation": garde is None,
             "versions": len(lister_versions(chemin)),
+        })
+
+    # On n'ecrit PAS n'importe quelle cle de ulysse-config.js depuis la page :
+    # seules ces deux-la concernent le choix du modele, et c'est tout ce que le
+    # panneau Reglages > Le cerveau est autorise a toucher. Toute autre cle est
+    # refusee (400), pour ne pas laisser la page muter la config du proxy ou
+    # des webhooks.
+    CLES_MODELE_AUTORISEES = ("PROXY_MODEL", "SESSION_MODEL")
+
+    def set_modele_config(self):
+        """Pose PROXY_MODEL / SESSION_MODEL dans ulysse-config.js, versionnee.
+
+        Corps attendu : {key, value}. `value` vide = vider l'override (on
+        remet la chaine vide, Ulysse herite alors du profil Hermes). Copie
+        datee avant ecriture, comme pour la memoire : le retour en arriere est
+        reel, pas promis.
+        """
+        corps, souci = self.lire_json()
+        if not isinstance(corps, dict):
+            self.json_error(400, souci or "Corps JSON attendu : {key, value}.")
+            return
+        cle = corps.get("key")
+        valeur = corps.get("value", "")
+        if cle not in self.CLES_MODELE_AUTORISEES:
+            self.json_error(400,
+                "Cle non autorisee. Acceptees : %s."
+                % ", ".join(self.CLES_MODELE_AUTORISEES))
+            return
+        if not isinstance(valeur, str):
+            self.json_error(400, "« value » doit etre du texte (vide = heritage).")
+            return
+
+        texte = read_config_text()
+        if not texte:
+            self.json_error(404, "ulysse-config.js introuvable.")
+            return
+        if not re.search(_VALUE_RE % re.escape(cle), texte):
+            self.json_error(404,
+                "La cle %s n'existe pas dans ulysse-config.js." % cle)
+            return
+
+        # Garde AVANT ecriture ; si elle echoue, on n'ecrit pas.
+        try:
+            garde = garder_version(CONFIG_FILE)
+        except OSError as exc:
+            self.json_error(500,
+                "La version d'avant n'a pas pu etre mise de cote (%s). Rien "
+                "n'a ete ecrit." % exc)
+            return
+
+        nouveau = set_config_value(texte, cle, valeur)
+        try:
+            with open(CONFIG_FILE, "w", encoding="utf-8") as fh:
+                fh.write(nouveau)
+        except OSError as exc:
+            self.json_error(500, "Ecriture impossible (%s)." % exc)
+            return
+        self.send_json(200, {
+            "ok": True,
+            "key": cle,
+            "value": valeur,
+            "version_gardee": os.path.basename(garde) if garde else None,
         })
 
     def dire_versions(self):

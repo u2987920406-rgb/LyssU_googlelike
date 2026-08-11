@@ -302,10 +302,25 @@ function turnHTML(t){
       : "Ulysse") + "</div>";
   }
   // Les outils AVANT le texte : c'est l'ordre réel d'exécution.
+  /* ⚠ LA LIGNE D'OUTIL EST LE LIEN VERS LE FICHIER. Quand `x.path` est là —
+     l'agent a lu ou écrit ce fichier, cf. `cheminDeLOutil` — la ligne s'ouvre
+     dans le volet. On ne pose PAS de carte en plus : la ligne nomme déjà le
+     fichier, et un second signe pour dire la même chose est précisément ce
+     qu'on retire partout ailleurs.
+
+     Signalé par kuchu le 2026-08-11 : « montre-moi le contrat d'interface »
+     faisait réciter le fichier dans le fil, sans aucun moyen de l'ouvrir —
+     « il aurait dû me proposer le lien, c'était plus simple ». La balise
+     `[artifact: …]` ne suffit pas : elle dépend de ce que l'agent pense à
+     écrire, et il n'y pense pas. */
   if (t.tools && t.tools.length){
     h += '<div class="u-tools">' + t.tools.map((x) =>
-      '<div class="u-tool' + (x.state === "done" ? " done" : "") + '"><span class="d"></span>'
+      '<div class="u-tool' + (x.state === "done" ? " done" : "")
+      + (x.path ? ' ouvrable" data-fichier="' + encodeURIComponent(x.path)
+                  + '" role="button" tabindex="0' : "")
+      + '"><span class="d"></span>'
       + '<div style="flex:1;min-width:0"><span class="n">' + esc(x.name) + "</span>"
+      + (x.path ? '<span class="f-go">Ouvrir ›</span>' : "")
       + (x.context ? '<div class="c">' + esc(x.context) + "</div>" : "")
       + (x.args ? '<div class="c">' + esc(x.args) + "</div>" : "")
       + (x.result ? "<details><summary>résultat</summary><pre>"
@@ -536,11 +551,11 @@ function reseauHS(){
    ─────────────────────────────────────────────────────────────────────── */
 
 const jointes = [];    // {name, ref, image, size, etat:"envoi"|"prete"|"echec"}
-// Captures d'ecran colles (mode Discussion comme Cowork). Stockees a part des
-// jointes de fichiers : on n'insere JAMAIS leur chemin dans le champ de texte
-// (kuchu : le nom n'a pas a y figurer), on n'en fait que la vignette au-dessus
-// et on les reference dans le message envoye via refsCaptures().
-const captures = [];  // {path, name}
+// Il n'y a PAS de seconde liste pour les images collees. Elles entrent ici,
+// par le meme chemin que le « + » : une image collee est une image jointe.
+// Voir PASSE-DESIGN-COLLER-IMAGE.md §1 — le collage avait sa propre mecanique
+// (web/captures/ + un marqueur « [capture: chemin] » dans le message), donc
+// deux resultats pour un seul geste, et rien a l'ecran pour dire lequel.
 
 function dessineJointes(){
   const html = jointes.map((j, i) =>
@@ -571,13 +586,20 @@ async function surFichiers(files){
   for (const f of Array.from(files || [])){
     // Le corps part en base64 dans une trame WebSocket : au-delà de quelques
     // dizaines de Mo, on refuse plutôt que de faire attendre sans rien dire.
-    if (f.size > 32 * 1024 * 1024){
-      snack("« " + f.name + " » fait " + fmtBytes(f.size)
-        + " — trop lourd pour une pièce jointe. Passez par les Livrables.");
+    // ⚠ DEUX PLAFONDS, PARCE QUE LE GATEWAY EN A DEUX. `image.attach_bytes`
+    //    refuse au-delà de 25 Mo (`_ATTACH_BYTES_MAX_BYTES`, server.py:10350)
+    //    avec une erreur 4018. Refuser ici à 32 Mo pour une image, c'était
+    //    laisser passer une pièce que le gateway allait rejeter — l'écran
+    //    aurait dit « envoi… » puis « échec », sans jamais dire pourquoi.
+    const image = (f.type || "").indexOf("image/") === 0;
+    const plafond = (image ? 25 : 32) * 1024 * 1024;
+    if (f.size > plafond){
+      snack("« " + f.name + " » fait " + fmtBytes(f.size) + " — au-delà de "
+        + fmtBytes(plafond) + (image ? ", la limite des images." : ".")
+        + " Passez par les Livrables.");
       continue;
     }
-    const j = { name: f.name, ref: "", image: (f.type || "").indexOf("image/") === 0,
-                size: f.size, etat: "envoi" };
+    const j = { name: f.name, ref: "", image: image, size: f.size, etat: "envoi" };
     jointes.push(j);
     dessineJointes();
     try {
@@ -718,21 +740,9 @@ function refsJointes(){
   return refs.length ? "\n\n" + refs.join("\n") : "";
 }
 
-// References des captures colles, ajoutees au message envoye (pas dans le
-// champ de texte). En Cowork l'agent lit le fichier ; en Discussion le modele
-// (sans vision) ne le voit pas, mais la reference est conservée.
-function refsCaptures(){
-  return captures.length
-    ? captures.map((c) => " [capture: " + c.path + "]").join("") : "";
-}
-
 function viderJointes(){
   jointes.length = 0;
-  captures.length = 0;
   dessineJointes();
-  // Vider aussi la vignette de capture affichee dans #jointes1.
-  const host = $("jointes1");
-  if (host) host.querySelectorAll(".u-capshow").forEach((e) => e.remove());
 }
 
 /* ═══ La bascule Cowork / Discussion, sous le composeur ══════════════════
@@ -773,12 +783,17 @@ function roleOpts(){
   return opts;
 }
 
-/* Collage d'une capture d'ecran dans la box de chat.
-   Le presse-papiers Windows contient une IMAGE ; un <input> texte ne sait pas
-   l'afficher, donc on la recupere nous-memes, on l'envoie a /ulysse/capture
-   (serve.py l'ecrit dans captures/), et on insere le CHEMIN dans le message.
-   Hermes (cote agent) lira ce fichier et « verra » la capture — meme si le
-   modele gratuit ne fait pas de vision. */
+/* Collage d'une image dans la box de chat.
+   Le presse-papiers ne donne pas de fichier nomme : il donne des octets. On
+   les nomme, et on les passe a `surFichiers` — LE MEME chemin que le « + ».
+   De la, `attacherFichier` appelle `image.attach`, le gateway materialise
+   l'image dans l'espace de la session et rend une reference « @file:… ».
+
+   Ce que ca REMPLACE (PASSE-DESIGN-COLLER-IMAGE.md §1 et §2) : une route
+   `/ulysse/capture` qui ecrivait dans `web/captures/` — donc le produit qui
+   ecrit dans son propre code — et un marqueur « [capture: C:\chemin ] » qu'on
+   ajoutait au message pour le retirer de la bulle a l'affichage. Un texte
+   qu'on ajoute et qu'on cache est un texte qui ne devrait pas etre la. */
 async function collerCapture(e){
   const items = (e.clipboardData && e.clipboardData.items) || [];
   let blob = null, ext = "png";
@@ -791,62 +806,21 @@ async function collerCapture(e){
   }
   if (!blob) return;                 // pas d'image : on laisse le texte passer
   e.preventDefault();                // on gere nous-memes
-  try {
-    const b64 = await new Promise((res, rej) => {
-      const r = new FileReader();
-      r.onload = () => res(r.result.split(",")[1]);
-      r.onerror = rej;
-      r.readAsDataURL(blob);
-    });
-    const rep = await fetch("/ulysse/capture", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ ext: ext, data: b64 })
-    });
-    let j;
-    try { j = await rep.json(); }
-    catch (e){ j = null; }
-    if (!rep.ok || !j || !j.path){
-      snack("Capture non enregistree (serve indisponible ou ancien ? "
-            + "relancez lancer_ulysse.bat).");
-      return;
-    }
-    const input = $("reply");
-    // AVANT : on injectait le chemin dans le champ de texte
-    // (« [capture: chemin] »). kuchu ne veut pas ce texte dans la bulle : on le
-    // stocke ailleurs (captures) et on n'en fait que la vignette au-dessus.
-    captures.push({ path: j.path, name: j.name || j.path });
-    dessineCaptures();
-    snack("Capture ajoutée — elle part avec le message (Cowork l'analyse ; en Discussion le proxy n'envoie que du texte).");
-  } catch (err){
-    snack("Capture impossible à coller : " + err.message);
+  // En Discussion il n'y a pas de session, et le proxy n'envoie que du texte :
+  // joindre ouvrirait une session Cowork dans le dos de la personne pour une
+  // piece que le modele ne recevrait pas. On le dit, on ne le fait pas.
+  if (mode === "pur"){
+    snack("En Discussion, le modèle ne reçoit que du texte — passez en Cowork "
+          + "pour joindre une image.");
+    return;
   }
-}
-
-/* Apercu des captures collees, dans la zone des pieces jointes. Une vignette
-   par capture, chacune avec sa croix pour la retirer avant envoi. Marche en
-   Discussion comme en Cowork : captures est la meme liste. */
-function dessineCaptures(){
-  const host = $("jointes1");
-  if (!host) return;
-  host.querySelectorAll(".u-capshow").forEach((e) => e.remove());
-  if (!captures.length) return;
-  const bloc = document.createElement("span");
-  bloc.className = "u-capshow";
-  captures.forEach((c, i) => {
-    const chip = document.createElement("span");
-    chip.className = "u-jointe";
-    chip.innerHTML = '<img src="' + encodeURI("file:///" + c.path.replace(/\\/g, "/")) + '" '
-      + 'style="height:22px;border-radius:4px;vertical-align:middle" alt="">'
-      + esc(c.name)
-      + '<button class="x" data-cap="' + i + '" aria-label="Retirer la capture">'
-      + svg("fermer", { size: 13 }) + "</button>";
-    bloc.appendChild(chip);
-  });
-  host.appendChild(bloc);
-  bloc.querySelectorAll("[data-cap]").forEach((b) => {
-    b.onclick = () => { captures.splice(+b.dataset.cap, 1); dessineCaptures(); };
-  });
+  // Le presse-papiers n'a pas de nom de fichier ; sans nom, la piece jointe
+  // s'appellerait « blob ». L'horodatage rend deux collages distinguables.
+  const d = new Date();
+  const p2 = (n) => String(n).padStart(2, "0");
+  const nom = "capture-" + d.getFullYear() + p2(d.getMonth() + 1) + p2(d.getDate())
+    + "-" + p2(d.getHours()) + p2(d.getMinutes()) + p2(d.getSeconds()) + "." + ext;
+  await surFichiers([new File([blob], nom, { type: blob.type || ("image/" + ext) })]);
 }
 
 async function onSend(ev){
@@ -860,13 +834,12 @@ async function onSend(ev){
     // En Chat il n'y a pas de session à ouvrir : le tour part et s'affiche.
     // Attendre quoi que ce soit serait une attente inventée.
     quitterAccueil();
-    // Les vraies pieces jointes (fichiers via le « + ») ne servent qu'en
-    // Cowork — l'agent est le seul a pouvoir les ouvrir. Les captures d'ecran
-    // collées, elles, sont autorisees (refsCaptures) : leur vignette suffit,
-    // et leur chemin part dans le message sans jamais toucher au champ.
-    if (jointes.length) snack("Les pièces jointes (fichiers) ne servent qu'en Cowork — "
-      + "en Discussion, le modèle ne peut rien ouvrir. La capture d'écran, elle, est prise en compte.");
-    await sendPure(text, text + refsCaptures());
+    // Les pieces jointes ne servent qu'en Cowork — l'agent est le seul a
+    // pouvoir les ouvrir. Les images collees suivent la meme regle depuis
+    // qu'elles sont des pieces jointes : c'est justement ce qu'on a gagne.
+    if (jointes.length) snack("Les pièces jointes ne servent qu'en Cowork — "
+      + "en Discussion, le modèle ne peut rien ouvrir.");
+    await sendPure(text, text);
     return;
   }
   // Le premier message de Cowork ouvre la session : c'est la seule attente
@@ -875,7 +848,7 @@ async function onSend(ev){
   // Le cadre de rôle part vers le moteur, mais le fil affiche ce que la
   // personne a RÉELLEMENT écrit : lui relire une consigne qu'elle n'a pas
   // rédigée brouille la lecture de son propre fil.
-  await submitPrompt(text + refsJointes() + refsCaptures(), roleOpts());
+  await submitPrompt(text + refsJointes(), roleOpts());
   viderJointes();
 }
 
@@ -942,6 +915,15 @@ function setMode(m){
   if (m === "atelier") drawEtabli();
 }
 
+/* Ouvrir l'Établi SUR un dossier. C'est le retour du fil d'Ariane du volet :
+   l'Établi et le volet sont le même volet à deux moments — parcourir, puis
+   regarder. On doit pouvoir revenir au dossier sans refermer le fichier. */
+function ouvrirEtabliSur(dossier){
+  etabliPath = dossier || null;
+  setMode("atelier");
+  drawEtabli();
+}
+
 /* L'en-tête de l'Établi porte un `.ctl` — le bloc de contrôles de volet de la
    maquette, qui apparaît au survol. Il était dans le HTML et VIDE : l'Établi
    ne pouvait se refermer que depuis le kebab, c'est-à-dire ailleurs que là où
@@ -987,50 +969,20 @@ function wireFileRows(hostId, onDir){
   });
 }
 
-/* La fiche d'un fichier. Le backend renvoie le fichier ENTIER en base64
-   (+33 %) : au-delà de la limite, l'onglet se fige. On refuse plutôt que de
-   le tenter — cliquer sur un fichier de 200 Mo ne doit pas coûter l'onglet. */
-async function showFile(path, name){
-  openS("sFile", "<h2>" + esc(name || path) + '</h2><div class="sub">' + esc(path)
-    + '</div><div class="u-load">Lecture…</div>');
-  const body = $("fileBody");
-  try {
-    const d = await REST.readFile(path);
-    if (typeof d.size === "number" && d.size > PREVIEW_MAX_BYTES){
-      body.innerHTML = "<h2>" + esc(name) + '</h2><div class="sub">' + esc(path) + "</div>"
-        + '<div class="u-todo">Trop volumineux pour un aperçu (' + esc(fmtBytes(d.size))
-        + ", limite " + esc(fmtBytes(PREVIEW_MAX_BYTES)) + "). Le chemin reste utilisable "
-        + "dans un message à l'agent.</div>";
-      return;
-    }
-    const mime = d.mime_type || "";
-    const isMd = /\.(md|markdown|mdown)$/i.test(name || path || "");
-    let inner;
-    if (mime.indexOf("image/") === 0 && d.data_url){
-      inner = '<img src="' + esc(d.data_url) + '" style="max-width:100%;border-radius:12px">';
-    } else if (isMd){
-      // Catégorie 3 (mauvais affichage) : un .md s'affiche rendu, pas en brut.
-      const text = decodeDataUrlText(d.data_url || "");
-      inner = text === null
-        ? '<div class="u-load">Fichier binaire — aperçu impossible.</div>'
-        : '<div class="u-md">' + mdRender(shorten(text, 20000)) + "</div>";
-    } else {
-      const text = decodeDataUrlText(d.data_url || "");
-      inner = text === null
-        ? '<div class="u-load">Fichier binaire — aperçu impossible.</div>'
-        : '<pre class="u-raw">' + esc(shorten(text, 20000)) + "</pre>";
-    }
-    body.innerHTML = "<h2>" + esc(name) + '</h2><div class="sub">' + esc(path) + " · "
-      + esc(fmtBytes(d.size)) + "</div>" + inner
-      + '<div class="sheet-acts">'
-      + '<a class="txt-btn" id="fDl" href="' + esc(d.data_url || "") + '" download="'
-      + esc(name || "fichier") + '">⤓ Télécharger</a>'
-      + '<button class="txt-btn" id="fClose">Fermer</button></div>';
-    $("fClose").onclick = () => closeS("sFile");
-  } catch (e){
-    body.innerHTML = "<h2>" + esc(name) + '</h2><div class="u-todo">Aperçu indisponible : '
-      + esc(e.message) + "</div>";
-  }
+/* Montrer un fichier — L'ÉTABLI, LES LIVRABLES ET LE FIL PASSENT TOUS ICI, et
+   d'ici dans le volet. Cette fonction ouvrait une modale (#sFile) : le fond
+   s'assombrissait et la conversation disparaissait, alors qu'un clic sur une
+   carte du fil ouvrait, lui, un volet. Deux écrans pour un seul objet, et
+   lequel apparaissait dépendait de l'endroit où l'on avait cliqué.
+
+   Assombrir le fond veut dire « finissez ceci d'abord ». Lire un document
+   n'exige rien. Voir PASSE-DESIGN-FICHIERS.md §1.
+
+   `#sFile` / `fileBody` / `fClose` restent dans ulysse.html : ils sont au
+   CONTRAT-INTERFACE.md et n'en partent qu'avec son accord, pas au détour
+   d'une passe. Ils ne sont simplement plus ouverts par personne. */
+function showFile(path, name){
+  return ouvrirFichier(path, name || (path || "").split(/[\\/]/).pop());
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
@@ -4617,9 +4569,8 @@ function boot(){
 
   $("mic1").onclick = (e) => { e.stopPropagation(); basculerDictee(); };
 
-  // Coller une capture d'ecran (image) dans la box : on la recupere du
-  // presse-papiers et on l'enregistre via /ulysse/capture. Texte : laisse
-  // passer normalement.
+  // Coller une image dans la box : elle rejoint les pieces jointes, comme par
+  // le « + ». Le texte, lui, passe normalement.
   const replyEl = $("reply");
   if (replyEl) replyEl.addEventListener("paste", collerCapture);
 

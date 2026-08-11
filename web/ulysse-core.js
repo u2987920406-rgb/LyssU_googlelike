@@ -22,7 +22,11 @@ const CFG = {
   // La page ne parle qu'a serve.py, qui la sert. Son origine est donc
   // toujours la bonne cible : pas de port ecrit en dur a maintenir.
   BASE: (RAW_CFG.DASHBOARD_URL || location.origin).replace(/\/+$/, ""),
-  PROXY_MODEL: RAW_CFG.PROXY_MODEL || "tencent/hy3:free",
+  // Modele du mode Discussion. LOI-DU-CERVEAU.md : Ulysse n'impose RIEN.
+  // Vide par defaut = heritage du modele de la session vivante Hermes
+  // (conv.info.model). Rempli = override explicite de l'utilisateur, affiche
+  // comme tel dans « Le cerveau ». On ne durcit plus aucun modele.
+  PROXY_MODEL: RAW_CFG.PROXY_MODEL || "",
   PROXY_MAX_TOKENS: RAW_CFG.PROXY_MAX_TOKENS || 800,
   SESSION_CWD: RAW_CFG.SESSION_CWD || "",
   SESSION_MODEL: RAW_CFG.SESSION_MODEL || "",
@@ -162,15 +166,36 @@ const REST = {
   // web_server.py — configuration et modeles
   config: () => api("/api/config"),
   modelOptions: () => api("/api/model/options"),
+  // Change le modele de la session Hermes vivante (scope main = profil) :
+  // c'est exactement ce que fait /model dans Hermes. Cowork suit.
+  modelSet: (provider, model) =>
+    api("/api/model/set", { method: "POST",
+      body: { scope: "main", provider: provider, model: model } }),
+  // Ecrit l'override local (ulysse-config.js) pour le mode Discussion ou la
+  // session Cowork. value vide = vider l'override (heritage du profil).
+  setLocalModel: (key, value) =>
+    api("/ulysse/set-model", { method: "POST", body: { key: key, value: value } }),
   // web_server.py:14275 — {daily, by_model, by_task, totals, period_days,
   // skills, tools}. Les cles internes de `totals` varient selon la version :
   // on les affiche telles quelles plutot que d'en supposer une.
   usage: (days) => api("/api/analytics/usage?days=" + (days || 30)),
-  // Chat pur, relaye par serve.py vers le proxy Hermes (cle injectee la-bas)
-  pureChat: (messages) => api("/proxy/chat", {
-    method: "POST",
-    body: { model: CFG.PROXY_MODEL, messages: messages, max_tokens: CFG.PROXY_MAX_TOKENS }
-  })
+  // Chat pur, relaye par serve.py vers le proxy Hermes (cle injectee la-bas).
+  // LOI-DU-CERVEAU.md : on n'impose pas de modele. Deux cas :
+  //   · PROXY_MODEL rempli (override utilisateur) -> on l'envoie.
+  //   · sinon -> on laisse le modele herite de la session vivante Hermes
+  //     (conv.info.model, lu par l'app et passe ici). Si toujours vide, on
+  //     envoie un corps SANS model : le proxy repond 400 « Model parameter is
+  //     required », et l'app affiche un message honnete (pas un modele choisi
+  //     par Ulysse).
+  pureChat: (messages, proxyModel) => {
+    // Priorite : override explicite (CFG.PROXY_MODEL) > heritage (proxyModel
+    // = conv.info.model) > rien. LOI-DU-CERVEAU.md : Ulysse n'impose rien.
+    const model = (CFG.PROXY_MODEL && typeof CFG.PROXY_MODEL === "string" && CFG.PROXY_MODEL)
+      || (typeof proxyModel === "string" && proxyModel) || "";
+    const body = { messages: messages, max_tokens: CFG.PROXY_MAX_TOKENS };
+    if (model) body.model = model;
+    return api("/proxy/chat", { method: "POST", body: body });
+  }
 };
 
 /* ═══ 2. Couche WebSocket — JSON-RPC delimite par newline ═════════════════
@@ -441,6 +466,24 @@ link.onEvent((type, params) => {
       break;
     }
 
+    /* Le fichier qu'un outil vient de toucher — DEDUIT DE CE QU'IL A FAIT,
+       pas de ce que l'agent a pense a ecrire.
+
+       C'etait la reserve du §5 de PASSE-DESIGN-FICHIERS.md, et elle est levee
+       en lisant Hermes :
+       · `tool.complete` porte **`args`, le dict complet, TOUJOURS**
+         (server.py:5423) — ce n'est pas conditionne au mode verbeux ;
+       · la cle est **`path`** pour `read_file`, `write_file` et `patch` : ce
+         n'est pas une supposition, c'est la table d'Hermes lui-meme
+         (agent/display.py:443, `primary_args`).
+       En face, `tool.start.context` est un APERCU tronque a 80 caracteres et
+       `args_text` n'arrive qu'en mode verbeux : ni l'un ni l'autre ne sert a
+       designer un fichier.
+
+       LISTE FERMEE, et volontairement. « path » ne veut pas dire la meme chose
+       pour tous les outils ; on ne nomme que ceux dont Hermes dit qu'il s'agit
+       du fichier principal. Un outil de plus se rajoute ici, en connaissance
+       de cause — jamais en devinant. */
     case "tool.start": {
       const t = currentAssistantTurn();
       t.tools.push({ id: pl.tool_id, name: pl.name || "outil", context: pl.context || "",
@@ -449,16 +492,19 @@ link.onEvent((type, params) => {
     }
 
     case "tool.complete": {
+      const chemin = cheminDeLOutil(pl.name, pl.args);
       const tool = findTool(pl.tool_id);
       if (tool){
         tool.state = "done";
         tool.ms = Date.now() - tool.t0;
         tool.result = pl.inline_diff || pl.result || tool.result || "";
+        tool.path = chemin;
         if (pl.name) tool.name = pl.name;
       } else {
         const t = currentAssistantTurn();
         t.tools.push({ id: pl.tool_id, name: pl.name || "outil", context: "", state: "done",
-                       t0: Date.now(), ms: 0, result: pl.inline_diff || pl.result || "" });
+                       t0: Date.now(), ms: 0, path: chemin,
+                       result: pl.inline_diff || pl.result || "" });
       }
       break;
     }
@@ -616,12 +662,49 @@ async function resumeSession(storedId){
   return res;
 }
 
-/* file.attach — methods_prompt.py:640. Le navigateur n'a pas de chemin
-   serveur : il envoie les octets en data URL, le gateway materialise le
-   fichier dans l'espace de la session et renvoie `ref_text` (« @file:… »),
-   la reference que les outils de l'agent savent lire.
-   Une image passe par image.attach : elle devient une tuile de vision,
-   pas un artefact a lire. */
+// Les outils dont l'argument `path` designe LE fichier de l'appel. Source :
+// `primary_args` dans agent/display.py:443, cote Hermes.
+const OUTILS_A_FICHIER = { read_file: 1, write_file: 1, patch: 1 };
+
+function cheminDeLOutil(nom, args){
+  if (!OUTILS_A_FICHIER[nom] || !args || typeof args !== "object") return "";
+  const p = args.path;
+  if (typeof p !== "string" || !p) return "";
+  // L'agent ecrit souvent un chemin RELATIF a son dossier de travail
+  // (« web/CONTRAT-INTERFACE.md »). `/api/files/read` veut un chemin qu'il
+  // sache resoudre : on prefixe avec le cwd de la session EN COURS.
+  if (/^([a-zA-Z]:[\\/]|[\\/]|\\\\)/.test(p)) return p;
+  const base = (conv.info && conv.info.cwd) || "";
+  return base ? base.replace(/[\\/]+$/, "") + "/" + p : p;
+}
+
+/* Joindre un fichier. Le navigateur n'a PAS de chemin que le gateway puisse
+   ouvrir : le fichier n'existe que sur le disque du client. Il envoie donc les
+   octets, et le gateway materialise. Mais les images et les autres fichiers ne
+   passent pas par la meme porte, et les trois portes n'ont pas le meme contrat.
+
+   · `file.attach` (methods_prompt.py:640) — accepte `data_url`, garde le
+     fichier comme un ARTEFACT LISIBLE et renvoie `ref_text` (« @file:… »),
+     la reference que les outils de l'agent savent lire.
+   · `image.attach` (methods_prompt.py:410) — veut un `path` **que le gateway
+     voit sur son propre disque**. Il ne regarde jamais `data_url`.
+   · `image.attach_bytes` (methods_prompt.py:453) — prend `content_base64`,
+     ecrit les octets dans le dossier d'images du gateway et les met dans
+     `session["attached_images"]`. Sa docstring decrit exactement notre cas :
+     *« a web dashboard running on a DIFFERENT machine than the gateway can't
+     hand us a local path »*.
+
+   ⚠ CE CODE APPELAIT `image.attach` AVEC UN `data_url`. Le gateway repondait
+   **`4016 image not found: <nom>`** — pour une image collee comme pour une
+   image passee par le « + », et depuis toujours. Le banc d'essai ne pouvait
+   pas le voir : son faux Hermes acceptait n'importe quel appel. Constate en
+   direct le 2026-08-11, contre le vrai gateway.
+
+   ⚠ UNE IMAGE NE RENVOIE PAS DE REFERENCE, et c'est normal : elle ne se lit
+   pas, elle se REGARDE. Elle est mise en file sur la session et part avec le
+   prochain tour, ou `agent/image_routing.py` decide de la donner en pixels ou
+   de la faire decrire. Il ne faut donc RIEN ajouter au message — `refsJointes()`
+   ecarte les pieces sans `ref`, ce qui est le comportement voulu. */
 async function attacherFichier(file){
   const sid = await ensureSession();
   const dataUrl = await new Promise((resolve, reject) => {
@@ -631,10 +714,19 @@ async function attacherFichier(file){
     r.readAsDataURL(file);
   });
   const image = (file.type || "").indexOf("image/") === 0;
-  const res = await link.rpc(image ? "image.attach" : "file.attach",
-    { session_id: sid, path: file.name, data_url: dataUrl }, 120000);
+  const res = image
+    ? await link.rpc("image.attach_bytes",
+        { session_id: sid, content_base64: dataUrl, filename: file.name }, 120000)
+    : await link.rpc("file.attach",
+        { session_id: sid, path: file.name, data_url: dataUrl, name: file.name }, 120000);
   return {
-    name: (res && res.name) || file.name,
+    // ⚠ POUR UNE IMAGE, ON GARDE LE NOM D'ORIGINE. `image.attach_bytes` rend
+    // le nom qu'il a ECRIT dans son dossier — « upload_20260811_194446_1.png »,
+    // constate en direct. C'est un nom interne au gateway : la personne a
+    // choisi « photo-vacances.png » et ne reconnaitrait pas le sien.
+    // Pour `file.attach` c'est l'inverse : son `name` est celui du fichier
+    // range dans l'espace de la session, donc celui que « @file: » designe.
+    name: (image ? file.name : (res && res.name)) || file.name,
     ref: (res && res.ref_text) || "",
     image: image,
     size: file.size

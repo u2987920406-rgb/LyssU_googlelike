@@ -50,6 +50,16 @@
 .u-todo b{color:var(--muted);font-weight:500}
 .u-todo code{background:var(--surface);border-radius:6px;padding:1px 6px}
 
+/* Sélecteur de modèle (Réglages > Le cerveau). Réutilise les variables de
+   la feuille ; pas de style propre au navigateur. */
+.u-select{width:100%;max-width:520px;margin:4px 0 2px;padding:9px 10px;
+  font-size:var(--font-size-sm);color:var(--text);background:var(--surface);
+  border:1px solid var(--outline);border-radius:9px;appearance:none;
+  -webkit-appearance:none;cursor:pointer}
+.u-select:hover{border-color:var(--outline-strong)}
+.u-meta{font-size:var(--font-size-xs);color:var(--faint);margin:2px 0 12px;
+  line-height:1.5}
+
 /* Une note de bas de bloc — ce que `.glegend` faisait à tort hors du canevas.
    `.glegend` est `position:absolute` : dans un panneau ordinaire elle se
    détachait du flux et allait se poser sur ce qui suivait. Deux emplois de
@@ -101,6 +111,17 @@
 .u-tool pre{white-space:pre-wrap;word-break:break-word;font-size:var(--font-size-xs);
   background:var(--bg);border-radius:6px;padding:8px;margin-top:6px;
   max-height:260px;overflow:auto}
+/* L'agent a lu ou écrit un fichier : la ligne EST le lien qui l'ouvre. Pas de
+   carte en plus — la ligne le nomme déjà, et deux signes pour une seule chose
+   est ce qu'on retire partout ailleurs. Le « ▸ résultat » garde son geste :
+   la délégation ignore les clics à l'intérieur d'un <details>. */
+.u-tool.ouvrable{cursor:pointer;transition:background .15s ease,box-shadow .15s ease}
+.u-tool.ouvrable:hover{background:var(--surface-hi)}
+.u-tool.ouvrable:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.u-tool.ouvrable .f-go{margin-left:8px;font-size:var(--font-size-xs);
+  color:var(--accent);opacity:0;transition:opacity .15s ease}
+.u-tool.ouvrable:hover .f-go,.u-tool.ouvrable:focus-visible .f-go{opacity:.85}
+.u-tool.ouvrable details{cursor:auto}
 
 /* Les couples clé/valeur (état de session, état d'Hermès). */
 .u-kv{display:grid;grid-template-columns:auto 1fr;gap:6px 16px;
@@ -1271,5 +1292,6 @@
 <script src="ulysse-view.js"></script>
 <script src="ulysse-core.js"></script>
 <script src="ulysse-app.js"></script>
+<script src="ulysse-artifact.js"></script>
 </body>
 </html>
