@@ -74,6 +74,30 @@ function esc(s){
       markdown n'avait aucun style. Les règles suivent maintenant la
       classe, pas l'endroit.
    ────────────────────────────────────────────────────────────────────── */
+/* Ce qui suit la clôture d'un bloc — « ```csv », « ```csv ventes.csv », rien.
+   On en tire un NOM DE FICHIER et une étiquette.
+
+   ⚠ JAMAIS UN NOM INVENTÉ QUI RESSEMBLE À UN VRAI. Mieux vaut « extrait.csv »
+   qu'un « rapport-final.csv » que personne n'a demandé : un nom plausible fait
+   croire à une intention qui n'existe pas. Et on n'accepte comme nom que ce
+   qui EST un nom — pas de chemin, pas de « .. », rien qui puisse viser
+   ailleurs que le dossier de téléchargement. */
+function nomDeBloc(info){
+  const bouts = String(info || "").trim().split(/\s+/).filter(Boolean);
+  const langue = (bouts[0] || "").toLowerCase().replace(/[^a-z0-9+#-]/g, "");
+  const propose = bouts.slice(1).join(" ").trim();
+  if (propose && /^[^\\/:*?"<>|]+\.[A-Za-z0-9]{1,8}$/.test(propose)
+      && propose.indexOf("..") < 0){
+    return { nom: propose, etiquette: propose };
+  }
+  const EXT = { js: "js", javascript: "js", json: "json", csv: "csv", md: "md",
+                markdown: "md", html: "html", css: "css", py: "py",
+                python: "py", sql: "sql", xml: "xml", yaml: "yaml", yml: "yaml",
+                svg: "svg", sh: "sh", bash: "sh", txt: "txt" };
+  const ext = EXT[langue] || "txt";
+  return { nom: "extrait." + ext, etiquette: langue || "texte" };
+}
+
 function mdRender(src, prof){
   if (src === null || src === undefined) return "";
   const lines = String(src).split(/\r?\n/);
@@ -141,9 +165,27 @@ function mdRender(src, prof){
         i++;
       }
       if (i < lines.length) i++;   // la ligne de fermeture
-      // Un bloc jamais fermé n'est pas une raison de perdre le texte : on le
-      // rend quand même, jusqu'à la fin.
-      out.push('<pre class="u-md-c"><code>' + esc(code.join("\n")) + "</code></pre>");
+      /* Un bloc jamais fermé n'est pas une raison de perdre le texte : on le
+         rend quand même, jusqu'à la fin.
+
+         ⚠ ET ON PEUT L'EMPORTER. Un bloc de code EST un fichier qui s'ignore :
+         il a un contenu, souvent une langue, parfois un nom. On lui ajoute
+         donc de quoi partir sur le disque — et rien d'autre.
+         PAS DE CARTE : la carte de fichier désigne un fichier qui EXISTE et
+         qu'on va lire ; ici il n'y a rien à ouvrir, il y a un texte à
+         emporter. Deux choses différentes, deux apparences.
+         La règle NE DÉPEND PAS DU MODE : un bloc s'emporte en Discussion
+         comme en Cowork. La rendre valable d'un seul côté serait une seconde
+         mécanique pour la même chose.
+         Voir PASSE-DESIGN-CHAT-NON-BLOQUANT.md §3. */
+      const info = String(cloture[2] || "").trim();
+      out.push('<figure class="u-md-fig">'
+        + '<figcaption class="u-md-cap"><span>' + esc(nomDeBloc(info).etiquette)
+        + '</span><button class="u-md-dl" type="button" data-nom="'
+        + encodeURIComponent(nomDeBloc(info).nom) + '" title="Emporter ce bloc">⤓</button>'
+        + '</figcaption>'
+        + '<pre class="u-md-c"><code>' + esc(code.join("\n")) + "</code></pre>"
+        + '</figure>');
       continue;
     }
     // --- Tableau : | en-tête |, ligne |---|, lignes corps | ... | ---
@@ -260,6 +302,39 @@ function mdRender(src, prof){
   return out.join("");
 }
 
+
+/* Emporter un bloc de code. UNE SEULE délégation, sur le document : un bloc
+   est rendu dans le fil, dans le volet, et partout où `.u-md` apparaîtra
+   demain. Brancher le geste par endroit, c'est le même piège que les deux
+   visualiseurs — il finirait par marcher ici et pas là.
+
+   Rien ne touche le disque tant que la personne ne clique pas, et ce clic EST
+   son accord : il n'y a rien à approuver parce qu'il n'y a rien à risquer.
+   Voir PASSE-DESIGN-CHAT-NON-BLOQUANT.md §1.
+
+   `Blob` + `createObjectURL` plutôt qu'une data URL : le contenu peut peser,
+   et une data URL le recopierait en base64 dans le DOM (+33 %). L'URL est
+   révoquée juste après — un objet non révoqué reste en mémoire jusqu'au
+   rechargement de la page. */
+document.addEventListener("click", (e) => {
+  const b = e.target.closest && e.target.closest(".u-md-dl");
+  if (!b) return;
+  const fig = b.closest(".u-md-fig");
+  const code = fig && fig.querySelector("pre code");
+  if (!code) return;
+  const nom = decodeURIComponent(b.dataset.nom || "extrait.txt");
+  const url = URL.createObjectURL(new Blob([code.textContent],
+    { type: "text/plain;charset=utf-8" }));
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = nom;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+  b.classList.add("ok");
+  setTimeout(() => b.classList.remove("ok"), 1100);
+});
 
 /* ═══ Le bandeau du bas (snack) ═══════════════════════════════════════════
    Repris verbatim. Une action annulable le dit sur place, et pendant six

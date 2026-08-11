@@ -1662,6 +1662,21 @@ svg.graph *{cursor:inherit}
 .u-md pre.u-md-c{margin:0 0 var(--space-3);padding:12px 14px;border-radius:10px;
   background:var(--surface,#F0F4F9);border:1px solid var(--surface-hi,#E9EEF6);
   overflow-x:auto}
+/* Le bandeau d'un bloc : la langue, et de quoi l'emporter. DISCRET — c'est
+   une mention, pas un panneau de commandes, et le bloc reste le sujet. */
+.u-md figure.u-md-fig{margin:0 0 var(--space-3)}
+.u-md figure.u-md-fig pre.u-md-c{margin:0;border-top-left-radius:0;
+  border-top-right-radius:0;border-top:none}
+.u-md .u-md-cap{display:flex;align-items:center;gap:8px;padding:5px 12px;
+  border:1px solid var(--surface-hi,#E9EEF6);border-bottom:none;
+  border-radius:10px 10px 0 0;background:var(--surface-hi,#E9EEF6);
+  font-size:11.5px;color:var(--muted,#5F6368);
+  font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+.u-md .u-md-dl{margin-left:auto;width:24px;height:24px;border-radius:6px;
+  display:flex;align-items:center;justify-content:center;font-size:13px;
+  color:var(--muted,#5F6368);transition:background .15s,color .15s}
+.u-md .u-md-dl:hover{background:var(--bg,#fff);color:var(--accent,#0B57D0)}
+.u-md .u-md-dl.ok{color:var(--green,#188038)}
 .u-md pre.u-md-c code{background:none;padding:0;border-radius:0;font-size:.88em;
   line-height:1.55;white-space:pre;display:block}
 .u-md blockquote{margin:0 0 var(--space-3);padding:.2em .9em;border-left:3px solid var(--accent,#7c5cff);

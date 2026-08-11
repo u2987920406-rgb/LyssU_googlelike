@@ -2987,13 +2987,91 @@ async function main(){
   // En Discussion le proxy n'envoie que du texte : joindre ouvrirait une
   // session Cowork dans le dos de la personne pour une pièce qui n'arriverait
   // pas. On le dit, on ne le fait pas.
+  /* ══ Coller une image en DISCUSSION ═══════════════════════════════════════
+     Un refus y a été posé le 2026-08-11, justifié par « le proxy n'envoie que
+     du texte ». C'était FAUX : `hermes_cli/proxy/server.py` transmet le corps
+     VERBATIM et ne retire pas un `content` en tableau. Un refus préventif
+     interdit un geste qui marche.
+     Mais le refus protégeait une chose réelle : `attacherFichier()` appelle
+     `ensureSession()`, donc joindre ouvrait une session Cowork dans le dos.
+     Les deux doivent tenir ensemble — l'image passe, ET aucune session ne
+     s'ouvre. Voir PASSE-DESIGN-CHAT-NON-BLOQUANT.md §4. */
   win.eval('setMode2("pur")');
-  await wait(40);
-  const avantColle = FakeWS.sent.length;
-  win.eval('collerCapture({ clipboardData: { items: [] }, preventDefault(){} })');
   await wait(60);
-  check("en Discussion, coller n'ouvre pas de session dans le dos",
-    FakeWS.sent.length === avantColle);
+  const avantColle = FakeWS.sent.length;
+  win.eval(`(function(){
+    const bin = atob("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==");
+    const a = new Uint8Array(bin.length);
+    for (let i = 0; i < bin.length; i++) a[i] = bin.charCodeAt(i);
+    const f = new File([a], "colle.png", { type: "image/png" });
+    return surFichiers([f]);
+  })()`);
+  await wait(250);
+  const jointeDisc = JSON.parse(win.eval("JSON.stringify(jointes)"));
+  check("en Discussion, une image collée est acceptée",
+    jointeDisc.length === 1 && jointeDisc[0].etat === "prete",
+    JSON.stringify(jointeDisc.map((j) => j.etat)));
+  check("...elle garde ses OCTETS, elle n'a pas de référence de session",
+    jointeDisc.length === 1 && /^data:image\/png;base64,/.test(jointeDisc[0].dataUrl)
+    && !jointeDisc[0].ref);
+  // ⚠ Ce que le refus protégeait de vrai : pas de session ouverte dans le dos.
+  check("...et AUCUNE session Cowork ne s'ouvre dans le dos",
+    FakeWS.sent.length === avantColle,
+    (FakeWS.sent.length - avantColle) + " trame(s) envoyée(s)");
+  // Un fichier non-image, lui, n'a aucun chemin en Discussion : on le dit.
+  win.eval(`surFichiers([new File(["texte"], "notes.txt", { type: "text/plain" })])`);
+  await wait(150);
+  check("...un fichier non-image est refusé, en disant quoi faire",
+    JSON.parse(win.eval("JSON.stringify(jointes)")).length === 1
+    && /ne peut pas être lu en Discussion/.test(
+        win.document.getElementById("snack").textContent),
+    win.document.getElementById("snack").textContent.trim());
+
+  // ⚠ ET L'IMAGE PART VRAIMENT — en contenu multimodal OpenAI, la forme que
+  //    le fournisseur attend, puisque le proxy ne la retouche pas.
+  fetched.length = 0;
+  let corpsEnvoye = null;
+  const vraiFetch = win.fetch;
+  win.fetch = (url, opts) => {
+    if (String(url).indexOf("/proxy/chat") >= 0 && opts && opts.body){
+      try { corpsEnvoye = JSON.parse(opts.body); } catch (e){ corpsEnvoye = null; }
+    }
+    return vraiFetch(url, opts);
+  };
+  win.document.getElementById("reply").value = "Que vois-tu ?";
+  win.document.getElementById("composer").dispatchEvent(new win.Event("submit"));
+  await wait(200);
+  win.fetch = vraiFetch;
+  const dernier = corpsEnvoye && corpsEnvoye.messages
+    ? corpsEnvoye.messages[corpsEnvoye.messages.length - 1] : null;
+  check("l'image part dans le message, en contenu multimodal",
+    !!dernier && Array.isArray(dernier.content)
+    && dernier.content.some((p) => p.type === "image_url"
+        && /^data:image\//.test((p.image_url || {}).url || "")),
+    JSON.stringify(dernier && dernier.content).slice(0, 90));
+  check("...avec le texte de la personne à côté, pas à la place",
+    !!dernier && Array.isArray(dernier.content)
+    && dernier.content.some((p) => p.type === "text" && /Que vois-tu/.test(p.text)));
+  check("...et les pièces sont vidées après l'envoi",
+    JSON.parse(win.eval("JSON.stringify(jointes)")).length === 0);
+  // Sans image, la forme reste SIMPLE : une chaîne, pas un tableau à une part.
+  win.document.getElementById("reply").value = "Juste du texte";
+  corpsEnvoye = null;
+  win.fetch = (url, opts) => {
+    if (String(url).indexOf("/proxy/chat") >= 0 && opts && opts.body){
+      try { corpsEnvoye = JSON.parse(opts.body); } catch (e){ corpsEnvoye = null; }
+    }
+    return vraiFetch(url, opts);
+  };
+  win.document.getElementById("composer").dispatchEvent(new win.Event("submit"));
+  await wait(200);
+  win.fetch = vraiFetch;
+  const simple = corpsEnvoye && corpsEnvoye.messages
+    ? corpsEnvoye.messages[corpsEnvoye.messages.length - 1] : null;
+  check("un message sans image reste une simple chaîne",
+    !!simple && typeof simple.content === "string",
+    typeof (simple && simple.content));
+
   win.eval('setMode2("cowork")');
   await wait(40);
 
@@ -3115,6 +3193,44 @@ async function main(){
   check("...et un bloc de code défile plutôt que de pousser la colonne",
     pre.overflowX === "auto", pre.overflowX);
   dehors.remove();
+
+  /* ══ Emporter un bloc de code ═════════════════════════════════════════════
+     En Discussion, le modèle ne peut rien écrire sur le disque — et il n'en a
+     pas besoin. Il écrit le contenu dans sa réponse ; c'est Ulysse qui en fait
+     un fichier, au clic, dans le navigateur. Rien ne touche le disque tant
+     qu'on ne clique pas, et ce clic EST l'accord.
+     Voir PASSE-DESIGN-CHAT-NON-BLOQUANT.md §1 et §3. */
+  const bloc2 = md("```csv\nmois,ventes\njanvier,1240\n```");
+  check("un bloc de code porte de quoi l'emporter",
+    bloc2.indexOf("u-md-dl") >= 0 && bloc2.indexOf("u-md-fig") >= 0,
+    bloc2.slice(0, 110));
+  check("...et PAS une carte de fichier — il n'y a rien à ouvrir",
+    bloc2.indexOf("f-carte") < 0);
+  // Le nom : la clôture d'abord, sinon la langue, jamais un nom inventé.
+  const nomDe = (src) => decodeURIComponent(
+    (md(src).match(/data-nom="([^"]*)"/) || [])[1] || "");
+  check("le nom vient de la clôture quand l'agent en donne un",
+    nomDe("```csv ventes-2026.csv\na,b\n```") === "ventes-2026.csv",
+    nomDe("```csv ventes-2026.csv\na,b\n```"));
+  check("...sinon de la langue, sans rien inventer de plausible",
+    nomDe("```csv\na,b\n```") === "extrait.csv"
+    && nomDe("```python\nx=1\n```") === "extrait.py"
+    && nomDe("```\ntexte\n```") === "extrait.txt",
+    [nomDe("```csv\na,b\n```"), nomDe("```python\nx=1\n```"),
+     nomDe("```\ntexte\n```")].join(" · "));
+  /* ⚠ UN NOM N'EST PAS UN CHEMIN. `download` accepte ce qu'on lui donne : un
+     agent qui écrirait « ```csv ../../ailleurs.csv » ne doit pas pouvoir
+     viser hors du dossier de téléchargement. On n'accepte comme nom que ce
+     qui EST un nom, et on retombe sur le défaut sinon. */
+  check("un chemin proposé comme nom est refusé, pas nettoyé à moitié",
+    nomDe("```csv ../../ailleurs.csv\na\n```") === "extrait.csv"
+    && nomDe("```csv C:\\\\Windows\\\\x.csv\na\n```") === "extrait.csv",
+    nomDe("```csv ../../ailleurs.csv\na\n```"));
+  // Le geste est branché sur le DOCUMENT : le bloc s'emporte dans le fil ET
+  // dans le volet. Le brancher par endroit finirait par marcher ici, pas là.
+  const srcVue = fs.readFileSync(path.join(DIR, "ulysse-view.js"), "utf8");
+  check("le geste est branché une fois, sur le document — pas par endroit",
+    /document\.addEventListener\("click"[\s\S]{0,120}u-md-dl/.test(srcVue));
 
   console.log("\n--- Aucune erreur JavaScript pendant tout ça ---");
   check("la console est restée propre", errors.length === 0, errors.slice(0, 3).join(" | "));

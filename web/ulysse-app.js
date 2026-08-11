@@ -556,12 +556,25 @@ function reseauHS(){
 /* ═══ Les pièces jointes ═════════════════════════════════════════════════
    Le « + » ouvre le sélecteur du système. Le navigateur n'a pas de chemin
    serveur à donner : il envoie les octets, et le gateway matérialise le
-   fichier dans l'espace de la session (file.attach / image.attach). Ce qu'on
-   récupère est une référence « @file:… » que les outils de l'agent savent
-   lire — c'est elle qu'on ajoute au message.
+   fichier dans l'espace de la session (file.attach / image.attach_bytes). Ce
+   qu'on récupère est une référence « @file:… » que les outils de l'agent
+   savent lire — c'est elle qu'on ajoute au message.
+
+   ⚠ UNE SEULE LISTE, DEUX FAÇONS D'EN SORTIR. En Cowork la pièce est
+   matérialisée par le gateway et part comme RÉFÉRENCE ; en Discussion il n'y
+   a pas de session à nourrir, donc l'image part DANS LE MESSAGE, en contenu
+   multimodal — le proxy transmet le corps verbatim
+   (`hermes_cli/proxy/server.py`), il ne retire pas un `content` en tableau.
+   Ce n'est pas un second chemin pour un même geste : c'est le même geste,
+   et ce qu'il y a en face n'est pas la même chose.
+   Voir PASSE-DESIGN-CHAT-NON-BLOQUANT.md §4.
    ─────────────────────────────────────────────────────────────────────── */
 
-const jointes = [];    // {name, ref, image, size, etat:"envoi"|"prete"|"echec"}
+// {name, ref, image, size, etat:"envoi"|"prete"|"echec", dataUrl}
+//   · `ref`     — Cowork : « @file:… », rendu par le gateway ;
+//   · `dataUrl` — Discussion : les octets, qui partent dans le message.
+// Jamais les deux. Une pièce sait comment elle voyage.
+const jointes = [];
 // Il n'y a PAS de seconde liste pour les images collees. Elles entrent ici,
 // par le meme chemin que le « + » : une image collee est une image jointe.
 // Voir PASSE-DESIGN-COLLER-IMAGE.md §1 — le collage avait sa propre mecanique
@@ -610,14 +623,36 @@ async function surFichiers(files){
         + " Passez par les Livrables.");
       continue;
     }
-    const j = { name: f.name, ref: "", image: image, size: f.size, etat: "envoi" };
+    /* ⚠ EN DISCUSSION, UNE IMAGE NE PASSE PAS PAR LE GATEWAY. Il n'y a pas de
+       session à nourrir, et `attacherFichier()` en ouvrirait une — une session
+       Cowork dans le dos de la personne, pour une pièce qui n'y servirait pas.
+       On garde donc les octets ici, et ils partiront DANS le message.
+       Un fichier non-image, lui, n'a aucun chemin en Discussion : le modèle ne
+       peut pas l'ouvrir, et personne ne peut le lire pour lui. On le dit. */
+    if (mode === "pur" && !image){
+      snack("« " + f.name + " » ne peut pas être lu en Discussion — le modèle "
+        + "n'ouvre pas de fichier. Passez en Cowork, ou collez le texte.");
+      continue;
+    }
+    const j = { name: f.name, ref: "", image: image, size: f.size, etat: "envoi",
+                dataUrl: "" };
     jointes.push(j);
     dessineJointes();
     try {
-      const res = await attacherFichier(f);
-      j.ref = res.ref;
-      j.name = res.name || j.name;
-      j.etat = "prete";
+      if (mode === "pur"){
+        j.dataUrl = await new Promise((res, rej) => {
+          const r = new FileReader();
+          r.onload = () => res(r.result);
+          r.onerror = () => rej(new Error("lecture de l'image impossible"));
+          r.readAsDataURL(f);
+        });
+        j.etat = "prete";
+      } else {
+        const res = await attacherFichier(f);
+        j.ref = res.ref;
+        j.name = res.name || j.name;
+        j.etat = "prete";
+      }
     } catch (e){
       j.etat = "echec";
       snack("« " + f.name + " » n'a pas pu être joint : " + e.message);
@@ -817,14 +852,13 @@ async function collerCapture(e){
   }
   if (!blob) return;                 // pas d'image : on laisse le texte passer
   e.preventDefault();                // on gere nous-memes
-  // En Discussion il n'y a pas de session, et le proxy n'envoie que du texte :
-  // joindre ouvrirait une session Cowork dans le dos de la personne pour une
-  // piece que le modele ne recevrait pas. On le dit, on ne le fait pas.
-  if (mode === "pur"){
-    snack("En Discussion, le modèle ne reçoit que du texte — passez en Cowork "
-          + "pour joindre une image.");
-    return;
-  }
+  /* ⚠ PLUS DE REFUS EN DISCUSSION. Il y en a eu un, le 2026-08-11, justifie
+     par « le proxy n'envoie que du texte ». C'ETAIT FAUX : le proxy transmet
+     le corps verbatim et ne retire pas un `content` en tableau. Un refus
+     preventif interdit un geste qui marche ; `surFichiers` sait maintenant
+     garder les octets pour les mettre dans le message.
+     Ce que le refus protegeait de vrai — l'ouverture d'une session Cowork
+     dans le dos — est traite la-bas, au bon endroit. */
   // Le presse-papiers n'a pas de nom de fichier ; sans nom, la piece jointe
   // s'appellerait « blob ». L'horodatage rend deux collages distinguables.
   const d = new Date();
@@ -845,12 +879,11 @@ async function onSend(ev){
     // En Chat il n'y a pas de session à ouvrir : le tour part et s'affiche.
     // Attendre quoi que ce soit serait une attente inventée.
     quitterAccueil();
-    // Les pieces jointes ne servent qu'en Cowork — l'agent est le seul a
-    // pouvoir les ouvrir. Les images collees suivent la meme regle depuis
-    // qu'elles sont des pieces jointes : c'est justement ce qu'on a gagne.
-    if (jointes.length) snack("Les pièces jointes ne servent qu'en Cowork — "
-      + "en Discussion, le modèle ne peut rien ouvrir.");
-    await sendPure(text, text);
+    // Les images prêtes partent DANS le message, en contenu multimodal. Rien
+    // à annoncer : ce qui part, part. C'est le modèle qui décidera s'il voit,
+    // et `sendPure` dira la vérité s'il ne voit pas.
+    await sendPure(text, text, jointes.filter((j) => j.image && j.dataUrl));
+    viderJointes();
     return;
   }
   // Le premier message de Cowork ouvre la session : c'est la seule attente
@@ -865,7 +898,7 @@ async function onSend(ev){
 
 /* Le chat pur passe par /proxy/chat sur NOTRE origine : serve.py relaie vers
    le proxy Hermès et y pose la clé. La page n'en détient aucune. */
-async function sendPure(displayText, sendText){
+async function sendPure(displayText, sendText, images){
   const push = (role, txt, state) => {
     const t = { key: Date.now() + Math.random(), role: role, text: txt, tools: [],
                 reasoning: "", state: state || "done" };
@@ -873,7 +906,20 @@ async function sendPure(displayText, sendText){
     return t;
   };
   push("user", displayText);
-  pureHistory.push({ role: "user", content: sendText || displayText });
+  /* Le contenu multimodal d'OpenAI : une chaîne quand il n'y a que du texte,
+     un TABLEAU de parties dès qu'une image s'y joint. Le proxy transmet le
+     corps verbatim, donc la forme est celle que le fournisseur attend.
+     On n'envoie le tableau QUE s'il y a une image : un tableau à une seule
+     partie texte marcherait, mais il ferait payer la forme compliquée à tous
+     les messages, et il rendrait `pureHistory` illisible à la relecture. */
+  const parties = (images || []).filter((j) => j.dataUrl);
+  pureHistory.push({
+    role: "user",
+    content: parties.length
+      ? [{ type: "text", text: sendText || displayText }].concat(
+          parties.map((j) => ({ type: "image_url", image_url: { url: j.dataUrl } })))
+      : (sendText || displayText)
+  });
   const pending = push("assistant", "", "streaming");
   pureBusy = true;
   paintThread();
@@ -912,7 +958,20 @@ async function sendPure(displayText, sendText){
   } catch (e){
     drop();
     pureHistory.pop();
-    if (e.status === 403){
+    /* ⚠ L'IMAGE QUI N'EST PAS VUE. En Cowork, Hermès la fait DÉCRIRE par un
+       autre modèle quand le modèle courant n'a pas la vision
+       (`agent/image_routing.py`). En Discussion il n'y a pas d'agent : ce
+       filet n'existe pas, et le fournisseur refuse le message.
+       On ne l'a pas interdit d'avance — un refus préventif interdit un geste
+       qui marche. On dit donc la vérité APRÈS, et on dit quoi faire.
+       Ce cas passe en premier : sans lui, un 400 dû à l'image tomberait dans
+       le message générique et accuserait le proxy à tort. */
+    if (parties.length && (e.status === 400 || e.status === 415
+                           || e.status === 422 || e.status === 404)){
+      push("system", "Ce modèle n'a pas accepté l'image — en Discussion il n'y "
+        + "a pas d'agent pour la décrire à sa place. Le texte n'est pas parti. "
+        + "Passez en Cowork : Hermès la fera décrire si le modèle ne voit pas.");
+    } else if (e.status === 403){
       push("system", "Le modèle gratuit est saturé. Réessayez dans quelques secondes. "
         + "Si le problème persiste, le modèle par défaut se règle dans votre "
         + "installation d'Hermès (Ulysse n'en choisit aucun).");
