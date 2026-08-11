@@ -1039,7 +1039,7 @@ async function drawEtabli(){
     }).join("") || '<div class="u-load">Dossier vide.</div>');
     wireFileRows("files", (p) => { etabliPath = p; drawEtabli(); });
   } catch (e){
-    H("files", '<div class="u-todo">Lecture impossible : ' + esc(e.message) + "</div>");
+    H("files", '<div class="u-todo">Lecture impossible : ' + esc(pannePhrase(e)) + "</div>");
   }
 }
 
@@ -1482,7 +1482,7 @@ async function drawWorks(){
     travCache = (d && d.sessions) || [];
     drawWorksListe();
   } catch (e){
-    H("works", '<div class="u-todo">Lecture impossible : ' + esc(e.message) + "</div>");
+    H("works", '<div class="u-todo">Lecture impossible : ' + esc(pannePhrase(e)) + "</div>");
   }
 }
 
@@ -1575,7 +1575,7 @@ async function drawLivrables(){
     });
     drawLivListe();
   } catch (e){
-    H("livrables", '<div class="u-todo">Lecture impossible : ' + esc(e.message) + "</div>");
+    H("livrables", '<div class="u-todo">Lecture impossible : ' + esc(pannePhrase(e)) + "</div>");
   }
 }
 
@@ -2043,7 +2043,7 @@ async function feuilleChoisirDossier(depart, choisi){
     try {
       d = await REST.files(ici || undefined);
     } catch (e){
-      H("ranList", '<div class="u-todo">Lecture impossible : ' + esc(e.message) + "</div>");
+      H("ranList", '<div class="u-todo">Lecture impossible : ' + esc(pannePhrase(e)) + "</div>");
       prendre.textContent = "Choisissez un dossier";
       return;
     }
@@ -2549,7 +2549,7 @@ async function drawProjets(){
       ouvrirReglages(1);             // « Ce qu'Ulysse sait » — la mémoire
     });
   } catch (e){
-    H("projets", '<div class="u-todo">Lecture impossible : ' + esc(e.message) + "</div>");
+    H("projets", '<div class="u-todo">Lecture impossible : ' + esc(pannePhrase(e)) + "</div>");
   }
 }
 
@@ -2595,7 +2595,7 @@ async function drawAutos(){
       }).join("");
     }
   } catch (e){
-    corps += '<div class="u-todo">Tâches planifiées illisibles : ' + esc(e.message) + "</div>";
+    corps += '<div class="u-todo">Tâches planifiées illisibles : ' + esc(pannePhrase(e)) + "</div>";
   }
 
   // --- Webhooks ---------------------------------------------------------
@@ -2659,7 +2659,7 @@ async function drawAutos(){
       }
     }
   } catch (e){
-    corps += '<div class="u-todo">Webhooks illisibles : ' + esc(e.message) + "</div>";
+    corps += '<div class="u-todo">Webhooks illisibles : ' + esc(pannePhrase(e)) + "</div>";
   }
 
   H("autos", corps);
@@ -2758,7 +2758,7 @@ async function drawVestiaire(){
     } catch (e){
       skillsCache = [];
       H("vgrid", '<div class="u-todo" style="grid-column:1/-1">Lecture impossible : '
-        + esc(e.message) + "</div>");
+        + esc(pannePhrase(e)) + "</div>");
       return;
     }
   }
@@ -3376,7 +3376,7 @@ async function drawSet(){
       await drawMemFiles();
     } catch (e){
       b.innerHTML = titre("Ce qu'Ulysse sait")
-        + '<div class="u-todo">Lecture impossible : ' + esc(e.message) + "</div>";
+        + '<div class="u-todo">Lecture impossible : ' + esc(pannePhrase(e)) + "</div>";
     }
     return;
   }
@@ -3485,7 +3485,7 @@ async function drawSet(){
         + "au même titre que le reste : c'est le même cerveau, facturé de la même façon.</div>";
     } catch (e){
       b.innerHTML = titre("Dépenses")
-        + '<div class="u-todo">Lecture impossible : ' + esc(e.message)
+        + '<div class="u-todo">Lecture impossible : ' + esc(pannePhrase(e))
         + ". Hermès expose <code>/api/analytics/usage</code> ; s'il répond 404, "
         + "cette version ne le fournit pas.</div>";
     }

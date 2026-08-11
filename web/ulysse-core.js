@@ -88,6 +88,42 @@ async function api(path, opts){
   return parsed ? data : { raw: text };
 }
 
+/* Une panne, dite en mots dont on peut faire quelque chose.
+
+   ⚠ SEPT PANNEAUX ÉCRIVAIENT « Lecture impossible : HTTP 502 — Bad Gateway ».
+   C'est vrai, et c'est un mur poli : la personne apprend que ça a raté et rien
+   d'autre. Un message d'échec doit dire trois choses — QUE ça a raté, POURQUOI
+   en mots utiles, et QUOI FAIRE. Un message qui s'arrête au deuxième n'a fait
+   que la moitié du chemin.
+
+   Constaté le 2026-08-12 en éprouvant les chemins dégradés — aucun de ces
+   messages n'avait jamais été mis en scène.
+
+   Le code technique reste, entre parenthèses : quand kuchu me montrera une
+   capture, c'est lui qui me dira où chercher. */
+function pannePhrase(e){
+  const s = e && e.status;
+  const brut = (e && e.message) || "erreur inconnue";
+  if (s === 0 || (e && e.offline)){
+    return "Le serveur d'Ulysse ne répond pas. Relancez lancer_ulysse.bat, "
+      + "puis rechargez cette page. (" + brut + ")";
+  }
+  if (s === 401 || s === 403){
+    return "Hermès a refusé la demande — le jeton de session n'est plus valable. "
+      + "Fermez les fenêtres Ulysse-* et relancez lancer_ulysse.bat : il en "
+      + "fabrique un neuf à chaque démarrage. (" + brut + ")";
+  }
+  if (s === 404){
+    return "Hermès ne connaît pas cette adresse. Votre version d'Hermès est "
+      + "peut-être plus ancienne que cet écran. (" + brut + ")";
+  }
+  if (s === 502 || s === 503 || s === 504){
+    return "Hermès ne répond pas. Vérifiez la fenêtre « Ulysse-Dashboard », ou "
+      + "relancez lancer_ulysse.bat. (" + brut + ")";
+  }
+  return brut;
+}
+
 /* --- Les appels REST reellement disponibles -------------------------------
    Chaque methode nomme sa source. Ce qui n'y figure pas n'existe pas. */
 const REST = {
@@ -563,9 +599,19 @@ link.onState((s) => {
     // La session vivante appartient a la connexion : le gateway la detruit a
     // la fermeture du WebSocket. Garder son identifiant faisait envoyer les
     // prompts suivants a une session morte, silencieusement.
+    /* ⚠ CE MESSAGE PROMETTAIT CE QU'IL NE POUVAIT PAS TENIR. Il disait « le
+       prochain message en ouvrira une nouvelle » — mais le lien VIENT d'être
+       coupé : le prochain message n'ouvrira rien du tout, il tombera sur
+       l'erreur de `submitPrompt`. Deux messages qui se contredisent à une
+       minute d'intervalle, et c'est le premier qu'on lit.
+       Il ne promet donc plus qu'une chose vraie : la session est perdue. Et il
+       dit l'issue la plus proche, la même que l'autre — la Discussion n'a pas
+       besoin de ce lien. Constaté le 2026-08-12, en éprouvant les chemins
+       dégradés. */
     if (conv.sessionId){
-      coreHooks.onSystem("Lien interrompu : la session est fermee. Le prochain message "
-        + "en ouvrira une nouvelle.");
+      coreHooks.onSystem("Lien interrompu : la session en cours est perdue. "
+        + "Relancez lancer_ulysse.bat pour reprendre en Cowork, ou passez en "
+        + "Discussion : elle n'a pas besoin de ce lien.");
     }
     conv.sessionId = null;
     conv.info = null;
@@ -605,6 +651,28 @@ async function submitPrompt(text, opts){
   const shown = text;
   const sent = opts.preamble ? opts.preamble + "\n\n" + text : text;
 
+  /* ⚠ ON NE FAIT PAS ATTENDRE POUR UNE RÉPONSE QU'ON CONNAÎT DÉJÀ.
+     Le lien coupé, `ensureSession` appelait quand même `link.ready()`, qui
+     attend 15 secondes avant d'abandonner. Pendant ces 15 secondes l'écran
+     disait « l'agent travaille… » — pour un agent qui ne recevrait jamais
+     rien. La page SAVAIT pourtant : `link.state` valait « closed », et la
+     barre d'état l'affichait déjà.
+     Constaté en éprouvant les chemins dégradés, le 2026-08-12.
+     Et le message dit l'issue la plus proche : la Discussion n'a pas besoin
+     de ce lien — c'est le proxy qui la sert. */
+  if (link.state === "closed" || link.state === "denied"){
+    newTurn("user", shown).state = "done";
+    const err = newTurn("error",
+      "Le lien avec l'agent est coupé" + (link.reason ? " (" + link.reason + ")" : "")
+      + " — Cowork en a besoin pour recevoir votre message. Relancez "
+      + "lancer_ulysse.bat, ou passez en Discussion : elle n'a pas besoin de "
+      + "ce lien.");
+    err.state = "error";
+    conv.running = false;
+    coreHooks.onChange();
+    return;
+  }
+
   const t = newTurn("user", shown);
   if (opts.preambleLabel) t.preamble = opts.preambleLabel;
   t.state = "done";
@@ -619,7 +687,14 @@ async function submitPrompt(text, opts){
     link.rpc("prompt.submit", { session_id: sid, text: sent }, 0)
       .catch((e) => {
         conv.running = false;
-        coreHooks.onSystem("prompt.submit : " + e.message);
+        /* Le message partait en brut : « prompt.submit : WebSocket ferme ».
+           C'est le nom de la methode et le texte de l'exception — la personne
+           n'en fait rien. Le tour est deja affiche dans le fil, donc elle voit
+           un message qui semble parti et qui ne l'est pas : il faut le dire
+           franchement, et dire quoi faire. */
+        coreHooks.onSystem("Votre message n'est pas parti : le lien avec "
+          + "l'agent s'est coupé en route. Relancez lancer_ulysse.bat, puis "
+          + "renvoyez-le. (" + e.message + ")");
         coreHooks.onChange();
       });
   } catch (e){

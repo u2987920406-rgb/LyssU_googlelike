@@ -3232,6 +3232,61 @@ async function main(){
   check("le geste est branché une fois, sur le document — pas par endroit",
     /document\.addEventListener\("click"[\s\S]{0,120}u-md-dl/.test(srcVue));
 
+  /* ══ LES CHEMINS DÉGRADÉS ═════════════════════════════════════════════════
+     C'est là qu'un produit non poli casse en public. Le produit a des messages
+     pour ces cas ; AUCUN n'avait été éprouvé. On les met en scène et on exige
+     d'eux trois choses, dans cet ordre :
+       ① que la personne comprenne QUE ça a échoué — pas un écran qui attend ;
+       ② POURQUOI, en mots dont elle peut faire quelque chose ;
+       ③ QUOI FAIRE. Un message qui s'arrête à ② est un mur poli.
+     Cette section vient en DERNIER : elle casse le lien et coupe les
+     fixtures, donc rien ne doit tourner après elle. */
+  console.log("\n--- Les chemins dégradés ---");
+  win.eval('nav("Discuter"); setMode2("cowork");');
+  await wait(60);
+
+  // ① LE LIEN DE L'AGENT EST MORT, et la personne envoie quand même.
+  win.eval("conv.sessionId = null; conv.storedId = null;");
+  FakeWS.last.close();
+  await wait(80);
+  const avantEnvoi = win.document.getElementById("thread").textContent;
+  win.document.getElementById("reply").value = "Range mes fichiers";
+  win.document.getElementById("composer").dispatchEvent(new win.Event("submit"));
+  await wait(400);
+  const filHS = win.document.getElementById("thread").textContent;
+  check("lien coupé · l'échec se voit, l'écran n'attend pas dans le vide",
+    filHS !== avantEnvoi && !win.eval("conv.running"),
+    "running=" + win.eval("conv.running"));
+  /* ⚠ ON REGARDE TOUS LES MESSAGES DE PANNE, PAS LE PREMIER. Écrit d'abord
+     avec un `querySelector` seul, ce test lisait un message plus ancien — et
+     c'est ainsi qu'on a vu que l'ancien CONTREDISAIT le neuf : il promettait
+     que « le prochain message ouvrira une nouvelle session » alors que le lien
+     venait d'être coupé. Deux messages qui se contredisent, et c'est le
+     premier qu'on lit. Les deux doivent donc tenir. */
+  const pannes = [...win.document.querySelectorAll("#thread .msg.u-err, #thread .msg.u-sys")];
+  const muets = pannes.filter((m) => !/(relanc|lancez|Discussion)/i.test(m.textContent));
+  check("lien coupé · ...et CHAQUE message dit quoi faire, aucun ne se contredit",
+    pannes.length > 0 && muets.length === 0,
+    muets.length ? muets[0].textContent.trim().slice(0, 110)
+      : pannes.length + " message(s), tous actionnables");
+
+  // ② HERMÈS EST MUET sur /api/* : les panneaux qui le lisent.
+  FIXTURES["/api/files"] = undefined;
+  const vraiFetch2 = win.fetch;
+  win.fetch = (url, opts) => (String(url).indexOf("/api/files") >= 0
+    ? Promise.resolve({ ok: false, status: 502,
+        text: () => Promise.resolve('{"detail":"Bad Gateway"}') })
+    : vraiFetch2(url, opts));
+  win.eval('ouvrirEtabliSur("D:/faux-home")');
+  await wait(300);
+  const etabliHS = win.document.getElementById("files");
+  check("Hermès muet · l'Établi le dit au lieu de rester vide",
+    !!etabliHS.querySelector(".u-todo"), etabliHS.textContent.trim().slice(0, 80));
+  check("Hermès muet · ...et il dit quoi faire",
+    /(relanc|lancer|lancez|démarr|Hermès)/i.test(etabliHS.textContent),
+    etabliHS.textContent.trim().slice(0, 120));
+  win.fetch = vraiFetch2;
+
   console.log("\n--- Aucune erreur JavaScript pendant tout ça ---");
   check("la console est restée propre", errors.length === 0, errors.slice(0, 3).join(" | "));
 
