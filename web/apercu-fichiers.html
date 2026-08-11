@@ -8,17 +8,32 @@
 <!-- ═══════════════════════════════════════════════════════════════════════
      APERÇU DE DESIGN — montrer un fichier
 
-     Écrit après coup, comme celui du collage : `ulysse-artifact.js` a été
-     ajouté le 2026-08-11 sans passe de design.
+     ⚠ CETTE PAGE A ÉTÉ REFAITE LE 2026-08-11, LE SOIR DU JOUR OÙ LA PASSE A
+       ÉTÉ APPLIQUÉE. Elle disait « Actuel » et « Proposé » ; le proposé est
+       construit, donc « actuel » désignait l'état d'avant. Elle ne mentait pas
+       sur ce qu'elle montrait — elle mentait sur un mot, et c'est pire : on ne
+       relit pas un mot juste.
 
-     TROIS CONSTATS, du plus grave au plus petit :
+       Elle dit maintenant AVANT et MAINTENANT, et s'ouvre sur MAINTENANT.
 
-       ① DEUX visualiseurs coexistent pour le même objet — `#sFile` (modale,
-         depuis l'Établi et les Livrables) et `#artifactViewer` (volet,
-         depuis le fil). Chacun sait ce que l'autre ignore.
-       ② La carte du fil ne peut désigner QUE `/artifacts/…` : le fichier
-         qu'on vient d'écrire dans le projet n'en a pas.
-       ③ Le volet ne défile pas — `.u-art-panel` n'a aucune règle CSS.
+     CE QUE LA COLONNE « MAINTENANT » MONTRE POUR DE VRAI
+     Cette page recopie `ulysse.css` (plus bas, resynchronisée par
+     `resync_apercus.py`). Les classes `f-carte`, `f-ic`, `f-ou`, le volet et
+     son fil d'Ariane viennent donc de LA VRAIE FEUILLE : ce que vous voyez à
+     droite est stylé par le produit lui-même. La page avait ses propres copies
+     de ces règles — elles ont été supprimées, c'était une imitation qui aurait
+     dérivé sans bruit.
+
+       · la colonne AVANT, elle, a besoin de règles qui n'existent plus
+         (`.u-art`, `.u-art-panel`…). Elles sont plus bas, dans un bloc marqué
+         PIÈCES D'ARCHIVE. C'est de l'histoire figée, et ça se dit.
+       · les rangées d'outils sont recopiées de `ulysse.html` (`u-tool*`), qui
+         n'est pas dans `ulysse.css`.
+
+     CE QU'ELLE SERT ENCORE, MAINTENANT QUE TOUT EST FAIT : les états qu'on
+     n'atteint pas en trois clics dans le produit — une carte dont le fichier a
+     disparu, un fichier trop lourd pour être montré — et la comparaison côte à
+     côte, qui est la seule chose qu'un produit ne sait jamais montrer.
 
      PAGE AUTONOME : ulysse.css et ulysse-icons.js recopiés plus bas.
      ═══════════════════════════════════════════════════════════════════════ -->
@@ -1973,18 +1988,43 @@ body{margin:0;background:var(--sidebar,#F8FAFD);font-family:var(--font,system-ui
 .ap-etabli .vt{font-size:12px;color:var(--muted,#5F6368);font-weight:500;
   padding:0 6px 8px;display:block}
 
-/* Le visualiseur, tel qu'il est aujourd'hui : l'aside n'a AUCUNE règle,
-   donc pas de display:flex, donc le flex:1 de .u-art-body ne s'applique à
-   rien. On le reproduit tel quel — c'est le sujet du cas 2. */
+/* Le cadre qui tient un volet dans la page. Les DEUX colonnes s'en servent :
+   ce qui les distingue doit venir du volet, pas de son cadre. */
 .ap-vue{flex:0 0 400px;border-left:1px solid var(--surface-hi,#E9EEF6);
   display:flex;flex-direction:column;overflow:hidden;background:var(--bg,#fff)}
-.ap-vue.casse .u-art-body{max-height:none}
-.ap-vue.bon{overflow:hidden}
-.ap-vue.bon .u-art-panel{display:flex;flex-direction:column;min-height:0;flex:1}
-.ap-vue.bon .u-art-body{flex:1;min-height:0;overflow-y:auto}
-.ap-vue .u-art-panel{min-height:0}
 
-/* La modale #sFile, reproduite pour le cas 3 (état actuel). */
+/* ╔══════════════════════════════════════════════════════════════════════╗
+   ║  PIÈCES D'ARCHIVE — la colonne « Avant », et rien d'autre.           ║
+   ║                                                                      ║
+   ║  Ces classes N'EXISTENT PLUS dans le produit : `.u-art*` a été        ║
+   ║  remplacé par `.f-*`, `.u-art-panel` et `.u-art-backdrop` ont été     ║
+   ║  retirés le 2026-08-11. Elles sont recopiées ICI pour que la colonne  ║
+   ║  de gauche montre ce qu'on voyait vraiment — sinon « Avant » serait   ║
+   ║  une reconstitution de mémoire, c'est-à-dire une invention.          ║
+   ║                                                                      ║
+   ║  ⚠ NE PAS LES REMETTRE DANS ulysse.css. Rien dans le produit ne les   ║
+   ║    lit ; ce bloc est daté et il ne bougera plus.                     ║
+   ╚══════════════════════════════════════════════════════════════════════╝ */
+.ap-vue.avant .u-art-body{max-height:none}
+/* ⚠ `.u-art-panel` NE REÇOIT AUCUNE RÈGLE, et c'est tout le sujet du cas 2 :
+   son enfant `.u-art-body{flex:1}` ne s'applique donc à rien. Le défaut se
+   reproduit ici avec la VRAIE règle `.u-art-body` de la feuille courante —
+   il suffit que le parent ne soit pas un conteneur flex. */
+.ap-vue.avant .u-art-backdrop{position:absolute;inset:0;background:rgba(0,0,0,.28)}
+.u-art{display:inline-flex;align-items:center;gap:12px;padding:11px 14px;margin:6px 0;
+  border:1px solid var(--surface-hi,#E9EEF6);border-radius:12px;background:var(--bg,#fff);
+  cursor:pointer;box-shadow:var(--elev-1,0 1px 2px rgba(0,0,0,.05));max-width:380px}
+.u-art-ic{flex:0 0 auto;width:34px;height:34px;border-radius:9px;
+  background:var(--accent-container,#D3E3FD);color:var(--accent,#0B57D0);
+  display:flex;align-items:center;justify-content:center}
+.u-art-ic svg{width:18px;height:18px}
+.u-art-meta{display:flex;flex-direction:column;min-width:0;line-height:1.25}
+.u-art-name{font-weight:600;font-size:13.5px;color:var(--text,#1F1F1F);
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:220px}
+.u-art-sub{font-size:11.5px;color:var(--muted,#5F6368)}
+.u-art-open{margin-left:auto;color:var(--accent,#0B57D0);font-size:12px;opacity:.75;padding-left:6px}
+/* La modale #sFile — elle existe encore dans ulysse.html, mais plus personne
+   ne l'ouvre. Reproduite pour le cas 3, colonne « Avant ». */
 .ap-modal{position:absolute;inset:0;background:rgba(0,0,0,.32);display:grid;
   place-items:center;z-index:10}
 .ap-modal .sheet{background:var(--bg,#fff);border-radius:18px;padding:24px;
@@ -1992,38 +2032,29 @@ body{margin:0;background:var(--sidebar,#F8FAFD);font-family:var(--font,system-ui
   box-shadow:0 18px 50px rgba(0,0,0,.22)}
 .ap-modal .sheet h2{font-size:20px;font-weight:400;margin:0 0 4px}
 .ap-modal .sheet .sub{color:var(--muted,#5F6368);font-size:13px;margin-bottom:14px}
+/* ╚══ fin des pièces d'archive ═══════════════════════════════════════════ */
 
-/* Ce que je propose pour la carte. Rien n'est repris du produit : ces classes
-   sont neuves et préfixées `f-`. */
-.f-carte{display:flex;align-items:center;gap:12px;margin:8px 0;padding:10px 12px;
-  background:var(--bg,#fff);border:1px solid var(--surface-hi,#E9EEF6);
-  border-radius:12px;cursor:pointer;max-width:520px;
-  transition:border-color .12s,box-shadow .12s}
-.f-carte:hover{border-color:var(--accent,#0B57D0);box-shadow:0 2px 10px rgba(0,0,0,.07)}
-.f-ic{flex:0 0 auto;width:36px;height:36px;border-radius:10px;display:grid;
-  place-items:center;background:var(--surface,#F0F4F9);color:var(--muted,#5F6368)}
-.f-txt{flex:1;min-width:0;line-height:1.3}
-.f-nom{display:block;font-size:13.5px;font-weight:600;color:var(--text,#1F1F1F);
-  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.f-ou{display:block;font-size:11.5px;color:var(--faint,#80868B);
-  white-space:nowrap;overflow:hidden;direction:rtl;text-align:left;
-  font-family:var(--font-mono,ui-monospace,monospace)}
-.f-go{flex:0 0 auto;font-size:12.5px;color:var(--accent,#0B57D0);padding-left:8px}
-.f-carte.absent{border-style:dashed;cursor:default;opacity:.75}
-.f-carte.absent:hover{border-color:var(--surface-hi,#E9EEF6);box-shadow:none}
-.f-carte.absent .f-go{color:var(--faint,#80868B)}
+/* ⚠ AUCUNE RÈGLE `.f-*` ICI. Elles étaient recopiées dans cette page — une
+   imitation de la feuille, qui aurait divergé sans que rien ne le dise. La
+   vraie `ulysse.css` est inlinée plus haut et resynchronisée par
+   `resync_apercus.py` : la colonne « Maintenant » est donc stylée par LE
+   PRODUIT. Si elle devient laide, c'est le produit qui est laid. */
 
-.f-fil{display:flex;align-items:center;gap:6px;padding:9px 14px;font-size:12.5px;
-  border-bottom:1px solid var(--surface-hi,#E9EEF6);color:var(--muted,#5F6368);flex:none}
-.f-fil button{border:0;background:none;font:inherit;color:var(--accent,#0B57D0);
-  cursor:pointer;padding:0}
-.f-fil .f-ici{color:var(--text,#1F1F1F);font-weight:600;
-  overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.f-outils{display:flex;gap:2px;margin-left:auto}
-.f-outils button{width:28px;height:28px;border-radius:7px;border:0;background:none;
-  cursor:pointer;color:var(--muted,#5F6368);font-size:13px}
-.f-outils button:hover{background:var(--surface,#F0F4F9);color:var(--text,#1F1F1F)}
-.f-outils button.on{background:var(--surface-hi,#E9EEF6);color:var(--text,#1F1F1F)}
+/* Les rangées d'outils viennent du <style> de ulysse.html, pas d'ulysse.css :
+   elles ne sont donc pas dans le bloc inliné. Recopiées telles quelles. */
+.u-tools{margin:8px 0;display:grid;gap:4px}
+.u-tool{display:flex;gap:10px;align-items:flex-start;background:var(--surface);
+  border-radius:var(--radius-sm);padding:8px 12px;font-size:var(--font-size-sm)}
+.u-tool .d{width:7px;height:7px;border-radius:50%;background:var(--amber);
+  margin-top:7px;flex:none}
+.u-tool.done .d{background:var(--green)}
+.u-tool .n{font-weight:500}
+.u-tool .c{color:var(--muted);font-size:var(--font-size-xs);word-break:break-word}
+.u-tool .z{margin-left:auto;color:var(--faint);font-size:var(--font-size-xs);flex:none}
+.u-tool.ouvrable{cursor:pointer}
+.u-tool.ouvrable:hover{background:var(--surface-hi)}
+.u-tool.ouvrable .f-go{margin-left:8px;font-size:var(--font-size-xs);
+  color:var(--accent)}
 
 .ap-long{font-size:13.5px;line-height:1.65}
 .ap-long h3{font-size:15px;margin:0 0 8px}
@@ -2031,13 +2062,23 @@ body{margin:0;background:var(--sidebar,#F8FAFD);font-family:var(--font,system-ui
 .ap-tag{display:inline-block;font-size:11px;padding:2px 8px;border-radius:99px;
   background:rgba(217,101,112,.14);color:#8E2F3A;margin-left:8px;vertical-align:2px}
 .ap-tag.ok{background:rgba(30,142,62,.14);color:#1B6B33}
+.ap-fait{display:inline-block;font-size:11px;font-weight:500;padding:2px 9px;
+  border-radius:99px;background:rgba(30,142,62,.13);color:#1B6B33;margin-left:10px;
+  vertical-align:2px}
+/* Les états qu'on n'atteint pas en trois clics dans le produit : c'est la
+   seule chose que cette page sait encore montrer mieux que l'app. */
+.ap-rares{display:flex;flex-wrap:wrap;gap:18px;padding:20px 22px}
+.ap-rare{flex:1 1 300px;min-width:0}
+.ap-rare .t{font-size:12.5px;font-weight:600;margin-bottom:8px}
+.ap-rare .g{font-size:11.5px;color:var(--faint,#80868B);margin-top:6px}
 </style>
 
 <div class="ap-bar">
-  <h1>Aperçu — les fichiers dans le fil, et l'écran qui les montre</h1>
+  <h1>Aperçu — les fichiers dans le fil, et l'écran qui les montre
+    <span class="ap-fait">passe appliquée le 2026-08-11</span></h1>
   <div class="ap-seg">
-    <button id="bAct" class="on">Actuel</button>
-    <button id="bPro">Proposé</button>
+    <button id="bAct">Avant</button>
+    <button id="bPro" class="on">Maintenant</button>
   </div>
 </div>
 
@@ -2070,6 +2111,10 @@ const LONG = "<h3>Passe de design — les notifications</h3>"
   + "<p><b>6. Contrat d'interface.</b> <code>npanel</code> inchangé. Classes "
   + "nouvelles préfixées <code>n-</code>.</p>";
 
+/* ── AVANT : la carte d'artefact, telle qu'elle était ────────────────────
+   Classes `.u-art*`, retirées du produit le 2026-08-11. Le sous-titre
+   « généré · artefact » était vrai de TOUTES les cartes, donc n'en
+   distinguait aucune. */
 function carteArt(nom, sous, ic){
   return '<div class="u-art"><span class="u-art-ic">' + svg(ic, { size: 18 })
     + '</span><span class="u-art-meta"><span class="u-art-name">' + nom
@@ -2077,20 +2122,40 @@ function carteArt(nom, sous, ic){
     + '<span class="u-art-open">ouvrir ›</span></div>';
 }
 
+/* ── MAINTENANT : la carte du produit ────────────────────────────────────
+   Le HTML est celui d'`artifactCardHTML()`, et les classes sont stylées par
+   la VRAIE feuille inlinée plus haut. Rien n'est imité. */
 function carteF(nom, ou, ic, absente){
-  return '<div class="f-carte' + (absente ? " absent" : "") + '">'
+  // ⚠ Le libellé de l'état « absent » est celui de `peindreCarte()`, au mot
+  //    près : « introuvable — » devant le dossier, et l'action retirée. Une
+  //    page qui montre un état doit le montrer avec SES mots, sinon elle
+  //    documente un écran qui n'existe pas.
+  return '<span class="f-carte' + (absente ? " absent" : "") + '">'
     + '<span class="f-ic">' + svg(ic, { size: 18 }) + '</span>'
     + '<span class="f-txt"><span class="f-nom">' + nom + '</span>'
-    + '<span class="f-ou">' + ou + '</span></span>'
-    + '<span class="f-go">' + (absente ? "hors d'atteinte" : "Ouvrir ›") + '</span></div>';
+    + '<span class="f-ou">' + (absente ? "introuvable — " + ou : ou) + '</span></span>'
+    + '<span class="f-go">' + (absente ? "" : "Ouvrir ›") + '</span></span>';
 }
 
-function vueActuelle(){
-  /* Reproduit fidèlement ce que ulysse-artifact.js construit : un backdrop
-     sans règle CSS, un <aside> sans règle CSS, et .u-art-body{flex:1} qui
-     ne s'applique donc à rien. */
-  return '<div class="ap-vue casse">'
-    + '<div class="u-art-backdrop" data-close="1"></div>'
+/* La rangée d'un outil. Quand l'agent a lu ou écrit un fichier, c'est ELLE
+   qui s'ouvre — pas une carte de plus : la rangée nomme déjà le fichier. */
+function rangee(nom, quoi, ouvrable){
+  return '<div class="u-tools"><div class="u-tool done'
+    + (ouvrable ? " ouvrable" : "") + '"><span class="d"></span>'
+    + '<div style="flex:1;min-width:0"><span class="n">' + nom + '</span>'
+    + (ouvrable ? '<span class="f-go">Ouvrir ›</span>' : "")
+    + '<div class="c">' + quoi + '</div></div>'
+    + '<span class="z">1.2 s</span></div></div>';
+}
+
+function vueAvant(){
+  /* Reproduit ce que `ulysse-artifact.js` construisait : un backdrop que la
+     feuille déclarait inutile trois lignes plus haut, et un <aside> SANS
+     AUCUNE RÈGLE — donc le `flex:1` de `.u-art-body` ne s'applique à rien.
+     Le défaut se reproduit avec la vraie règle `.u-art-body` de la feuille
+     courante : il suffit que le parent ne soit pas un conteneur flex. */
+  return '<div class="ap-vue avant" style="position:relative">'
+    + '<div class="u-art-backdrop"></div>'
     + '<aside class="u-art-panel">'
     + '<header class="u-art-head"><span class="u-art-vic">'
     + svg("fichier", { size: 16 }) + '</span>'
@@ -2103,19 +2168,24 @@ function vueActuelle(){
     + '</aside></div>';
 }
 
-function vueProposee(){
-  return '<div class="ap-vue bon">'
-    + '<aside class="u-art-panel">'
-    + '<div class="f-fil"><button>Établi</button><span>›</span>'
-    + '<span class="f-ici">PASSE-DESIGN-NOTIFICATIONS.md</span>'
+function vueMaintenant(corps){
+  /* Plus d'<aside> intermédiaire : `.u-art-viewer` EST le volet, et c'est
+     déjà la colonne flex. L'en-tête et le corps sont ses enfants directs. */
+  return '<div class="ap-vue" style="display:flex;flex-direction:column">'
+    + '<header class="u-art-head">'
+    + '<span class="u-art-vic">' + svg("doc", { size: 16 }) + '</span>'
+    + '<nav class="f-fil"><button class="f-ici">…/Projet Ulysse/web</button>'
+    + '<span class="f-sep">›</span>'
+    + '<span class="u-art-vname">PASSE-DESIGN-NOTIFICATIONS.md</span></nav>'
+    + '<span class="u-art-vspacer"></span>'
     + '<span class="f-outils">'
-    + '<button class="on" title="Rendu">◉</button>'
-    + '<button title="Source">⟨/⟩</button>'
-    + '<button title="Copier">⧉</button>'
-    + '<button title="Télécharger">⤓</button>'
-    + '<button title="Fermer">✕</button></span></div>'
-    + '<div class="u-art-body"><div class="u-md ap-long">' + LONG + '</div></div>'
-    + '</aside></div>';
+    + '<button class="u-art-btn" title="Voir la source">⟨/⟩</button>'
+    + '<button class="u-art-btn" title="Copier">' + svg("copier", { size: 15 }) + '</button>'
+    + '<a class="u-art-btn" title="Télécharger">⤓</a>'
+    + '<button class="u-art-btn" title="Fermer">' + svg("fermer", { size: 15 }) + '</button>'
+    + '</span></header>'
+    + '<div class="u-art-body">'
+    + (corps || '<div class="u-md ap-long">' + LONG + '</div>') + '</div></div>';
 }
 
 const ETABLI = '<div class="ap-etabli"><span class="vt">Établi</span>'
@@ -2130,17 +2200,18 @@ function msg(qui, corps){
     + '<div class="u-md">' + corps + '</div></div>';
 }
 
-function dessine(pro){
+function dessine(maintenant){
   let h = "";
 
-  /* ── Cas 1 ────────────────────────────────────────────────────────── */
+  /* ── Cas 1 : la carte ────────────────────────────────────────────────── */
   h += '<h2>Cas 1 — l\'agent produit un fichier</h2>'
-    + '<p class="ap-quoi">Deux fichiers, deux destins. Le premier est écrit '
-    + 'dans <code>web/artifacts/</code> ; le second dans le dossier où l\'on '
-    + 'travaille, comme tout le reste du projet.</p>'
+    + '<p class="ap-quoi">Deux fichiers, deux destins. Le premier tombait dans '
+    + '<code>web/artifacts/</code> — un dossier réservé, dans le dossier '
+    + '<i>servi</i> ; le second dans le dossier où l\'on travaille, comme tout '
+    + 'le reste du projet.</p>'
     + '<div class="ap-scene"><div class="ap-split"><div class="ap-fil">';
 
-  if (!pro){
+  if (!maintenant){
     h += msg("vous", "<p>Fais-moi le tableau, et reprends la passe des notifications.</p>")
       + msg("ulysse", "<p>Voici le tableau :</p>" + carteArt("demo_tableau.md",
           "généré · artefact", "fichier")
@@ -2152,57 +2223,64 @@ function dessine(pro){
       + '<b>Trois choses.</b> ① La carte ne dit <b>ni où est le fichier ni ce '
       + 'qu\'il pèse</b> — « généré · artefact » est vrai pour tous, donc ne '
       + 'distingue aucun. ② L\'icône du <code>.csv</code> est <b>vide</b> : '
-      + '<code>svg("table")</code> n\'existe pas dans le jeu d\'icônes, et '
-      + '<code>svg()</code> rend alors un tracé <code>undefined</code>. '
+      + 'le nom demandé n\'existe pas au registre, et <code>svg()</code> rend '
+      + 'alors un tracé <code>undefined</code> sans rien signaler. '
       + '③ Le fichier de travail, lui, <b>n\'a aucune carte</b> : la balise '
-      + 'n\'accepte que <code>/artifacts/…</code>. C\'est précisément le '
+      + 'n\'acceptait que <code>/artifacts/…</code>. C\'était précisément le '
       + 'fichier qu\'on voulait ouvrir.</div>';
   } else {
     h += msg("vous", "<p>Fais-moi le tableau, et reprends la passe des notifications.</p>")
       + msg("ulysse", "<p>Voici le tableau :</p>"
-        + carteF("demo_tableau.md", "…/Projet&nbsp;Ulysse/web/artifacts", "fichier")
-        + carteF("mesures.csv", "…/Projet&nbsp;Ulysse/web/artifacts", "doc")
+        + carteF("mesures.csv", "…/Projet Ulysse/web", "doc")
         + "<p>Et j'ai repris la passe :</p>"
-        + carteF("PASSE-DESIGN-NOTIFICATIONS.md", "…/Projet&nbsp;Ulysse/web", "fichier"));
+        + carteF("PASSE-DESIGN-NOTIFICATIONS.md", "…/Projet Ulysse/web · 6,2 ko", "doc"));
     h += '</div>' + ETABLI + '</div></div>'
       + '<div class="ap-verdict bien">'
       + '<b>La carte désigne un chemin, pas un dossier réservé.</b> Le fichier '
       + 'de travail en a une comme les autres — et <code>web/artifacts/</code> '
-      + 'n\'a plus de raison d\'exister. Le chemin est tronqué <b>par la '
-      + 'tête</b> : la fin d\'un chemin dit où on est, le début dit ce qu\'on '
-      + 'sait déjà. Une seule action, <b>Ouvrir</b> : dans le fil, une carte '
-      + 'est une mention, pas un panneau de commandes.</div>';
+      + 'a été retiré, avec sa route. Le chemin est tronqué <b>par la tête</b> : '
+      + 'la fin d\'un chemin dit où l\'on est, le début dit ce qu\'on sait déjà. '
+      + 'Une seule action, <b>Ouvrir</b> : dans le fil, une carte est une '
+      + 'mention, pas un panneau de commandes. Plus aucune icône n\'est '
+      + 'demandée hors du registre.</div>';
   }
 
-  /* ── Cas 2 ────────────────────────────────────────────────────────── */
+  /* ── Cas 2 : le volet ────────────────────────────────────────────────── */
   h += '<h2>Cas 2 — on ouvre le fichier</h2>'
     + '<p class="ap-quoi">Le document fait six écrans. C\'est le cas normal '
-    + 'ici : toutes les passes de design en font autant.</p>'
+    + 'ici : toutes les passes de design en font autant. '
+    + '<b>Faites défiler les deux colonnes</b> — la différence est là, pas '
+    + 'dans ce qui se voit à l\'arrêt.</p>'
     + '<div class="ap-scene"><div class="ap-split"><div class="ap-fil">'
     + msg("ulysse", "<p>Et j'ai repris la passe :</p>"
-        + (pro ? carteF("PASSE-DESIGN-NOTIFICATIONS.md", "…/Projet&nbsp;Ulysse/web", "fichier")
-               : carteArt("passe-notifications.md", "généré · artefact", "fichier")))
-    + '</div>' + (pro ? vueProposee() : vueActuelle()) + '</div></div>';
+        + (maintenant
+            ? carteF("PASSE-DESIGN-NOTIFICATIONS.md", "…/Projet Ulysse/web · 6,2 ko", "doc")
+            : carteArt("passe-notifications.md", "généré · artefact", "fichier")))
+    + '</div>' + (maintenant ? vueMaintenant() : vueAvant()) + '</div></div>';
 
-  h += !pro
+  h += !maintenant
     ? '<div class="ap-verdict mal"><b>Le volet ne défile pas.</b> '
-      + '<code>.u-art-body</code> porte <code>flex:1</code> et '
-      + '<code>overflow-y:auto</code>, mais son parent <code>&lt;aside '
-      + 'class="u-art-panel"&gt;</code> <b>n\'a aucune règle CSS</b> : il '
-      + 'n\'est pas un conteneur flex, donc <code>flex:1</code> ne s\'applique '
-      + 'à rien et la hauteur reste libre. Le volet, lui, coupe '
-      + '(<code>overflow:hidden</code>). <b>La fin du document est '
-      + 'inaccessible.</b> Et <code>.u-art-backdrop</code> est construit par '
-      + 'le script alors que le commentaire de la feuille écrit, trois lignes '
-      + 'plus haut : « <i>Pas de backdrop masquant</i> ». Les deux moitiés se '
-      + 'contredisent par écrit — c\'est la trace d\'un volet qui était une '
-      + 'modale et qui a changé en route.</div>'
+      + '<code>.u-art-body</code> porte <code>flex:1</code>, mais son parent '
+      + '<code>&lt;aside class="u-art-panel"&gt;</code> <b>n\'a aucune règle '
+      + 'CSS</b> : il n\'est pas un conteneur flex, donc <code>flex:1</code> ne '
+      + 's\'applique à rien et la hauteur reste libre. Le volet, lui, coupe. '
+      + '<b>La fin du document est inaccessible.</b> Et le '
+      + '<code>.u-art-backdrop</code> que vous voyez est construit par le '
+      + 'script alors que le commentaire de la feuille écrit, trois lignes plus '
+      + 'haut : « <i>Pas de backdrop masquant</i> ». Les deux moitiés se '
+      + 'contredisent par écrit — trace d\'un volet qui a commencé sa vie en '
+      + 'modale.</div>'
     : '<div class="ap-verdict bien"><b>Le volet défile, et il dit d\'où l\'on '
-      + 'vient.</b> Le fil d\'Ariane remplace la croix seule : on est allé '
-      + 'quelque part, on doit pouvoir revenir. Les outils du document sont '
-      + 'tous <b>ici</b>, aucun sur la carte.</div>';
+      + 'vient.</b> L\'<code>&lt;aside&gt;</code> n\'a pas reçu de règles : il a '
+      + 'été <b>retiré</b>. <code>.u-art-viewer</code> était déjà la colonne '
+      + 'flex — le volet <i>est</i> l\'aside, et son corps porte '
+      + '<code>min-height:0</code>, sans quoi un enfant flex ne devient jamais '
+      + 'plus petit que son contenu. Le fil d\'Ariane remplace la croix seule : '
+      + 'on est allé quelque part, on doit pouvoir revenir sans refermer. '
+      + '<b>Et le document est montré en entier</b> — le rendu le coupait à '
+      + '20 000 caractères, en silence.</div>';
 
-  /* ── Cas 3 ────────────────────────────────────────────────────────── */
+  /* ── Cas 3 : depuis l'Établi ─────────────────────────────────────────── */
   h += '<h2>Cas 3 — le même fichier, ouvert depuis l\'Établi</h2>'
     + '<p class="ap-quoi">Même fichier, même question — « qu\'y a-t-il '
     + 'dedans ? ». Seul le point de départ change.</p>'
@@ -2211,30 +2289,86 @@ function dessine(pro){
     + msg("vous", "<p>Ouvre-moi la passe des notifications.</p>")
     + '</div>';
 
-  if (!pro){
+  if (!maintenant){
     h += ETABLI
       + '<div class="ap-modal"><div class="sheet">'
       + '<h2>PASSE-DESIGN-NOTIFICATIONS.md</h2>'
-      + '<div class="sub">C:\\Users\\kuchu\\Desktop\\Projet Ulysse\\web · 6,2 ko</div>'
+      + '<div class="sub">…/Projet Ulysse/web · 6,2 ko</div>'
       + '<div class="u-md ap-long">' + LONG + '</div>'
       + '<div class="sheet-acts"><a class="txt-btn">⤓ Télécharger</a>'
       + '<button class="txt-btn">Fermer</button></div></div></div>';
     h += '</div></div><div class="ap-verdict mal">'
       + '<b>Un second visualiseur, pour le même objet.</b> Celui-ci est une '
       + 'modale : elle <b>couvre la conversation</b>, assombrit le fond, et '
-      + 'n\'a <b>ni bascule vers la source ni bouton copier</b>. Le premier a '
-      + 'la source et la copie, mais <b>ne sait pas afficher une image</b>, ne '
-      + 'dit pas la taille, ne télécharge pas et ne refuse pas les fichiers '
-      + 'trop lourds. <b>Chacun sait ce que l\'autre ignore</b>, et lequel '
-      + 'apparaît dépend de l\'endroit où l\'on a cliqué.</div>';
+      + 'n\'a <b>ni bascule vers la source ni bouton copier</b>. Le volet a la '
+      + 'source et la copie, mais <b>ne sait pas afficher une image</b>, ne dit '
+      + 'pas la taille, ne télécharge pas et ne refuse pas les fichiers trop '
+      + 'lourds. <b>Chacun sait exactement ce que l\'autre ignore</b>, et lequel '
+      + 'apparaît dépend de l\'endroit où l\'on a cliqué — pas du fichier, pas '
+      + 'de ce qu\'on veut en faire.</div>';
   } else {
-    h += ETABLI + vueProposee();
+    h += ETABLI + vueMaintenant();
     h += '</div></div><div class="ap-verdict bien">'
       + '<b>Le même écran, quel que soit le chemin.</b> L\'Établi reste ouvert '
-      + 'à côté : on continue de parcourir pendant qu\'on lit. Le visualiseur '
-      + 'garde ce que la modale savait faire — taille, image, téléchargement, '
-      + 'refus au-delà de la limite — et ce que le volet savait faire — source '
-      + 'et copie. <b>Rien ne se perd, un composant disparaît.</b></div>';
+      + 'à côté : on continue de parcourir pendant qu\'on lit. Le volet a '
+      + 'récupéré <b>tout</b> ce que la modale savait — image, taille, '
+      + 'téléchargement, refus au-delà de la limite — et garde la source et la '
+      + 'copie. <b>Rien ne se perd, un écran disparaît.</b> '
+      + '<code>#sFile</code> existe encore dans <code>ulysse.html</code>, au '
+      + 'contrat, mais plus personne ne l\'ouvre.</div>';
+  }
+
+  /* ── Cas 4 : le lien vient de ce que l'agent A FAIT ──────────────────── */
+  h += '<h2>Cas 4 — l\'agent lit un fichier sans poser de balise</h2>'
+    + '<p class="ap-quoi">Le cas le plus fréquent, et celui qu\'aucune balise '
+    + 'ne rattrape : on demande « montre-moi le contrat d\'interface », l\'agent '
+    + 'appelle <code>read_file</code> et récite. La balise dépend de ce qu\'il '
+    + '<b>pense à écrire</b> — et il n\'y pense pas.</p>'
+    + '<div class="ap-scene"><div class="ap-split"><div class="ap-fil">'
+    + msg("vous", "<p>Montre-moi le contrat d'interface.</p>")
+    + msg("ulysse",
+        rangee("search_files", "contrat|interface", false)
+        + rangee("read_file", "CONTRAT-INTERFACE.md", maintenant)
+        + "<p>C'est le garde-fou entre le design et le câblage. Voici ce qu'il "
+        + "contient, en résumé…</p>")
+    + '</div></div></div>';
+
+  h += !maintenant
+    ? '<div class="ap-verdict mal"><b>Rien ne permet de l\'ouvrir.</b> Le nom '
+      + 'du fichier est là, sous vos yeux, dans la rangée d\'outil — et il ne '
+      + 'sert à rien. Il faut retrouver le fichier à la main dans l\'Établi.</div>'
+    : '<div class="ap-verdict bien"><b>La rangée d\'outil EST le lien.</b> '
+      + 'Le chemin vient de <code>tool.complete.args.path</code>, que le '
+      + 'gateway envoie toujours — donc de ce que l\'agent <b>a fait</b>, pas '
+      + 'de ce qu\'il a dit. <b>Pas de carte en plus</b> : la rangée nomme déjà '
+      + 'le fichier, et un second signe pour la même chose est ce qu\'on retire '
+      + 'partout ailleurs. La liste des outils concernés est <b>fermée</b> : '
+      + '<code>search_files</code> reste inerte, parce que son argument ne '
+      + 'désigne pas un fichier.</div>';
+
+  /* ── Les états qu'on n'atteint pas facilement dans le produit ────────── */
+  if (maintenant){
+    h += '<h2>Et les états qu\'on ne croise pas tous les jours</h2>'
+      + '<p class="ap-quoi">C\'est la seule chose que cette page montre encore '
+      + 'mieux que l\'application : ces trois-là demandent de fabriquer la '
+      + 'situation.</p>'
+      + '<div class="ap-scene"><div class="ap-rares">'
+      + '<div class="ap-rare"><div class="t">Le fichier n\'est plus là</div>'
+      + carteF("brouillon.md", "…/Projet Ulysse/web", "doc", true)
+      + '<div class="g">Dit <b>avant</b> le clic, et la carte ne s\'ouvre pas. '
+      + 'Une carte qui promet un fichier absent est un bouton mort.</div></div>'
+      + '<div class="ap-rare"><div class="t">Le fichier est trop lourd</div>'
+      + '<div class="u-todo" style="font-size:12.5px">Trop volumineux pour un '
+      + 'aperçu (214 Mo, limite 2 Mo). Le chemin reste utilisable dans un '
+      + 'message à l\'agent.</div>'
+      + '<div class="g">Le backend rend le fichier entier en base64 : au-delà, '
+      + 'l\'onglet se fige. On refuse plutôt que de le tenter.</div></div>'
+      + '<div class="ap-rare"><div class="t">Ce n\'est pas du texte</div>'
+      + '<div class="u-art-empty" style="margin-top:0;text-align:left">Fichier '
+      + 'binaire — aperçu impossible.</div>'
+      + '<div class="g">Source et copie se <b>désactivent</b> plutôt que de '
+      + 'faire semblant. Une image, elle, s\'affiche.</div></div>'
+      + '</div></div>';
   }
 
   document.getElementById("cas").innerHTML = h;
@@ -2253,7 +2387,8 @@ document.getElementById("bPro").onclick = function(){
   document.getElementById("bAct").classList.remove("on");
   dessine(true);
 };
-dessine(false);
+// On s'ouvre sur MAINTENANT : l'état du produit d'abord, l'histoire ensuite.
+dessine(true);
 </script>
 
 </body>

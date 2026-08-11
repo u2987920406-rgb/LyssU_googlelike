@@ -4,10 +4,25 @@
 > désigne un chemin ; les trois défauts sont corrigés ; `/ulysse/artifact`,
 > `sauver_artifact()` et `web/artifacts/` n'existent plus.
 >
-> ⚠ **`apercu-fichiers.html` est donc DÉPASSÉ** : il reproduit fidèlement des
-> défauts qui n'existent plus, et sa colonne « actuel » montre l'état d'avant.
-> Il ne ment pas sur ce qu'il montre — il ment sur le mot « actuel ». À
-> reprendre côté Cowork, ou à retirer.
+> ✅ **`apercu-fichiers.html` a été refait le soir même.** Il disait « Actuel »
+> et « Proposé » ; il dit maintenant **Avant** et **Maintenant**, et s'ouvre
+> sur *Maintenant*. Il ne mentait pas sur ce qu'il montrait — il mentait sur
+> un mot, ce qui est pire : on ne relit pas un mot juste.
+>
+> Deux choses ont changé au-delà des libellés :
+>
+> - **ses copies privées des règles `f-*` ont été supprimées.** La page inline
+>   déjà `ulysse.css` : la colonne *Maintenant* est donc stylée par **le
+>   produit**. Une imitation aurait dérivé sans bruit. Les règles `.u-art*`
+>   qui n'existent plus sont dans un bloc marqué **pièces d'archive**, daté,
+>   qui ne sert qu'à la colonne *Avant* ;
+> - **un quatrième cas** : l'agent lit un fichier **sans poser de balise** —
+>   le cas le plus fréquent, et celui qu'aucune balise ne rattrape.
+>
+> Ce qu'il sert encore, maintenant que tout est fait : les états qu'on
+> n'atteint pas en trois clics dans le produit (carte dont le fichier a
+> disparu, fichier trop lourd, binaire), et la comparaison côte à côte — la
+> seule chose qu'un produit ne sait jamais montrer.
 >
 > **Le §4 a été suivi mais pas au pied de la lettre** : la carte dit le
 > dossier **et la taille** — la taille demande une lecture par chemin, faite
