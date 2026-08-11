@@ -33,15 +33,32 @@ ICI = os.path.dirname(os.path.abspath(__file__))
 AMORCE = 200
 
 
+# ⚠ `newline=""` PARTOUT. Sans lui, Python traduit les fins de ligne a la
+# lecture (\r\n -> \n) : ce script comparait donc deux textes NORMALISES,
+# pendant que test_page.js compare les OCTETS du disque. Le 2026-08-11 les
+# deux se sont contredits — `ulysse.css` etait revenu en CRLF d'un `git
+# checkout` (core.autocrlf=true) alors que les quinze apercus portaient une
+# copie en LF. Le test voyait quinze divergences ; ce script repondait
+# « 15 a jour ».
+#
+# Et il n'aurait rien pu reparer : il ECRIT deja avec `newline=""`, donc en
+# LF, exactement ce que le test refusait. La reparation promise en une
+# commande n'existait pas.
+#
+# **Le garde qui repare doit mesurer comme le garde qui alerte**, sinon
+# l'un des deux ment — et c'est toujours celui qui rassure.
+_OUVRIR = dict(encoding="utf-8", newline="")
+
+
 def main():
     voir = "--voir" in sys.argv
-    with io.open(os.path.join(ICI, "ulysse.css"), encoding="utf-8") as fh:
+    with io.open(os.path.join(ICI, "ulysse.css"), **_OUVRIR) as fh:
         css = fh.read()
 
     a_jour = perdus = repares = 0
     for chemin in sorted(glob.glob(os.path.join(ICI, "apercu-*.html"))):
         nom = os.path.basename(chemin)
-        with io.open(chemin, encoding="utf-8") as fh:
+        with io.open(chemin, **_OUVRIR) as fh:
             page = fh.read()
 
         # On compare le BLOC ENTIER, pas une inclusion. `css in page` laissait

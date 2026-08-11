@@ -38,6 +38,14 @@ REM  Sans lui, l'onglet Webhooks liste les routes mais le declenchement echoue.
 echo Demarrage du gateway Hermes...
 start "Ulysse-Gateway" /MIN cmd /c "%HERMES% gateway run"
 
+REM --- 3b. Proxy Hermes (port 8645) -----------------------------------------
+REM  C'est LUI que le mode Discussion appelle. Sans lui, Ulysse repond
+REM  « Le proxy Hermes ne repond pas » une fois sur deux — le bug signale par
+REM  kuchu. Les anciennes versions du BAT ne le lançaient pas : on le demarre
+REM  ici, en arriere-plan, comme les autres backends.
+echo Demarrage du proxy Hermes (port 8645)...
+start "Ulysse-Proxy" /MIN cmd /c "%HERMES% proxy start --provider nous --port 8645"
+
 REM Laisser les backends ouvrir leurs ports.
 timeout /t 5 >nul
 
@@ -54,8 +62,8 @@ echo.
 echo Ulysse est lance sur http://127.0.0.1:%ULYSSE_PORT%/
 echo Le jeton de session vit uniquement en memoire des processus lances ici.
 echo.
-echo Pour arreter : fermez les fenetres "Ulysse-Dashboard", "Ulysse-Gateway"
-echo et "Ulysse-Serve". Ce terminal peut etre ferme.
+echo Pour arreter : fermez les fenetres "Ulysse-Dashboard", "Ulysse-Gateway",
+echo "Ulysse-Proxy" et "Ulysse-Serve". Ce terminal peut etre ferme.
 echo.
 pause
 ENDLOCAL

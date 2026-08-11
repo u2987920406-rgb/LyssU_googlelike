@@ -1,0 +1,32 @@
+# Les fins de ligne, decidees ici plutot que par la machine.
+#
+# POURQUOI CE FICHIER EXISTE — trouve le 2026-08-11.
+# `core.autocrlf=true` etait la seule regle en vigueur : git rendait donc les
+# fichiers en CRLF a chaque `checkout`, pendant que tous les outils du projet
+# (node, python, les editeurs) les reecrivaient en LF. Le depot stocke du LF ;
+# le disque melangeait les deux, selon qui avait ecrit en dernier.
+#
+# Ce n'est pas une question de gout : `test_page.js` compare la feuille de
+# style aux quinze apercus OCTET POUR OCTET. Un `git checkout` de `ulysse.css`
+# suffisait donc a faire passer quinze verifications au rouge, sans qu'une
+# seule ligne de style ait change — et la commande de reparation promise,
+# `python resync_apercus.py`, ecrit en LF et ne pouvait rien y faire.
+#
+# `eol=lf` fixe la copie de travail. Le depot ne change pas : il contenait
+# deja du LF.
+
+* text=auto eol=lf
+
+# Sauf ce que Windows exige en CRLF : un .bat lu en LF peut couper une ligne
+# de commande au mauvais endroit.
+*.bat  text eol=crlf
+
+# Et ce qui n'est pas du texte, qu'il ne faut surtout pas traduire.
+*.png  binary
+*.jpg  binary
+*.jpeg binary
+*.gif  binary
+*.webp binary
+*.ico  binary
+*.woff binary
+*.woff2 binary
