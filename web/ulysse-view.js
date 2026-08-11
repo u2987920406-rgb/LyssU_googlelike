@@ -45,15 +45,51 @@ function esc(s){
 /* ═══ Rendu markdown léger et sûr (offline, sans dépendance) ════════════
    Le texte de l'agent arrive en markdown brut. On l'échappe d'abord
    (esc) pour neutraliser tout HTML, PUIS on reconstruit du HTML sûr.
-   Ordre des passes : blocs (tableaux, listes, citations, HR, titres)
-   avant l'inline (gras/italique/code) qui opère sur chaque fragment. */
-function mdRender(src){
+   Ordre des passes : blocs (code, tableaux, listes, citations, HR, titres)
+   avant l'inline (gras/italique/code) qui opère sur chaque fragment.
+
+   ── QUATRE DÉFAUTS CORRIGÉS LE 2026-08-11 ────────────────────────────────
+   Ils vivaient déjà dans les bulles ; le volet, qui rend des documents
+   ENTIERS, les a rendus impossibles à ignorer.
+
+   1. UNE LIGNE ÉTAIT UN PARAGRAPHE. Chaque ligne devenait son propre <p>.
+      Nos fichiers sont coupés à 78 colonnes : chaque paragraphe arrivait
+      donc en escalier, une ligne par bloc. Et comme l'inline s'appliquait
+      ligne par ligne, un `**gras**` à cheval sur deux lignes restait
+      littéral, astérisques comprises.
+      En markdown, un retour à la ligne simple est un RETOUR DE MISE EN
+      PAGE : les lignes consécutives forment un seul paragraphe. C'est ce
+      qu'on fait — et le gras traverse le retour tout seul.
+
+   2. LES BLOCS INDENTÉS N'ÉTAIENT PAS VUS. `/^>\s?/` exigeait la colonne
+      zéro : une citation dans une liste s'affichait avec son chevron en
+      clair. On enlève l'indentation avant de reconnaître le bloc.
+
+   3. AUCUN BLOC DE CODE. Les ``` n'existaient pas dans ce fichier. Ça
+      passait tant qu'une ligne valait un paragraphe ; en joignant les
+      lignes (défaut 1), un bloc de code serait devenu UNE SEULE LIGNE.
+      Corriger le premier obligeait donc à écrire le troisième.
+
+   4. Le CSS était écrit `.msg .u-md` — voir ulysse.css. Dans le volet, le
+      markdown n'avait aucun style. Les règles suivent maintenant la
+      classe, pas l'endroit.
+   ────────────────────────────────────────────────────────────────────── */
+function mdRender(src, prof){
   if (src === null || src === undefined) return "";
   const lines = String(src).split(/\r?\n/);
   const out = [];
   let i = 0;
   let inUl = false, inOl = false;
+  // Les lignes du paragraphe en cours. Elles attendent d'être jointes : un
+  // bloc qui commence les fait sortir d'abord.
+  let para = [];
+  const videPara = () => {
+    if (!para.length) return;
+    out.push("<p>" + inline(para.join(" ")) + "</p>");
+    para = [];
+  };
   const closeLists = () => {
+    videPara();
     if (inUl){ out.push("</ul>"); inUl = false; }
     if (inOl){ out.push("</ol>"); inOl = false; }
   };
@@ -61,7 +97,16 @@ function mdRender(src){
   const inline = (s) => {
     let x = esc(s);
     x = x.replace(/`([^`]+)`/g, '<code>$1</code>');
-    x = x.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
+    /* ⚠ `[^*]+` ne pouvait pas franchir une asterisque — donc un gras qui en
+       contient une echouait, et laissait ses quatre asterisques a l'ecran.
+       Le cas reel : `**Les `apercu-*.html` RECOPIENT la feuille**`, ou
+       l'asterisque est dans un `code`, deja transforme en <code> juste
+       au-dessus. Vu dans CONTRAT-INTERFACE.md.
+       Motif paresseux : il s'arrete au `**` le PLUS PROCHE, donc deux gras
+       cote a cote restent deux gras. `(?=\S)` et le `\S` final exigent que le
+       contenu ne commence ni ne finisse par une espace — sans quoi
+       « a ** b ** c » deviendrait du gras. */
+    x = x.replace(/\*\*(?=\S)([\s\S]*?\S)\*\*/g, '<strong>$1</strong>');
     x = x.replace(/(^|[^*])\*([^*]+)\*/g, '$1<em>$2</em>');
     x = x.replace(/~~([^~]+)~~/g, '<del>$1</del>');
     return x;
@@ -69,7 +114,33 @@ function mdRender(src){
   const splitRow = (r) => r.replace(/^\s*\|/, "").replace(/\|\s*$/, "")
     .split("|").map((c) => c.trim());
   while (i < lines.length){
-    const line = lines[i].trimEnd();
+    const brut = lines[i].replace(/\s+$/, "");
+    // On reconnaît le bloc SANS son indentation : une citation ou une liste
+    // dans un point de liste est indentée, et elle reste une citation.
+    const line = brut.replace(/^\s+/, "");
+    const indente = line !== "" && brut !== line;
+
+    // --- Bloc de code ``` ou ~~~ ---
+    // Le contenu se prend sur les lignes BRUTES : son indentation EST le
+    // code. Et il se prend en premier — à l'intérieur d'un bloc de code,
+    // rien n'est du markdown, surtout pas un « # » ou un « - » en tête.
+    const cloture = line.match(/^(```+|~~~+)(.*)$/);
+    if (cloture){
+      closeLists();
+      const marque = cloture[1][0] === "`" ? "```" : "~~~";
+      const code = [];
+      i++;
+      while (i < lines.length
+             && !new RegExp("^\\s*" + marque).test(lines[i])){
+        code.push(lines[i]);
+        i++;
+      }
+      if (i < lines.length) i++;   // la ligne de fermeture
+      // Un bloc jamais fermé n'est pas une raison de perdre le texte : on le
+      // rend quand même, jusqu'à la fin.
+      out.push('<pre class="u-md-c"><code>' + esc(code.join("\n")) + "</code></pre>");
+      continue;
+    }
     // --- Tableau : | en-tête |, ligne |---|, lignes corps | ... | ---
     if (/^\|/.test(line) && /\|$/.test(line) && lines[i + 1]
         && /^[\s|]*-+[\s|:-]*$/.test(lines[i + 1].trim())
@@ -78,8 +149,8 @@ function mdRender(src){
       const head = splitRow(line);
       i += 2; // saute en-tête + séparateur
       let body = "";
-      while (i < lines.length && /^\|/.test(lines[i].trimEnd())){
-        const cells = splitRow(lines[i].trimEnd());
+      while (i < lines.length && /^\s*\|/.test(lines[i])){
+        const cells = splitRow(lines[i].trim());
         body += "<tr>" + cells.map((c) => "<td>" + inline(c) + "</td>").join("") + "</tr>";
         i++;
       }
@@ -95,15 +166,25 @@ function mdRender(src){
       i++;
       continue;
     }
-    // --- Citation > ---
-    if (/^>\s?/.test(line)){
+    /* --- Citation > ---
+       Le contenu d'une citation est du markdown : elle peut porter du gras,
+       une liste, un titre. On retire le chevron et on RELANCE le rendu
+       dessus. Avant, chaque ligne était collée à la suivante par un <br>,
+       donc une citation coupée à 78 colonnes arrivait en escalier elle
+       aussi, et son gras ne franchissait pas plus le retour.
+       `prof` borne la récursion : une citation dans une citation est
+       normale, cinquante ne le sont pas. */
+    if (/^>/.test(line)){
       closeLists();
       const buf = [];
-      while (i < lines.length && /^>\s?/.test(lines[i].trimEnd())){
-        buf.push(inline(lines[i].trimEnd().replace(/^>\s?/, "")));
+      while (i < lines.length && /^\s*>/.test(lines[i])){
+        buf.push(lines[i].replace(/\s+$/, "").replace(/^\s*>\s?/, ""));
         i++;
       }
-      out.push("<blockquote>" + buf.join("<br>") + "</blockquote>");
+      out.push("<blockquote>"
+        + ((prof || 0) < 4 ? mdRender(buf.join("\n"), (prof || 0) + 1)
+                           : "<p>" + inline(buf.join(" ")) + "</p>")
+        + "</blockquote>");
       continue;
     }
     // --- Titre # ## ### ---
@@ -118,6 +199,7 @@ function mdRender(src){
     // --- Liste non ordonnée - * + ---
     const ul = line.match(/^[-*+]\s+(.*)$/);
     if (ul){
+      videPara();
       if (inOl){ out.push("</ol>"); inOl = false; }
       if (!inUl){ out.push("<ul class=\"u-md-l\">"); inUl = true; }
       out.push("<li>" + inline(ul[1]) + "</li>");
@@ -127,6 +209,7 @@ function mdRender(src){
     // --- Liste ordonnée 1. 2. ---
     const ol = line.match(/^\d+\.\s+(.*)$/);
     if (ol){
+      videPara();
       if (inUl){ out.push("</ul>"); inUl = false; }
       if (!inOl){ out.push("<ol class=\"u-md-l\">"); inOl = true; }
       out.push("<li>" + inline(ol[1]) + "</li>");
@@ -134,14 +217,26 @@ function mdRender(src){
       continue;
     }
     // --- Ligne vide : sépare paragraphes, ferme listes ---
-    if (line.trim() === ""){
+    if (line === ""){
       closeLists();
       i++;
       continue;
     }
-    // --- Paragraphe simple ---
-    closeLists();
-    out.push("<p>" + inline(line) + "</p>");
+    /* --- La suite d'un point de liste ---
+       Un point coupé à 78 colonnes continue INDENTÉ sous sa puce. Sans ce
+       cas, la suite sortait de la liste et devenait un paragraphe à elle
+       seule : c'est l'escalier, et il frappait d'abord les listes, dont ces
+       documents sont faits. */
+    if ((inUl || inOl) && indente && !para.length
+        && out.length && /<\/li>$/.test(out[out.length - 1])){
+      out[out.length - 1] = out[out.length - 1]
+        .replace(/<\/li>$/, " " + inline(line) + "</li>");
+      i++;
+      continue;
+    }
+    // --- Paragraphe : on ACCUMULE, on ne pousse pas ---
+    if (inUl || inOl) closeLists();
+    para.push(line);
     i++;
   }
   closeLists();

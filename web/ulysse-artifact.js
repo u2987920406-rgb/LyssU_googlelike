@@ -252,10 +252,21 @@ function renderArtifactBody(){
       + '" style="max-width:100%;border-radius:12px" alt="' + esc(f.nom) + '">';
   } else if (!texteDispo){
     body.innerHTML = '<div class="u-art-empty">Fichier binaire — aperçu impossible.</div>';
+  /* ⚠ LE DOCUMENT EN ENTIER. Ces deux lignes portaient `shorten(f.texte,
+     20000)`, repris de la modale : un fichier de plus de 20 000 caracteres
+     perdait sa fin, avec pour tout signal un « … » colle au dernier
+     paragraphe. `CONTRAT-INTERFACE.md` en fait 28 683 — on en lisait les deux
+     tiers. Trouve parce que la coupe est tombee au milieu d'un `**gras**` et a
+     laisse deux asterisques a l'ecran ; sans ce hasard, rien ne l'aurait dit.
+
+     Un volet dont le metier est de LIRE des documents ne peut pas en cacher la
+     fin. La limite honnete existe deja et refuse a voix haute :
+     PREVIEW_MAX_BYTES (2 Mo), traite plus haut. Entre les deux il n'y avait
+     aucune raison de couper — mesure : 2 Mo de markdown se rendent en 282 ms. */
   } else if (modeSource || !/\.(md|markdown|mdown)$/i.test(f.nom)){
-    body.innerHTML = '<pre class="u-art-raw">' + esc(shorten(f.texte, 20000)) + '</pre>';
+    body.innerHTML = '<pre class="u-art-raw">' + esc(f.texte) + '</pre>';
   } else {
-    body.innerHTML = '<div class="u-md">' + mdRender(shorten(f.texte, 20000)) + '</div>';
+    body.innerHTML = '<div class="u-md">' + mdRender(f.texte) + '</div>';
   }
   body.scrollTop = 0;
 }

@@ -2714,6 +2714,17 @@ async function main(){
   // avoir TOUT récupéré, sinon on a juste déplacé le trou.
   check("le volet a récupéré le rendu markdown de la modale",
     !!corpsF.querySelector(".u-md"), corpsF.innerHTML.slice(0, 60));
+  /* ⚠ ET IL MONTRE LE DOCUMENT EN ENTIER. Le rendu portait `shorten(texte,
+     20000)`, repris de la modale : au-delà, la fin disparaissait avec pour
+     tout signal un « … » collé au dernier paragraphe. CONTRAT-INTERFACE.md
+     fait 28 683 caractères — on en lisait les deux tiers. Un volet dont le
+     métier est de lire des documents ne peut pas en cacher la fin ; la limite
+     honnête existe déjà et refuse à voix haute (PREVIEW_MAX_BYTES).
+     Le faux `notes.md` fait 400 lignes exprès : il dépasse la coupe. */
+  check("...et il montre le document ENTIER, sans coupe silencieuse",
+    corpsF.textContent.indexOf("…") < 0
+    && (corpsF.textContent.match(/Une ligne de plus/g) || []).length === 400,
+    (corpsF.textContent.match(/Une ligne de plus/g) || []).length + " lignes sur 400");
   win.document.getElementById("artVSource").click();
   await wait(40);
   check("...et il garde la source, que la modale n'avait pas",
@@ -2914,6 +2925,112 @@ async function main(){
     FakeWS.sent.length === avantColle);
   win.eval('setMode2("cowork")');
   await wait(40);
+
+  /* ══ Le rendu markdown ════════════════════════════════════════════════════
+     Il n'avait AUCUNE vérification, et il en portait quatre défauts. Ils
+     vivaient déjà dans les bulles ; le volet, qui rend des documents entiers,
+     les a rendus impossibles à ignorer (signalés par kuchu, 2026-08-11). */
+  console.log("\n--- Le rendu markdown ---");
+  const md = (s) => win.eval("mdRender(" + JSON.stringify(s) + ")");
+
+  // ⚠ 1. UNE LIGNE N'EST PAS UN PARAGRAPHE. Nos fichiers sont coupés à 78
+  //    colonnes : chaque ligne devenait son propre <p>, donc l'escalier.
+  const enrobe = md("Une phrase assez longue\nqui continue ici\net finit là.");
+  check("des lignes consécutives font UN paragraphe, pas un escalier",
+    (enrobe.match(/<p>/g) || []).length === 1
+    && enrobe.indexOf("longue qui continue ici et finit là") >= 0,
+    enrobe);
+  check("...et une ligne vide sépare toujours deux paragraphes",
+    (md("Premier.\n\nSecond.").match(/<p>/g) || []).length === 2);
+  // ⚠ 2. Corollaire direct : l'inline s'appliquait ligne par ligne, donc un
+  //    gras à cheval sur un retour restait littéral, astérisques comprises.
+  check("un **gras** à cheval sur deux lignes n'est plus littéral",
+    md("voici du **gras\nsur deux lignes** ici").indexOf("<strong>") >= 0
+    && md("voici du **gras\nsur deux lignes** ici").indexOf("**") < 0,
+    md("voici du **gras\nsur deux lignes** ici"));
+  // ⚠ Un gras qui CONTIENT une astérisque échouait aussi : `[^*]+` ne pouvait
+  //    pas la franchir. Cas réel, trouvé dans CONTRAT-INTERFACE.md — le motif
+  //    est dans un `code`, déjà transformé en <code> quand le gras s'applique.
+  check("...et un **gras contenant une astérisque** tient aussi",
+    md("**Les `apercu-*.html` RECOPIENT la feuille** — suite")
+      .indexOf("<strong>") >= 0
+    && md("**Les `apercu-*.html` RECOPIENT la feuille** — suite")
+      .indexOf("**") < 0,
+    md("**Les `apercu-*.html` RECOPIENT la feuille** — suite"));
+  // ...sans pour autant mettre en gras ce qui n'en est pas.
+  check("...mais « a ** b ** c » n'est pas du gras",
+    md("a ** b ** c").indexOf("<strong>") < 0, md("a ** b ** c"));
+  check("...et deux gras côte à côte restent deux gras",
+    (md("**un** et **deux**").match(/<strong>/g) || []).length === 2,
+    md("**un** et **deux**"));
+
+  // ⚠ 3. LES BLOCS INDENTÉS. `/^>\s?/` exigeait la colonne zéro : une citation
+  //    dans une liste s'affichait avec son chevron en clair.
+  const cit = md("- un point\n\n  > une citation indentée\n  > sur deux lignes");
+  check("une citation indentée est une citation, pas du texte avec un chevron",
+    cit.indexOf("<blockquote>") >= 0 && cit.indexOf("&gt;") < 0, cit);
+  check("...et son contenu est du markdown, pas du texte plat",
+    md("> avec du **gras** dedans").indexOf("<strong>") >= 0);
+  check("...un titre indenté aussi",
+    md("  ## Titre indenté").indexOf("<h2") >= 0);
+
+  // ⚠ 4. LES BLOCS DE CODE N'EXISTAIENT PAS. Sans eux, joindre les lignes
+  //    (défaut 1) aurait mis un bloc entier sur UNE SEULE ligne : corriger le
+  //    premier obligeait à écrire celui-ci.
+  const bloc = md("Avant.\n\n```js\nconst a = 1;\n  const b = 2;\n```\n\nAprès.");
+  check("un bloc ``` est rendu comme un bloc de code",
+    bloc.indexOf('<pre class="u-md-c"><code>') >= 0, bloc.slice(0, 90));
+  check("...ses lignes ne sont PAS jointes, et son indentation survit",
+    bloc.indexOf("const a = 1;\n  const b = 2;") >= 0, JSON.stringify(bloc));
+  check("...et rien n'y est lu comme du markdown",
+    md("```\n# pas un titre\n- pas une liste\n**pas du gras**\n```")
+      .indexOf("<h1") < 0
+    && md("```\n# pas un titre\n- pas une liste\n**pas du gras**\n```")
+      .indexOf("<strong>") < 0);
+  // Un bloc jamais fermé ne doit pas faire disparaître la fin du message.
+  check("...un bloc jamais fermé ne perd pas le texte",
+    md("```\nresté ouvert").indexOf("resté ouvert") >= 0);
+
+  // La suite d'un point de liste, coupée à 78 colonnes, reste DANS son point.
+  const suite = md("- un point qui est long\n  et qui continue dessous\n- un autre");
+  check("la suite indentée d'un point de liste reste dans son point",
+    (suite.match(/<li>/g) || []).length === 2
+    && suite.indexOf("long et qui continue dessous") >= 0, suite);
+
+  // ⚠ CE QUI NE DOIT PAS AVOIR BOUGÉ. Le rendu échappe AVANT de décorer : un
+  //    titre de session portant <img onerror=…> s'exécuterait dans la page,
+  //    avec accès au proxy authentifié.
+  check("le HTML est toujours neutralisé, dans le texte comme dans le code",
+    md('<img src=x onerror="vol()">').indexOf("<img") < 0
+    && md("```\n<script>vol()</script>\n```").indexOf("<script") < 0,
+    md('<img src=x onerror="vol()">'));
+  check("les tableaux tiennent encore",
+    md("| a | b |\n|---|---|\n| 1 | 2 |").indexOf('<table class="u-md-t">') >= 0);
+  check("les listes ordonnées et les traits aussi",
+    md("1. un\n2. deux").indexOf("<ol") >= 0 && md("---").indexOf("<hr>") >= 0);
+
+  /* ⚠ ET LA FEUILLE SUIT LA CLASSE, PLUS L'ENDROIT. Les règles étaient
+     écrites `.msg .u-md …` : le volet rend le même `.u-md`, mais hors d'une
+     bulle — ses tableaux étaient sans bordures et ses citations sans barre.
+     On mesure sur un `.u-md` posé AILLEURS que dans le fil. */
+  const dehors = win.document.createElement("div");
+  dehors.className = "u-md";
+  dehors.innerHTML = md("> une citation\n\n| a |\n|---|\n| 1 |\n\n```\ncode\n```");
+  win.document.body.appendChild(dehors);
+  /* ⚠ ON NE MESURE PAS `border-left-width` : jsdom ne décompose pas le
+     raccourci `border-left`, il rend « 16px » quoi qu'on écrive — une
+     vérification qui passerait aussi bien avec la règle qu'avec son absence.
+     `line-height` et `background-color` sont résolus pour de vrai. */
+  const qt = win.getComputedStyle(dehors.querySelector("blockquote"));
+  const pre = win.getComputedStyle(dehors.querySelector("pre.u-md-c"));
+  check("le markdown est stylé HORS d'une bulle — le volet en rend aussi",
+    win.getComputedStyle(dehors).lineHeight === "1.65"
+    && qt.backgroundColor === "rgba(127, 127, 127, 0.06)",
+    "interligne " + win.getComputedStyle(dehors).lineHeight
+    + " · citation " + qt.backgroundColor);
+  check("...et un bloc de code défile plutôt que de pousser la colonne",
+    pre.overflowX === "auto", pre.overflowX);
+  dehors.remove();
 
   console.log("\n--- Aucune erreur JavaScript pendant tout ça ---");
   check("la console est restée propre", errors.length === 0, errors.slice(0, 3).join(" | "));

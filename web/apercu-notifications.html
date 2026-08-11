@@ -1638,28 +1638,44 @@ svg.graph *{cursor:inherit}
 .dette.rouge .pt{color:#B3261E}
 .dette .tx b{color:var(--text)}
 
-/* ═══ Rendu markdown des messages (correctif catégorie 3) ═══════════ */
-.msg .u-md{line-height:1.65}
-.msg .u-md p{margin:0 0 var(--space-3)}
-.msg .u-md p:last-child{margin-bottom:0}
-.msg .u-md h1,.msg .u-md h2,.msg .u-md h3{margin:.2em 0 .45em;font-weight:700;line-height:1.25}
-.msg .u-md h1{font-size:1.3em}
-.msg .u-md h2{font-size:1.15em}
-.msg .u-md h3{font-size:1.03em;color:var(--muted)}
-.msg .u-md ul,.msg .u-md ol{margin:0 0 var(--space-3);padding-left:1.35em}
-.msg .u-md li{margin:.18em 0}
-.msg .u-md ul.u-md-l,.msg .u-md ol.u-md-l{list-style:inherit}
-.msg .u-md code{background:var(--code-bg,rgba(127,127,127,.16));padding:.12em .4em;border-radius:6px;
+/* ═══ Rendu markdown (correctif catégorie 3) ════════════════════════
+   ⚠ CES RÈGLES SUIVENT LA CLASSE, PLUS L'ENDROIT. Elles étaient écrites
+   `.msg .u-md …`, donc elles ne s'appliquaient que dans une bulle du fil.
+   Le volet rend le même `.u-md` : ses tableaux étaient sans bordures, ses
+   citations sans barre, ses paragraphes sans espacement. Il ne manquait pas
+   une règle — il manquait de ne pas être une bulle.
+   Ce qui dépend VRAIMENT de l'endroit reste préfixé : `.msg.you` plus bas
+   assombrit le fond du code sur la bulle grise de la personne. */
+.u-md{line-height:1.65}
+.u-md p{margin:0 0 var(--space-3)}
+.u-md p:last-child{margin-bottom:0}
+.u-md h1,.u-md h2,.u-md h3{margin:.2em 0 .45em;font-weight:700;line-height:1.25}
+.u-md h1{font-size:1.3em}
+.u-md h2{font-size:1.15em}
+.u-md h3{font-size:1.03em;color:var(--muted)}
+.u-md ul,.u-md ol{margin:0 0 var(--space-3);padding-left:1.35em}
+.u-md li{margin:.18em 0}
+.u-md ul.u-md-l,.u-md ol.u-md-l{list-style:inherit}
+.u-md code{background:var(--code-bg,rgba(127,127,127,.16));padding:.12em .4em;border-radius:6px;
   font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:.9em}
-.msg .u-md blockquote{margin:0 0 var(--space-3);padding:.2em .9em;border-left:3px solid var(--accent,#7c5cff);
+/* Un bloc de code : il DÉFILE plutôt que de pousser la colonne. Une ligne
+   de terminal ne se coupe pas, et le volet fait 560 px. */
+.u-md pre.u-md-c{margin:0 0 var(--space-3);padding:12px 14px;border-radius:10px;
+  background:var(--surface,#F0F4F9);border:1px solid var(--surface-hi,#E9EEF6);
+  overflow-x:auto}
+.u-md pre.u-md-c code{background:none;padding:0;border-radius:0;font-size:.88em;
+  line-height:1.55;white-space:pre;display:block}
+.u-md blockquote{margin:0 0 var(--space-3);padding:.2em .9em;border-left:3px solid var(--accent,#7c5cff);
   color:var(--muted);background:rgba(127,127,127,.06)}
-.msg .u-md hr{border:none;border-top:1px solid var(--line,#e2e2ea);margin:var(--space-4) 0}
-.msg .u-md table.u-md-t{border-collapse:collapse;width:100%;margin:.2em 0 var(--space-3);
+.u-md blockquote > :last-child{margin-bottom:0}
+.u-md hr{border:none;border-top:1px solid var(--line,#e2e2ea);margin:var(--space-4) 0}
+/* Un tableau large déborde du volet : c'est LUI qui défile, pas la page. */
+.u-md table.u-md-t{border-collapse:collapse;width:100%;margin:.2em 0 var(--space-3);
   font-size:.92em;overflow:hidden;border-radius:10px}
-.msg .u-md table.u-md-t th,.msg .u-md table.u-md-t td{border:1px solid var(--line,#e2e2ea);
+.u-md table.u-md-t th,.u-md table.u-md-t td{border:1px solid var(--line,#e2e2ea);
   padding:6px 10px;text-align:left;vertical-align:top}
-.msg .u-md table.u-md-t th{background:var(--th-bg,rgba(127,127,127,.12));font-weight:600}
-.msg .u-md table.u-md-t tr:nth-child(even) td{background:rgba(127,127,127,.04)}
+.u-md table.u-md-t th{background:var(--th-bg,rgba(127,127,127,.12));font-weight:600}
+.u-md table.u-md-t tr:nth-child(even) td{background:rgba(127,127,127,.04)}
 .msg.you .u-md code{background:rgba(0,0,0,.08)}
 .msg.you .u-md table.u-md-t th{background:rgba(0,0,0,.07)}
 .msg.you .u-md table.u-md-t tr:nth-child(even) td{background:rgba(0,0,0,.03)}
