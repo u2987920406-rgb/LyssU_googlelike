@@ -1266,8 +1266,18 @@
        et rien n'oblige à aller le chercher dans un autre écran. -->
   <div class="sheet-bg" id="sNode"><div class="sheet fiche" id="ficheBody"></div></div>
 
-  <!-- La fiche d'un fichier ouvert depuis l'Établi ou les Livrables. -->
-  <div class="sheet-bg" id="sFile"><div class="sheet" id="fileBody"></div></div>
+  <!-- ⚠ ICI VIVAIT #sFile, la fiche d'un fichier en MODALE. Retirée le
+       2026-08-12, avec l'accord du contrat d'interface.
+
+       Un fichier se montre dans UN SEUL écran, et c'est le volet
+       (#artifactViewer) : l'Établi, les Livrables et le fil y passent tous.
+       La modale couvrait la conversation pour montrer un document qui
+       n'exigeait aucune réponse — et assombrir le fond veut dire
+       « finissez ceci d'abord ».
+
+       Elle n'était plus ouverte par personne depuis le 2026-08-11. Elle est
+       restée un jour de plus parce que ses `id` étaient au contrat, et qu'on
+       n'en sort pas au détour d'une passe. Un test empêche son retour. -->
 
   <!-- Écrire dans la mémoire. Une feuille à part : ce qu'on y montre — la
        différence, ce qui se perd, ce qu'on pourra défaire — n'a rien à voir

@@ -1350,14 +1350,20 @@ async function main(){
   await wait(60);
   const work = win.document.getElementById("work");
   check("R5 · l'Établi s'ouvre", work.classList.contains("atelier"));
-  const croix = win.document.querySelector("#ctlEtabli button");
-  check("R5 · son en-tête porte une commande, pas un bloc vide", !!croix);
+  /* ⚠ ON VISE LA CROIX PAR SON `id`, PAS « le premier bouton du .ctl ».
+     Écrit d'abord en `querySelector("#ctlEtabli button")`, ce test a cassé le
+     2026-08-12 quand un second bouton — relire le dossier — est arrivé dans
+     le même bloc : il cliquait le nouveau et concluait que la croix ne
+     fermait plus rien. Un test qui désigne par la position accuse le voisin. */
+  const croix = win.document.getElementById("etabliClose");
+  check("R5 · son en-tête porte une commande, pas un bloc vide",
+    !!win.document.querySelector("#ctlEtabli button"));
   if (croix){
     croix.click();
     await wait(30);
     check("R5 · elle referme l'Établi", !work.classList.contains("atelier"));
   } else {
-    check("R5 · elle referme l'Établi", false, "#ctlEtabli est vide");
+    check("R5 · elle referme l'Établi", false, "#etabliClose absent");
   }
 
   // R6 — une chaine de douze outils tenait sur UNE ligne : 2766 x 144.
@@ -2753,10 +2759,40 @@ async function main(){
   win.eval('showFile("D:/faux-home/notes.md", "notes.md")');
   await wait(150);
   const appEl = win.document.getElementById("app");
+  /* ⚠ `#sFile` N'EXISTE PLUS. La modale a été retirée le 2026-08-12 : un
+     fichier se montre dans UN SEUL écran. On ne vérifie donc plus qu'elle
+     reste fermée — on vérifie qu'elle ne REVIENT pas. Une modale morte qui
+     traîne finit par être rebranchée « parce qu'elle est là ». */
   check("l'Établi et le fil ouvrent LE MÊME écran : le volet",
     appEl.classList.contains("artifact-split")
-    && !win.document.getElementById("sFile").classList.contains("on"),
-    appEl.className + " · sFile=" + win.document.getElementById("sFile").className);
+    && !win.document.getElementById("sFile"),
+    appEl.className + " · sFile=" + (win.document.getElementById("sFile")
+      ? "existe encore" : "retirée"));
+  check("...et la modale ne revient pas par la fenêtre",
+    !win.document.getElementById("sFile")
+    && !win.document.getElementById("fileBody")
+    && fs.readFileSync(path.join(DIR, "ulysse.html"), "utf8")
+        .indexOf('id="sFile"') < 0);
+  // L'Établi vieillit vite : l'agent écrit pendant qu'on le regarde. Il est
+  // le seul panneau qui n'avait pas de quoi se relire.
+  win.eval('setMode("atelier")');
+  await wait(200);
+  check("l'Établi a de quoi se relire, comme tous les autres panneaux",
+    !!win.document.getElementById("etabliRefresh"),
+    win.document.getElementById("ctlEtabli")
+      ? win.document.getElementById("ctlEtabli").innerHTML.slice(0, 60) : "pas de .ctl");
+  {
+    const compte = () => fetched.filter(
+      (f) => f.path.indexOf("/api/files") === 0
+             && f.path.indexOf("/api/files/read") !== 0).length;
+    const avant = compte();
+    win.document.getElementById("etabliRefresh").click();
+    await wait(300);
+    check("...et le bouton redemande vraiment le dossier au backend",
+      compte() > avant, avant + " → " + compte() + " lecture(s) de dossier");
+  }
+  win.eval('setMode("chat")');
+  await wait(60);
 
   // ⚠ LE VOLET DÉFILE. `.u-art-body{flex:1}` vivait sous un
   //    `<aside class="u-art-panel">` qui n'avait AUCUNE règle : le corps
@@ -2952,6 +2988,16 @@ async function main(){
   check("...et le produit n'écrit plus dans son propre dossier servi",
     !fs.existsSync(path.join(DIR, "captures"))
     && !fs.existsSync(path.join(DIR, "artifacts")));
+  /* ⚠ AUCUN JETON SUR LE DISQUE. `lancer_ulysse.bat` en fabrique un neuf à
+     chaque démarrage et le passe par VARIABLE D'ENVIRONNEMENT — précisément
+     pour qu'il ne touche aucun fichier : « le jeton ne vit que dans la mémoire
+     des processus lancés ici ». Un `web/.jeton-session` de 40 octets avait
+     pourtant survécu depuis le 2026-08-08, écrit par une version antérieure,
+     que plus rien ne lisait. Trouvé en écrivant le .gitignore, pas avant, et
+     il serait parti sur GitHub avec un `git add .`.
+     Ce test garde la promesse, pas le fichier. */
+  check("aucun jeton de session ne traîne dans le dossier servi",
+    !fs.existsSync(path.join(DIR, ".jeton-session")));
   // Le fond : le collage passe par le MÊME chemin que le « + ».
   check("coller une image appelle surFichiers, comme le « + »",
     /function collerCapture[\s\S]*?surFichiers\(/.test(codePage),

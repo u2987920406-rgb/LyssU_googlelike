@@ -1013,8 +1013,18 @@ function ouvrirEtabliSur(dossier){
 function wireCtlEtabli(){
   const host = $("ctlEtabli");
   if (!host) return;
-  host.innerHTML = '<button id="etabliClose" aria-label="Fermer l\'Établi" '
+  /* ⚠ L'ÉTABLI ÉTAIT LE SEUL PANNEAU SANS BOUTON DE RELECTURE. Les Travaux,
+     les Livrables, les Projets et les Automatisations en ont un depuis
+     toujours (`travRefresh`, `livRefresh`, `projRefresh`, `autoRefresh`) ;
+     lui n'avait qu'une croix. Or c'est le panneau qui vieillit le PLUS VITE :
+     l'agent écrit des fichiers pendant qu'on le regarde.
+     Signalé par l'usage le 2026-08-11 — kuchu ne voyait pas un fichier que
+     je venais d'écrire, et rien à l'écran ne permettait de redemander. */
+  host.innerHTML = '<button id="etabliRefresh" aria-label="Relire le dossier" '
+    + 'title="Relire le dossier">' + svg("relancer", { size: 17 }) + "</button>"
+    + '<button id="etabliClose" aria-label="Fermer l\'Établi" '
     + 'title="Fermer l\'Établi">' + svg("fermer", { size: 18 }) + "</button>";
+  $("etabliRefresh").onclick = () => drawEtabli();
   $("etabliClose").onclick = () => setMode("chat");
 }
 
@@ -1060,9 +1070,9 @@ function wireFileRows(hostId, onDir){
    Assombrir le fond veut dire « finissez ceci d'abord ». Lire un document
    n'exige rien. Voir PASSE-DESIGN-FICHIERS.md §1.
 
-   `#sFile` / `fileBody` / `fClose` restent dans ulysse.html : ils sont au
-   CONTRAT-INTERFACE.md et n'en partent qu'avec son accord, pas au détour
-   d'une passe. Ils ne sont simplement plus ouverts par personne. */
+   `#sFile` / `fileBody` / `fClose` sont SORTIS de ulysse.html le 2026-08-12,
+   avec l'accord du contrat. Ils y étaient restés un jour de plus que leur
+   utilité : on ne sort pas du contrat au détour d'une passe. */
 function showFile(path, name){
   return ouvrirFichier(path, name || (path || "").split(/[\\/]/).pop());
 }

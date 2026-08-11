@@ -152,15 +152,17 @@ créer d'`id` qui leur ressemble) : `gzoom` `doorBtn` `densSeg` `livCrumbs`
 `uMemFiles` `uMemTexte` `uMemDiff` `uMemVers` `uMemGo` `tConsole` `jNom`
 `lieuBtn` `lieuPop` `ranFil` `ranList` `ranPrendre` `ranAnnuler`
 
-> ⚠ **`#sFile` / `#fileBody` / `#fClose` NE SONT PLUS OUVERTS PAR PERSONNE**
-> (2026-08-11). Un fichier se montre dans **un seul écran : le volet**
-> (`#artifactViewer`), jamais dans une modale — l'Établi, les Livrables et le
-> fil y passent tous par `showFile()`. Il y avait deux visualiseurs pour le
-> même objet, et chacun savait exactement ce que l'autre ignorait ; lequel
-> apparaissait dépendait de l'endroit où l'on avait cliqué.
-> Les trois `id` **restent dans le HTML** : ils sont à ce contrat et n'en
-> partent qu'avec son accord, pas au détour d'une passe. Les retirer est une
-> décision à prendre ici, séparément.
+> ⚠ **`#sFile` / `#fileBody` / `#fClose` SONT RETIRÉS** (2026-08-12). Un
+> fichier se montre dans **un seul écran : le volet** (`#artifactViewer`),
+> jamais dans une modale — l'Établi, les Livrables et le fil y passent tous
+> par `showFile()`. Il y avait deux visualiseurs pour le même objet, et chacun
+> savait exactement ce que l'autre ignorait ; lequel apparaissait dépendait de
+> l'endroit où l'on avait cliqué.
+>
+> Ils avaient cessé d'être ouverts le 11, et sont restés **un jour de plus**
+> dans le HTML : on ne sort pas du contrat au détour d'une passe. Un test
+> empêche leur retour — une modale morte qui traîne finit par être rebranchée
+> « parce qu'elle est là ».
 >
 > **Classes du volet et de sa carte**, préfixées `f-` : `f-carte` (avec
 > `absent` en classe jointe — le fichier n'est pas là, et on le dit avant le
