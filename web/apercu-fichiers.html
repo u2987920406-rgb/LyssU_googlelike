@@ -3,33 +3,26 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Aperçu — où Discuter travaille</title>
+<title>Aperçu — les fichiers dans le fil</title>
 
 <!-- ═══════════════════════════════════════════════════════════════════════
-     APERÇU DE DESIGN — le lieu de travail dans Discuter (`projects.for_cwd`)
+     APERÇU DE DESIGN — montrer un fichier
 
-     LE RELEVÉ, D'ABORD :
+     Écrit après coup, comme celui du collage : `ulysse-artifact.js` a été
+     ajouté le 2026-08-11 sans passe de design.
 
-     La barre de titre de Discuter ne dit **rien** du dossier où l'agent
-     travaille. On choisit « Travailler ici » dans Projets, un snack le dit
-     six secondes, on va dans Discuter — et plus rien.
+     TROIS CONSTATS, du plus grave au plus petit :
 
-     C'est le même défaut que la demande d'accord invisible, et il est plus
-     grave : là, l'agent **écrit**.
-
-     ⚠ CE QUI EST SUPPOSÉ, et qu'il faut vérifier avant d'appliquer :
-       · que `projects.for_cwd` rende le projet, ou rien, sans erreur ;
-       · qu'il distingue un vrai projet d'un dossier déduit comme le fait
-         `projects.tree` (`isAuto`).
-     Le reste de cette passe est constaté.
+       ① DEUX visualiseurs coexistent pour le même objet — `#sFile` (modale,
+         depuis l'Établi et les Livrables) et `#artifactViewer` (volet,
+         depuis le fil). Chacun sait ce que l'autre ignore.
+       ② La carte du fil ne peut désigner QUE `/artifacts/…` : le fichier
+         qu'on vient d'écrire dans le projet n'en a pas.
+       ③ Le volet ne défile pas — `.u-art-panel` n'a aucune règle CSS.
 
      PAGE AUTONOME : ulysse.css et ulysse-icons.js recopiés plus bas.
      ═══════════════════════════════════════════════════════════════════════ -->
 
-<!-- ─────────────────────────────────────────────────────────────────────
-     PAGE AUTONOME. ulysse.css et ulysse-icons.js sont RECOPIÉS ci-dessous.
-     `resync_apercus.py` les tient à jour ; `test_page.js` le vérifie.
-     ───────────────────────────────────────────────────────────────────── -->
 <style>
 /* ══ ulysse.css, recopié ══ */
 /* ============================================================================
@@ -1763,162 +1756,8 @@ svg.graph *{cursor:inherit}
 }
 
 </style>
-
-<style>
-.u-who{font-size:var(--font-size-xs);color:var(--faint);margin-bottom:4px}
-.u-sousbarre{position:relative;z-index:1;display:flex;align-items:center;gap:12px;
-  width:min(720px,calc(100vw - 48px));margin:10px auto 0}
-.u-modenote{font-size:11.5px;color:var(--faint)}
-.u-todo{border:1px dashed var(--outline-var);border-radius:var(--radius-card);
-  padding:18px;color:var(--muted);font-size:var(--font-size-sm);max-width:620px;
-  line-height:1.6;margin:12px 0}
-.u-todo b{color:var(--text);font-weight:500}
-.u-todo code{background:var(--surface);border-radius:6px;padding:1px 6px;
-  font-size:var(--font-size-xs)}
-
-/* ── Habillage de l'aperçu ─────────────────────────────────────────────── */
-body{overflow:auto}
-.ap-bar{position:sticky;top:0;z-index:900;display:flex;align-items:center;gap:14px;
-  flex-wrap:wrap;padding:10px 20px;background:#1F1F1F;color:#fff;font-size:13px}
-.ap-bar .t{font-weight:500;margin-right:auto}
-.ap-bar .t span{color:#9AA0A6;font-weight:400}
-.ap-seg{display:flex;border:1px solid #5F6368;border-radius:999px;overflow:hidden}
-.ap-seg button{padding:5px 13px;font-size:12.5px;color:#DADCE0}
-.ap-seg button+button{border-left:1px solid #5F6368}
-.ap-seg button.on{background:#D3E3FD;color:#041E49;font-weight:500}
-.ap-frame{position:relative;height:calc(100vh - 46px);min-height:660px;
-  border-top:1px solid var(--outline-var);display:flex;overflow:hidden}
-.ap-frame .stage{flex:1;min-width:0;position:relative;display:flex;flex-direction:column}
-.ap-frame .panel{position:absolute;inset:0;display:flex;flex-direction:column}
-.ap-note{position:fixed;right:16px;bottom:16px;z-index:800;max-width:350px;
-  max-height:64vh;overflow:auto;background:#1F1F1F;color:#E8EAED;border-radius:14px;
-  padding:15px 17px;font-size:12.5px;line-height:1.55;box-shadow:0 4px 20px rgba(0,0,0,.4)}
-.ap-note b{color:#8AB4F8;font-weight:500}
-.ap-note h4{font-size:12.5px;color:#fff;margin:12px 0 5px}
-.ap-note ul{margin:4px 0 0 15px;padding:0}
-.ap-note li{margin-bottom:6px}
-.ap-note code{background:#3C4043;border-radius:4px;padding:1px 5px;font-size:11.5px}
-.ap-note .x{position:absolute;top:8px;right:11px;color:#9AA0A6;cursor:pointer}
-
-/* ═══════════════════════════════════════════════════════════════════════
-   CE QUI S'AJOUTE — préfixé `l-`.
-   ═══════════════════════════════════════════════════════════════════════ */
-
-/* ── LA GÉLULE DU LIEU ───────────────────────────────────────────────────
-   Elle se pose à côté du titre, là où `#privchip` se pose déjà : la barre
-   de titre décrit l'écran, et **où l'on travaille fait partie de ce qu'il
-   est**.
-
-   Elle reprend les trois espèces arbitrées dans la passe des Projets, avec
-   les mêmes signes — un vrai projet a sa couleur, un dossier déduit est
-   gris et vide. On ne réapprend pas un vocabulaire d'un écran à l'autre. */
-.l-lieu{display:inline-flex;align-items:center;gap:7px;margin-left:12px;
-  height:28px;padding:0 12px 0 8px;border-radius:var(--radius-pill);
-  font-size:12.5px;background:var(--surface);color:var(--muted);
-  max-width:280px;transition:background .14s ease}
-.l-lieu:hover{background:var(--surface-hi);color:var(--text)}
-.l-lieu .ic{width:18px;height:18px;flex:none;border-radius:5px;display:grid;
-  place-items:center}
-.l-lieu .nm{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-/* Un vrai projet porte sa couleur. Un dossier déduit, non — c'est ce qui
-   les distingue dans la liste, et ça doit être vrai ici aussi. */
-.l-lieu.projet .ic{color:#fff}
-.l-lieu.dossier .ic{background:var(--surface-hi);color:var(--muted)}
-/* Tant qu'on ne sait pas, on ne dit pas. Même règle que les pastilles de
-   `#first` : « je ne sais pas » n'est pas « nulle part ». */
-.l-lieu.attente{color:var(--faint)}
-.l-lieu.attente .ic{background:var(--outline-var);animation:l-pulse 1.4s ease-in-out infinite}
-@keyframes l-pulse{0%,100%{opacity:1}50%{opacity:.4}}
-
-/* ── LE CAS QUI N'EXISTAIT NULLE PART : DEUX DOSSIERS À LA FOIS ──────────
-   `CFG.SESSION_CWD` est le dossier de la PROCHAINE session.
-   `conv.info.cwd` est celui de la session EN COURS.
-
-   Cliquer « Travailler ici » pendant qu'un fil est ouvert change le
-   premier, pas le second — et **rien ne le dit aujourd'hui**. On croit
-   avoir déménagé ; on écrit encore à l'ancienne adresse.
-
-   La gélule se dédouble alors, avec une flèche entre les deux. C'est le
-   seul moment où elle prend de la place, et c'est le seul où il le faut. */
-.l-lieu.change{background:#FEF7E0;color:#5F4200;padding-right:8px}
-.l-lieu .fl{color:var(--amber);flex:none;display:grid}
-.l-lieu .suite{color:#5F4200;font-weight:500}
-
-/* Le repli : le chemin entier, et où aller. On ne met pas un chemin de
-   cent caractères dans une barre de titre. */
-.l-pop{position:absolute;top:44px;left:0;right:auto;bottom:auto;min-width:300px;
-  max-width:420px;padding:14px 16px}
-.l-pop .ch{font-family:ui-monospace,Menlo,monospace;font-size:12px;
-  word-break:break-all;color:var(--text);background:var(--surface);
-  border-radius:var(--radius-sm);padding:9px 12px;margin:8px 0 4px}
-.l-pop .tt{font-size:var(--font-size-xs);color:var(--muted);line-height:1.55}
-.l-pop .acts{display:flex;gap:8px;margin-top:12px;opacity:1}
-</style>
 </head>
 <body>
-
-<div class="ap-bar">
-  <span class="t">Aperçu — <b>où Discuter travaille</b>
-    <span>· projects.for_cwd</span></span>
-
-  <div class="ap-seg" id="apCas">
-    <button data-c="attente" class="on">Session pas ouverte</button>
-    <button data-c="projet">Un vrai projet</button>
-    <button data-c="dossier">Un dossier déduit</button>
-    <button data-c="aucun">Aucun dossier</button>
-    <button data-c="change">Changement en attente</button>
-  </div>
-  <div class="ap-seg" id="apVers">
-    <button data-v="0" class="on">Actuel</button>
-    <button data-v="1">Proposé</button>
-  </div>
-</div>
-
-<div class="ap-frame">
-  <div class="stage">
-    <div class="panel on" id="pDiscuter">
-      <div class="topbar">
-        <span class="title">Discuter</span>
-        <span class="privchip" id="privchip"></span>
-        <!-- La gélule du lieu vient ici, à côté du titre. -->
-        <span id="lieuSlot" style="position:relative"></span>
-        <span class="sep"></span>
-        <span style="position:relative">
-          <button class="icon-btn" id="moreBtn" aria-label="Autres options"></button>
-          <div class="pop" id="morePop" style="bottom:auto;top:48px;right:0;left:auto"></div>
-        </span>
-      </div>
-
-      <div class="work" id="work">
-        <div class="thread"><div class="thread-in"><div id="thread"></div></div></div>
-      </div>
-
-      <div class="foot"><div style="position:relative;max-width:720px;margin:0 auto">
-        <form class="composer" id="composer" onsubmit="return false">
-          <button type="button" class="icon-btn" id="plus1" aria-label="Joindre"></button>
-          <input id="reply" autocomplete="off" placeholder="Répondre…">
-          <button type="button" class="icon-btn" id="mic1" aria-label="Parler"></button>
-          <button type="submit" class="icon-btn send" id="snd1" aria-label="Envoyer"></button>
-        </form>
-        <div class="u-sousbarre">
-          <div class="seg u-modeseg" data-seg="1">
-            <button data-mode="pur" class="on">Chat</button>
-            <button data-mode="cowork">Cowork</button>
-          </div>
-          <span class="sp" style="flex:1"></span>
-          <span class="u-modenote" id="modenote1"></span>
-        </div>
-      </div></div>
-    </div>
-  </div>
-</div>
-
-<div class="snack" id="snack"></div>
-
-<div class="ap-note" id="apNote">
-  <span class="x" onclick="document.getElementById('apNote').style.display='none'">✕</span>
-  <div id="apBody"></div>
-</div>
 
 <script>
 /* ══ ulysse-icons.js, recopié ══ */
@@ -2087,200 +1926,319 @@ function svg(k,{size=24,fill=false,w=2}={}){
 }
 
 </script>
+
+<style>
+/* ══ Gabarit de l'aperçu — lui appartient, pas au produit ══ */
+body{margin:0;background:var(--sidebar,#F8FAFD);font-family:var(--font,system-ui)}
+.ap-bar{position:sticky;top:0;z-index:40;display:flex;align-items:center;gap:14px;
+  padding:12px 22px;background:var(--bg,#fff);border-bottom:1px solid var(--surface-hi,#E9EEF6)}
+.ap-bar h1{font-size:16px;font-weight:500;margin:0;flex:1}
+.ap-seg{display:flex;background:var(--surface,#F0F4F9);border-radius:99px;padding:3px}
+.ap-seg button{border:0;background:none;font:inherit;font-size:13px;padding:6px 16px;
+  border-radius:99px;cursor:pointer;color:var(--muted,#5F6368)}
+.ap-seg button.on{background:var(--bg,#fff);color:var(--text,#1F1F1F);font-weight:500;
+  box-shadow:0 1px 3px rgba(0,0,0,.10)}
+.ap-cas{max-width:1180px;margin:0 auto;padding:26px 22px 90px}
+.ap-cas h2{font-size:15px;font-weight:600;margin:34px 0 4px}
+.ap-cas h2:first-child{margin-top:0}
+.ap-cas .ap-quoi{font-size:13.5px;color:var(--muted,#5F6368);margin:0 0 14px;line-height:1.55}
+.ap-scene{background:var(--bg,#fff);border:1px solid var(--surface-hi,#E9EEF6);
+  border-radius:16px;overflow:hidden}
+.ap-split{display:flex;min-height:340px}
+.ap-fil{flex:1;min-width:0;padding:20px 22px;display:flex;flex-direction:column;gap:2px}
+.ap-fil .msg{max-width:none}
+.ap-verdict{margin-top:12px;font-size:13px;line-height:1.6;padding:12px 14px;
+  border-radius:10px;background:var(--surface,#F0F4F9);color:var(--text,#1F1F1F)}
+.ap-verdict.mal{background:rgba(217,101,112,.10)}
+.ap-verdict.bien{background:rgba(30,142,62,.10)}
+.ap-verdict b{font-weight:600}
+.ap-etabli{flex:0 0 250px;background:var(--sidebar,#F8FAFD);
+  border-left:1px solid var(--surface-hi,#E9EEF6);padding:14px 12px}
+.ap-etabli .vt{font-size:12px;color:var(--muted,#5F6368);font-weight:500;
+  padding:0 6px 8px;display:block}
+
+/* Le visualiseur, tel qu'il est aujourd'hui : l'aside n'a AUCUNE règle,
+   donc pas de display:flex, donc le flex:1 de .u-art-body ne s'applique à
+   rien. On le reproduit tel quel — c'est le sujet du cas 2. */
+.ap-vue{flex:0 0 400px;border-left:1px solid var(--surface-hi,#E9EEF6);
+  display:flex;flex-direction:column;overflow:hidden;background:var(--bg,#fff)}
+.ap-vue.casse .u-art-body{max-height:none}
+.ap-vue.bon{overflow:hidden}
+.ap-vue.bon .u-art-panel{display:flex;flex-direction:column;min-height:0;flex:1}
+.ap-vue.bon .u-art-body{flex:1;min-height:0;overflow-y:auto}
+.ap-vue .u-art-panel{min-height:0}
+
+/* La modale #sFile, reproduite pour le cas 3 (état actuel). */
+.ap-modal{position:absolute;inset:0;background:rgba(0,0,0,.32);display:grid;
+  place-items:center;z-index:10}
+.ap-modal .sheet{background:var(--bg,#fff);border-radius:18px;padding:24px;
+  width:min(560px,86%);max-height:80%;overflow:auto;
+  box-shadow:0 18px 50px rgba(0,0,0,.22)}
+.ap-modal .sheet h2{font-size:20px;font-weight:400;margin:0 0 4px}
+.ap-modal .sheet .sub{color:var(--muted,#5F6368);font-size:13px;margin-bottom:14px}
+
+/* Ce que je propose pour la carte. Rien n'est repris du produit : ces classes
+   sont neuves et préfixées `f-`. */
+.f-carte{display:flex;align-items:center;gap:12px;margin:8px 0;padding:10px 12px;
+  background:var(--bg,#fff);border:1px solid var(--surface-hi,#E9EEF6);
+  border-radius:12px;cursor:pointer;max-width:520px;
+  transition:border-color .12s,box-shadow .12s}
+.f-carte:hover{border-color:var(--accent,#0B57D0);box-shadow:0 2px 10px rgba(0,0,0,.07)}
+.f-ic{flex:0 0 auto;width:36px;height:36px;border-radius:10px;display:grid;
+  place-items:center;background:var(--surface,#F0F4F9);color:var(--muted,#5F6368)}
+.f-txt{flex:1;min-width:0;line-height:1.3}
+.f-nom{display:block;font-size:13.5px;font-weight:600;color:var(--text,#1F1F1F);
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.f-ou{display:block;font-size:11.5px;color:var(--faint,#80868B);
+  white-space:nowrap;overflow:hidden;direction:rtl;text-align:left;
+  font-family:var(--font-mono,ui-monospace,monospace)}
+.f-go{flex:0 0 auto;font-size:12.5px;color:var(--accent,#0B57D0);padding-left:8px}
+.f-carte.absent{border-style:dashed;cursor:default;opacity:.75}
+.f-carte.absent:hover{border-color:var(--surface-hi,#E9EEF6);box-shadow:none}
+.f-carte.absent .f-go{color:var(--faint,#80868B)}
+
+.f-fil{display:flex;align-items:center;gap:6px;padding:9px 14px;font-size:12.5px;
+  border-bottom:1px solid var(--surface-hi,#E9EEF6);color:var(--muted,#5F6368);flex:none}
+.f-fil button{border:0;background:none;font:inherit;color:var(--accent,#0B57D0);
+  cursor:pointer;padding:0}
+.f-fil .f-ici{color:var(--text,#1F1F1F);font-weight:600;
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.f-outils{display:flex;gap:2px;margin-left:auto}
+.f-outils button{width:28px;height:28px;border-radius:7px;border:0;background:none;
+  cursor:pointer;color:var(--muted,#5F6368);font-size:13px}
+.f-outils button:hover{background:var(--surface,#F0F4F9);color:var(--text,#1F1F1F)}
+.f-outils button.on{background:var(--surface-hi,#E9EEF6);color:var(--text,#1F1F1F)}
+
+.ap-long{font-size:13.5px;line-height:1.65}
+.ap-long h3{font-size:15px;margin:0 0 8px}
+.ap-note-b{margin-top:8px;font-size:12px;color:var(--faint,#80868B)}
+.ap-tag{display:inline-block;font-size:11px;padding:2px 8px;border-radius:99px;
+  background:rgba(217,101,112,.14);color:#8E2F3A;margin-left:8px;vertical-align:2px}
+.ap-tag.ok{background:rgba(30,142,62,.14);color:#1B6B33}
+</style>
+
+<div class="ap-bar">
+  <h1>Aperçu — les fichiers dans le fil, et l'écran qui les montre</h1>
+  <div class="ap-seg">
+    <button id="bAct" class="on">Actuel</button>
+    <button id="bPro">Proposé</button>
+  </div>
+</div>
+
+<div class="ap-cas" id="cas"></div>
+
 <script>
-/* ═══ Banc d'essai. ═══ */
-const $ = (id) => document.getElementById(id);
-const H = (id, h) => { const n = $(id); if (n) n.innerHTML = h; };
-const ech = (s) => String(s).replace(/[&<>"]/g, (c) =>
-  ({ "&":"&amp;", "<":"&lt;", ">":"&gt;", '"':"&quot;" }[c]));
+/* ══ Le corps de l'aperçu ══
+   Trois cas, deux versions. Rien ici n'invente de données : les cartes
+   reprennent les deux fichiers réellement présents dans web/artifacts/
+   (demo_tableau.md, test_proto.md) et un chemin de travail réel. */
 
-let propose = false, cas = "attente";
+const LONG = "<h3>Passe de design — les notifications</h3>"
+  + "<p>Le dernier écran. Après lui, plus aucun n'aura échappé à une passe.</p>"
+  + "<p><b>0. Constaté / supposé.</b> <code>draw()</code> groupe sur "
+  + "<code>dur</code> — « À décider » / « Récent » ; <code>when</code> est une "
+  + "chaîne posée à la création, jamais recalculée.</p>"
+  + "<p><b>1. Le groupe ne dit pas ce qu'il contient.</b> C'était juste quand "
+  + "<code>decision</code> était le seul genre poussé : tout ce qui durait "
+  + "attendait une réponse. Depuis qu'une panne y entre, le groupe mélange "
+  + "deux choses.</p>"
+  + "<p><b>2. Le temps est figé à la création.</b> Une panne qui dure depuis "
+  + "vingt minutes dit encore « à l'instant ». Or c'est la seule chose qu'on "
+  + "veuille savoir d'une panne : depuis quand.</p>"
+  + "<p><b>3. Une bulle sans boutons n'est pas une bulle ratée.</b> Elle n'a "
+  + "rien à demander. Mais alors rien ne dit ce qu'il y a à faire.</p>"
+  + "<p><b>4. Ce que je ne propose pas : les toasts.</b> Ils serviraient à ce "
+  + "qui ne dure pas. Or aucun des deux genres n'est poussé.</p>"
+  + "<p><b>5. Ce qui n'a pas été touché.</b> <code>.nrow</code>, "
+  + "<code>.nic</code>, <code>.nt</code> — repris de la maquette.</p>"
+  + "<p><b>6. Contrat d'interface.</b> <code>npanel</code> inchangé. Classes "
+  + "nouvelles préfixées <code>n-</code>.</p>";
 
-/* Ce que `projects.for_cwd` rendrait, selon le cas. Les trois espèces sont
-   celles arbitrées dans la passe des Projets — on ne réinvente rien. */
-const LIEUX = {
-  attente: null,
-  projet:  { espece:"projet", label:"Migration des factures", color:"#9334E6",
-             icon:"doc", path:"%USERPROFILE%/Documents/Factures" },
-  dossier: { espece:"dossier", label:"Projet Ulysse",
-             path:"%USERPROFILE%/Desktop/Projet Ulysse" },
-  aucun:   { espece:"aucun", label:"dossier d'Hermès",
-             path:"%USERPROFILE%/.hermes" },
-  change:  { espece:"dossier", label:"Projet Ulysse",
-             path:"%USERPROFILE%/Desktop/Projet Ulysse",
-             suivant:{ espece:"projet", label:"Migration des factures",
-                       color:"#9334E6", icon:"doc",
-                       path:"%USERPROFILE%/Documents/Factures" } }
+function carteArt(nom, sous, ic){
+  return '<div class="u-art"><span class="u-art-ic">' + svg(ic, { size: 18 })
+    + '</span><span class="u-art-meta"><span class="u-art-name">' + nom
+    + '</span><span class="u-art-sub">' + sous + '</span></span>'
+    + '<span class="u-art-open">ouvrir ›</span></div>';
+}
+
+function carteF(nom, ou, ic, absente){
+  return '<div class="f-carte' + (absente ? " absent" : "") + '">'
+    + '<span class="f-ic">' + svg(ic, { size: 18 }) + '</span>'
+    + '<span class="f-txt"><span class="f-nom">' + nom + '</span>'
+    + '<span class="f-ou">' + ou + '</span></span>'
+    + '<span class="f-go">' + (absente ? "hors d'atteinte" : "Ouvrir ›") + '</span></div>';
+}
+
+function vueActuelle(){
+  /* Reproduit fidèlement ce que ulysse-artifact.js construit : un backdrop
+     sans règle CSS, un <aside> sans règle CSS, et .u-art-body{flex:1} qui
+     ne s'applique donc à rien. */
+  return '<div class="ap-vue casse">'
+    + '<div class="u-art-backdrop" data-close="1"></div>'
+    + '<aside class="u-art-panel">'
+    + '<header class="u-art-head"><span class="u-art-vic">'
+    + svg("fichier", { size: 16 }) + '</span>'
+    + '<span class="u-art-vname">passe-notifications.md</span>'
+    + '<span class="u-art-vspacer"></span>'
+    + '<button class="u-art-btn">⟨/⟩</button>'
+    + '<button class="u-art-btn">⧉</button>'
+    + '<button class="u-art-btn">✕</button></header>'
+    + '<div class="u-art-body"><div class="u-md ap-long">' + LONG + '</div></div>'
+    + '</aside></div>';
+}
+
+function vueProposee(){
+  return '<div class="ap-vue bon">'
+    + '<aside class="u-art-panel">'
+    + '<div class="f-fil"><button>Établi</button><span>›</span>'
+    + '<span class="f-ici">PASSE-DESIGN-NOTIFICATIONS.md</span>'
+    + '<span class="f-outils">'
+    + '<button class="on" title="Rendu">◉</button>'
+    + '<button title="Source">⟨/⟩</button>'
+    + '<button title="Copier">⧉</button>'
+    + '<button title="Télécharger">⤓</button>'
+    + '<button title="Fermer">✕</button></span></div>'
+    + '<div class="u-art-body"><div class="u-md ap-long">' + LONG + '</div></div>'
+    + '</aside></div>';
+}
+
+const ETABLI = '<div class="ap-etabli"><span class="vt">Établi</span>'
+  + '<div class="row"><span class="ic">' + '</span><span class="nm">ulysse.css</span></div>'
+  + '<div class="row"><span class="ic"></span><span class="nm">'
+  + 'PASSE-DESIGN-NOTIFICATIONS.md</span></div>'
+  + '<div class="row"><span class="ic"></span><span class="nm">relais.md</span></div></div>';
+
+function msg(qui, corps){
+  return '<div class="msg ' + (qui === "vous" ? "you" : "ulysse") + '">'
+    + '<div class="u-who">' + (qui === "vous" ? "Vous" : "Ulysse") + '</div>'
+    + '<div class="u-md">' + corps + '</div></div>';
+}
+
+function dessine(pro){
+  let h = "";
+
+  /* ── Cas 1 ────────────────────────────────────────────────────────── */
+  h += '<h2>Cas 1 — l\'agent produit un fichier</h2>'
+    + '<p class="ap-quoi">Deux fichiers, deux destins. Le premier est écrit '
+    + 'dans <code>web/artifacts/</code> ; le second dans le dossier où l\'on '
+    + 'travaille, comme tout le reste du projet.</p>'
+    + '<div class="ap-scene"><div class="ap-split"><div class="ap-fil">';
+
+  if (!pro){
+    h += msg("vous", "<p>Fais-moi le tableau, et reprends la passe des notifications.</p>")
+      + msg("ulysse", "<p>Voici le tableau :</p>" + carteArt("demo_tableau.md",
+          "généré · artefact", "fichier")
+        + carteArt("mesures.csv", "généré · artefact", "table")
+        + "<p>Et j'ai repris la passe : j'ai écrit dans "
+        + "<code>web/PASSE-DESIGN-NOTIFICATIONS.md</code>.</p>");
+    h += '</div>' + ETABLI + '</div></div>'
+      + '<div class="ap-verdict mal">'
+      + '<b>Trois choses.</b> ① La carte ne dit <b>ni où est le fichier ni ce '
+      + 'qu\'il pèse</b> — « généré · artefact » est vrai pour tous, donc ne '
+      + 'distingue aucun. ② L\'icône du <code>.csv</code> est <b>vide</b> : '
+      + '<code>svg("table")</code> n\'existe pas dans le jeu d\'icônes, et '
+      + '<code>svg()</code> rend alors un tracé <code>undefined</code>. '
+      + '③ Le fichier de travail, lui, <b>n\'a aucune carte</b> : la balise '
+      + 'n\'accepte que <code>/artifacts/…</code>. C\'est précisément le '
+      + 'fichier qu\'on voulait ouvrir.</div>';
+  } else {
+    h += msg("vous", "<p>Fais-moi le tableau, et reprends la passe des notifications.</p>")
+      + msg("ulysse", "<p>Voici le tableau :</p>"
+        + carteF("demo_tableau.md", "…/Projet&nbsp;Ulysse/web/artifacts", "fichier")
+        + carteF("mesures.csv", "…/Projet&nbsp;Ulysse/web/artifacts", "doc")
+        + "<p>Et j'ai repris la passe :</p>"
+        + carteF("PASSE-DESIGN-NOTIFICATIONS.md", "…/Projet&nbsp;Ulysse/web", "fichier"));
+    h += '</div>' + ETABLI + '</div></div>'
+      + '<div class="ap-verdict bien">'
+      + '<b>La carte désigne un chemin, pas un dossier réservé.</b> Le fichier '
+      + 'de travail en a une comme les autres — et <code>web/artifacts/</code> '
+      + 'n\'a plus de raison d\'exister. Le chemin est tronqué <b>par la '
+      + 'tête</b> : la fin d\'un chemin dit où on est, le début dit ce qu\'on '
+      + 'sait déjà. Une seule action, <b>Ouvrir</b> : dans le fil, une carte '
+      + 'est une mention, pas un panneau de commandes.</div>';
+  }
+
+  /* ── Cas 2 ────────────────────────────────────────────────────────── */
+  h += '<h2>Cas 2 — on ouvre le fichier</h2>'
+    + '<p class="ap-quoi">Le document fait six écrans. C\'est le cas normal '
+    + 'ici : toutes les passes de design en font autant.</p>'
+    + '<div class="ap-scene"><div class="ap-split"><div class="ap-fil">'
+    + msg("ulysse", "<p>Et j'ai repris la passe :</p>"
+        + (pro ? carteF("PASSE-DESIGN-NOTIFICATIONS.md", "…/Projet&nbsp;Ulysse/web", "fichier")
+               : carteArt("passe-notifications.md", "généré · artefact", "fichier")))
+    + '</div>' + (pro ? vueProposee() : vueActuelle()) + '</div></div>';
+
+  h += !pro
+    ? '<div class="ap-verdict mal"><b>Le volet ne défile pas.</b> '
+      + '<code>.u-art-body</code> porte <code>flex:1</code> et '
+      + '<code>overflow-y:auto</code>, mais son parent <code>&lt;aside '
+      + 'class="u-art-panel"&gt;</code> <b>n\'a aucune règle CSS</b> : il '
+      + 'n\'est pas un conteneur flex, donc <code>flex:1</code> ne s\'applique '
+      + 'à rien et la hauteur reste libre. Le volet, lui, coupe '
+      + '(<code>overflow:hidden</code>). <b>La fin du document est '
+      + 'inaccessible.</b> Et <code>.u-art-backdrop</code> est construit par '
+      + 'le script alors que le commentaire de la feuille écrit, trois lignes '
+      + 'plus haut : « <i>Pas de backdrop masquant</i> ». Les deux moitiés se '
+      + 'contredisent par écrit — c\'est la trace d\'un volet qui était une '
+      + 'modale et qui a changé en route.</div>'
+    : '<div class="ap-verdict bien"><b>Le volet défile, et il dit d\'où l\'on '
+      + 'vient.</b> Le fil d\'Ariane remplace la croix seule : on est allé '
+      + 'quelque part, on doit pouvoir revenir. Les outils du document sont '
+      + 'tous <b>ici</b>, aucun sur la carte.</div>';
+
+  /* ── Cas 3 ────────────────────────────────────────────────────────── */
+  h += '<h2>Cas 3 — le même fichier, ouvert depuis l\'Établi</h2>'
+    + '<p class="ap-quoi">Même fichier, même question — « qu\'y a-t-il '
+    + 'dedans ? ». Seul le point de départ change.</p>'
+    + '<div class="ap-scene"><div class="ap-split" style="position:relative">'
+    + '<div class="ap-fil">'
+    + msg("vous", "<p>Ouvre-moi la passe des notifications.</p>")
+    + '</div>';
+
+  if (!pro){
+    h += ETABLI
+      + '<div class="ap-modal"><div class="sheet">'
+      + '<h2>PASSE-DESIGN-NOTIFICATIONS.md</h2>'
+      + '<div class="sub">C:\\Users\\kuchu\\Desktop\\Projet Ulysse\\web · 6,2 ko</div>'
+      + '<div class="u-md ap-long">' + LONG + '</div>'
+      + '<div class="sheet-acts"><a class="txt-btn">⤓ Télécharger</a>'
+      + '<button class="txt-btn">Fermer</button></div></div></div>';
+    h += '</div></div><div class="ap-verdict mal">'
+      + '<b>Un second visualiseur, pour le même objet.</b> Celui-ci est une '
+      + 'modale : elle <b>couvre la conversation</b>, assombrit le fond, et '
+      + 'n\'a <b>ni bascule vers la source ni bouton copier</b>. Le premier a '
+      + 'la source et la copie, mais <b>ne sait pas afficher une image</b>, ne '
+      + 'dit pas la taille, ne télécharge pas et ne refuse pas les fichiers '
+      + 'trop lourds. <b>Chacun sait ce que l\'autre ignore</b>, et lequel '
+      + 'apparaît dépend de l\'endroit où l\'on a cliqué.</div>';
+  } else {
+    h += ETABLI + vueProposee();
+    h += '</div></div><div class="ap-verdict bien">'
+      + '<b>Le même écran, quel que soit le chemin.</b> L\'Établi reste ouvert '
+      + 'à côté : on continue de parcourir pendant qu\'on lit. Le visualiseur '
+      + 'garde ce que la modale savait faire — taille, image, téléchargement, '
+      + 'refus au-delà de la limite — et ce que le volet savait faire — source '
+      + 'et copie. <b>Rien ne se perd, un composant disparaît.</b></div>';
+  }
+
+  document.getElementById("cas").innerHTML = h;
+  document.querySelectorAll(".ap-etabli .row .ic").forEach((s) => {
+    s.innerHTML = svg("fichier", { size: 16 });
+  });
+}
+
+document.getElementById("bAct").onclick = function(){
+  this.classList.add("on");
+  document.getElementById("bPro").classList.remove("on");
+  dessine(false);
 };
-
-function gelule(){
-  const L = LIEUX[cas];
-
-  /* Tant que la session n'est pas ouverte, on ne sait pas où elle ira. On
-     le dit — « je ne sais pas » n'est pas « nulle part ». */
-  if (!L){
-    return '<button class="l-lieu attente" id="lieuBtn">'
-      + '<span class="ic"></span><span class="nm">dossier en attente</span></button>';
-  }
-
-  const ic = L.espece === "projet"
-    ? '<span class="ic" style="background:' + L.color + '">'
-      + svg(L.icon, { size: 12 }) + "</span>"
-    : '<span class="ic">' + svg("dossier", { size: 12 }) + "</span>";
-
-  /* Le cas qui n'existait nulle part : deux dossiers à la fois. */
-  if (L.suivant){
-    return '<button class="l-lieu change" id="lieuBtn">'
-      + ic + '<span class="nm">' + ech(L.label) + "</span>"
-      + '<span class="fl">' + svg("suivant", { size: 14 }) + "</span>"
-      + '<span class="nm suite">' + ech(L.suivant.label) + "</span></button>";
-  }
-
-  return '<button class="l-lieu ' + L.espece + '" id="lieuBtn">'
-    + ic + '<span class="nm">' + ech(L.label) + "</span></button>";
-}
-
-function repli(){
-  const L = LIEUX[cas];
-  if (!L){
-    return '<div class="pop l-pop" id="lieuPop">'
-      + '<div class="tt">La session s\'ouvrira au premier message. Son dossier '
-      + "sera celui que vous avez choisi dans Projets, ou celui d'Hermès.</div>"
-      + '<div class="acts"><button class="btn-pick" data-a="projets">'
-      + "Voir les Projets</button></div></div>";
-  }
-  if (L.suivant){
-    return '<div class="pop l-pop" id="lieuPop">'
-      + '<div class="tt"><b>Ce fil travaille encore ici :</b></div>'
-      + '<div class="ch">' + ech(L.path) + "</div>"
-      + '<div class="tt" style="margin-top:12px"><b>Le prochain s\'ouvrira ici :</b>'
-      + "</div>"
-      + '<div class="ch">' + ech(L.suivant.path) + "</div>"
-      + '<div class="tt">Un fil ne change pas de dossier en cours de route — '
-      + "l'agent y a déjà lu et écrit.</div>"
-      + '<div class="acts"><button class="btn-pick" data-a="nouveau">'
-      + "Ouvrir un fil là-bas</button>"
-      + '<button class="quiet-link" data-a="annuler">Rester ici</button></div></div>';
-  }
-  return '<div class="pop l-pop" id="lieuPop">'
-    + '<div class="tt">' + (L.espece === "projet"
-        ? "Ce fil appartient à un projet. Ce qu'Ulysse y écrit reste dans son dossier."
-        : L.espece === "dossier"
-        ? "Ce dossier n'est pas rangé en projet. Il n'a ni nom propre, ni couleur."
-        : "Aucun dossier n'a été choisi. L'agent travaille là où Hermès a été lancé.")
-    + "</div>"
-    + '<div class="ch">' + ech(L.path) + "</div>"
-    + '<div class="acts">'
-    + (L.espece === "dossier"
-        ? '<button class="btn-pick" data-a="ranger">En faire un projet</button>' : "")
-    + '<button class="quiet-link" data-a="projets">Voir dans Projets</button>'
-    + "</div></div>";
-}
-
-function dessine(){
-  /* ACTUEL : la barre de titre ne dit rien du lieu. */
-  H("lieuSlot", propose ? gelule() + repli() : "");
-
-  H("thread",
-    '<div class="msg you"><div class="u-who">Vous</div>'
-    + "<p>Applique la passe de design sur les projets.</p></div>"
-    + '<div class="msg ulysse"><div class="u-who">Ulysse</div>'
-    + "<p>C'est fait — j'ai écrit dans <b>ulysse.html</b> et <b>ulysse-app.js</b>.</p>"
-    + "</div>");
-
-  ["plus1","mic1","snd1"].forEach((i, n) =>
-    H(i, svg(["plus","micro","envoi"][n], { size: 24 })));
-  H("moreBtn", svg("points", { size: 24 }));
-  $("modenote1").textContent = "Outils actifs — l'agent peut lire et écrire.";
-
-  const b = $("lieuBtn");
-  if (b) b.onclick = (e) => {
-    e.stopPropagation();
-    $("lieuPop").classList.toggle("on");
-  };
-  const p = $("lieuPop");
-  if (p){
-    p.onclick = (e) => e.stopPropagation();
-    p.querySelectorAll("[data-a]").forEach((x) => {
-      x.onclick = () => {
-        p.classList.remove("on");
-        snack({ projets:"Ouvrirait Projets.",
-          ranger:"Ouvrirait « Ranger un dossier en projet ».",
-          nouveau:"Ouvrirait un fil neuf dans le dossier choisi.",
-          annuler:"Le prochain fil s'ouvrira ici, finalement." }[x.dataset.a]);
-      };
-    });
-  }
-  majNote();
-}
-
-document.addEventListener("click", () => {
-  const p = $("lieuPop"); if (p) p.classList.remove("on");
-});
-
-let snackT = null;
-function snack(msg){
-  const el = $("snack");
-  el.innerHTML = "<span>" + ech(msg) + "</span>";
-  el.classList.add("on");
-  clearTimeout(snackT);
-  snackT = setTimeout(() => el.classList.remove("on"), 4000);
-}
-
-function majSeg(id, v){
-  $(id).querySelectorAll("button").forEach((b) =>
-    b.classList.toggle("on", (b.dataset.c || b.dataset.v) === v));
-}
-$("apCas").onclick = (e) => {
-  const b = e.target.closest("[data-c]"); if (!b) return;
-  cas = b.dataset.c; majSeg("apCas", cas); dessine();
+document.getElementById("bPro").onclick = function(){
+  this.classList.add("on");
+  document.getElementById("bAct").classList.remove("on");
+  dessine(true);
 };
-$("apVers").onclick = (e) => {
-  const b = e.target.closest("[data-v]"); if (!b) return;
-  majSeg("apVers", b.dataset.v);
-  propose = b.dataset.v === "1";
-  dessine();
-};
-
-function majNote(){
-  $("apBody").innerHTML = propose
-    ? "<b>Proposé</b> — la barre de titre dit où l'on travaille."
-      + "<h4>Le défaut</h4>"
-      + "On choisit « Travailler ici » dans Projets, un snack le dit six secondes, "
-      + "on va dans Discuter — et <b>plus rien</b>. C'est le même défaut que la "
-      + "demande d'accord invisible, et il est plus grave : là, l'agent "
-      + "<b>écrit</b>."
-      + "<h4>Les trois espèces, encore</h4>"
-      + "La gélule reprend les signes arbitrés dans la passe des Projets : un vrai "
-      + "projet porte <b>sa couleur</b>, un dossier déduit est <b>gris et vide</b>. "
-      + "On ne réapprend pas un vocabulaire d'un écran à l'autre."
-      + "<h4>Et un quatrième état que personne n'avait vu</h4>"
-      + "<code>CFG.SESSION_CWD</code> est le dossier de la <b>prochaine</b> session ; "
-      + "<code>conv.info.cwd</code> celui de la session <b>en cours</b>. Cliquer "
-      + "« Travailler ici » pendant qu'un fil est ouvert change le premier, pas le "
-      + "second — et <b>rien ne le dit</b>. On croit avoir déménagé ; on écrit "
-      + "encore à l'ancienne adresse.<br><br>"
-      + "<i>Voyez « Changement en attente » : la gélule se dédouble. C'est le seul "
-      + "moment où elle prend de la place, et le seul où il le faut.</i>"
-      + "<h4>Tant qu'on ne sait pas, on ne dit pas</h4>"
-      + "Avant l'ouverture de la session, la gélule est grise et respire — même "
-      + "règle que les pastilles de <code>#first</code> : « je ne sais pas » n'est "
-      + "pas « nulle part »."
-      + "<h4>⚠ Ce qui est supposé</h4>"
-      + "Que <code>projects.for_cwd</code> rende le projet ou rien sans erreur, et "
-      + "qu'il distingue un vrai projet d'un dossier déduit comme le fait "
-      + "<code>projects.tree</code>. <b>À vérifier avant d'appliquer.</b> Le reste "
-      + "est constaté."
-    : "<b>Actuel</b> — l'état du produit."
-      + "<h4>À regarder</h4><ul>"
-      + "<li>La barre de titre : <b>rien</b> ne dit où l'agent travaille.</li>"
-      + "<li>Le fil dit « j'ai écrit dans ulysse.html » — <b>où ça</b> ?</li>"
-      + "<li>Changez de cas dans le bandeau noir : <b>rien ne change</b>. "
-      + "C'est le problème.</li></ul>"
-      + "Puis basculez sur « Proposé ».";
-}
-
-dessine();
+dessine(false);
 </script>
+
 </body>
 </html>

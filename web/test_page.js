@@ -51,8 +51,13 @@ const FIXTURES = {
         size: 84, mime_type: "text/markdown" },
       { name: "gros.bin", path: "D:/faux-home/gros.bin", is_directory: false,
         size: 210 * 1024 * 1024 }] },
-  "/api/files/read": { name: "notes.md", path: "notes.md", size: 12, mime_type: "text/markdown",
-                       data_url: "data:text/markdown;base64," + Buffer.from("# Notes\nreel\n").toString("base64") },
+  /* ⚠ PAS de reponse unique ici : `/api/files/read` est SERVI PAR CHEMIN, plus
+     bas dans fakeFetch, sur le faux disque `DISQUE_LU`. Un fixture constant
+     rendait « notes.md » pour n'importe quel chemin — y compris un chemin qui
+     n'existe pas. La carte d'un fichier ABSENT s'affichait donc comme un
+     fichier present, et rien ici ne pouvait le voir.
+     Le vrai (web_server.py:2385) leve 404 « File not found ». On fait pareil :
+     un faux qui ne ment pas comme le vrai ne prouve rien. */
   /* ⚠ `builtin_files` est un OBJET nom -> octets, pas une liste d'objets.
      Ce fixture affirmait `[{name, path, exists}]` : une forme que le backend
      n'envoie jamais. Le code appelait `.filter` dessus et levait
@@ -93,11 +98,54 @@ const MEM_DISQUE = {
   "MEMORY.md": "# Ce qu'Ulysse a retenu\n\n- Préfère le tutoiement.\n"
 };
 
+/* Le faux disque de `/api/files/read`, indexé PAR CHEMIN. Le vrai rend
+   {name, path, size, mime_type, data_url} et lève 404 sur ce qui n'existe
+   pas — c'est la seule façon de distinguer un fichier d'une promesse. */
+const DISQUE_LU = {
+  "D:/faux-home/notes.md": {
+    mime: "text/markdown",
+    // Six écrans de texte : de quoi prouver que le volet DÉFILE. Un document
+    // court ne l'aurait jamais montré, et toutes les passes de design en font
+    // six — c'est exactement le cas qui était tronqué sans barre.
+    texte: "# Notes\n\n" + "Une ligne de plus, et encore une.\n".repeat(400)
+  },
+  "D:/faux-home/gros.bin": {
+    mime: "application/octet-stream", texte: "x", taille: 210 * 1024 * 1024
+  },
+  "D:/faux-home/logo.png": {
+    mime: "image/png",
+    b64: "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg=="
+  },
+  "D:/faux-home/tableau.csv": { mime: "text/csv", texte: "a,b\n1,2\n" }
+};
+
+function lireDuFauxDisque(chemin){
+  const f = DISQUE_LU[chemin];
+  if (!f) return null;
+  const b64 = f.b64 || Buffer.from(f.texte, "utf8").toString("base64");
+  return {
+    name: chemin.split(/[\\/]/).pop(),
+    path: chemin,
+    size: f.taille !== undefined ? f.taille : Buffer.byteLength(f.texte || "", "utf8"),
+    mime_type: f.mime,
+    data_url: "data:" + f.mime + ";base64," + b64
+  };
+}
+
 function fakeFetch(url, opts){
   const p = String(url).replace(/^https?:\/\/[^/]+/, "");
   const bare = p.split("?")[0];
   fetched.push({ path: p, method: (opts && opts.method) || "GET" });
   let body = FIXTURES[bare];
+
+  if (body === undefined && bare === "/api/files/read"){
+    const chemin = decodeURIComponent(p.split("path=")[1] || "");
+    body = lireDuFauxDisque(chemin);
+    if (!body){
+      return Promise.resolve({ ok: false, status: 404,
+        text: () => Promise.resolve(JSON.stringify({ detail: "File not found" })) });
+    }
+  }
 
   // `/api/fs/read-text?path=…` : 404 si le fichier n'est pas sur le faux
   // disque — c'est ainsi que l'écran distingue une CRÉATION d'une panne.
@@ -229,8 +277,25 @@ async function main(){
   // leur portee lexicale (un `const` declare dans l'un est invisible depuis le
   // suivant), alors que des balises <script> successives, si. Evaluer fichier
   // par fichier ferait donc echouer un code parfaitement valide en navigateur.
-  const SCRIPTS = ["ulysse-config.js", "ulysse-icons.js", "ulysse-view.js", "ulysse-core.js", "ulysse-app.js"];
+  /* ⚠ LA LISTE EST LUE DANS LA PAGE, PLUS ECRITE A LA MAIN.
+     Elle a été « ulysse-config, icons, view, core, app » pendant tout le
+     projet. Le 2026-08-11, `ulysse-artifact.js` a été ajouté à `ulysse.html`
+     — et il n'est jamais entré ici. Toute la suite tournait donc contre une
+     page AMPUTÉE de ce fichier : ses fonctions n'existaient pas, ses défauts
+     étaient hors d'atteinte, et les 380 vérifications passaient au vert en
+     l'ignorant.
+
+     La boucle vérifiait pourtant que chaque fichier de la liste était bien
+     référencé par la page. Elle ne vérifiait JAMAIS l'inverse — que la page
+     ne chargeait rien qui ne fût dans la liste. C'est par cette asymétrie
+     que le fichier est entré, et c'est elle qu'on referme : l'ordre vient
+     maintenant de la page, comme dans le navigateur. */
   let html = fs.readFileSync(path.join(DIR, "ulysse.html"), "utf8");
+  const SCRIPTS = Array.from(
+    html.matchAll(/<script src="(ulysse-[^"]+\.js)"[^>]*><\/script>/g)).map((m) => m[1]);
+  check("les scripts testés sont CEUX que la page charge, dans son ordre",
+    SCRIPTS.length >= 5 && SCRIPTS.indexOf("ulysse-artifact.js") >= 0,
+    SCRIPTS.join(" → "));
   for (const f of SCRIPTS){
     let code = fs.readFileSync(path.join(DIR, f), "utf8");
     /* `ulysse-config.js` n'est PAS servi tel qu'il est sur le disque :
@@ -248,7 +313,15 @@ async function main(){
       throw new Error("ulysse.html ne charge pas " + f);
     }
     check("« " + f + " » est bien référencé par la page", true);
-    html = html.replace(tag, "<script>\n" + code + "\n</script>");
+    /* ⚠ UNE FONCTION, PAS UNE CHAINE. Dans le remplacement de `String.replace`,
+       « $& », « $' », « $1 » et « $-accent-grave » sont des MOTIFS : ils sont
+       remplacés par des morceaux de la page. Un fichier qui contient l'un
+       d'eux — ne serait-ce que dans un commentaire, et c'est arrivé le
+       2026-08-11 avec « $-accent-grave » dans une phrase — est donc inliné
+       CORROMPU. Le script lève alors une SyntaxError, plus rien n'y est
+       défini, et l'erreur ne dit rien du fichier d'origine.
+       Une fonction de remplacement rend sa valeur telle quelle. */
+    html = html.replace(tag, () => "<script>\n" + code + "\n</script>");
   }
 
   /* La feuille est INLINEE elle aussi. jsdom ne va pas chercher un <link>
@@ -274,8 +347,23 @@ async function main(){
     const table = icones.slice(icones.indexOf("const I"), icones.indexOf("function svg"));
     const connus = new Set((table.match(/(?:^|[\s{,])([a-zA-Zé]+)\s*:/gm) || [])
       .map((m) => m.replace(/[\s{,:]/g, "")));
+    /* ⚠ LA LISTE EST LUE, PLUS ECRITE A LA MAIN. Elle disait
+       ["ulysse-app.js", "ulysse-view.js"], et `ulysse-artifact.js` est arrive
+       le 2026-08-11 A COTE : il appelait `svg("table")`, une icone qui
+       n'existe pas, donc `<path d="undefined"/>` — la carte d'un .csv avait
+       une pastille vide. Le garde-fou existait ; le fichier neuf est entre
+       par la porte d'a cote.
+       Un fichier de plus entre donc tout seul maintenant, comme pour les
+       apercus : un compte en dur avait deja laisse passer le onzieme. */
+    const sources = fs.readdirSync(DIR)
+      .filter((n) => /^ulysse-.*\.js$/.test(n) && n !== "ulysse-icons.js"
+                     && n !== "ulysse-config.js")
+      .sort();
+    check("le balayage des icônes lit TOUS les ulysse-*.js, sans liste écrite",
+      sources.indexOf("ulysse-artifact.js") >= 0 && sources.length >= 4,
+      sources.join(" "));
     const appeles = new Set();
-    for (const f of ["ulysse-app.js", "ulysse-view.js"]){
+    for (const f of sources){
       const code = fs.readFileSync(path.join(DIR, f), "utf8");
       for (const m of code.matchAll(/\bsvg\(\s*"([^"]+)"/g)) appeles.add(m[1]);
     }
@@ -316,7 +404,8 @@ async function main(){
               + ") — `python resync_apercus.py`");
   }
 
-  html = html.replace(lien, "<style>\n" + CSS + "\n</style>");
+  // Une fonction, pas une chaîne — même piège que pour les scripts ci-dessus.
+  html = html.replace(lien, () => "<style>\n" + CSS + "\n</style>");
 
   const dom = new JSDOM(html, {
     runScripts: "dangerously",
@@ -2536,6 +2625,295 @@ async function main(){
     Array.from(win.document.querySelectorAll("#ecrireBody button"))
       .map((b) => b.textContent.trim()).join(" · "));
   win.eval("fermerEcriture()");
+
+  /* ══ Montrer un fichier — UN SEUL écran ═══════════════════════════════════
+     `ulysse-artifact.js` est arrivé le 2026-08-11 sans passe de design et
+     SANS UNE SEULE LIGNE ICI. Il apportait un second visualiseur pour un
+     objet qui en avait déjà un, et trois défauts que rien ne pouvait voir.
+     C'est le point le moins visible de la passe et le plus utile : sans
+     ces vérifications, le prochain fichier entre par la même porte. */
+  console.log("\n--- Montrer un fichier ---");
+  win.eval('nav("Discuter")');
+  await wait(60);
+
+  // ⚠ LA CARTE DÉSIGNE UN CHEMIN, pas un dossier réservé. `ARTIFACT_RE`
+  //    n'acceptait que `/artifacts/…` — or le travail se fait dans le projet.
+  //    Un agent qui vient d'écrire un fichier ne pouvait pas en poser la
+  //    carte : il écrivait le chemin en toutes lettres, et on ne pouvait pas
+  //    cliquer dessus. C'était exactement le fichier qu'on voulait ouvrir.
+  const carteHTML = win.eval(
+    'injectArtifacts("voici <b>D</b> [artifact: D:/faux-home/notes.md]")');
+  check("la carte se pose sur un chemin de projet, pas sur /artifacts/",
+    carteHTML.indexOf("f-carte") >= 0
+    && carteHTML.indexOf(encodeURIComponent("D:/faux-home/notes.md")) >= 0,
+    carteHTML.slice(0, 120));
+  check("...et elle dit OÙ IL EST, tronqué par la tête",
+    /class="f-ou">[^<]*faux-home/.test(carteHTML)
+    && carteHTML.indexOf("généré · artefact") < 0,
+    (carteHTML.match(/class="f-ou">([^<]*)/) || [])[1]);
+  // Une balise non fermée ne doit pas avaler le paragraphe.
+  check("une balise non fermée n'avale pas la suite du message",
+    win.eval('injectArtifacts("[artifact: sans fin\\net la suite")')
+      .indexOf("f-carte") < 0);
+
+  /* ⚠ L'ICÔNE SE MESURE SUR LE RENDU, pas dans le texte du fichier.
+     Le balayage statique cherche `svg("un nom")` ; il ne voit RIEN quand le
+     nom sort d'une fonction — et c'est le cas ici, l'icône dépend de
+     l'extension. Le défaut d'origine (« table » pour les .csv, absente du
+     registre, donc `<path d="undefined"/>` et une pastille vide) serait donc
+     revenu sous le nez du garde-fou statique : vérifié en remettant le défaut,
+     il passait au vert.
+     On regarde donc ce qui est DESSINÉ, pour toutes les extensions que la
+     carte sait distinguer. Ça attrape n'importe quel nom inconnu, quelle que
+     soit la façon dont il est choisi. */
+  const bancIcones = ["a.md", "b.csv", "c.txt", "d.png", "e.bin", "f"];
+  const rendus = win.eval("JSON.stringify(" + JSON.stringify(bancIcones)
+    + '.map(function(n){ return injectArtifacts("[artifact: D:/x/" + n + "]"); }))');
+  const creuses = JSON.parse(rendus)
+    .map((h, i) => /d="(undefined|null|)"/.test(h) ? bancIcones[i] : null)
+    .filter(Boolean);
+  check("aucune carte ne dessine une icône creuse, quelle que soit l'extension",
+    creuses.length === 0, creuses.length ? "vide(s) : " + creuses.join(", ")
+      : bancIcones.length + " extension(s)");
+
+  // ⚠ UN SEUL VISUALISEUR. `showFile()` ouvrait #sFile (une modale : le fond
+  //    s'assombrit, la conversation disparaît) pendant que le fil ouvrait un
+  //    volet. Lequel apparaissait dépendait de l'endroit où l'on avait cliqué.
+  win.eval('showFile("D:/faux-home/notes.md", "notes.md")');
+  await wait(150);
+  const appEl = win.document.getElementById("app");
+  check("l'Établi et le fil ouvrent LE MÊME écran : le volet",
+    appEl.classList.contains("artifact-split")
+    && !win.document.getElementById("sFile").classList.contains("on"),
+    appEl.className + " · sFile=" + win.document.getElementById("sFile").className);
+
+  // ⚠ LE VOLET DÉFILE. `.u-art-body{flex:1}` vivait sous un
+  //    `<aside class="u-art-panel">` qui n'avait AUCUNE règle : le corps
+  //    n'était donc pas un enfant flex, sa hauteur restait libre, et
+  //    `overflow:hidden` coupait. Un document de six écrans était tronqué
+  //    SANS barre de défilement — et toutes les passes de design en font six.
+  //    On mesure la CHAÎNE, pas la présence d'une règle : jsdom ne calcule
+  //    pas les hauteurs, mais il dit qui est le parent de qui.
+  const voletF = win.document.getElementById("artifactViewer");
+  const corpsF = win.document.getElementById("artVBody");
+  check("le corps du volet est un enfant DIRECT de la colonne flex",
+    !!voletF && corpsF.parentElement === voletF
+    && !win.document.querySelector(".u-art-panel"),
+    corpsF.parentElement ? corpsF.parentElement.className : "orphelin");
+  const styleCorps = win.getComputedStyle(corpsF);
+  check("...et il peut devenir plus petit que son contenu (min-height:0)",
+    styleCorps.overflowY === "auto" && styleCorps.minHeight === "0px",
+    "overflow-y:" + styleCorps.overflowY + " min-height:" + styleCorps.minHeight);
+  // Le fantôme de la modale : le script fabriquait un backdrop pendant que la
+  // feuille écrivait, trois lignes plus haut, « Pas de backdrop masquant ».
+  check("le volet ne fabrique plus le backdrop que la feuille interdit",
+    !win.document.querySelector(".u-art-backdrop"));
+
+  // Ce que la modale savait et que le volet ignorait : la source, oui, mais
+  // aussi l'image, la taille, le refus, le téléchargement. La fusion doit
+  // avoir TOUT récupéré, sinon on a juste déplacé le trou.
+  check("le volet a récupéré le rendu markdown de la modale",
+    !!corpsF.querySelector(".u-md"), corpsF.innerHTML.slice(0, 60));
+  win.document.getElementById("artVSource").click();
+  await wait(40);
+  check("...et il garde la source, que la modale n'avait pas",
+    !!corpsF.querySelector(".u-art-raw"));
+  win.document.getElementById("artVSource").click();
+  await wait(40);
+
+  win.eval('showFile("D:/faux-home/logo.png", "logo.png")');
+  await wait(150);
+  check("le volet a récupéré les IMAGES de la modale",
+    !!corpsF.querySelector("img"), corpsF.innerHTML.slice(0, 60));
+  check("...et il désactive source et copie plutôt que de mentir",
+    win.document.getElementById("artVSource").disabled
+    && win.document.getElementById("artVCopy").disabled);
+  check("...et le téléchargement porte le fichier, pas un lien vide",
+    (win.document.getElementById("artVDl").getAttribute("href") || "")
+      .indexOf("data:image/png") === 0);
+
+  // Le backend rend le fichier ENTIER en base64 (+33 %) : au-delà de la
+  // limite, l'onglet se fige. La modale refusait ; le volet ne savait pas.
+  win.eval('showFile("D:/faux-home/gros.bin", "gros.bin")');
+  await wait(150);
+  check("le volet a récupéré le REFUS au-delà de la limite",
+    /Trop volumineux/.test(corpsF.textContent)
+    && !corpsF.querySelector("img") && !corpsF.querySelector(".u-art-raw"),
+    corpsF.textContent.trim().slice(0, 60));
+
+  // ⚠ UNE CARTE QUI PROMET UN FICHIER ABSENT EST UN BOUTON MORT. On le dit
+  //    AVANT le clic. C'est ce que le fixture constant rendait invisible :
+  //    il répondait « notes.md » pour n'importe quel chemin.
+  const fil = win.document.getElementById("thread");
+  fil.insertAdjacentHTML("beforeend", win.eval(
+    'injectArtifacts("[artifact: D:/faux-home/parti.md]")'));
+  await wait(200);
+  const morte = fil.querySelector('.f-carte[data-fichier*="parti"]');
+  check("une carte dont le fichier n'existe pas le dit avant le clic",
+    !!morte && morte.classList.contains("absent")
+    && /introuvable/.test(morte.textContent),
+    morte ? morte.textContent.trim() : "pas de carte");
+  const avantClic = fetched.length;
+  if (morte) morte.click();
+  await wait(80);
+  check("...et cliquer dessus n'ouvre rien",
+    fetched.length === avantClic || !/parti/.test(corpsF.innerHTML));
+
+  // La carte d'un fichier présent, elle, finit par dire sa taille — et ne la
+  // redemande pas à chaque peinture du fil.
+  fil.insertAdjacentHTML("beforeend", win.eval(
+    'injectArtifacts("[artifact: D:/faux-home/tableau.csv]")'));
+  await wait(200);
+  const vivante = fil.querySelector('.f-carte[data-fichier*="tableau"]');
+  check("la carte d'un fichier présent dit sa taille",
+    !!vivante && !vivante.classList.contains("absent")
+    && /o\b|ko/.test(vivante.querySelector(".f-ou").textContent),
+    vivante ? vivante.querySelector(".f-ou").textContent : "pas de carte");
+  const lectures = fetched.filter(
+    (f) => f.path.indexOf("/api/files/read") === 0 && /tableau/.test(f.path)).length;
+  win.eval("paintThread()");
+  await wait(200);
+  check("...et une repeinture du fil ne la redemande pas au backend",
+    fetched.filter((f) => f.path.indexOf("/api/files/read") === 0
+                          && /tableau/.test(f.path)).length === lectures,
+    "avant " + lectures + ", après " + fetched.filter(
+      (f) => f.path.indexOf("/api/files/read") === 0 && /tableau/.test(f.path)).length);
+
+  win.eval("closeArtifactViewer()");
+  await wait(40);
+  check("fermer le volet rend sa largeur à la conversation",
+    !appEl.classList.contains("artifact-split"), appEl.className);
+
+  /* ══ Le lien vient de ce que l'agent A FAIT ═══════════════════════════════
+     Signalé par kuchu le 2026-08-11 : « montre-moi le contrat d'interface »
+     faisait réciter le fichier dans le fil, SANS aucun moyen de l'ouvrir. La
+     balise `[artifact: …]` dépend de ce que l'agent pense à écrire, et il n'y
+     pense pas — c'était la réserve du §5 de la passe.
+     Levée en lisant Hermès : `tool.complete` porte `args` (le dict complet)
+     TOUJOURS — server.py:5423, pas seulement en mode verbeux — et la clé est
+     `path` pour read_file/write_file/patch (agent/display.py:443). */
+  const cheminReel = "D:/faux-home/notes.md";
+  win.eval('conv.info = Object.assign({}, conv.info || {}, {cwd:"D:/faux-home"});');
+  const wsOutil = FakeWS.last;
+  const ev = (type, payload) => wsOutil.push({ jsonrpc: "2.0", method: "event",
+    params: { type: type, session_id: "live_1", payload: payload } });
+  ev("message.start", {});
+  // ⚠ Le chemin arrive sur tool.complete, PAS sur tool.start : `context` n'est
+  //    qu'un aperçu tronqué à 80 caractères, et `args_text` n'existe qu'en
+  //    mode verbeux. C'est `args` qui fait foi, et il est toujours envoyé.
+  ev("tool.start", { tool_id: "tt1", name: "read_file", context: "notes.md" });
+  ev("tool.complete", { tool_id: "tt1", name: "read_file",
+                        args: { path: "notes.md" }, result: "ok" });
+  ev("message.complete", { status: "ok" });
+  await wait(250);
+  const ligne = win.document.querySelector('#thread .u-tool[data-fichier]');
+  check("une ligne d'outil qui a touché un fichier devient le lien",
+    !!ligne && decodeURIComponent(ligne.dataset.fichier) === cheminReel,
+    ligne ? decodeURIComponent(ligne.dataset.fichier) : "aucune ligne ouvrable");
+  // ⚠ Le chemin de l'agent est souvent RELATIF à son dossier de travail. Sans
+  //    le cwd de la session, `/api/files/read` ne saurait pas le résoudre.
+  check("...un chemin relatif est résolu sur le cwd de la session",
+    !!ligne && decodeURIComponent(ligne.dataset.fichier).indexOf("D:/faux-home/") === 0);
+  check("...et il n'y a PAS de carte en plus : la ligne nomme déjà le fichier",
+    !!ligne && ligne.querySelectorAll(".f-carte").length === 0
+    && win.document.querySelectorAll("#thread .u-tools .f-carte").length === 0);
+  if (ligne){
+    ligne.click();
+    await wait(400);
+    check("...cliquer la ligne ouvre le volet sur ce fichier",
+      appEl.classList.contains("artifact-split")
+      && win.document.getElementById("artVName").textContent === "notes.md",
+      win.document.getElementById("artVName").textContent);
+    // Le « ▸ résultat » garde son geste : il se déplie, il n'ouvre pas.
+    win.eval("closeArtifactViewer()");
+    await wait(40);
+    const som = ligne.querySelector("summary");
+    if (som){
+      som.click();
+      await wait(150);
+      check("...mais déplier « résultat » n'ouvre pas le volet par-dessus",
+        !appEl.classList.contains("artifact-split"), appEl.className);
+    }
+  }
+  // ⚠ LISTE FERMÉE. « path » ne veut pas dire la même chose pour tous les
+  //    outils : un outil inconnu ne doit pas se transformer en lien.
+  ev("message.start", {});
+  ev("tool.complete", { tool_id: "tt2", name: "browser_navigate",
+                        args: { path: "/une/route" }, result: "ok" });
+  ev("message.complete", { status: "ok" });
+  await wait(250);
+  check("un outil hors de la liste ne devient PAS un lien",
+    win.document.querySelectorAll('#thread .u-tool[data-fichier]').length === 1,
+    win.document.querySelectorAll('#thread .u-tool[data-fichier]').length + " ligne(s)");
+  win.eval("closeArtifactViewer()");
+  await wait(40);
+
+  /* ══ Coller une image, c'est joindre une image ═════════════════════════════
+     Le collage écrivait dans `web/captures/` — le dossier SERVI — via une
+     route à lui, et insérait « [capture: C:\chemin ] » dans le message pour
+     le retirer de la bulle à l'affichage. Même geste que le « + », deux
+     mécaniques, et rien à l'écran pour dire laquelle on avait déclenchée. */
+  console.log("\n--- Coller une image ---");
+  const codePage = fs.readFileSync(path.join(DIR, "ulysse-app.js"), "utf8");
+  const codeServe = fs.readFileSync(path.join(DIR, "serve.py"), "utf8");
+  // On cherche l'absence de MÉCANIQUE, pas de mots : les commentaires
+  // racontent l'histoire des deux routes, et c'est très bien.
+  check("le collage n'a plus de route à lui",
+    codeServe.indexOf('== "/ulysse/capture"') < 0
+    && codeServe.indexOf('== "/ulysse/artifact"') < 0
+    && codeServe.indexOf("def sauver_capture") < 0
+    && codeServe.indexOf("def sauver_artifact") < 0);
+  check("...ni de seconde liste à côté des pièces jointes",
+    codePage.indexOf("refsCaptures") < 0
+    && codePage.indexOf("dessineCaptures") < 0
+    && !/const captures\s*=/.test(codePage));
+  check("...et le produit n'écrit plus dans son propre dossier servi",
+    !fs.existsSync(path.join(DIR, "captures"))
+    && !fs.existsSync(path.join(DIR, "artifacts")));
+  // Le fond : le collage passe par le MÊME chemin que le « + ».
+  check("coller une image appelle surFichiers, comme le « + »",
+    /function collerCapture[\s\S]*?surFichiers\(/.test(codePage),
+    "sinon c'est encore une seconde mécanique");
+
+  /* ⚠ ET IL FAUT QUE CE CHEMIN ABOUTISSE. Le 2026-08-11, contre le VRAI
+     gateway, joindre une image renvoyait **`4016 image not found`** — parce
+     que `attacherFichier` appelait `image.attach`, qui veut un `path` visible
+     du gateway et ne regarde JAMAIS `data_url`. Le navigateur ne peut pas en
+     fournir : le fichier n'existe que sur le disque du client.
+     Ça valait pour le collage ET pour le « + », depuis toujours. Rien ici ne
+     pouvait le voir : le faux Hermès accepte n'importe quel appel RPC, donc
+     un test « la pièce est jointe » passait au vert sur une pièce refusée.
+     La bonne porte est `image.attach_bytes` (methods_prompt.py:453), dont la
+     docstring décrit ce cas mot pour mot. On vérifie donc LA MÉTHODE APPELÉE,
+     puisque c'est elle qui était fausse. */
+  const codeCore = fs.readFileSync(path.join(DIR, "ulysse-core.js"), "utf8");
+  const corpsAttache = (codeCore.match(
+    /async function attacherFichier[\s\S]*?\n}/) || [""])[0];
+  check("une image joint ses OCTETS — image.attach ne lit pas de data_url",
+    corpsAttache.indexOf("image.attach_bytes") >= 0
+    && corpsAttache.indexOf("content_base64") >= 0
+    && !/rpc\(\s*"image\.attach"/.test(corpsAttache),
+    corpsAttache.indexOf("image.attach_bytes") < 0 ? "image.attach_bytes absent"
+      : "reste un appel à image.attach");
+  check("...et un fichier non-image garde file.attach, qui rend « @file: »",
+    corpsAttache.indexOf("file.attach") >= 0
+    && corpsAttache.indexOf("ref_text") >= 0);
+  // Le gateway refuse une image au-delà de 25 Mo (server.py:10350). Refuser
+  // ici à 32 Mo, c'était promettre un envoi que le gateway allait rejeter.
+  check("le plafond des images est celui du gateway, pas celui des fichiers",
+    /image \? 25 : 32/.test(codePage), "25 Mo pour une image, 32 sinon");
+  // En Discussion le proxy n'envoie que du texte : joindre ouvrirait une
+  // session Cowork dans le dos de la personne pour une pièce qui n'arriverait
+  // pas. On le dit, on ne le fait pas.
+  win.eval('setMode2("pur")');
+  await wait(40);
+  const avantColle = FakeWS.sent.length;
+  win.eval('collerCapture({ clipboardData: { items: [] }, preventDefault(){} })');
+  await wait(60);
+  check("en Discussion, coller n'ouvre pas de session dans le dos",
+    FakeWS.sent.length === avantColle);
+  win.eval('setMode2("cowork")');
+  await wait(40);
 
   console.log("\n--- Aucune erreur JavaScript pendant tout ça ---");
   check("la console est restée propre", errors.length === 0, errors.slice(0, 3).join(" | "));

@@ -119,7 +119,7 @@ input{font:inherit;color:inherit;background:none;border:none;outline:none}
 .mark{position:relative;z-index:1;font-size:36px;font-weight:500;letter-spacing:-.6px;
   margin-bottom:40px;background:linear-gradient(74deg,#4285F4 0%,#9B72CB 46%,#D96570 100%);
   -webkit-background-clip:text;background-clip:text;color:transparent;transition:opacity .5s ease}
-.composer{position:relative;z-index:1;width:min(720px,calc(100vw - 48px));display:flex;
+.composer{position:relative;z-index:1;width:min(720px,calc(100% - 48px));display:flex;
   align-items:center;gap:6px;background:var(--surface);border-radius:var(--radius-lg);
   padding:8px 8px 8px 12px;transition:background .2s ease,box-shadow .2s ease}
 .composer:focus-within{background:var(--bg);box-shadow:var(--elev-2)}
@@ -283,7 +283,7 @@ input{font:inherit;color:inherit;background:none;border:none;outline:none}
 .thread{flex:1;min-width:0;overflow-y:auto;padding:0 24px 8px;transition:background .3s ease}
 .thread-in{max-width:720px;margin:0 auto}
 .msg{margin-bottom:26px;animation:rise .4s cubic-bezier(.2,0,0,1) both}
-@keyframes rise{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+@keyframes rise{from{opacity:1;transform:none}to{opacity:1;transform:none}}
 .msg.you{display:flex;justify-content:flex-end}
 .msg.you p{background:var(--surface);border-radius:20px;padding:12px 20px;max-width:80%}
 .msg.ulysse p{line-height:1.65}
@@ -918,6 +918,19 @@ svg.graph *{cursor:inherit}
   line-height:1.5;padding-left:1px}
 .n-quoi code{background:var(--surface);border-radius:5px;padding:1px 6px;
   font-family:ui-monospace,Menlo,monospace;font-size:11.5px}
+/* Ou mene la ligne. Elle y menait DEJA — `data-go` est la depuis toujours —
+   mais rien ne le disait : ni curseur, ni chevron, ni mot. On le decouvrait en
+   cliquant par hasard.
+   Ce n'est pas un defaut du cas cache (une notification derriere une porte
+   fermee), c'est un defaut de TOUTES les lignes, que le cas cache a rendu
+   visible. Cowork, 2026-08-10. */
+.n-va{display:inline-flex;align-items:center;gap:5px;margin-left:auto;
+  color:var(--accent);font-size:var(--font-size-xs);flex:none;
+  opacity:0;transition:opacity .14s ease}
+.nrow:hover .n-va,.nrow:focus-visible .n-va{opacity:1}
+.n-va svg{width:13px;height:13px}
+/* La ligne de meta accueille la destination a droite. */
+.n-meta-va{display:flex;align-items:center;gap:8px}
 .nrow{display:flex;gap:12px;padding:12px 14px;border-radius:var(--radius-md);
   transition:background .14s ease;cursor:pointer}
 .nrow:hover{background:var(--surface)}
@@ -1644,6 +1657,127 @@ svg.graph *{cursor:inherit}
 .dette .pt{color:var(--amber)}
 .dette.rouge .pt{color:#B3261E}
 .dette .tx b{color:var(--text)}
+
+/* ═══ Rendu markdown des messages (correctif catégorie 3) ═══════════ */
+.msg .u-md{line-height:1.65}
+.msg .u-md p{margin:0 0 var(--space-3)}
+.msg .u-md p:last-child{margin-bottom:0}
+.msg .u-md h1,.msg .u-md h2,.msg .u-md h3{margin:.2em 0 .45em;font-weight:700;line-height:1.25}
+.msg .u-md h1{font-size:1.3em}
+.msg .u-md h2{font-size:1.15em}
+.msg .u-md h3{font-size:1.03em;color:var(--muted)}
+.msg .u-md ul,.msg .u-md ol{margin:0 0 var(--space-3);padding-left:1.35em}
+.msg .u-md li{margin:.18em 0}
+.msg .u-md ul.u-md-l,.msg .u-md ol.u-md-l{list-style:inherit}
+.msg .u-md code{background:var(--code-bg,rgba(127,127,127,.16));padding:.12em .4em;border-radius:6px;
+  font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:.9em}
+.msg .u-md blockquote{margin:0 0 var(--space-3);padding:.2em .9em;border-left:3px solid var(--accent,#7c5cff);
+  color:var(--muted);background:rgba(127,127,127,.06)}
+.msg .u-md hr{border:none;border-top:1px solid var(--line,#e2e2ea);margin:var(--space-4) 0}
+.msg .u-md table.u-md-t{border-collapse:collapse;width:100%;margin:.2em 0 var(--space-3);
+  font-size:.92em;overflow:hidden;border-radius:10px}
+.msg .u-md table.u-md-t th,.msg .u-md table.u-md-t td{border:1px solid var(--line,#e2e2ea);
+  padding:6px 10px;text-align:left;vertical-align:top}
+.msg .u-md table.u-md-t th{background:var(--th-bg,rgba(127,127,127,.12));font-weight:600}
+.msg .u-md table.u-md-t tr:nth-child(even) td{background:rgba(127,127,127,.04)}
+.msg.you .u-md code{background:rgba(0,0,0,.08)}
+.msg.you .u-md table.u-md-t th{background:rgba(0,0,0,.07)}
+.msg.you .u-md table.u-md-t tr:nth-child(even) td{background:rgba(0,0,0,.03)}
+.msg .u-md[data-caret="1"]::after{content:"▍";display:inline-block;animation:u-blink 1s steps(1) infinite}
+@keyframes u-blink{50%{opacity:0}}
+
+/* ===== La carte d'un fichier, dans le fil =====
+   Dans le fil, une carte est une MENTION — pas un panneau de commandes. Une
+   seule action : Ouvrir. Source, copie et téléchargement sont dans le volet.
+   La deuxième ligne dit OÙ IL EST, tronqué PAR LA TÊTE : la fin d'un chemin
+   dit où l'on est, le début dit ce qu'on savait déjà. */
+.f-carte{display:inline-flex;align-items:center;gap:12px;padding:11px 14px;margin:6px 0;
+  border:1px solid var(--surface-hi,#E9EEF6);border-radius:12px;background:var(--bg,#fff);
+  cursor:pointer;transition:background .15s ease,border-color .15s ease,transform .15s ease;
+  box-shadow:var(--elev-1,0 1px 2px rgba(0,0,0,.05));max-width:380px}
+.f-carte:hover{background:var(--surface,#F0F4F9);border-color:var(--accent,#0B57D0);transform:translateY(-1px)}
+.f-carte:focus{outline:2px solid var(--accent,#0B57D0);outline-offset:2px}
+.f-ic{flex:0 0 auto;width:34px;height:34px;border-radius:9px;
+  background:var(--accent-container,#D3E3FD);color:var(--accent,#0B57D0);
+  display:flex;align-items:center;justify-content:center}
+.f-ic svg{width:18px;height:18px}
+.f-txt{display:flex;flex-direction:column;min-width:0;line-height:1.25}
+.f-nom{font-weight:600;font-size:13.5px;color:var(--text,#1F1F1F);
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:220px}
+.f-ou{font-size:11.5px;color:var(--muted,#5F6368);
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:220px}
+.f-go{margin-left:auto;color:var(--accent,#0B57D0);font-size:12px;opacity:.75;padding-left:6px}
+/* Le fichier n'est pas là. On le dit AVANT le clic : une carte qui promet un
+   fichier absent est un bouton mort. En ambre — ce n'est pas une panne. */
+.f-carte.absent{cursor:default;border-style:dashed;box-shadow:none;
+  border-color:var(--amber,#E37400);background:var(--bg,#fff)}
+.f-carte.absent:hover{transform:none;background:var(--bg,#fff);border-color:var(--amber,#E37400)}
+.f-carte.absent .f-ic{background:rgba(227,116,0,.14);color:var(--amber,#E37400)}
+.f-carte.absent .f-ou{color:var(--amber,#E37400)}
+
+/* Volet EN FLUX (vrai split responsive : le chat reste visible à gauche).
+   Insere apres .work dans #app ; en flex, .work (flex:1) retrecit et le
+   volet prend sa largeur. Pas de backdrop masquant — et plus de script qui
+   en fabriquait un pendant que cette ligne écrivait le contraire.
+
+   ⚠ `.u-art-head` et `.u-art-body` sont des enfants DIRECTS d'ici. Ils ont
+   longtemps été enveloppés dans un `<aside class="u-art-panel">` qui n'avait
+   AUCUNE règle : `.u-art-body{flex:1}` ne s'appliquait donc à rien, la
+   hauteur du corps restait libre, et `overflow:hidden` coupait. Un document
+   de six écrans était tronqué SANS barre de défilement — et toutes les passes
+   de design en font six. L'enveloppe n'a pas reçu de règles : elle a été
+   retirée. C'est ce volet qui EST l'aside. */
+.u-art-viewer{display:none;flex:none;width:0;min-height:0;
+  border-left:1px solid var(--surface-hi,#E9EEF6);
+  background:var(--bg,#fff);
+  box-shadow:-8px 0 30px rgba(0,0,0,.06);
+  flex-direction:column;overflow:hidden;
+  transition:width .2s cubic-bezier(.2,0,1)}
+#app.artifact-split .u-art-viewer{display:flex;width:min(560px,46vw)}
+#app.artifact-split .work{flex:1 1 auto;min-width:300px}
+.u-art-head{display:flex;align-items:center;gap:10px;padding:10px 14px;
+  border-bottom:1px solid var(--surface-hi,#E9EEF6);flex:none}
+.u-art-vic{color:var(--accent,#0B57D0);display:flex}
+.u-art-vic svg{width:16px;height:16px}
+.u-art-vname{font-size:13px;font-weight:600;color:var(--text,#1F1F1F);
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.u-art-vspacer{flex:1}
+/* Le fil d'Ariane, plutôt qu'une croix seule : l'Établi et le volet sont le
+   même volet à deux moments — parcourir, puis regarder. On est allé quelque
+   part, on doit pouvoir revenir sans refermer. */
+.f-fil{display:flex;align-items:center;gap:6px;min-width:0;overflow:hidden}
+.f-ici{font-size:12px;color:var(--muted,#5F6368);white-space:nowrap;
+  border-radius:6px;padding:2px 6px;transition:background .15s,color .15s;
+  overflow:hidden;text-overflow:ellipsis;max-width:180px}
+.f-ici:hover{background:var(--surface,#F0F4F9);color:var(--accent,#0B57D0)}
+.f-sep{color:var(--muted,#5F6368);font-size:12px;flex:none}
+.f-outils{display:flex;align-items:center;gap:2px;flex:none}
+.u-art-btn{width:30px;height:30px;border-radius:7px;color:var(--muted,#5F6368);
+  display:flex;align-items:center;justify-content:center;font-size:14px;transition:background .15s}
+.u-art-btn:hover{background:var(--surface,#F0F4F9);color:var(--text,#1F1F1F)}
+.u-art-btn.on{background:var(--accent-container,#D3E3FD);color:var(--accent,#0B57D0)}
+.u-art-btn.ok{color:var(--green,#188038)}
+/* Un bouton qui ne peut rien faire se désactive plutôt que de mentir : pas de
+   source pour une image, pas de copie pour du binaire. */
+.u-art-btn:disabled,.u-art-btn[aria-disabled="true"]{opacity:.35;pointer-events:none}
+/* `min-height:0` est ce qui autorise un enfant flex à devenir plus PETIT que
+   son contenu — sans lui, le corps pousse et la barre de défilement n'arrive
+   jamais. C'est la seconde moitié du défaut ci-dessus. */
+.u-art-body{flex:1;min-height:0;overflow-y:auto;padding:24px 30px;background:var(--bg,#fff)}
+.u-art-empty{color:var(--muted,#5F6368);font-size:14px;text-align:center;margin-top:40px}
+.u-art-raw{font-family:var(--font-mono,ui-monospace,Menlo,monospace);font-size:12.5px;
+  white-space:pre-wrap;color:var(--text,#1F1F1F);line-height:1.6;background:var(--surface,#F0F4F9);
+  border-radius:10px;padding:14px}
+/* reutilise .u-md pour le rendu markdown (tableaux, listes, gras) */
+.u-art-body .u-md{padding:0}
+@media (max-width:860px){
+  #app.artifact-split .u-art-viewer{width:62vw}
+}
+@media (max-width:560px){
+  #app.artifact-split .u-art-viewer{width:100%}
+  #app.artifact-split .work{display:none}
+}
+
 </style>
 
 <style>
