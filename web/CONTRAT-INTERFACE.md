@@ -145,10 +145,31 @@ et leurs boutons : `travRefresh` `livRefresh` `projRefresh` `autoRefresh` `newPr
 **Créés à l'exécution** (ne pas les mettre dans le HTML, mais ne pas non plus
 créer d'`id` qui leur ressemble) : `gzoom` `doorBtn` `densSeg` `livCrumbs`
 `livHome` `livList` `mIncog` `mNew` `mEtabli` `nClose` `fClose` `vAct`
+`artifactViewer` `artVName` `artVOu` `artVBody` `artVSource` `artVCopy`
+`artVDl` `artVClose`
 `etabliClose` `tGo` `tSize` `tCout` `tecran` `tstate` `tApp` `tMem` `tFull`
 `tPopApp` `tPopMem` `tSortie` `tOutils2` `tRepli` `detteGo` `detteAct` `detteRed`
 `uMemFiles` `uMemTexte` `uMemDiff` `uMemVers` `uMemGo` `tConsole` `jNom`
 `lieuBtn` `lieuPop` `ranFil` `ranList` `ranPrendre` `ranAnnuler`
+
+> ⚠ **`#sFile` / `#fileBody` / `#fClose` NE SONT PLUS OUVERTS PAR PERSONNE**
+> (2026-08-11). Un fichier se montre dans **un seul écran : le volet**
+> (`#artifactViewer`), jamais dans une modale — l'Établi, les Livrables et le
+> fil y passent tous par `showFile()`. Il y avait deux visualiseurs pour le
+> même objet, et chacun savait exactement ce que l'autre ignorait ; lequel
+> apparaissait dépendait de l'endroit où l'on avait cliqué.
+> Les trois `id` **restent dans le HTML** : ils sont à ce contrat et n'en
+> partent qu'avec son accord, pas au détour d'une passe. Les retirer est une
+> décision à prendre ici, séparément.
+>
+> **Classes du volet et de sa carte**, préfixées `f-` : `f-carte` (avec
+> `absent` en classe jointe — le fichier n'est pas là, et on le dit avant le
+> clic), `f-ic` `f-txt` `f-nom` `f-ou` `f-go` `f-fil` `f-ici` `f-sep`
+> `f-outils`. Reprises telles quelles : `.u-art-viewer` `.u-art-head`
+> `.u-art-body` `.u-md` `#app.artifact-split`.
+> **`.u-art-panel` et `.u-art-backdrop` n'existent plus** : le premier
+> n'avait aucune règle et cassait le défilement, le second était fabriqué par
+> le script pendant que la feuille écrivait « pas de backdrop masquant ».
 
 > **`#sEcrire` / `#ecrireBody` sont dans le HTML** — la feuille où l'on écrit
 > dans la mémoire. Elle est à part de `#sFile` : ce qu'on y montre — la
