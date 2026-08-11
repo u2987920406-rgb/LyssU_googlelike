@@ -343,6 +343,17 @@ function turnHTML(t){
     h += "<div class=\"u-md\"" + (t.state === "streaming" && !t.text ? ' data-caret=\"1\"' : "") + ">"
       + rendu + "</div>";
   }
+  /* La réponse a été coupée par le plafond. On le dit SOUS le texte, dans la
+     bulle : ce n'est pas un événement qui passe, c'est une propriété de cette
+     réponse-là, et elle doit rester lisible quand on relit le fil demain.
+     En ambre, pas en rouge — ce n'est pas une panne, c'est une limite. Et on
+     dit où elle se règle : une limite qu'on ne peut pas trouver est un mur. */
+  if (t.coupe){
+    h += '<div class="u-coupe">' + svg("alerte", { size: 14 })
+      + "<span>Réponse coupée : la limite de " + esc(String(CFG.PROXY_MAX_TOKENS))
+      + " tokens a été atteinte. Elle se règle dans <code>ulysse-config.js</code>"
+      + " (<code>PROXY_MAX_TOKENS</code>).</span></div>";
+  }
   return h + "</div>";
 }
 
@@ -877,10 +888,22 @@ async function sendPure(displayText, sendText){
       || (conv && conv.info && conv.info.model) || "";
     const data = await REST.pureChat(pureHistory, modeleDiscussion);
     drop();
-    const content = data && data.choices && data.choices[0] && data.choices[0].message
-      ? contentToText(data.choices[0].message.content) : "";
+    const choix = (data && data.choices && data.choices[0]) || null;
+    const content = choix && choix.message ? contentToText(choix.message.content) : "";
+    /* ⚠ LE MODÈLE DIT QUAND IL A ÉTÉ COUPÉ, ET PERSONNE N'ÉCOUTAIT.
+       `finish_reason` n'avait pas UNE occurrence dans tout le produit. Or
+       `PROXY_MAX_TOKENS` vaut 800 : toute réponse un peu longue est tronquée,
+       et la bulle s'arrêtait au milieu d'une phrase sans que rien ne le dise.
+       Un écran qui montre un texte coupé comme un texte complet ment — et
+       c'est le seul défaut de cette famille qu'on puisse réparer sans rien
+       décider. Voir PASSE-DESIGN-CHAT-NON-BLOQUANT.md §2.
+       Les fournisseurs n'écrivent pas tous le même mot : OpenAI dit
+       « length », d'autres « max_tokens ». On accepte les deux, et rien
+       d'autre — « stop » est une fin normale. */
+    const raison = String((choix && choix.finish_reason) || "").toLowerCase();
+    const coupe = raison === "length" || raison === "max_tokens";
     if (content && content.trim()){
-      push("assistant", content.trim());
+      push("assistant", content.trim()).coupe = coupe;
       pureHistory.push({ role: "assistant", content: content.trim() });
     } else {
       push("system", "(réponse reçue sans texte — réessayez.)");

@@ -90,6 +90,11 @@ const FIXTURES = {
 
 const fetched = [];
 
+// La réponse que le faux proxy rend, et COMMENT elle se termine. Un scénario
+// la change pour éprouver la troncature ; le défaut est « stop », une fin
+// normale, comme chez le vrai.
+const PROXY_FIN = { texte: "Réponse sans outils.", raison: "stop" };
+
 /* Les fichiers de mémoire, tels qu'un disque les rendrait. Le vrai
    `/api/fs/read-text` renvoie le texte ET sa taille ; l'écran d'écriture s'en
    sert pour la ligne d'état ET pour calculer la différence. */
@@ -166,8 +171,15 @@ function fakeFetch(url, opts){
     body = { ok: true, version_gardee: "USER.md.2026-08-09-120000",
              creation: false, versions: 2 };
   }
+  /* ⚠ LE FAUX DOIT POUVOIR DIRE « J'AI ÉTÉ COUPÉ ». Le vrai `/proxy/chat` rend
+     un `finish_reason` par choix — « stop » quand le modèle a fini, « length »
+     quand il a heurté `max_tokens`. Le fixture n'en portait aucun, donc la
+     troncature était intestable : c'est ainsi qu'un plafond de 800 tokens a pu
+     couper les réponses pendant tout le projet sans que rien ne le dise.
+     `PROXY_FIN` laisse un scénario choisir la fin. */
   if (body === undefined && bare === "/proxy/chat"){
-    body = { choices: [{ message: { role: "assistant", content: "Réponse sans outils." } }] };
+    body = { choices: [{ message: { role: "assistant", content: PROXY_FIN.texte },
+                         finish_reason: PROXY_FIN.raison }] };
   }
   if (body === undefined && bare.startsWith("/webhooks/")){
     body = { status: "queued" };
@@ -1205,6 +1217,52 @@ async function main(){
     JSON.stringify(fetched));
   txt = win.document.getElementById("thread").textContent;
   check("la réponse s'affiche", txt.includes("Réponse sans outils"));
+  check("...et une réponse COMPLÈTE ne s'annonce pas comme coupée",
+    !win.document.querySelector("#thread .u-coupe"));
+
+  /* ⚠ LA RÉPONSE COUPÉE. `PROXY_MAX_TOKENS` vaut 800 : en Discussion, toute
+     réponse un peu longue est tronquée par le plafond. Le modèle le dit dans
+     `finish_reason`, et ce champ n'avait pas UNE occurrence dans le produit —
+     la bulle s'arrêtait au milieu d'une phrase et rien ne le signalait.
+     Un écran qui montre un texte coupé comme un texte complet ment ; c'est le
+     seul point de la passe du chat qui ne demandait d'arbitrer sur rien.
+     Voir PASSE-DESIGN-CHAT-NON-BLOQUANT.md §2. */
+  PROXY_FIN.texte = "Un début de plan, interrompu net au milieu d'une";
+  PROXY_FIN.raison = "length";
+  /* ⚠ ON DÉPLACE LE PLAFOND PENDANT L'ÉPREUVE. Écrit d'abord en comparant au
+     `CFG.PROXY_MAX_TOKENS` courant, ce test passait aussi bien avec un « 800 »
+     ÉCRIT EN DUR dans le message — vérifié en remettant le défaut. Un nombre
+     qui se trouve être juste ne prouve pas qu'on l'a lu. */
+  const plafondVrai = win.eval("CFG.PROXY_MAX_TOKENS");
+  win.eval("CFG.PROXY_MAX_TOKENS = 4242");
+  win.document.getElementById("reply").value = "Écris-moi un long chapitre";
+  win.document.getElementById("composer").dispatchEvent(new win.Event("submit"));
+  await wait(140);
+  const coupee = win.document.querySelector("#thread .u-coupe");
+  check("une réponse coupée par le plafond le DIT",
+    !!coupee && /Réponse coupée/.test(coupee.textContent),
+    coupee ? coupee.textContent.trim().slice(0, 60) : "rien ne le signale");
+  check("...avec le plafond réellement en vigueur, pas un nombre écrit",
+    !!coupee && coupee.textContent.indexOf("4242") >= 0,
+    coupee ? coupee.textContent.trim() : "");
+  win.eval("CFG.PROXY_MAX_TOKENS = " + plafondVrai);
+  check("...et où le régler — une limite qu'on ne peut pas trouver est un mur",
+    !!coupee && /PROXY_MAX_TOKENS/.test(coupee.textContent)
+    && /ulysse-config\.js/.test(coupee.textContent));
+  // Le texte reçu reste affiché : on prévient, on n'escamote pas.
+  check("...le texte reçu reste affiché, on ne l'escamote pas",
+    win.document.getElementById("thread").textContent.includes("interrompu net"));
+  // ⚠ Les fournisseurs n'écrivent pas tous le même mot : OpenAI dit
+  //    « length », d'autres « max_tokens ». Les deux comptent.
+  PROXY_FIN.raison = "max_tokens";
+  win.document.getElementById("reply").value = "Encore";
+  win.document.getElementById("composer").dispatchEvent(new win.Event("submit"));
+  await wait(140);
+  check("...« max_tokens » compte comme une coupure, pas seulement « length »",
+    win.document.querySelectorAll("#thread .u-coupe").length === 2,
+    win.document.querySelectorAll("#thread .u-coupe").length + " avis");
+  PROXY_FIN.texte = "Réponse sans outils.";
+  PROXY_FIN.raison = "stop";
 
   /* ══ Les six defauts trouves par la passe de design du 2026-08-08 ══════════
      Chacun etait invisible cote reseau et invisible cote contrat : la page
