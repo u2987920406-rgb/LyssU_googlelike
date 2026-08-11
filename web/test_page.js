@@ -2996,6 +2996,19 @@ async function main(){
   check("la suite indentée d'un point de liste reste dans son point",
     (suite.match(/<li>/g) || []).length === 2
     && suite.indexOf("long et qui continue dessous") >= 0, suite);
+  /* ⚠ ET LE POINT EST DÉCORÉ EN ENTIER, pas ligne par ligne. Écrit d'abord
+     en collant `inline(ligne)` à la précédente, ce cas redécorait chaque
+     ligne séparément : un `**gras**` à cheval sur le retour restait littéral
+     DANS LES LISTES, alors qu'il venait d'être réparé pour les paragraphes.
+     Vu le soir même en ouvrant une passe dans le volet — son premier point
+     montrait ses astérisques. Le même défaut, à deux endroits, et le test ne
+     couvrait que le premier. */
+  const grasLi = md("- début du point avec du **gras\n  qui franchit le retour** ici");
+  check("...et un **gras** à cheval sur le retour tient DANS un point de liste",
+    grasLi.indexOf("<strong>") >= 0 && grasLi.indexOf("**") < 0, grasLi);
+  check("...idem pour un point de liste ordonnée",
+    md("1. un **gras\n   coupé** ici").indexOf("<strong>") >= 0
+    && md("1. un **gras\n   coupé** ici").indexOf("**") < 0);
 
   // ⚠ CE QUI NE DOIT PAS AVOIR BOUGÉ. Le rendu échappe AVANT de décorer : un
   //    titre de session portant <img onerror=…> s'exécuterait dans la page,

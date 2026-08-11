@@ -88,8 +88,13 @@ function mdRender(src, prof){
     out.push("<p>" + inline(para.join(" ")) + "</p>");
     para = [];
   };
+  // Le texte BRUT du point de liste en cours — il sert à le redécorer en
+  // entier quand une ligne de continuation s'y ajoute. `null` = pas de point
+  // ouvert, donc rien à prolonger.
+  let liTexte = null;
   const closeLists = () => {
     videPara();
+    liTexte = null;
     if (inUl){ out.push("</ul>"); inUl = false; }
     if (inOl){ out.push("</ol>"); inOl = false; }
   };
@@ -202,7 +207,8 @@ function mdRender(src, prof){
       videPara();
       if (inOl){ out.push("</ol>"); inOl = false; }
       if (!inUl){ out.push("<ul class=\"u-md-l\">"); inUl = true; }
-      out.push("<li>" + inline(ul[1]) + "</li>");
+      liTexte = ul[1];
+      out.push("<li>" + inline(liTexte) + "</li>");
       i++;
       continue;
     }
@@ -212,7 +218,8 @@ function mdRender(src, prof){
       videPara();
       if (inUl){ out.push("</ul>"); inUl = false; }
       if (!inOl){ out.push("<ol class=\"u-md-l\">"); inOl = true; }
-      out.push("<li>" + inline(ol[1]) + "</li>");
+      liTexte = ol[1];
+      out.push("<li>" + inline(liTexte) + "</li>");
       i++;
       continue;
     }
@@ -226,11 +233,21 @@ function mdRender(src, prof){
        Un point coupé à 78 colonnes continue INDENTÉ sous sa puce. Sans ce
        cas, la suite sortait de la liste et devenait un paragraphe à elle
        seule : c'est l'escalier, et il frappait d'abord les listes, dont ces
-       documents sont faits. */
-    if ((inUl || inOl) && indente && !para.length
+       documents sont faits.
+
+       ⚠ ON RECONSTRUIT LE POINT ENTIER, on ne colle pas la ligne décorée à
+       la précédente. Écrit d'abord en `inline(line)` puis concaténé, ce cas
+       redécorait CHAQUE LIGNE SÉPARÉMENT — donc un `**gras**` à cheval sur
+       le retour restait littéral, à l'intérieur des listes, alors qu'il
+       venait d'être réparé pour les paragraphes. Trouvé le soir même en
+       ouvrant PASSE-DESIGN-CHAT-NON-BLOQUANT.md dans le volet : le premier
+       point de la page montrait ses astérisques.
+       Le texte BRUT du point est donc gardé, et l'inline s'applique une
+       seule fois, sur le point complet. */
+    if ((inUl || inOl) && indente && !para.length && liTexte !== null
         && out.length && /<\/li>$/.test(out[out.length - 1])){
-      out[out.length - 1] = out[out.length - 1]
-        .replace(/<\/li>$/, " " + inline(line) + "</li>");
+      liTexte += " " + line;
+      out[out.length - 1] = "<li>" + inline(liTexte) + "</li>";
       i++;
       continue;
     }
