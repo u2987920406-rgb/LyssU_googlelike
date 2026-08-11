@@ -319,8 +319,14 @@ function turnHTML(t){
       + esc(t.reasoning) + "</pre></details>";
   }
   if (t.text || t.role !== "assistant" || !(t.tools && t.tools.length)){
-    h += "<p" + (t.state === "streaming" && !t.text ? ' class="u-caret"' : "") + ">"
-      + esc(t.text) + "</p>";
+    // Catégorie 3 (mauvais affichage) : le markdown de l'agent est rendu
+    // (tables, gras, listes...) au lieu d'être affiché en texte brut.
+    // Les balises [artifact: ...] y sont remplacées par une carte cliquable
+    // (viewer in-app), cf. ulysse-artifact.js.
+    let rendu = mdRender(t.text);
+    if (typeof injectArtifacts === "function") rendu = injectArtifacts(rendu);
+    h += "<div class=\"u-md\"" + (t.state === "streaming" && !t.text ? ' data-caret=\"1\"' : "") + ">"
+      + rendu + "</div>";
   }
   return h + "</div>";
 }
@@ -421,6 +427,12 @@ function paintBand(){
     h += chip(lastStatus.gateway_running ? "ok" : "warn", "Gateway",
       lastStatus.gateway_running ? (lastStatus.gateway_state || "en marche") : "arrêté");
   }
+  // Le proxy Hermes (port 8645) : c'est lui que le mode Discussion appelle.
+  // Sans lui, Ulysse repond « Le proxy ne repond pas » une fois sur deux.
+  const pxKind = proxyState === "ok" ? "ok" : proxyState === "err" ? "err" : "";
+  const pxTxt = proxyState === "ok" ? "en marche" : proxyState === "err" ? "arrêté" : "?";
+  h += chip(pxKind, "Proxy 8645", pxTxt);
+
   H("band", h);
 }
 
@@ -436,6 +448,7 @@ function paintBand(){
    ─────────────────────────────────────────────────────────────────────── */
 
 let accueil = true;          // aucun message n'a encore été envoyé
+let proxyState = "?";       // etat du proxy Hermes (port 8645)
 let waitT = null, filetEntree = null, attenteEntree = false;
 
 function compteur(on){
@@ -523,6 +536,11 @@ function reseauHS(){
    ─────────────────────────────────────────────────────────────────────── */
 
 const jointes = [];    // {name, ref, image, size, etat:"envoi"|"prete"|"echec"}
+// Captures d'ecran colles (mode Discussion comme Cowork). Stockees a part des
+// jointes de fichiers : on n'insere JAMAIS leur chemin dans le champ de texte
+// (kuchu : le nom n'a pas a y figurer), on n'en fait que la vignette au-dessus
+// et on les reference dans le message envoye via refsCaptures().
+const captures = [];  // {path, name}
 
 function dessineJointes(){
   const html = jointes.map((j, i) =>
@@ -700,9 +718,21 @@ function refsJointes(){
   return refs.length ? "\n\n" + refs.join("\n") : "";
 }
 
+// References des captures colles, ajoutees au message envoye (pas dans le
+// champ de texte). En Cowork l'agent lit le fichier ; en Discussion le modele
+// (sans vision) ne le voit pas, mais la reference est conservée.
+function refsCaptures(){
+  return captures.length
+    ? captures.map((c) => " [capture: " + c.path + "]").join("") : "";
+}
+
 function viderJointes(){
   jointes.length = 0;
+  captures.length = 0;
   dessineJointes();
+  // Vider aussi la vignette de capture affichee dans #jointes1.
+  const host = $("jointes1");
+  if (host) host.querySelectorAll(".u-capshow").forEach((e) => e.remove());
 }
 
 /* ═══ La bascule Cowork / Discussion, sous le composeur ══════════════════
@@ -743,6 +773,82 @@ function roleOpts(){
   return opts;
 }
 
+/* Collage d'une capture d'ecran dans la box de chat.
+   Le presse-papiers Windows contient une IMAGE ; un <input> texte ne sait pas
+   l'afficher, donc on la recupere nous-memes, on l'envoie a /ulysse/capture
+   (serve.py l'ecrit dans captures/), et on insere le CHEMIN dans le message.
+   Hermes (cote agent) lira ce fichier et « verra » la capture — meme si le
+   modele gratuit ne fait pas de vision. */
+async function collerCapture(e){
+  const items = (e.clipboardData && e.clipboardData.items) || [];
+  let blob = null, ext = "png";
+  for (const it of items){
+    if (it.kind === "file" && it.type && it.type.indexOf("image/") === 0){
+      blob = it.getAsFile();
+      ext = (it.type.split("/")[1] || "png").replace("+xml", "");
+      break;
+    }
+  }
+  if (!blob) return;                 // pas d'image : on laisse le texte passer
+  e.preventDefault();                // on gere nous-memes
+  try {
+    const b64 = await new Promise((res, rej) => {
+      const r = new FileReader();
+      r.onload = () => res(r.result.split(",")[1]);
+      r.onerror = rej;
+      r.readAsDataURL(blob);
+    });
+    const rep = await fetch("/ulysse/capture", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ ext: ext, data: b64 })
+    });
+    let j;
+    try { j = await rep.json(); }
+    catch (e){ j = null; }
+    if (!rep.ok || !j || !j.path){
+      snack("Capture non enregistree (serve indisponible ou ancien ? "
+            + "relancez lancer_ulysse.bat).");
+      return;
+    }
+    const input = $("reply");
+    // AVANT : on injectait le chemin dans le champ de texte
+    // (« [capture: chemin] »). kuchu ne veut pas ce texte dans la bulle : on le
+    // stocke ailleurs (captures) et on n'en fait que la vignette au-dessus.
+    captures.push({ path: j.path, name: j.name || j.path });
+    dessineCaptures();
+    snack("Capture ajoutée — elle part avec le message (Cowork l'analyse ; en Discussion le proxy n'envoie que du texte).");
+  } catch (err){
+    snack("Capture impossible à coller : " + err.message);
+  }
+}
+
+/* Apercu des captures collees, dans la zone des pieces jointes. Une vignette
+   par capture, chacune avec sa croix pour la retirer avant envoi. Marche en
+   Discussion comme en Cowork : captures est la meme liste. */
+function dessineCaptures(){
+  const host = $("jointes1");
+  if (!host) return;
+  host.querySelectorAll(".u-capshow").forEach((e) => e.remove());
+  if (!captures.length) return;
+  const bloc = document.createElement("span");
+  bloc.className = "u-capshow";
+  captures.forEach((c, i) => {
+    const chip = document.createElement("span");
+    chip.className = "u-jointe";
+    chip.innerHTML = '<img src="' + encodeURI("file:///" + c.path.replace(/\\/g, "/")) + '" '
+      + 'style="height:22px;border-radius:4px;vertical-align:middle" alt="">'
+      + esc(c.name)
+      + '<button class="x" data-cap="' + i + '" aria-label="Retirer la capture">'
+      + svg("fermer", { size: 13 }) + "</button>";
+    bloc.appendChild(chip);
+  });
+  host.appendChild(bloc);
+  bloc.querySelectorAll("[data-cap]").forEach((b) => {
+    b.onclick = () => { captures.splice(+b.dataset.cap, 1); dessineCaptures(); };
+  });
+}
+
 async function onSend(ev){
   if (ev) ev.preventDefault();
   const input = $("reply");
@@ -754,11 +860,13 @@ async function onSend(ev){
     // En Chat il n'y a pas de session à ouvrir : le tour part et s'affiche.
     // Attendre quoi que ce soit serait une attente inventée.
     quitterAccueil();
-    // Le mode Discussion n'a pas d'outils : une pièce jointe n'y servirait à
-    // rien, et le laisser croire serait pire que le dire.
-    if (jointes.length) snack("Les pièces jointes ne servent qu'en Cowork — "
-      + "en Discussion, le modèle ne peut rien ouvrir.");
-    await sendPure(text);
+    // Les vraies pieces jointes (fichiers via le « + ») ne servent qu'en
+    // Cowork — l'agent est le seul a pouvoir les ouvrir. Les captures d'ecran
+    // collées, elles, sont autorisees (refsCaptures) : leur vignette suffit,
+    // et leur chemin part dans le message sans jamais toucher au champ.
+    if (jointes.length) snack("Les pièces jointes (fichiers) ne servent qu'en Cowork — "
+      + "en Discussion, le modèle ne peut rien ouvrir. La capture d'écran, elle, est prise en compte.");
+    await sendPure(text, text + refsCaptures());
     return;
   }
   // Le premier message de Cowork ouvre la session : c'est la seule attente
@@ -767,21 +875,21 @@ async function onSend(ev){
   // Le cadre de rôle part vers le moteur, mais le fil affiche ce que la
   // personne a RÉELLEMENT écrit : lui relire une consigne qu'elle n'a pas
   // rédigée brouille la lecture de son propre fil.
-  await submitPrompt(text + refsJointes(), roleOpts());
+  await submitPrompt(text + refsJointes() + refsCaptures(), roleOpts());
   viderJointes();
 }
 
 /* Le chat pur passe par /proxy/chat sur NOTRE origine : serve.py relaie vers
    le proxy Hermès et y pose la clé. La page n'en détient aucune. */
-async function sendPure(text){
+async function sendPure(displayText, sendText){
   const push = (role, txt, state) => {
     const t = { key: Date.now() + Math.random(), role: role, text: txt, tools: [],
                 reasoning: "", state: state || "done" };
     pureTurns.push(t);
     return t;
   };
-  push("user", text);
-  pureHistory.push({ role: "user", content: text });
+  push("user", displayText);
+  pureHistory.push({ role: "user", content: sendText || displayText });
   const pending = push("assistant", "", "streaming");
   pureBusy = true;
   paintThread();
@@ -789,7 +897,12 @@ async function sendPure(text){
   const drop = () => { const i = pureTurns.indexOf(pending); if (i >= 0) pureTurns.splice(i, 1); };
 
   try {
-    const data = await REST.pureChat(pureHistory);
+    // LOI-DU-CERVEAU.md : modele herite, jamais choisi par Ulysse.
+    // Override explicite (PROXY_MODEL rempli) > modele de la session Hermes
+    // vivante (conv.info.model) > rien (le proxy repondra 400, message honnete).
+    const modeleDiscussion = CFG.PROXY_MODEL
+      || (conv && conv.info && conv.info.model) || "";
+    const data = await REST.pureChat(pureHistory, modeleDiscussion);
     drop();
     const content = data && data.choices && data.choices[0] && data.choices[0].message
       ? contentToText(data.choices[0].message.content) : "";
@@ -804,8 +917,9 @@ async function sendPure(text){
     drop();
     pureHistory.pop();
     if (e.status === 403){
-      push("system", "Le modèle gratuit est saturé. Réessayez dans quelques secondes, "
-        + "ou changez PROXY_MODEL dans ulysse-config.js.");
+      push("system", "Le modèle gratuit est saturé. Réessayez dans quelques secondes. "
+        + "Si le problème persiste, le modèle par défaut se règle dans votre "
+        + "installation d'Hermès (Ulysse n'en choisit aucun).");
     } else if (e.status === 502){
       push("error", "Le proxy Hermès ne répond pas. Lancez-le : "
         + "hermes proxy start --provider nous --port 8645");
@@ -890,9 +1004,16 @@ async function showFile(path, name){
       return;
     }
     const mime = d.mime_type || "";
+    const isMd = /\.(md|markdown|mdown)$/i.test(name || path || "");
     let inner;
     if (mime.indexOf("image/") === 0 && d.data_url){
       inner = '<img src="' + esc(d.data_url) + '" style="max-width:100%;border-radius:12px">';
+    } else if (isMd){
+      // Catégorie 3 (mauvais affichage) : un .md s'affiche rendu, pas en brut.
+      const text = decodeDataUrlText(d.data_url || "");
+      inner = text === null
+        ? '<div class="u-load">Fichier binaire — aperçu impossible.</div>'
+        : '<div class="u-md">' + mdRender(shorten(text, 20000)) + "</div>";
     } else {
       const text = decodeDataUrlText(d.data_url || "");
       inner = text === null
@@ -901,7 +1022,10 @@ async function showFile(path, name){
     }
     body.innerHTML = "<h2>" + esc(name) + '</h2><div class="sub">' + esc(path) + " · "
       + esc(fmtBytes(d.size)) + "</div>" + inner
-      + '<div class="sheet-acts"><button class="txt-btn" id="fClose">Fermer</button></div>';
+      + '<div class="sheet-acts">'
+      + '<a class="txt-btn" id="fDl" href="' + esc(d.data_url || "") + '" download="'
+      + esc(name || "fichier") + '">⤓ Télécharger</a>'
+      + '<button class="txt-btn" id="fClose">Fermer</button></div>';
     $("fClose").onclick = () => closeS("sFile");
   } catch (e){
     body.innerHTML = "<h2>" + esc(name) + '</h2><div class="u-todo">Aperçu indisponible : '
@@ -3110,6 +3234,67 @@ function ouvrirReglages(i){
   drawSet();
 }
 
+/* Réglages > Le cerveau : peuple les deux sélecteurs de modèles.
+   · Discussion → override local PROXY_MODEL (ulysse-config.js), vide = héritage.
+   · Cowork → /api/model/set scope main (comme /model dans Hermès).
+   Les modèles viennent de /api/model/options (provider courant). */
+async function chargerModelesCerveau(){
+  const disc = $("setDiscWrap");
+  const cow = $("setCoworkWrap");
+  const cur = $("setCurModel");
+  const opt = (val, lbl, sel) =>
+    '<option value="' + esc(val) + '"' + (sel ? " selected" : "") + ">"
+      + esc(lbl) + "</option>";
+
+  try {
+    const d = await REST.modelOptions();
+    const provs = (d && d.providers) || [];
+    const prov = provs.find(p => p.is_current) || provs[0] || null;
+    const models = (prov && prov.models) || [];
+    const slug = prov ? prov.slug : "nous";
+
+    // --- Mode Discussion : override PROXY_MODEL ---
+    const discVal = CFG.PROXY_MODEL || "";
+    let discHtml = opt("", "Hériter du profil Hermès (défaut)", !discVal);
+    discHtml += models.map(m => opt(m, m, m === discVal)).join("");
+    disc.innerHTML = '<select id="setDiscModel" class="u-select">' + discHtml
+      + "</select>"
+      + '<div class="u-meta">Override écrit dans ulysse-config.js (PROXY_MODEL).</div>';
+    const selD = $("setDiscModel");
+    selD.onchange = async () => {
+      const v = selD.value;
+      try {
+        await REST.setLocalModel("PROXY_MODEL", v);
+        CFG.PROXY_MODEL = v;
+        snack(v ? "Discussion → " + v : "Discussion : héritage du profil.");
+      } catch (e){ snack("Discussion : " + e.message); }
+    };
+
+    // --- Session Cowork : model/set scope main ---
+    const cowVal = (conv && conv.info && conv.info.model) || "";
+    let cowHtml = opt("", "Profil par défaut", !cowVal);
+    cowHtml += models.map(m => opt(m, m, m === cowVal)).join("");
+    cow.innerHTML = '<select id="setCoworkModel" class="u-select">' + cowHtml
+      + "</select>"
+      + '<div class="u-meta">Applique /api/model/set (scope main, session Hermès).</div>';
+    const selC = $("setCoworkModel");
+    selC.onchange = async () => {
+      const v = selC.value;
+      try {
+        if (v) await REST.modelSet(slug, v);
+        if (cur) cur.textContent = v || "profil Hermès";
+        snack(v ? "Cowork → " + v : "Cowork : profil par défaut.");
+      } catch (e){ snack("Cowork : " + e.message); }
+    };
+
+    if (cur) cur.textContent = cowVal || "profil Hermès";
+  } catch (e){
+    const msg = "Impossible de lister les modèles : " + e.message;
+    if (disc) disc.innerHTML = '<div class="u-todo">' + esc(msg) + "</div>";
+    if (cow) cow.innerHTML = '<div class="u-todo">' + esc(msg) + "</div>";
+  }
+}
+
 async function drawSet(){
   drawSetNav(SETS, setSel, (i) => { setSel = i; drawSet(); });
   const b = $("setbody");
@@ -3163,25 +3348,31 @@ async function drawSet(){
   }
 
   if (setSel === 2){
-    // Une section qui ne règle RIEN le dit EN HAUT. On la parcourait en
-    // entier avant d'apprendre, dans l'encadré du bas, qu'il n'y avait rien
-    // à y faire.
+    // Avant : section lecture seule avec un « reste à décider ». Désormais
+    // réglable : on choisit le modèle du mode Discussion (override local) et
+    // de la session Cowork (comme /model dans Hermès). Les deux héritent du
+    // profil si on ne choisit rien — LOI-DU-CERVEAU.md : Ulysse n'impose rien.
     b.innerHTML = titre("Le cerveau")
       + '<div class="u-lecture">' + svg("point", { size: 12 })
-      + "Rien ne se règle ici pour l'instant — cette section montre ce qui est en "
-      + "vigueur. Voir plus bas pourquoi.</div>"
-      + ligne("Modèle de la session",
-          "Vide = celui du profil Hermès. Se règle dans ulysse-config.js (SESSION_MODEL).",
-          '<span class="tag">' + esc(CFG.SESSION_MODEL || "profil Hermès") + "</span>")
-      + ligne("Modèle du mode Discussion", "Celui du proxy, sans outils.",
-          '<span class="tag">' + esc(CFG.PROXY_MODEL) + "</span>")
-      + (conv.info && conv.info.model
-          ? ligne("Modèle en cours", "Celui que la session vivante utilise réellement.",
-              '<span class="tag">' + esc(conv.info.model) + "</span>")
-          : "")
-      + '<div class="u-todo"><b>Choisir le cerveau depuis Ulysse</b> : '
-      + "<code>/api/model/options</code> et <code>/api/model/set</code> existent. "
-      + "Reste à décider si un rôle porte son propre modèle ou hérite du profil.</div>";
+      + "Ulysse n'impose aucun modèle : par défaut, il suit votre profil "
+      + "Hermès. Vous pouvez ici fixer un modèle pour le mode Discussion "
+      + "(chat pur) et pour la session Cowork, comme avec <code>/model</code> "
+      + "dans Hermès.</div>"
+      + ligne("Modèle en cours (session)",
+          "Celui que la session Hermès vivante utilise réellement.",
+          '<span class="tag" id="setCurModel">'
+            + esc((conv && conv.info && conv.info.model) || "profil Hermès")
+            + "</span>")
+      + '<div class="seth">Mode Discussion (chat pur)<span class="l"></span></div>'
+      + '<div id="setDiscWrap" class="u-load">Chargement des modèles…</div>'
+      + '<div class="seth">Session Cowork<span class="l"></span></div>'
+      + '<div id="setCoworkWrap" class="u-load">Chargement des modèles…</div>'
+      + '<div class="u-todo"><b>Pourquoi deux réglages ?</b> Le mode Discussion '
+      + "passe par le proxy local : le choix est un override écrit dans "
+      + "ulysse-config.js (PROXY_MODEL). La session Cowork utilise le modèle de "
+      + "la session Hermès vivante (exactement <code>/model</code>). Les deux "
+      + "héritent du profil si vous ne choisissez rien.</div>";
+    chargerModelesCerveau();
     return;
   }
 
@@ -4067,6 +4258,16 @@ function onApproval(pl){
   });
 }
 
+/* Comment un identifiant de panneau s'écrit à l'écran, pour la ligne « où mène
+   ceci ». La source est `PANELS` et elle seule : recopier les dix libellés
+   ailleurs, c'est se donner une occasion de divergence dont la première victime
+   serait justement celle que `drawBell()` vient de subir — « Reglages » d'un
+   côté, « Réglages » de l'autre. */
+Notifs.libelle = (id) => {
+  const p = PANELS.find((x) => x.id === id);
+  return p ? p.lbl : id;
+};
+
 Notifs.onAnswer = (n, oui) => {
   if (n.kind !== "decision") return null;
   const choix = oui ? "once" : "deny";
@@ -4301,12 +4502,33 @@ function majPanne(){
   }
 }
 
+/* Teste le proxy Hermes (port 8645) via /proxy/chat. Un 400/422/200 = le
+   proxy repond (ok) ; une erreur reseau ou 5xx = il est arrête (err). On
+   ne juge pas le modele ici, seulement la presence du moteur. */
+async function verifProxy(){
+  const old = proxyState;
+  try {
+    const res = await fetch(CFG.BASE + "/proxy/chat", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ messages: [{ role: "user", content: "ping" }] }),
+      cache: "no-store"
+    });
+    // Meme un 400 dit que le proxy est la ; seul un 5xx/network dit qu'il tombe.
+    proxyState = (res.status >= 500) ? "err" : "ok";
+  } catch (e){
+    proxyState = "err";
+  }
+  if (proxyState !== old) paintBand();
+}
+
 async function loadStatus(){
   try { lastStatus = await REST.status(); }
   catch (e){ lastStatus = null; }
   paintBand();
   majPanne();
   majDimTerm();
+  verifProxy();
 }
 
 // Le core prévient la page à chaque changement d'état, plutôt que la page
@@ -4394,6 +4616,12 @@ function boot(){
   H("icSearch", svg("recherche", { size: 18 }));
 
   $("mic1").onclick = (e) => { e.stopPropagation(); basculerDictee(); };
+
+  // Coller une capture d'ecran (image) dans la box : on la recupere du
+  // presse-papiers et on l'enregistre via /ulysse/capture. Texte : laisse
+  // passer normalement.
+  const replyEl = $("reply");
+  if (replyEl) replyEl.addEventListener("paste", collerCapture);
 
   // Le « + » joint un fichier : c'est le geste attendu là où il est posé.
   // L'Établi (parcourir les fichiers déjà sur la machine) reste dans le

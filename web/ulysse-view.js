@@ -42,6 +42,112 @@ function esc(s){
     .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
     .replace(/"/g, "&quot;").replace(/'/g, "&#39;");
 }
+/* ═══ Rendu markdown léger et sûr (offline, sans dépendance) ════════════
+   Le texte de l'agent arrive en markdown brut. On l'échappe d'abord
+   (esc) pour neutraliser tout HTML, PUIS on reconstruit du HTML sûr.
+   Ordre des passes : blocs (tableaux, listes, citations, HR, titres)
+   avant l'inline (gras/italique/code) qui opère sur chaque fragment. */
+function mdRender(src){
+  if (src === null || src === undefined) return "";
+  const lines = String(src).split(/\r?\n/);
+  const out = [];
+  let i = 0;
+  let inUl = false, inOl = false;
+  const closeLists = () => {
+    if (inUl){ out.push("</ul>"); inUl = false; }
+    if (inOl){ out.push("</ol>"); inOl = false; }
+  };
+  // inline : reçoit du TEXTE BRUT, échappe d'abord (sécurité) puis décore.
+  const inline = (s) => {
+    let x = esc(s);
+    x = x.replace(/`([^`]+)`/g, '<code>$1</code>');
+    x = x.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
+    x = x.replace(/(^|[^*])\*([^*]+)\*/g, '$1<em>$2</em>');
+    x = x.replace(/~~([^~]+)~~/g, '<del>$1</del>');
+    return x;
+  };
+  const splitRow = (r) => r.replace(/^\s*\|/, "").replace(/\|\s*$/, "")
+    .split("|").map((c) => c.trim());
+  while (i < lines.length){
+    const line = lines[i].trimEnd();
+    // --- Tableau : | en-tête |, ligne |---|, lignes corps | ... | ---
+    if (/^\|/.test(line) && /\|$/.test(line) && lines[i + 1]
+        && /^[\s|]*-+[\s|:-]*$/.test(lines[i + 1].trim())
+        && lines[i + 1].includes("-")){
+      closeLists();
+      const head = splitRow(line);
+      i += 2; // saute en-tête + séparateur
+      let body = "";
+      while (i < lines.length && /^\|/.test(lines[i].trimEnd())){
+        const cells = splitRow(lines[i].trimEnd());
+        body += "<tr>" + cells.map((c) => "<td>" + inline(c) + "</td>").join("") + "</tr>";
+        i++;
+      }
+      out.push('<table class="u-md-t"><thead><tr>'
+        + head.map((c) => "<th>" + inline(c) + "</th>").join("")
+        + '</tr></thead><tbody>' + body + "</tbody></table>");
+      continue;
+    }
+    // --- Séparateur horizontal ---
+    if (/^(\*\*\*|---|___)\s*$/.test(line)){
+      closeLists();
+      out.push("<hr>");
+      i++;
+      continue;
+    }
+    // --- Citation > ---
+    if (/^>\s?/.test(line)){
+      closeLists();
+      const buf = [];
+      while (i < lines.length && /^>\s?/.test(lines[i].trimEnd())){
+        buf.push(inline(lines[i].trimEnd().replace(/^>\s?/, "")));
+        i++;
+      }
+      out.push("<blockquote>" + buf.join("<br>") + "</blockquote>");
+      continue;
+    }
+    // --- Titre # ## ### ---
+    const h = line.match(/^(#{1,3})\s+(.*)$/);
+    if (h){
+      closeLists();
+      const lvl = h[1].length;
+      out.push("<h" + lvl + ' class="u-md-h">' + inline(h[2]) + "</h" + lvl + ">");
+      i++;
+      continue;
+    }
+    // --- Liste non ordonnée - * + ---
+    const ul = line.match(/^[-*+]\s+(.*)$/);
+    if (ul){
+      if (inOl){ out.push("</ol>"); inOl = false; }
+      if (!inUl){ out.push("<ul class=\"u-md-l\">"); inUl = true; }
+      out.push("<li>" + inline(ul[1]) + "</li>");
+      i++;
+      continue;
+    }
+    // --- Liste ordonnée 1. 2. ---
+    const ol = line.match(/^\d+\.\s+(.*)$/);
+    if (ol){
+      if (inUl){ out.push("</ul>"); inUl = false; }
+      if (!inOl){ out.push("<ol class=\"u-md-l\">"); inOl = true; }
+      out.push("<li>" + inline(ol[1]) + "</li>");
+      i++;
+      continue;
+    }
+    // --- Ligne vide : sépare paragraphes, ferme listes ---
+    if (line.trim() === ""){
+      closeLists();
+      i++;
+      continue;
+    }
+    // --- Paragraphe simple ---
+    closeLists();
+    out.push("<p>" + inline(line) + "</p>");
+    i++;
+  }
+  closeLists();
+  return out.join("");
+}
+
 
 /* ═══ Le bandeau du bas (snack) ═══════════════════════════════════════════
    Repris verbatim. Une action annulable le dit sur place, et pendant six
@@ -608,6 +714,13 @@ const Notifs = {
   nid: 0,
   onAnswer: null,        // (notif, oui) => Promise|void
 
+  /* Comment un identifiant de panneau s'écrit à l'écran.
+     Ce fichier ne connaît pas `PANELS` — il rend, il ne sait pas d'où vient ce
+     qu'il rend. L'appelant pose la traduction ; à défaut, l'identifiant fait
+     l'affaire. Une table recopiée ici serait une seconde source de vérité pour
+     les dix libellés, et la première divergence ne se verrait qu'à l'écran. */
+  libelle: (id) => id,
+
   attente(){ return this.list.filter((n) => NKIND[n.kind] && NKIND[n.kind].dur); },
 
   drawBell(){
@@ -690,9 +803,18 @@ const Notifs = {
       + '<div style="flex:1;min-width:0">'
       + '<div class="nt">' + esc(n.titre) + "</div>"
       + '<div class="nx">' + esc(n.txt) + "</div>"
-      + '<div class="nmeta"><span class="o">' + esc(n.obj) + "</span>·<span"
+      + '<div class="nmeta n-meta-va"><span class="o">' + esc(n.obj) + "</span>·<span"
       + (n.kind === "panne" ? ' class="n-depuis"' : "") + ">"
-      + esc(quand) + "</span></div>"
+      + esc(quand) + "</span>"
+      // Où mène la ligne. `data-go` est là depuis toujours et rien ne le
+      // disait. Le LIBELLÉ, jamais l'identifiant : c'est exactement la
+      // confusion que `drawBell()` vient de corriger, et il aurait été
+      // dommage de la réintroduire dans l'écran d'à côté.
+      + (n.panel
+          ? '<span class="n-va">' + esc(this.libelle(n.panel))
+            + svg("suivant", { size: 13 }) + "</span>"
+          : "")
+      + "</div>"
       // `K.dur && n.oui` et non `K.dur` seul : `dur` dit qu'une bulle NE PART
       // PAS toute seule ; ça ne veut pas dire qu'on a quelque chose a
       // repondre. Une PANNE ne part pas toute seule et ne s'autorise pas —
