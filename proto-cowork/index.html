@@ -1,0 +1,254 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Ulysse — Cowork (proto)</title>
+<script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+<style>
+  :root{
+    --bg:#ffffff; --panel:#fafafa; --border:#e6e6e6; --ink:#1a1a1a;
+    --muted:#8a8a8a; --accent:#e0556e; --accent-soft:#fdeef1; --chip:#f3f3f3;
+    --radius:10px;
+  }
+  *{box-sizing:border-box;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;}
+  html,body{height:100%;margin:0;background:var(--bg);color:var(--ink);}
+  /* ---------- top bar ---------- */
+  .topbar{display:flex;align-items:center;gap:14px;padding:8px 14px;border-bottom:1px solid var(--border);background:var(--bg);}
+  .dots{display:flex;gap:7px;}
+  .dot{width:11px;height:11px;border-radius:50%;}
+  .dot.r{background:#ff5f57;} .dot.y{background:#febc2e;} .dot.g{background:#28c840;}
+  .tabs{display:flex;gap:6px;margin-left:10px;}
+  .tab{font-size:13px;padding:5px 12px;border-radius:7px;color:var(--muted);cursor:pointer;border:1px solid transparent;}
+  .tab.active{color:var(--ink);border-bottom:2px solid var(--ink);border-radius:0;font-weight:500;}
+  .spacer{flex:1;}
+  .iconbtn{width:30px;height:30px;display:flex;align-items:center;justify-content:center;border:1px solid var(--border);border-radius:7px;color:var(--muted);cursor:pointer;background:var(--bg);}
+  /* ---------- layout ---------- */
+  .layout{display:flex;height:calc(100% - 47px);}
+  .chat{flex:0 0 42%;display:flex;flex-direction:column;border-right:1px solid var(--border);min-width:0;}
+  .viewer{flex:1;display:flex;flex-direction:column;min-width:0;}
+  /* ---------- chat ---------- */
+  .chat-head{padding:12px 16px;font-weight:600;font-size:14px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:6px;}
+  .chat-head .caret{color:var(--muted);font-size:11px;}
+  .chat-body{flex:1;overflow-y:auto;padding:16px;display:flex;flex-direction:column;gap:14px;}
+  .msg{max-width:88%;font-size:14px;line-height:1.5;}
+  .msg.user{align-self:flex-end;background:var(--chip);padding:10px 13px;border-radius:14px 14px 4px 14px;}
+  .msg.bot{align-self:flex-start;}
+  .msg.bot .lead{color:var(--muted);font-size:13px;margin-bottom:6px;}
+  .link{color:var(--accent);text-decoration:none;font-size:13px;display:inline-block;margin:2px 0;}
+  /* file card bandeau */
+  .filecard{display:flex;align-items:center;gap:12px;padding:11px 14px;border:1px solid var(--border);border-radius:var(--radius);background:var(--bg);cursor:pointer;transition:.15s;max-width:340px;box-shadow:0 1px 2px rgba(0,0,0,.03);}
+  .filecard:hover{border-color:var(--accent);background:var(--accent-soft);transform:translateY(-1px);}
+  .filecard .fic{width:34px;height:34px;border-radius:8px;background:var(--accent-soft);color:var(--accent);display:flex;align-items:center;justify-content:center;font-size:17px;flex-shrink:0;}
+  .filecard .meta{display:flex;flex-direction:column;min-width:0;}
+  .filecard .fname{font-weight:600;font-size:13.5px;}
+  .filecard .fsub{font-size:11.5px;color:var(--muted);}
+  .filecard .open{margin-left:auto;color:var(--accent);font-size:12px;opacity:.7;}
+  .pulse{animation:fadein .4s ease;}
+  @keyframes fadein{from{opacity:0;transform:translateY(6px);}to{opacity:1;transform:none;}}
+  .typing{display:inline-flex;gap:4px;align-items:center;color:var(--muted);font-size:13px;}
+  .typing span{width:6px;height:6px;border-radius:50%;background:var(--muted);animation:blink 1.2s infinite;}
+  .typing span:nth-child(2){animation-delay:.2s;} .typing span:nth-child(3){animation-delay:.4s;}
+  @keyframes blink{0%,60%,100%{opacity:.25;}30%{opacity:1;}}
+  .chat-input{display:flex;align-items:center;gap:8px;padding:12px 16px;border-top:1px solid var(--border);}
+  .chat-input input{flex:1;border:1px solid var(--border);border-radius:20px;padding:10px 16px;font-size:14px;outline:none;background:var(--panel);}
+  .chat-input .plus{width:32px;height:32px;border-radius:50%;border:1px solid var(--border);display:flex;align-items:center;justify-content:center;color:var(--muted);cursor:pointer;}
+  .chat-input .send{width:36px;height:36px;border-radius:50%;background:var(--accent);color:#fff;border:none;display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:16px;}
+  .model-sel{font-size:12px;color:var(--muted);border:1px solid var(--border);border-radius:7px;padding:6px 9px;cursor:pointer;background:var(--bg);}
+  /* ---------- viewer ---------- */
+  .viewer-head{display:flex;align-items:center;gap:10px;padding:9px 14px;border-bottom:1px solid var(--border);background:var(--bg);}
+  .viewer-head .vicon{color:var(--muted);cursor:pointer;font-size:14px;}
+  .viewer-head .vname{font-size:13px;font-weight:600;}
+  .viewer-head .vname .ext{color:var(--muted);font-weight:400;}
+  .viewer-head .spacer{flex:1;}
+  .viewer-body{flex:1;overflow-y:auto;padding:28px 36px;background:var(--bg);}
+  .placeholder{height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;color:var(--muted);gap:10px;font-size:14px;}
+  .placeholder .big{font-size:40px;opacity:.4;}
+  /* markdown styles */
+  .md h1{font-size:26px;margin:.2em 0 .5em;border-bottom:1px solid var(--border);padding-bottom:.3em;}
+  .md h2{font-size:19px;margin:1.1em 0 .5em;}
+  .md h3{font-size:16px;margin:1em 0 .4em;}
+  .md p{line-height:1.6;margin:.5em 0;}
+  .md ul,.md ol{padding-left:22px;line-height:1.7;}
+  .md li{margin:.25em 0;}
+  .md li input[type=checkbox]{margin-right:8px;transform:translateY(1px);}
+  .md table{border-collapse:collapse;width:100%;margin:1em 0;font-size:13.5px;}
+  .md th,.md td{border:1px solid var(--border);padding:8px 11px;text-align:left;}
+  .md th{background:var(--panel);font-weight:600;}
+  .md tr:nth-child(even) td{background:#fcfcfc;}
+  .md code{background:var(--chip);padding:2px 6px;border-radius:5px;font-size:12.5px;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;}
+  .md pre{background:#1e1e2e;color:#eee;padding:14px 16px;border-radius:10px;overflow:auto;}
+  .md pre code{background:none;color:inherit;padding:0;}
+  .md strong{font-weight:600;}
+  .raw{font-family:ui-monospace,monospace;font-size:12.5px;white-space:pre-wrap;color:#333;line-height:1.6;}
+</style>
+</head>
+<body>
+  <div class="topbar">
+    <div class="dots"><div class="dot r"></div><div class="dot y"></div><div class="dot g"></div></div>
+    <div class="tabs">
+      <div class="tab">Discussion</div>
+      <div class="tab active">Cowork</div>
+      <div class="tab">Code</div>
+    </div>
+    <div class="spacer"></div>
+    <div class="iconbtn" title="sidebar">☰</div>
+  </div>
+
+  <div class="layout">
+    <!-- CHAT -->
+    <div class="chat">
+      <div class="chat-head">Plan quotidien &amp; tâches <span class="caret">▾</span></div>
+      <div class="chat-body" id="chatBody">
+        <div class="msg user">Crée le fichier du tableau qu'on vient de voir.</div>
+        <div class="msg bot" id="botMsg">
+          <div class="lead">Hermès</div>
+          <div id="botText">
+            <span class="typing"><span></span><span></span><span></span> je génère le .md…</span>
+          </div>
+        </div>
+        <!-- file cards injected here -->
+      </div>
+      <div class="chat-input">
+        <div class="plus">+</div>
+        <input placeholder="Répondre…">
+        <div class="model-sel">Hermès · hy3</div>
+        <button class="send">↑</button>
+      </div>
+    </div>
+
+    <!-- VIEWER -->
+    <div class="viewer">
+      <div class="viewer-head">
+        <span class="vicon" id="eyeBtn" title="aperçu">👁</span>
+        <span class="vicon" id="codeBtn" title="source">⟨/⟩</span>
+        <span class="vname" id="vname">— <span class="ext">aperçu</span></span>
+        <span class="spacer"></span>
+        <span class="vicon" id="copyBtn" title="copier">⧉</span>
+        <span class="vicon" title="annuler">↶</span>
+        <span class="vicon" title="rétablir">↷</span>
+        <span class="vicon" id="closeBtn" title="fermer">✕</span>
+      </div>
+      <div class="viewer-body" id="viewerBody">
+        <div class="placeholder">
+          <div class="big">📄</div>
+          <div>Aucun fichier ouvert.</div>
+          <div style="font-size:12px">Clique sur une carte de fichier dans le flux à gauche.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+<script>
+// ---- sample docs (ce que Hermès aurait généré) ----
+const DOCS = {
+  "tableau.md": `# Tableau des tâches
+
+## Active
+
+| Tâche | Horaire | Priorité | Assigné |
+|-------|---------|----------|---------|
+| Posting Time | 11:00 GMT | — | — |
+| Charlie <> Utsav | 13:00 GMT | — | Utsav |
+| Masterclass Lead Gen | 17:00 GMT | — | AI Creators Club |
+| Joe x Charlie | 19:00 GMT | — | Joe |
+| Script "RIP Open Claw" | — | **Haute** | Gellei |
+| Review "Anthropic Free" | 20/03 | — | Gellei + Ansh |
+
+## Waiting On
+
+| Item | Statut | Owner |
+|------|--------|-------|
+| Pipeline production | en cours | Gellei / Ansh |
+| Voix-off manquante | bloqué | Ansh |`,
+
+  "tasks.md": `# Tasks
+
+## Active
+
+- [ ] **Posting Time** — 11:00 GMT daily recurring
+- [ ] **Charlie <> Utsav** — 13:00 GMT, 1:1 with Utsav
+- [ ] **Masterclass Lead Gen** — 17:00 GMT, AI Creators Club
+- [x] **Write script "RIP Open Claw"** — High Priority, assigned to Gellei
+- [ ] **Review "Anthropic Free Courses"** — needs VO, post 20/03
+
+## Waiting On
+
+- [ ] **Content in production pipeline** — multiple items with Gellei & Ansh
+- [ ] **Agency onboarding doc** — draft due Friday`
+};
+
+const CARDS = [
+  {file:"tasks.md", sub:"généré · 14:02"},
+  {file:"tableau.md", sub:"généré · 14:05"}
+];
+
+marked.setOptions({gfm:true, breaks:true});
+
+function renderMD(md){
+  let html = marked.parse(md);
+  // ensure task-list checkboxes are styled (marked gfm already emits them)
+  return html;
+}
+
+function openDoc(file, raw=false){
+  const body = document.getElementById('viewerBody');
+  const vname = document.getElementById('vname');
+  vname.innerHTML = file.replace(/\.md$/,'') + ' <span class="ext">MD</span>';
+  if(raw){
+    body.innerHTML = '<pre class="raw">'+DOCS[file].replace(/</g,'&lt;')+'</pre>';
+    return;
+  }
+  body.innerHTML = '<div class="md">'+renderMD(DOCS[file])+'</div>';
+  body.scrollTop = 0;
+}
+
+function addCard(file, sub){
+  const card = document.createElement('div');
+  card.className = 'filecard pulse';
+  card.innerHTML = `
+    <div class="fic">📄</div>
+    <div class="meta">
+      <div class="fname">${file}</div>
+      <div class="fsub">${sub}</div>
+    </div>
+    <div class="open">ouvrir ›</div>`;
+  card.onclick = () => openDoc(file);
+  document.getElementById('chatBody').appendChild(card);
+}
+
+// ---- simulate the "20s plus tard" generation ----
+setTimeout(() => {
+  document.getElementById('botText').innerHTML =
+    'Fichier <strong>tableau.md</strong> créé dans ton dossier de travail.';
+  CARDS.forEach((c,i) => setTimeout(() => addCard(c.file, c.sub), 350*i));
+}, 1800);
+
+// ---- viewer controls ----
+let currentFile = null, showRaw = false;
+document.querySelectorAll('.filecard').forEach(()=>{});
+document.getElementById('closeBtn').onclick = () => {
+  currentFile = null; showRaw = false;
+  document.getElementById('vname').innerHTML = '— <span class="ext">aperçu</span>';
+  document.getElementById('viewerBody').innerHTML =
+    '<div class="placeholder"><div class="big">📄</div><div>Aucun fichier ouvert.</div>'+
+    '<div style="font-size:12px">Clique sur une carte de fichier dans le flux à gauche.</div></div>';
+};
+document.getElementById('codeBtn').onclick = () => {
+  if(!currentFile) return; showRaw = !showRaw; openDoc(currentFile, showRaw);
+};
+document.getElementById('eyeBtn').onclick = () => {
+  if(!currentFile) return; showRaw = false; openDoc(currentFile, false);
+};
+document.getElementById('copyBtn').onclick = () => {
+  if(!currentFile) return;
+  navigator.clipboard.writeText(DOCS[currentFile]);
+  const b=document.getElementById('copyBtn'); const old=b.textContent;
+  b.textContent='✓'; setTimeout(()=>b.textContent=old,1200);
+};
+// track current file on open
+const _open = openDoc;
+openDoc = function(f, raw){ currentFile=f; showRaw=!!raw; _open(f, raw); };
+</script>
+</body>
+</html>

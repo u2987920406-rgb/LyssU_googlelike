@@ -1,30 +1,50 @@
-# Ce qui ne rentre pas dans le dépôt, et pourquoi.
+# Ce que ce dépôt ne doit pas emporter.
+#
+# ⚠ `git push` PUBLIE. Le remote est sur GitHub : ce qui entre ici y reste,
+#   dans l'historique, même effacé ensuite. Les deux premières entrées sont
+#   là pour ça, pas pour faire propre.
 
-# ── LE SEUL VRAI SECRET DU PROJET ────────────────────────────────────────
-# `lancer_ulysse.bat` engendre un jeton de session à chaque lancement et le
-# dépose ici pour que serve.py et le dashboard parlent du même. Il est vivant
-# tant que la pile tourne. Un dépôt garde tout, y compris ce qu'on croyait
-# éphémère : celui-là ne doit JAMAIS y entrer.
+# VOS CAPTURES D'ÉCRAN. Sorties de web/ le 2026-08-11 parce que le produit ne
+# doit pas écrire dans son propre dossier servi. Ce sont des images de votre
+# écran : personne ne sait ce qu'il y avait dessus au moment du clic, et c'est
+# exactement la raison de ne pas les publier.
+_retire-2026-08-11/
+
+# Les copies datées que `serve.py` écrit avant chaque écriture en mémoire.
+# Elles s'accumulent à chaque sauvegarde, et elles portent une copie de
+# `ulysse-config.js` — que le produit lui-même traite comme un fichier à
+# secrets (SECRET_CONFIG_KEYS : SESSION_TOKEN, PROXY_TOKEN).
+web/versions-ulysse/
+
+# Restes d'essais, sans rôle dans le produit.
+b.title
+web/payload.json
+web/lancer_ulysse.bat.patch
+
+# Un relais d'avant, sur le viewer d'artefacts. Le travail qu'il annonçait est
+# fait depuis le 2026-08-11 : le garder ferait deux relais dont un qui ment.
+# Le relais courant est à la racine.
+web/relais.md
+
+# ⚠ UN JETON DE SESSION, EN CLAIR, 40 OCTETS. `lancer_ulysse.bat` en fabrique
+#   un neuf à chaque démarrage et le passe par variable d'environnement
+#   précisément pour qu'il ne touche aucun fichier — celui-ci a échappé à la
+#   règle. Il ne doit jamais partir sur un remote.
 web/.jeton-session
 
-# ── Les faux Hermès des tests ────────────────────────────────────────────
-# `faux_hermes.py` et les suites s'écrivent un Hermes Home jetable, avec des
-# secrets de webhook factices. Ils se régénèrent à chaque exécution, et un
-# secret même faux dans un dépôt apprend une mauvaise habitude.
+# Faux disques des essais, et un brouillon.
 web/.faux-home/
 web/.test-home/
-
-# ── Le reste : des choses qui se régénèrent ──────────────────────────────
-
-# jsdom & co, réinstallables par `npm install` — 26 Mo de dépendances
-web/node_modules/
-
-# Caches Python
-__pycache__/
-*.pyc
-
-# Brouillons de vérification, écrits puis jetés pendant une passe
 web/_verif_tmp.js
 
-# Une redirection shell malheureuse, le 2026-08-07 : fichier de 0 octet
+# 26 Mo de dépendances installées. Elles se réinstallent, elles ne se
+# versionnent pas.
+web/node_modules/
+
+# Un fichier né d'une redirection ratée (« 2>'ERR »).
 'ERR
+
+# Marqueurs et caches.
+__pycache__/
+*.pyc
+.DS_Store
