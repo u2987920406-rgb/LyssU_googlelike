@@ -27,7 +27,12 @@ const CFG = {
   // (conv.info.model). Rempli = override explicite de l'utilisateur, affiche
   // comme tel dans « Le cerveau ». On ne durcit plus aucun modele.
   PROXY_MODEL: RAW_CFG.PROXY_MODEL || "",
-  PROXY_MAX_TOKENS: RAW_CFG.PROXY_MAX_TOKENS || 800,
+  // Le repli quand `ulysse-config.js` ne dit rien. Il valait 800, comme le
+  // fichier de config — donc une installation neuve heritait d'un plafond trop
+  // bas pour ce que l'ecran promet. Les deux sont montes a 4000 le 2026-08-12 :
+  // un defaut de produit et un reglage d'installation qui se contredisent, ce
+  // sont deux verites pour une seule chose.
+  PROXY_MAX_TOKENS: RAW_CFG.PROXY_MAX_TOKENS || 4000,
   SESSION_CWD: RAW_CFG.SESSION_CWD || "",
   SESSION_MODEL: RAW_CFG.SESSION_MODEL || "",
   START_PATH: RAW_CFG.START_PATH || "",

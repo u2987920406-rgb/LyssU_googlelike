@@ -63,8 +63,20 @@ window.ULYSSE_CONFIG = {
   // vivante Hermes (conv.info.model) — c'est le reglage par defaut. Rempli =
   // vous imposez ce modele a la place. Ne laissez pas de valeur ici par
   // principe : le but est qu'Ulysse suive Hermes, quel qu'il soit.
-PROXY_MODEL: "tencent/hy3:free",
-  PROXY_MAX_TOKENS: 800,
+  PROXY_MODEL: "tencent/hy3:free",
+
+  // Plafond de la reponse en mode Discussion, en tokens. Il part tel quel dans
+  // `max_tokens` : le modele s'arrete net quand il l'atteint.
+  //
+  // ⚠ IL DOIT RESTER UN PLAFOND. Un plafond absent n'est pas une liberte,
+  //   c'est une facture qu'on ne voit pas venir. Ce qu'il faut, c'est qu'il
+  //   SE FASSE ENTENDRE quand il agit — la bulle le dit depuis le 2026-08-12,
+  //   en lisant `finish_reason`. Avant, il coupait en silence.
+  //
+  // 800 pendant tout le projet : trop bas pour ce que l'ecran laisse esperer.
+  // On ne fabrique pas un compte rendu ni un tableau la-dedans. Monte a 4000
+  // le 2026-08-12, a la demande de kuchu — de quoi tenir un document court.
+  PROXY_MAX_TOKENS: 4000,
 
   // Dossier de travail passe a session.create (vide = dossier de lancement
   // du dashboard). Exemple : "%USERPROFILE%/Desktop/Projet Ulysse"

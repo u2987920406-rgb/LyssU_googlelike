@@ -1249,6 +1249,19 @@ async function main(){
   check("...et où le régler — une limite qu'on ne peut pas trouver est un mur",
     !!coupee && /PROXY_MAX_TOKENS/.test(coupee.textContent)
     && /ulysse-config\.js/.test(coupee.textContent));
+  /* ⚠ LE PLAFOND EST ÉCRIT À DEUX ENDROITS : dans `ulysse-config.js` (cette
+     installation) et comme repli dans `ulysse-core.js` (le défaut du produit,
+     quand la config ne dit rien). Ils valaient tous deux 800 ; monter l'un
+     sans l'autre donnerait un produit qui promet une chose à qui a une config
+     et une autre à qui n'en a pas. Deux vérités pour une seule chose. */
+  {
+    const cfgSrc = fs.readFileSync(path.join(DIR, "ulysse-config.js"), "utf8");
+    const coreSrc = fs.readFileSync(path.join(DIR, "ulysse-core.js"), "utf8");
+    const aCfg = (cfgSrc.match(/PROXY_MAX_TOKENS:\s*(\d+)/) || [])[1];
+    const aCore = (coreSrc.match(/PROXY_MAX_TOKENS:\s*RAW_CFG\.PROXY_MAX_TOKENS\s*\|\|\s*(\d+)/) || [])[1];
+    check("le plafond de la config et le repli du produit disent la même chose",
+      !!aCfg && aCfg === aCore, "config " + aCfg + " · repli " + aCore);
+  }
   // Le texte reçu reste affiché : on prévient, on n'escamote pas.
   check("...le texte reçu reste affiché, on ne l'escamote pas",
     win.document.getElementById("thread").textContent.includes("interrompu net"));
