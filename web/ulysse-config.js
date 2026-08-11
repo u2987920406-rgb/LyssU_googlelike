@@ -58,7 +58,12 @@ window.ULYSSE_CONFIG = {
   DASHBOARD_URL: "",
 
   // Modele du mode « chat pur ».
-  PROXY_MODEL: "tencent/hy3:free",
+  // LOI-DU-CERVEAU.md : Ulysse n'impose AUCUN modele. Ce champ est un OVERRIDE
+  // explicite et optionnel. Vide = Ulysse herite du modele de la session
+  // vivante Hermes (conv.info.model) — c'est le reglage par defaut. Rempli =
+  // vous imposez ce modele a la place. Ne laissez pas de valeur ici par
+  // principe : le but est qu'Ulysse suive Hermes, quel qu'il soit.
+PROXY_MODEL: "tencent/hy3:free",
   PROXY_MAX_TOKENS: 800,
 
   // Dossier de travail passe a session.create (vide = dossier de lancement

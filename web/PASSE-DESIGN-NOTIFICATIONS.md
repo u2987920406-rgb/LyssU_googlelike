@@ -138,3 +138,49 @@ partir** ; sinon elle reste seule. Je ne la supprime pas d'ici.
 | Panneau vide | répondre à tout, et Hermès qui répond |
 
 **Les cinq s'atteignent dans l'aperçu.**
+
+---
+
+## 7. Le point du rail derrière une porte fermée (ajouté le 2026-08-10)
+
+Question posée par le code : un panneau de niveau 3 n'a pas de bouton tant que
+la porte est fermée. Une panne rangée sur « Réglages » n'a donc **rien qui la
+marque dans le rail**. Trois issues proposées.
+
+### Deux sont à écarter, et pour des raisons qui existent déjà
+
+**« La porte s'ouvre toute seule »** — non. `nav()` l'ouvre parce que
+**l'utilisateur y va** : c'est la conséquence de son geste. Ici elle s'ouvrirait
+sur un **événement**, et déplacerait les boutons sous la souris. Le CSS de la
+maquette a déjà tranché ce point : *« un menu qui s'ouvre quand on passe est un
+menu qui s'ouvre par erreur. »*
+
+**« Un second signe sur la porte »** — non plus. Deux points distincts sur un
+bouton de 72 px en mode replié, et il faudrait apprendre lequel dit quoi. C'est
+exactement le *« un signe pour deux choses »* que le code refuse — retourné :
+deux signes pour un bouton n'est pas mieux.
+
+### Ce qui reste, et pourquoi c'est le bon
+
+**Rien sur la porte.** Le `.raildot` d'un panneau est un **raccourci** : il
+évite d'ouvrir la cloche. Quand il ne peut pas exister, ce n'est pas au rail de
+se contorsionner — **c'est à la notification de porter l'information**, et elle
+a la place.
+
+### Et en cherchant ça, on trouve mieux
+
+`.nrow` porte `data-go` et **mène au panneau depuis toujours** — sans curseur,
+sans chevron, sans mot. On le découvre en cliquant par hasard.
+
+**Ce n'est pas un défaut du cas caché : c'est un défaut de *toutes* les
+lignes**, que le cas caché a rendu visible.
+
+La ligne gagne donc, au survol, sa destination en clair — *« Réglages ›​ »* —
+et le curseur passe en `pointer`. Le libellé, pas l'identifiant : c'est
+précisément la confusion que le code vient de corriger dans `drawBell()`.
+
+> **La question portait sur le rail ; la réponse est dans le panneau.** C'est
+> la troisième fois qu'une question de cette série se résout ailleurs qu'où
+> elle se pose.
+
+`.n-va`, `.n-meta-va` — deux classes de plus, et rien sur la porte.
