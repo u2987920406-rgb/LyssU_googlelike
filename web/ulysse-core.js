@@ -189,6 +189,27 @@ const REST = {
     }),
   // web_routers/cron.py — automatisations
   cronJobs: () => api("/api/cron/jobs"),
+  /* ── Creer une automatisation ─────────────────────────────────────────
+     `POST /api/cron/jobs` EXISTE (web_routers/cron.py:67) et Ulysse ne s'en
+     servait pas : l'ecran renvoyait a `hermes cron add`, c'est-a-dire hors du
+     produit. Lu dans la source, puis eprouve en vrai avant d'ecrire un seul
+     bouton (creation, relecture, suppression).
+
+     Le corps est `CronJobCreate` (web_models.py:361) : `schedule` est le SEUL
+     champ obligatoire, `prompt` vaut "" par defaut, `deliver` vaut "local".
+     Mais le serveur refuse (400) un travail d'agent sans rien a faire —
+     « agent cron jobs require a prompt, skill, or script »
+     (web_server.py:11621). L'ecran demande donc un texte, et le dit. */
+  creerCron: (corps) => api("/api/cron/jobs", { method: "POST", body: corps }),
+  /* Une automatisation qu'on peut poser sans pouvoir la retirer est un piege.
+     `DELETE` existe (cron.py:120) et rend `{ok:true}` — verifie en direct. */
+  supprimerCron: (id) =>
+    api("/api/cron/jobs/" + encodeURIComponent(id), { method: "DELETE" }),
+  /* Ou livrer. On ne code PAS la liste en dur : le backend la derive des
+     plateformes configurees, et rend `home_target_set:false` pour celles
+     qu'il faut encore brancher — pour que l'ecran le DISE au lieu de les
+     cacher (cron.py:74). Ici : « local » et « telegram ». */
+  cronCibles: () => api("/api/cron/delivery-targets"),
   pauseCron: (id) => api("/api/cron/jobs/" + encodeURIComponent(id) + "/pause", { method: "POST" }),
   resumeCron: (id) => api("/api/cron/jobs/" + encodeURIComponent(id) + "/resume", { method: "POST" }),
   triggerCron: (id) => api("/api/cron/jobs/" + encodeURIComponent(id) + "/trigger", { method: "POST" }),

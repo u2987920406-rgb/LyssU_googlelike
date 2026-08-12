@@ -82,10 +82,37 @@ const FIXTURES = {
   "/api/analytics/usage": { period_days: 30, totals: { total_tokens: 128400, requests: 92 },
     by_model: [{ model: "hy3", total_tokens: 128400 }], daily: [], by_task: [],
     skills: [], tools: [] },
-  "/api/cron/jobs": { jobs: [
-      { id: "job_veille", name: "Veille du lundi", schedule: "0 9 * * 1",
-        prompt: "Résume.", paused: false },
-      { id: "job_bk", name: "Sauvegarde", schedule: "0 2 * * *", prompt: "Vérifie.", paused: true }] }
+  /* ⚠ `schedule` EST UN OBJET, PAS UNE CHAÎNE — et ce fixture affirmait le
+     contraire depuis toujours. Le vrai backend rend
+     `{kind, expr|minutes|run_at, display}` PLUS un `schedule_display` tout
+     prêt (relevé en direct le 2026-08-12 sur les tâches de kuchu).
+     La page faisait `esc(j.schedule)` : contre ce faux, une expression cron
+     bien lisible ; contre le vrai, « [object Object] » en toutes lettres, sur
+     l'écran des Automatisations. ONZIÈME fois qu'un faux qui ne ment pas comme
+     le vrai cache un défaut réel. Les trois genres d'horaire sont là,
+     puisque le vrai en produit trois. */
+  /* ⚠ ET C'EST UN TABLEAU NU, pas `{jobs: [...]}`. Deuxième mensonge du même
+     fixture, trouvé le même jour : le banc réel lisait `d.jobs` et voyait une
+     liste vide, donc « la tâche n'a pas été créée » alors qu'elle l'était —
+     et il en a laissé quatre chez kuchu avant qu'on ne s'en aperçoive. */
+  "/api/cron/jobs": [
+      { id: "job_veille", name: "Veille du lundi", prompt: "Résume.", paused: null,
+        enabled: true, state: "scheduled",
+        schedule: { kind: "cron", expr: "0 9 * * 1", display: "0 9 * * 1" },
+        schedule_display: "0 9 * * 1" },
+      { id: "job_bk", name: "Sauvegarde", prompt: "Vérifie.", paused: true,
+        enabled: true, state: "paused",
+        schedule: { kind: "interval", minutes: 360, display: "every 360m" },
+        schedule_display: "every 360m" }],
+  /* La liste des cibles n'est PAS écrite en dur dans la page : le backend la
+     dérive des plateformes configurées. Forme relevée en direct — et une
+     cible non branchée revient avec `home_target_set:false`, pour que l'écran
+     le DISE au lieu de la cacher (cron.py:74). */
+  "/api/cron/delivery-targets": { targets: [
+      { id: "local", name: "Local (save only)", home_target_set: true, home_env_var: null },
+      { id: "telegram", name: "Telegram", home_target_set: true,
+        home_env_var: "TELEGRAM_HOME_CHANNEL" },
+      { id: "slack", name: "Slack", home_target_set: false, home_env_var: "SLACK_HOME_CHANNEL" }] }
 };
 
 const fetched = [];
@@ -2534,6 +2561,82 @@ async function main(){
   } else check("Listes · et elle s'ouvre vraiment sur son adresse", false, "pas de tête");
   check("Listes · plus de .glegend hors du canevas du Plan",
     win.document.querySelectorAll("#autos .glegend").length === 0);
+
+  /* ⚠ CE QUE LA PUCE D'HORAIRE DIT. Elle affichait « [object Object] » contre
+     le vrai Hermès — `schedule` est un objet, et le fixture prétendait une
+     chaîne. Personne ne l'avait vu : on vérifiait que l'écran ne restait pas
+     sur « Chargement », jamais ce qu'il racontait. */
+  {
+    const puces = Array.from(win.document.querySelectorAll("#autos .acard .chip.b"))
+      .map((n) => n.textContent.trim());
+    check("Automatisations · aucune puce d'horaire ne dit « [object Object] »",
+      puces.length >= 2 && !puces.some((t) => /object Object/.test(t)),
+      puces.join(" · "));
+    check("Automatisations · elle montre l'horaire lisible que le backend fournit",
+      puces.indexOf("0 9 * * 1") >= 0 && puces.indexOf("every 360m") >= 0,
+      puces.join(" · "));
+  }
+
+  /* ── Poser une automatisation ──────────────────────────────────────────
+     `POST /api/cron/jobs` existe depuis toujours (web_routers/cron.py:67) et
+     l'écran renvoyait à `hermes cron add` — hors du produit. Il pose
+     maintenant la tâche lui-même.
+
+     ⚠ LA TRADUCTION D'HORAIRE EST LE CŒUR, ET ELLE EST PURE. `schedule`
+     accepte quatre formes (cron/jobs.py:571) dont l'expression cron, qui ne
+     se devine pas. On vérifie donc chaque mode contre la chaîne EXACTE que
+     Hermès attend — se tromper ici, c'est poser une tâche qui tourne à la
+     mauvaise heure sans que rien ne le signale. */
+  {
+    const pl = (m, v) => win.eval("planifChaine(" + JSON.stringify(m) + ", "
+      + JSON.stringify(v || {}) + ")");
+    check("Automatisations · « chaque jour à 9 h 30 » devient bien « 30 9 * * * »",
+      pl("quotidien", { heure: "09:30" }) === "30 9 * * *", pl("quotidien", { heure: "09:30" }));
+    check("Automatisations · minuit ne devient pas une expression vide",
+      pl("quotidien", { heure: "00:00" }) === "0 0 * * *", pl("quotidien", { heure: "00:00" }));
+    check("Automatisations · « toutes les 2 heures » devient « every 2h »",
+      pl("heures", { n: 2 }) === "every 2h", pl("heures", { n: 2 }));
+    check("Automatisations · « toutes les 30 minutes » devient « every 30m »",
+      pl("minutes", { n: 30 }) === "every 30m", pl("minutes", { n: 30 }));
+    check("Automatisations · « une fois dans 2 h » devient « 2h », sans « every »",
+      pl("unefois", { n: 2, unite: "h" }) === "2h", pl("unefois", { n: 2, unite: "h" }));
+    check("Automatisations · une valeur absurde est ramenée à 1, pas à 0",
+      pl("minutes", { n: -5 }) === "every 1m" && pl("minutes", {}) === "every 1m",
+      pl("minutes", { n: -5 }) + " · " + pl("minutes", {}));
+    // La relecture en français : c'est la dernière chance de voir qu'on a
+    // écrit 21 h pour 9 h. Elle décrit la CHAÎNE, pas le choix.
+    const dit = (s) => win.eval("planifDit(" + JSON.stringify(s) + ")");
+    check("Automatisations · la relecture dit l'heure, dans le bon sens",
+      /21 h 00/.test(dit("0 21 * * *")), dit("0 21 * * *"));
+    check("Automatisations · elle distingue « une fois » de « en boucle »",
+      /une seule fois/.test(dit("30m")) && /en boucle/.test(dit("every 30m")),
+      dit("30m") + " | " + dit("every 30m"));
+    check("Automatisations · une forme inconnue est avouée, pas inventée",
+      /non reconnue/.test(dit("n'importe quoi")), dit("n'importe quoi"));
+
+    // Le formulaire lui-même : il s'ouvre, et il montre ce qui partira.
+    const bNouv = win.document.getElementById("autoNouv");
+    check("Automatisations · le bouton « Nouvelle » existe", !!bNouv);
+    if (bNouv){
+      bNouv.click();
+      await wait(200);
+      check("Automatisations · le formulaire s'ouvre",
+        !!win.document.getElementById("afQuoi"));
+      check("Automatisations · il dit que ça tournera SANS vous",
+        /sans vous/i.test(win.document.getElementById("autoForm").textContent));
+      check("Automatisations · et il MONTRE la chaîne qui partira vers Hermès",
+        /Hermès recevra/.test(win.document.getElementById("afApercu").textContent)
+        && /0 9 \* \* \*/.test(win.document.getElementById("afApercu").textContent),
+        win.document.getElementById("afApercu").textContent.trim().slice(0, 60));
+      // Refuser sans texte, plutôt que d'aller chercher un 400 au serveur.
+      win.document.getElementById("afPoser").click();
+      await wait(120);
+      check("Automatisations · poser sans rien à faire est refusé sur place",
+        /ce qu'elle doit faire/i.test(win.document.body.textContent));
+      bNouv.click();
+      await wait(80);
+    }
+  }
 
   // ── Vestiaire : les groupes de provenance ──
   win.eval('nav("Vestiaire")');

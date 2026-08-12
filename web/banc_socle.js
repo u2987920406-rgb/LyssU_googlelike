@@ -45,12 +45,20 @@ function titre(txt){ console.log("\n--- " + txt + " ---"); }
 const dodo = (ms) => new Promise((r) => setTimeout(r, ms));
 
 /* Attendre qu'une condition devienne vraie, ou renoncer en le DISANT. Un banc
-   qui attend sans borne se fige la nuit et personne ne sait sur quoi. */
+   qui attend sans borne se fige la nuit et personne ne sait sur quoi.
+
+   ⚠ LA CONDITION EST ATTENDUE, MEME SI ELLE REND UNE PROMESSE. Ecrit sans le
+   `await`, ce helper etait un piege a vert creux : une condition `async`
+   rend une PROMESSE, et une promesse est TOUJOURS vraie. `attendre(async () =>
+   ...)` rendait donc `true` au premier tour, sans avoir rien mesure. On ne
+   peut pas interdire aux appelants d'ecrire une condition asynchrone — elles
+   sont naturelles des qu'on interroge le backend — donc on les accepte pour
+   de bon. */
 async function attendre(cond, msMax){
   const t0 = Date.now();
   while (Date.now() - t0 < msMax){
     let v;
-    try { v = cond(); } catch (e){ v = false; }
+    try { v = await cond(); } catch (e){ v = false; }
     if (v) return true;
     await dodo(200);
   }

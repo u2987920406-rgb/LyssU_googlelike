@@ -62,3 +62,6 @@ __pycache__/
 web/dernier-rapport-bancs.txt
 web/dernier-rapport-bancs-rapide.txt
 web/historique-bancs.txt
+
+# Le verrou de `lancer_bancs.py` : il ne vit que le temps d une serie.
+web/.bancs-en-cours

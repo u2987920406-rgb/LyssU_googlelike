@@ -91,6 +91,51 @@ def dire(sortie, texte):
     sortie.write(texte + "\n")
 
 
+# ⚠ DEUX SERIES A LA FOIS SE MARCHENT DESSUS. Vu pour de vrai le 2026-08-12 :
+# la tache planifiee de 23 h a demarre pendant un lancement a la main. Les deux
+# bancs travaillent sur le MEME backend — meme liste de taches cron, memes
+# sessions, meme fichier de memoire d'essai. L'un a compte les taches pendant
+# que l'autre en creait une, l'autre a supprime celle du premier : deux rouges,
+# aucun defaut du produit, et une tache d'essai laissee derriere.
+# Planifier une serie horaire sans verrou, c'est fabriquer cette collision une
+# fois par heure.
+VERROU = os.path.join(DOSSIER, ".bancs-en-cours")
+VERROU_PERIME_S = 60 * 60
+
+
+def prendre_verrou():
+    """Rend True si l'on peut y aller, False s'il faut passer son tour."""
+    try:
+        if os.path.exists(VERROU):
+            age = time.time() - os.path.getmtime(VERROU)
+            if age < VERROU_PERIME_S:
+                try:
+                    with open(VERROU, encoding="utf-8") as fh:
+                        qui = fh.read().strip()
+                except OSError:
+                    qui = "?"
+                print("Une serie tourne deja (%s, depuis %d min). On passe son tour."
+                      % (qui, age // 60))
+                return False
+            # Un verrou plus vieux qu'une heure vient d'un lancement mort en
+            # route. Le garder ferait sauter TOUS les passages suivants, en
+            # silence — bien pire que la collision qu'il evite.
+            print("Verrou perime (%d min) : il vient d'un lancement interrompu. On reprend."
+                  % (age // 60))
+        with open(VERROU, "w", encoding="utf-8") as fh:
+            fh.write("pid %d, %s" % (os.getpid(), time.strftime("%Y-%m-%d %H:%M:%S")))
+        return True
+    except OSError:
+        return True  # Sans verrou possible, mieux vaut tourner que ne rien faire.
+
+
+def rendre_verrou():
+    try:
+        os.remove(VERROU)
+    except OSError:
+        pass
+
+
 def main():
     rapide = "--rapide" in sys.argv
     debout = pile_debout()
@@ -182,4 +227,11 @@ def main():
 
 
 if __name__ == "__main__":
-    sys.exit(main())
+    if not prendre_verrou():
+        # Passer son tour n'est PAS un echec : sortir en 1 ferait clignoter la
+        # tache planifiee en rouge pour un chevauchement sans consequence.
+        sys.exit(0)
+    try:
+        sys.exit(main())
+    finally:
+        rendre_verrou()

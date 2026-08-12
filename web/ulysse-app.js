@@ -2850,6 +2850,56 @@ async function drawProjets(){
 
 /* ═══ Automatisations — cron et webhooks réels ═══════════════════════════ */
 
+/* ═══ Poser une automatisation ═══════════════════════════════════════════
+   L'écran renvoyait à `hermes cron add` — c'est-à-dire hors du produit. La
+   route existait pourtant depuis toujours (`POST /api/cron/jobs`,
+   web_routers/cron.py:67) ; personne n'était allé la lire.
+
+   ⚠ LA SYNTAXE D'HERMÈS N'EST PAS UNE INTERFACE. `schedule` accepte quatre
+   formes (cron/jobs.py:571) : « 30m » une fois dans 30 minutes, « every 2h »
+   en boucle, « 0 9 * * * » une expression cron, « 2030-01-01T09:00 » une date.
+   Demander ça dans un champ libre, c'est demander de connaître cron — et
+   « 0 9 * * * » ne se devine pas. On propose donc ce que les gens veulent
+   vraiment (chaque jour à telle heure, toutes les N heures, une seule fois),
+   et on TRADUIT.
+
+   Mais on ne CACHE pas : la chaîne réellement envoyée est affichée sous le
+   choix. Une interface qui traduit sans montrer sa traduction apprend à ne
+   pas la vérifier — et le jour où elle se trompe, personne ne le voit. */
+function planifChaine(mode, v){
+  const n = Math.max(1, Math.floor(Number(v && v.n) || 1));
+  if (mode === "quotidien"){
+    const [h, m] = String((v && v.heure) || "09:00").split(":");
+    // Nombres NUS : « 09 » passe encore chez croniter, mais l'expression
+    // qu'on affiche doit être celle qu'on relirait soi-même.
+    return (Number(m) || 0) + " " + (Number(h) || 0) + " * * *";
+  }
+  if (mode === "heures") return "every " + n + "h";
+  if (mode === "minutes") return "every " + n + "m";
+  if (mode === "unefois") return n + (v && v.unite === "h" ? "h" : "m");
+  return String((v && v.expr) || "").trim();
+}
+
+/* Ce que la chaîne VEUT DIRE, en français. Sert de relecture avant l'envoi :
+   c'est la dernière chance de voir qu'on a écrit 9 h du soir pour 9 h du
+   matin. Elle décrit la chaîne, pas le choix — sinon elle décrirait
+   l'intention et non ce qui part. */
+function planifDit(chaine){
+  const s = String(chaine || "").trim();
+  let m = s.match(/^every (\d+)([mh])$/);
+  if (m) return "en boucle, toutes les " + m[1] + (m[2] === "h" ? " heure" : " minute")
+    + (Number(m[1]) > 1 ? "s" : "");
+  m = s.match(/^(\d+)([mh])$/);
+  if (m) return "une seule fois, dans " + m[1] + (m[2] === "h" ? " heure" : " minute")
+    + (Number(m[1]) > 1 ? "s" : "");
+  m = s.match(/^(\d+) (\d+) \* \* \*$/);
+  if (m) return "chaque jour à " + String(m[2]).padStart(2, "0") + " h "
+    + String(m[1]).padStart(2, "0");
+  if (/^[\d*/,\- ]+$/.test(s) && s.split(/\s+/).length >= 5) return "expression cron";
+  if (/^\d{4}-\d{2}-\d{2}T/.test(s)) return "une seule fois, à cette date";
+  return s ? "Hermès lira « " + s + " » — forme non reconnue ici" : "";
+}
+
 async function drawAutos(){
   let h = '<div class="trashnote">' + svg("boucle", { size: 20 })
     + "<span>Une automatisation tourne <b>toute seule</b>. C'est ce qui la rend "
@@ -2862,9 +2912,13 @@ async function drawAutos(){
   try {
     const d = await REST.cronJobs();
     const jobs = Array.isArray(d) ? d : ((d && (d.jobs || d.items)) || []);
-    corps += '<div class="seth">Tâches planifiées<span class="l"></span></div>';
+    corps += '<div class="seth">Tâches planifiées<span class="l"></span>'
+      + '<button class="btn-pick" id="autoNouv">' + svg("plus", { size: 16 })
+      + " Nouvelle</button></div>"
+      + '<div id="autoForm"></div>';
     if (!jobs.length){
-      corps += '<div class="u-load">Aucune tâche. Créez-en une : <code>hermes cron add</code></div>';
+      corps += '<div class="u-load">Aucune tâche pour l\'instant. '
+        + "« Nouvelle » en pose une.</div>";
     } else {
       corps += jobs.map((j, i) => {
         const id = j.id || j.job_id || j.name;
@@ -2874,7 +2928,16 @@ async function drawAutos(){
           + (off ? "var(--grey)" : "var(--green)") + '"></span>'
           + '<div class="amain"><div class="an">' + esc(j.name || id) + "</div>"
           + '<div class="aq">' + esc(shorten(j.prompt || j.command || "", 140)) + "</div>"
-          + '<div class="ameta"><span class="chip b">' + esc(j.schedule || j.cron || "—")
+          /* ⚠ `schedule` EST UN OBJET, PAS UNE CHAÎNE. Le backend rend
+             `{kind, expr|minutes|run_at, display}` — vérifié en direct sur
+             les vraies tâches de kuchu. `esc(j.schedule)` affichait donc
+             « [object Object] » dans la puce, en toutes lettres, sur l'écran
+             des Automatisations. Personne ne l'avait vu : le banc vérifiait
+             que l'écran ne restait pas sur « Chargement », pas ce qu'il
+             disait. Le backend fournit `schedule_display` tout prêt. */
+          + '<div class="ameta"><span class="chip b">'
+          + esc(j.schedule_display || (j.schedule && j.schedule.display)
+                || (typeof j.schedule === "string" ? j.schedule : "") || j.cron || "—")
           + "</span>"
           + '<span class="nomind">' + svg("equipe", { size: 15 }) + " aucun agent</span></div>"
           + "</div>"
@@ -2886,6 +2949,15 @@ async function drawAutos(){
           + '<span class="sub">Sans attendre la prochaine échéance</span></span>'
           + '<span class="sv"><button class="btn-pick" data-fire="' + esc(id) + '">'
           + "Déclencher</button></span></div>"
+          /* Poser une automatisation sans pouvoir la retirer serait un piège :
+             elle tourne toute seule. Le retrait demande donc une confirmation,
+             comme tout ce qui ne se rattrape pas — « rien ne disparaît d'un
+             geste ». Mettre en pause reste à un clic, juste au-dessus. */
+          + '<div class="srow"><span class="sk">Retirer cette automatisation'
+          + '<span class="sub">Définitif. Pour l\'arrêter sans la perdre, '
+          + "utilisez l'interrupteur.</span></span>"
+          + '<span class="sv"><button class="dangerlink" data-del="' + esc(id) + '"'
+          + ' data-nom="' + esc(j.name || id) + '">Retirer</button></span></div>'
           + "</div></div></div>";
       }).join("");
     }
@@ -2961,8 +3033,156 @@ async function drawAutos(){
   wireAutos();
 }
 
+/* Le formulaire. Il vit dans `#autoForm`, replié tant qu'on ne le demande pas :
+   l'écran sert d'abord à REGARDER ce qui tourne. */
+let autoCibles = null;
+
+async function ouvrirFormAuto(){
+  const hote = $("autoForm");
+  if (!hote) return;
+  if (hote.dataset.on === "1"){ hote.dataset.on = ""; hote.innerHTML = ""; return; }
+  hote.dataset.on = "1";
+  hote.innerHTML = '<div class="u-load">Un instant…</div>';
+
+  // Les cibles viennent du backend. Une liste écrite ici serait fausse le jour
+  // où kuchu branche une plateforme de plus.
+  if (autoCibles === null){
+    try { autoCibles = ((await REST.cronCibles()) || {}).targets || []; }
+    catch (e){ autoCibles = []; }
+  }
+  const cibles = autoCibles.length ? autoCibles
+    : [{ id: "local", name: "Local (save only)", home_target_set: true }];
+
+  hote.innerHTML = '<div class="acard open"><div class="abody"><div class="in">'
+    + '<div class="u-lecture">' + svg("alerte", { size: 14 })
+    + "Ce que vous posez ici tournera <b>sans vous</b>, à l'heure dite. "
+    + "L'agent fera ce que dit le texte, seul.</div>"
+    + '<div class="srow"><span class="sk">Nom<span class="sub">Pour la '
+    + "reconnaître dans la liste.</span></span>"
+    + '<span class="sv"><input id="afNom" placeholder="Veille du matin"></span></div>'
+    + '<div class="srow"><span class="sk">Ce qu\'il faut faire'
+    + '<span class="sub">Écrivez-le comme à quelqu\'un qui ne sait rien du '
+    + "contexte : personne ne sera là pour préciser.</span></span>"
+    + '<span class="sv"><textarea id="afQuoi" rows="3" '
+    + 'placeholder="Résume les nouveautés de la veille et écris-les dans notes.md"></textarea>'
+    + "</span></div>"
+    + '<div class="srow"><span class="sk">Quand</span><span class="sv">'
+    + '<select id="afMode">'
+    + '<option value="quotidien">Chaque jour, à une heure</option>'
+    + '<option value="heures">Toutes les N heures</option>'
+    + '<option value="minutes">Toutes les N minutes</option>'
+    + '<option value="unefois">Une seule fois, dans…</option>'
+    + '<option value="expression">Expression cron</option>'
+    + "</select></span></div>"
+    + '<div class="srow"><span class="sk" id="afQuandLbl">Heure</span>'
+    + '<span class="sv" id="afQuandVal"></span></div>'
+    + '<div class="srow"><span class="sk">Où livrer le résultat'
+    + '<span class="sub">« Local » garde la sortie sans l\'envoyer nulle part.'
+    + "</span></span>"
+    + '<span class="sv"><select id="afOu">'
+    + cibles.map((c) => '<option value="' + esc(c.id) + '"'
+        + (c.home_target_set === false ? " disabled" : "") + ">" + esc(c.name)
+        + (c.home_target_set === false ? " — à brancher d'abord" : "")
+        + "</option>").join("")
+    + "</select></span></div>"
+    /* La traduction est MONTREE. Voir `planifChaine` : une interface qui
+       traduit sans afficher sa traduction apprend à ne pas la vérifier. */
+    + '<div class="u-note" id="afApercu"><i></i></div>'
+    + '<div class="srow"><span class="sk"></span><span class="sv">'
+    + '<button class="btn-pick u-fort" id="afPoser">Poser l\'automatisation</button>'
+    + "</span></div>"
+    + "</div></div></div>";
+
+  const majQuand = () => {
+    const mode = $("afMode").value;
+    const lbl = $("afQuandLbl"), val = $("afQuandVal");
+    if (mode === "quotidien"){
+      lbl.textContent = "Heure";
+      val.innerHTML = '<input id="afHeure" type="time" value="09:00">';
+    } else if (mode === "expression"){
+      lbl.textContent = "Expression";
+      val.innerHTML = '<input id="afExpr" placeholder="0 9 * * *">';
+    } else {
+      lbl.textContent = mode === "unefois" ? "Dans" : "Toutes les";
+      val.innerHTML = '<input id="afN" type="number" min="1" value="'
+        + (mode === "minutes" ? "30" : "2") + '" style="max-width:90px">'
+        + (mode === "unefois"
+            ? ' <select id="afUnite"><option value="m">minutes</option>'
+              + '<option value="h">heures</option></select>'
+            : "");
+    }
+    val.querySelectorAll("input,select").forEach((x) => { x.oninput = majApercu; });
+    majApercu();
+  };
+  const lire = () => planifChaine($("afMode").value, {
+    heure: ($("afHeure") || {}).value,
+    n: ($("afN") || {}).value,
+    unite: ($("afUnite") || {}).value,
+    expr: ($("afExpr") || {}).value
+  });
+  const majApercu = () => {
+    const s = lire();
+    const dit = planifDit(s);
+    $("afApercu").innerHTML = "<i></i>Hermès recevra <code>" + esc(s || "—")
+      + "</code>" + (dit ? " — " + esc(dit) : "");
+  };
+  $("afMode").onchange = majQuand;
+  majQuand();
+
+  $("afPoser").onclick = async () => {
+    const quoi = $("afQuoi").value.trim();
+    const quand = lire();
+    /* On refuse ICI ce que le serveur refuserait de toute façon (400,
+       « agent cron jobs require a prompt, skill, or script »), mais en le
+       disant en français et sans aller-retour. */
+    if (!quoi) return snack("Dites d'abord ce qu'elle doit faire.");
+    if (!quand) return snack("Dites quand elle doit tourner.");
+    const b = $("afPoser");
+    b.disabled = true;
+    try {
+      await REST.creerCron({
+        name: $("afNom").value.trim() || shorten(quoi, 40),
+        prompt: quoi,
+        schedule: quand,
+        deliver: $("afOu").value || "local"
+      });
+      snack("Automatisation posée.");
+      hote.dataset.on = "";
+      drawAutos();
+    } catch (e){
+      // Le message d'Hermès tel quel : c'est lui qui sait pourquoi il refuse.
+      snack("Non posée : " + e.message);
+      b.disabled = false;
+    }
+  };
+}
+
 function wireAutos(){
   const host = $("autos");
+  const nouv = $("autoNouv");
+  if (nouv) nouv.onclick = ouvrirFormAuto;
+  host.querySelectorAll("[data-del]").forEach((b) => {
+    b.onclick = async (e) => {
+      e.stopPropagation();
+      if (b.dataset.sur !== "1"){
+        b.dataset.sur = "1";
+        b.textContent = "Confirmer le retrait";
+        setTimeout(() => {
+          if (b.dataset.sur === "1"){ b.dataset.sur = ""; b.textContent = "Retirer"; }
+        }, 6000);
+        return;
+      }
+      b.disabled = true;
+      try {
+        await REST.supprimerCron(b.dataset.del);
+        snack("« " + b.dataset.nom + " » retirée.");
+        drawAutos();
+      } catch (err){
+        snack("Non retirée : " + err.message);
+        b.disabled = false; b.dataset.sur = ""; b.textContent = "Retirer";
+      }
+    };
+  });
   host.querySelectorAll("[data-open]").forEach((el) => {
     el.onclick = (e) => {
       if (e.target.closest("[data-tog]") || e.target.closest("[data-fire]")

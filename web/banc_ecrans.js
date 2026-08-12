@@ -46,6 +46,20 @@ const { check, note, titre, dodo, attendre, preflight, monter, fin } = require("
    mesure, vide a la fin — y compris si une verification tombe en route. */
 const aDefaire = [];
 
+/* ⚠ `/api/cron/jobs` REND UN TABLEAU NU. Pas `{jobs: [...]}` — releve en
+   direct le 2026-08-12. Une lecture ecrite `(d && (d.jobs || d.items)) || []`
+   rend donc `[]` pour TOUTE reponse reelle : le banc a conclu « la tache n'a
+   pas ete creee » alors qu'elle l'etait, et il en a laisse quatre derriere lui
+   avant qu'on ne s'en apercoive. Le pire genre de faux negatif : il accuse le
+   produit ET salit l'etat.
+   `ulysse-app.js` faisait deja le bon test (`Array.isArray`) ; c'est le banc
+   qui avait sa propre lecture, plus courte et fausse. Une seule ici, pour
+   tous. */
+function taches(d){
+  if (Array.isArray(d)) return d;
+  return (d && (d.jobs || d.items)) || [];
+}
+
 async function main(){
   const st = await preflight();
   const home = String(st.hermes_home || "").replace(/[\\/]+$/, "");
@@ -271,7 +285,7 @@ async function main(){
   try { jobs = await rest("cronJobs()"); }
   catch (e){ check("GET /api/cron/jobs repond", false, e.message); }
   if (jobs){
-    const liste = jobs.jobs || jobs.items || (Array.isArray(jobs) ? jobs : []);
+    const liste = taches(jobs);
     check("GET /api/cron/jobs repond", true, liste.length + " tache(s)");
     await aller("Automatisations", 1200);
     check("l'ecran Automatisations se dessine sans rester sur « Chargement »",
@@ -292,6 +306,109 @@ async function main(){
         check("mettre en pause puis reprendre une tache passe, et l'etat est remis", false, e.message);
       }
       note("triggerCron NON joue : declencher une tache planifiee fait vraiment travailler l'agent");
+    }
+
+    /* ── Poser une automatisation DEPUIS L'ECRAN, pour de vrai ───────────
+       `POST /api/cron/jobs` existait depuis toujours et l'ecran renvoyait a
+       `hermes cron add`. Il la pose maintenant lui-meme, et c'est ce chemin-la
+       qu'on eprouve : on remplit le formulaire et on clique, comme la personne.
+
+       ⚠ L'HORAIRE CHOISI NE DOIT PAS SE DECLENCHER PENDANT L'ESSAI. Une tache
+       « toutes les 30 minutes » ferait vraiment travailler l'agent, et une
+       « chaque jour a 4 h » se declencherait si le banc tourne a 4 h — il
+       tourne toutes les heures depuis qu'il est planifie. On prend donc le
+       1er janvier a 4 h : la creation est aussi reelle, le declenchement ne
+       peut pas tomber sur nous. */
+    await aller("Automatisations", 1200);
+    const bNouv = doc.querySelector("#autoNouv");
+    check("le bouton « Nouvelle » est bien la, sur l'ecran reel", !!bNouv);
+    if (bNouv){
+      bNouv.click();
+      await attendre(() => !!doc.querySelector("#afQuoi"), 15000);
+      check("le formulaire s'ouvre et lit les cibles du backend",
+        !!doc.querySelector("#afOu option[value=\"local\"]"),
+        Array.from(doc.querySelectorAll("#afOu option")).map((o) => o.value).join(", "));
+
+      /* ⚠ UN NOM PROPRE A CE PASSAGE. Ecrit « Essai banc Ulysse » tout court,
+         deux series simultanees se disputaient le meme objet : l'une comptait
+         pendant que l'autre creait, l'autre supprimait la tache de la premiere.
+         C'est arrive pour de vrai le 2026-08-12, la tache planifiee de 23 h
+         ayant demarre pendant un lancement a la main. `lancer_bancs.py` pose
+         desormais un verrou, mais un banc ne doit pas DEPENDRE de ce verrou :
+         on le lance aussi a la main, et rien n'empeche deux fenetres. */
+      const nomAuto = "Essai banc Ulysse " + process.pid;
+      doc.querySelector("#afNom").value = nomAuto;
+      doc.querySelector("#afQuoi").value = "Ne rien faire. Ceci est un essai du banc.";
+      const sel = doc.querySelector("#afMode");
+      sel.value = "expression";
+      sel.dispatchEvent(new win.Event("change", { bubbles: true }));
+      await dodo(300);
+      const champ = doc.querySelector("#afExpr");
+      check("le mode « expression cron » offre son champ", !!champ);
+      if (champ){
+        champ.value = "0 4 1 1 *";
+        champ.dispatchEvent(new win.Event("input", { bubbles: true }));
+        await dodo(200);
+        check("l'apercu montre la chaine qui partira, sans la cacher",
+          /0 4 1 1 \*/.test(texte("#afApercu")), texte("#afApercu").trim().slice(0, 70));
+
+        doc.querySelector("#afPoser").click();
+        const posee = await attendre(async () => {
+          const d = await rest("cronJobs()");
+          return taches(d).some((j) => j.name === nomAuto);
+        }, 25000);
+        check("poser depuis l'ecran cree VRAIMENT la tache chez Hermes", posee,
+          posee ? "" : "absente de /api/cron/jobs apres 25 s");
+
+        const liste = await rest("cronJobs()");
+        const creee = taches(liste)
+          .find((j) => j.name === nomAuto);
+        if (creee){
+          aDefaire.push(async () => {
+            try { await rest("supprimerCron(" + JSON.stringify(String(creee.id)) + ")"); }
+            catch (e){}
+          });
+          check("Hermes a bien compris l'horaire qu'on lui a traduit",
+            (creee.schedule && creee.schedule.kind) === "cron"
+            && (creee.schedule.expr === "0 4 1 1 *"),
+            JSON.stringify(creee.schedule));
+          /* ⚠ ON NE COMPTE PAS LA LISTE ENTIERE. Ecrit « la liste a grandi
+             d'exactement une », ce test lisait un compte GLOBAL — donc faux
+             des qu'autre chose touche aux taches pendant le passage (une autre
+             serie, ou kuchu depuis l'ecran). Ce qu'on veut savoir tient a
+             notre objet : le clic en a cree UNE, pas deux. */
+          check("le clic n'a cree qu'UNE tache, pas deux",
+            taches(liste).filter((j) => j.name === nomAuto).length === 1,
+            taches(liste).filter((j) => j.name === nomAuto).length + " portant ce nom");
+
+          await aller("Automatisations", 1500);
+          check("la nouvelle tache apparait a l'ecran, avec son horaire LISIBLE",
+            texte("#autos").indexOf(nomAuto) >= 0
+            && texte("#autos").indexOf("[object Object]") < 0,
+            texte("#autos").indexOf("[object Object]") >= 0
+              ? "l'ecran dit « [object Object] »" : "");
+
+          /* Le retrait, par l'ecran, avec sa confirmation en deux temps :
+             une automatisation tourne toute seule, la retirer ne se rattrape
+             pas. Un seul clic ne doit RIEN faire. */
+          const bSup = doc.querySelector('[data-del="' + creee.id + '"]');
+          check("le bouton « Retirer » est la, sur la carte de la tache", !!bSup);
+          if (bSup){
+            bSup.click();
+            await dodo(400);
+            const toujours = taches(await rest("cronJobs()"))
+              .some((j) => j.name === nomAuto);
+            check("un SEUL clic ne retire rien : il demande confirmation",
+              toujours && /Confirmer/.test(bSup.textContent), bSup.textContent.trim());
+            bSup.click();
+            const partie = await attendre(async () => {
+              const d = await rest("cronJobs()");
+              return !taches(d).some((j) => j.name === nomAuto);
+            }, 20000);
+            check("le second clic la retire vraiment de chez Hermes", partie);
+          }
+        }
+      }
     }
   }
 
