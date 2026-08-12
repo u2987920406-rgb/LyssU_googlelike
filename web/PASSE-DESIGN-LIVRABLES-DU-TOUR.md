@@ -72,16 +72,41 @@ fichiers l'attendaient au milieu.
 
 ## 3. Ce que l'encart contient — et ce qu'il ne contient pas
 
-Deux espèces y entrent, et elles n'ont pas les mêmes actions :
+> **Révisé le 2026-08-12 après essai.** Ce paragraphe disait qu'un bloc de la
+> réponse n'a rien à ouvrir. kuchu a tranché l'inverse, et il a raison :
+> *« Les fichiers CSV ne doivent pas être développés dans le chat. Ça prend de
+> la place pour rien… Si l'utilisateur souhaite développer ça, il cliquera
+> dessus dans l'encart, et la fenêtre de browser in-app apparaîtra. »*
+>
+> Ce que j'avais raté : je raisonnais comme si le contenu restait lisible dans
+> le fil, auquel cas ouvrir un volet pour le relire serait redondant. Mais le
+> contenu **quitte** le fil — et alors il faut bien un endroit pour le
+> regarder, sinon on télécharge à l'aveugle.
+
+Deux espèces y entrent, et elles ont **les mêmes actions** :
 
 | espèce | d'où | Ouvrir | Télécharger |
 |---|---|---|---|
-| **Écrit sur le disque** — `write_file`, `patch` | `tool.complete.args.path` | ✅ le volet | ✅ |
-| **Écrit dans la réponse** — un bloc de code | le texte du tour | ⛔ *rien à ouvrir* | ✅ |
+| **Écrit sur le disque** — `write_file`, `patch` | `tool.complete.args.path` | ✅ le volet, lu par `REST` | ✅ |
+| **Écrit dans la réponse** — un bloc de code | le texte du tour | ✅ le volet, contenu en mémoire | ✅ |
 
-Un bloc de code n'existe pas encore comme fichier : il n'y a rien à ouvrir
-tant qu'on ne l'a pas emporté. **On ne met donc pas « Ouvrir » sur les deux
-pour faire joli** — un bouton qui n'agit pas est pire qu'un bouton absent.
+Que les octets soient sur le disque ou dans la réponse **ne regarde pas la
+personne qui clique**. La ligne ouvre, le ⤓ emporte, dans les deux cas.
+
+### Le contenu d'un fichier ne se déroule pas dans le fil
+
+Un CSV de 300 lignes déroulé dans la conversation enterre la réponse qui
+l'explique — et il ne se lit pas mieux pour autant : le fil est étroit, sans
+gouttière, sans défilement propre. **Le bloc sort du fil et entre dans
+l'encart**, où il ne reste que son type et son nom.
+
+> Une seule découpe (`decouperLivrables`) produit le texte du fil ET la liste
+> de l'encart. Deux fonctions séparées finiraient par diverger, et un bloc
+> disparaîtrait du fil sans arriver dans l'encart : perdu, sans un mot.
+
+Ce qui n'est **pas** un livrable — le ` ```bash ` d'exemple, le ` ```texte `
+avec une URL — **reste exactement où il est.** Le retirer du fil le ferait
+disparaître sans contrepartie : rien ne l'accueille de l'autre côté.
 
 ### Ce qui n'entre PAS : les blocs qui ne sont pas des fichiers
 
@@ -110,16 +135,18 @@ séparé : ce sont les livrables *de cette réponse-là*, et ils doivent rester
 avec elle quand on relit le fil demain.
 
 ```
-  ┌─────────────────────────────────────────────┐
-  │  ▤  2 fichiers produits                     │
-  │                                             │
-  │   📄 personas-ulysse.csv    Ouvrir ·  ⤓     │
-  │      …/Projet Ulysse/web · 4,1 ko            │
-  │                                             │
-  │   📄 extrait.csv            ⤓               │
-  │      dans cette réponse · 12 lignes          │
-  └─────────────────────────────────────────────┘
+ ┃┌────────────────────────────────────────────────────────┐
+ ┃│  ▤  2 fichiers produits                                │
+ ┃├────────────────────────────────────────────────────────┤
+ ┃│  ⌜CSV⌟  personas-ulysse.csv  …/Projet Ulysse/web  Ouvrir ⤓ │
+ ┃│  ⌜MD ⌟  extrait.md      dans cette réponse · 12 lignes  Ouvrir ⤓ │
+ ┃└────────────────────────────────────────────────────────┘
+  ↑ le liseré d'accent, seul du fil à porter une bordure pleine
 ```
+
+La pastille de type (`CSV`, `MD`) tient la place que le contenu occupait :
+*« sinon, il y a juste marqué CSV avec le nom du fichier »*. C'est tout ce
+qu'on a besoin de savoir avant de cliquer.
 
 **Un liseré, comme kuchu le demande** — c'est le seul bloc du fil qui porte
 une bordure pleine et un fond distinct. Il doit se voir en faisant défiler
@@ -160,7 +187,12 @@ bilan.
 ## 6. Contrat d'interface
 
 **Classes nouvelles**, préfixées `l-` : `l-livrables` (l'encart), `l-titre`,
-`l-item`, `l-nom`, `l-ou`, `l-actes`, `l-ouvrir`, `l-dl`.
+`l-item`, `l-type`, `l-nom`, `l-ou`, `l-actes`, `l-ouvrir`, `l-dl`.
+
+**Fonctions nouvelles** : `decouperLivrables(src)` → `{texte, livrables}`
+(`ulysse-view.js`), et `ouvrirTexteEnMemoire(nom, texte)`
+(`ulysse-artifact.js`) — le volet ouvert sur ce qui n'est pas sur le disque.
+`livrablesDuTexte(src)` reste, en enveloppe de la première.
 
 **À retirer** : `.u-md-fig`, `.u-md-cap`, `.u-md-dl` — le bandeau et le ⤓
 inline construits le 2026-08-12 à 1 h, remplacés par l'encart. Le bloc de code
@@ -177,3 +209,23 @@ redevient un simple `<pre class="u-md-c">`.
 | Les deux dans le même encart | demander un fichier ET un extrait |
 | Pas d'encart | une réponse sans bloc de fichier — le cas normal |
 | Bloc ignoré | un ` ```texte ` avec une URL, un ` ```bash ` d'exemple |
+| Volet sur un contenu en mémoire | cliquer la ligne d'un bloc dans l'encart |
+| Volet sur un fichier du disque | cliquer la ligne d'un `write_file` |
+
+---
+
+## 7. Éprouvé le 2026-08-12, dans l'app qui tourne
+
+Demande réelle en Discussion : un CSV nommé **et** un ` ```bash ` d'exemple.
+
+- le CSV **a quitté le fil** (`Normandie` introuvable dans `#thread`) ;
+- le ` ```bash ` **y est resté** (`read_csv` toujours présent) ;
+- l'encart : liseré `2.67px rgb(11, 87, 208)`, pastille `CSV`, « dans cette
+  réponse · 6 lignes » ;
+- « Ouvrir » a ouvert le volet sur le contenu, accents intacts
+  (`Février`, `Île-de-France`), fil d'Ariane « dans cette réponse » ;
+- le ⤓ du volet est armé sur `ventes-2026.csv` ;
+- dix repeintures du fil : la Map reste à **1** entrée, un seul encart.
+
+Aucune erreur en console. **484/484 au banc, huit mutations posées, huit
+mordues** — mais c'est l'essai ci-dessus qui a valeur de preuve.

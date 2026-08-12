@@ -299,19 +299,29 @@ const blocsLivrables = new Map();
 /* Emporter un livrable. UNE délégation, sur le document — comme pour le volet :
    l'encart vit dans le fil aujourd'hui, il vivra ailleurs demain.
 
-   Les deux espèces ne réagissent pas au même geste, et c'est voulu :
-     · un bloc de la RÉPONSE — toute la ligne emporte. Il n'y a rien d'autre à
-       en faire, et une ligne qui a l'air cliquable doit cliquer ;
-     · un fichier du DISQUE — la ligne ouvre le volet (ulysse-artifact.js, qui
-       écarte `.l-dl` de sa propre délégation), et seul le ⤓ emporte. */
+   Les deux espèces réagissent au MÊME geste, et c'est le point : la ligne
+   ouvre, le ⤓ emporte. Que les octets soient sur le disque ou dans la réponse
+   ne regarde pas la personne qui clique.
+     · un fichier du DISQUE — la ligne est prise par ulysse-artifact.js, qui
+       écarte `.l-dl` de sa propre délégation ;
+     · un bloc de la RÉPONSE — la ligne est prise ici, faute de chemin à lire.
+   Seul le ⤓ passe par ce qui suit dans les deux cas. */
 document.addEventListener("click", async (e) => {
   if (!e.target.closest) return;
   const item = e.target.closest(".l-item");
   if (!item) return;
   const surDl = e.target.closest(".l-dl");
-  if (!surDl && !item.dataset.bloc) return;
-  const b = surDl || item.querySelector(".l-dl");
-  if (!b) return;
+  if (!surDl){
+    // Cliquer la ligne d'un bloc : on le REGARDE. On ne le télécharge pas —
+    // un fichier qui arrive sur le disque sans qu'on l'ait demandé est une
+    // surprise, et regarder avant d'emporter est l'ordre naturel.
+    const f = item.dataset.bloc && blocsLivrables.get(item.dataset.bloc);
+    if (f && typeof ouvrirTexteEnMemoire === "function"){
+      ouvrirTexteEnMemoire(f.nom, f.contenu);
+    }
+    return;
+  }
+  const b = surDl;
   if (item.dataset.bloc){
     const f = blocsLivrables.get(item.dataset.bloc);
     if (f) emporter(f.nom, f.contenu);
@@ -384,7 +394,17 @@ function turnHTML(t){
     // (tables, gras, listes...) au lieu d'être affiché en texte brut.
     // Les balises [artifact: ...] y sont remplacées par une carte cliquable
     // (viewer in-app), cf. ulysse-artifact.js.
-    let rendu = mdRender(t.text);
+    /* ⚠ LE CONTENU D'UN FICHIER NE SE DÉROULE PAS DANS LE FIL. « Ça prend de
+       la place pour rien, et ce n'est pas là qu'il faut le développer »
+       — kuchu, 2026-08-12. Un CSV de 300 lignes enterre la réponse qui
+       l'explique ; il se regarde dans le volet, en cliquant sa ligne dans
+       l'encart. La MÊME découpe alimente le fil et l'encart : ce qui sort
+       d'ici entre forcément là-bas, jamais dans le vide.
+       Pendant que ça coule, on ne retire rien — la réponse clignoterait, et
+       un bloc encore ouvert n'est pas un fichier. */
+    const fini = t.role === "assistant" && t.state !== "streaming"
+                 && typeof decouperLivrables === "function";
+    let rendu = mdRender(fini ? decouperLivrables(t.text).texte : t.text);
     if (typeof injectArtifacts === "function") rendu = injectArtifacts(rendu);
     h += "<div class=\"u-md\"" + (t.state === "streaming" && !t.text ? ' data-caret=\"1\"' : "") + ">"
       + rendu + "</div>";
@@ -421,13 +441,18 @@ function turnHTML(t){
       h += '<div class="l-livrables"><div class="l-titre">' + svg("doc", { size: 15 })
         + "<span>" + n + (n > 1 ? " fichiers produits" : " fichier produit")
         + "</span></div>"
-        + surDisque.map((x) =>
-            '<div class="l-item" data-fichier="' + encodeURIComponent(x.path) + '">'
-            + '<span class="l-nom">' + esc(x.path.split(/[\\/]/).pop()) + "</span>"
-            + '<span class="l-ou">' + esc(x.path.replace(/[\\/][^\\/]*$/, "")) + "</span>"
-            + '<span class="l-actes"><button class="l-ouvrir" type="button">Ouvrir</button>'
-            + '<button class="l-dl" type="button" title="Télécharger">⤓</button></span>'
-            + "</div>").join("")
+        + surDisque.map((x) => {
+            const nom = x.path.split(/[\\/]/).pop();
+            const ext = nom.indexOf(".") > 0 ? nom.split(".").pop() : "";
+            return '<div class="l-item" data-fichier="' + encodeURIComponent(x.path)
+              + '" role="button" tabindex="0">'
+              + '<span class="l-type">' + esc((ext || "fic").toUpperCase()) + "</span>"
+              + '<span class="l-nom">' + esc(nom) + "</span>"
+              + '<span class="l-ou">' + esc(x.path.replace(/[\\/][^\\/]*$/, "")) + "</span>"
+              + '<span class="l-actes"><span class="l-ouvrir">Ouvrir</span>'
+              + '<button class="l-dl" type="button" title="Télécharger">⤓</button>'
+              + "</span></div>";
+          }).join("")
         + dansTexte.map((f, k) => {
             /* Le contenu ne passe PAS par un attribut : un CSV de cent lignes
                dans du HTML serait échappé, tronqué à la relecture, et recopié
@@ -440,12 +465,14 @@ function turnHTML(t){
                changeant de conversation. */
             const cle = t.key + ":" + k;
             blocsLivrables.set(cle, f);
-            return '<div class="l-item" data-bloc="' + cle + '">'
+            return '<div class="l-item" data-bloc="' + cle + '" role="button" '
+              + 'tabindex="0">'
+              + '<span class="l-type">' + esc(f.type || "TXT") + "</span>"
               + '<span class="l-nom">' + esc(f.nom) + "</span>"
               + '<span class="l-ou">dans cette réponse · ' + f.lignes + " lignes</span>"
-              + '<span class="l-actes"><button class="l-dl" type="button" '
-              + 'title="Télécharger">⤓</button></span>'
-              + "</div>";
+              + '<span class="l-actes"><span class="l-ouvrir">Ouvrir</span>'
+              + '<button class="l-dl" type="button" title="Télécharger">⤓</button>'
+              + "</span></div>";
           }).join("")
         + "</div>";
     }

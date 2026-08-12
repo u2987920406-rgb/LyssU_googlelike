@@ -349,40 +349,66 @@ function emporter(nom, contenu){
   setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
-/* Les blocs d'un texte markdown qui sont des FICHIERS. Rendu par `mdRender`
-   pour l'affichage ; relu ici pour le bilan de fin de tour.
+/* Sépare un texte d'agent en DEUX : ce qui se lit, et ce qui s'emporte.
 
-   On relit la SOURCE, pas le HTML : le rendu échappe et décore, alors qu'un
-   fichier doit partir avec les octets que l'agent a écrits. */
-function livrablesDuTexte(src){
+   ⚠ UNE SEULE FONCTION POUR LES DEUX, et c'est le point. Le fil affiche
+   `texte`, l'encart liste `livrables` : s'ils étaient calculés séparément, un
+   bloc pourrait un jour disparaître du fil sans arriver dans l'encart — et il
+   serait perdu sans que rien ne le dise.
+
+   Pourquoi le contenu quitte le fil (kuchu, 2026-08-12) : « Les fichiers CSV
+   ne doivent pas être développés dans le chat. Ça prend de la place pour rien,
+   et ce n'est pas là qu'il faut les développer. » Un CSV de 300 lignes déroulé
+   dans la conversation enterre la réponse qui l'explique. Le fichier se
+   regarde dans le volet, en cliquant — pas en faisant défiler.
+
+   On travaille sur la SOURCE, pas sur le HTML : le rendu échappe et décore,
+   alors qu'un fichier doit partir avec les octets que l'agent a écrits. */
+function decouperLivrables(src){
   const lignes = String(src || "").split(/\r?\n/);
   const out = [];
+  const reste = [];
   let i = 0;
   while (i < lignes.length){
-    const m = lignes[i].replace(/\s+$/, "").replace(/^\s+/, "")
+    const brut = lignes[i];
+    const m = brut.replace(/\s+$/, "").replace(/^\s+/, "")
       .match(/^(```+|~~~+)(.*)$/);
-    if (!m){ i++; continue; }
+    if (!m){ reste.push(brut); i++; continue; }
     const marque = m[1][0] === "`" ? "```" : "~~~";
     const info = String(m[2] || "").trim();
     const corps = [];
+    const cloture = i;
     i++;
     while (i < lignes.length && !new RegExp("^\\s*" + marque).test(lignes[i])){
       corps.push(lignes[i]);
       i++;
     }
-    if (i < lignes.length) i++;
+    /* Un bloc NON CLOS n'est pas un fichier : c'est un bloc qui coule encore.
+       Le retirer du fil pendant qu'il arrive ferait clignoter la réponse, et
+       le proposer à l'emport livrerait un fichier tronqué. */
+    const clos = i < lignes.length;
+    if (clos) i++;
     const langue = (info.split(/\s+/)[0] || "").toLowerCase();
     const nomme = nomDeBloc(info);
     // Une langue de fichier, OU un nom donné par l'agent. Et au moins deux
     // lignes : une URL seule, un nom de commande, un chiffre — pas un fichier.
     // `texte`, `bash`, `console`, ou rien du tout : ça reste un extrait.
-    const estFichier = (!!LANGUES_FICHIER[langue] || nomme.explicite)
+    const estFichier = clos && (!!LANGUES_FICHIER[langue] || nomme.explicite)
                        && corps.filter((l) => l.trim()).length >= 2;
-    if (estFichier) out.push({ nom: nomme.nom, contenu: corps.join("\n"),
-                               lignes: corps.length });
+    if (estFichier){
+      out.push({ nom: nomme.nom, contenu: corps.join("\n"),
+                 lignes: corps.length,
+                 type: (nomme.nom.split(".").pop() || "").toUpperCase() });
+    } else {
+      // Un extrait reste où il est, tel qu'il est — clôtures comprises.
+      for (let k = cloture; k < i; k++) reste.push(lignes[k]);
+    }
   }
-  return out;
+  return { texte: reste.join("\n"), livrables: out };
 }
+
+/* Les seuls livrables — pour qui n'a pas besoin du texte restant. */
+function livrablesDuTexte(src){ return decouperLivrables(src).livrables; }
 
 /* ═══ Le bandeau du bas (snack) ═══════════════════════════════════════════
    Repris verbatim. Une action annulable le dit sur place, et pendant six

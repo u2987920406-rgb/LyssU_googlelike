@@ -271,6 +271,39 @@ function renderArtifactBody(){
   body.scrollTop = 0;
 }
 
+/* Ouvrir un contenu QUI N'EST PAS SUR LE DISQUE — un bloc que le modele a
+   ecrit dans sa reponse. Meme volet, meme lecture, meme bouton de
+   telechargement : c'est le meme geste, et il ne doit pas dependre de l'endroit
+   ou les octets se trouvent.
+
+   Demande par kuchu le 2026-08-12 : « Si l'utilisateur souhaite developper ca,
+   il cliquera dessus dans l'encart, et la fenetre de browser in-app
+   apparaitra. » En Discussion, le modele ne peut RIEN ecrire sur le disque : si
+   ce chemin n'existait pas, un CSV produit en Discussion ne pourrait jamais
+   etre regarde avant d'etre telecharge a l'aveugle.
+
+   `chemin` reste vide : il n'y en a pas. Le fil d'Ariane le dit avec des mots
+   plutot que d'afficher un dossier invente. */
+function ouvrirTexteEnMemoire(nom, texte){
+  ensureArtifactViewer();
+  const app = $("app");
+  if (app) app.classList.add("artifact-split");
+  modeSource = false;
+  const t = String(texte === null || texte === undefined ? "" : texte);
+  fichierCourant = {
+    chemin: "", nom: nom || "extrait.txt", size: null, mime: "",
+    // Le telechargement passe par le meme <a download> que pour un fichier du
+    // disque, donc il lui faut une data URL. `encodeURIComponent` + `unescape`
+    // pour que les accents survivent a `btoa`, qui ne prend que du latin-1.
+    dataUrl: "data:text/plain;charset=utf-8;base64,"
+      + btoa(unescape(encodeURIComponent(t))),
+    texte: t, trop: false
+  };
+  $("artVName").textContent = fichierCourant.nom;
+  $("artVOu").textContent = "dans cette réponse";
+  renderArtifactBody();
+}
+
 /* LE point d'entree, pour le fil comme pour l'Etabli et les Livrables. */
 async function ouvrirFichier(chemin, nom){
   ensureArtifactViewer();

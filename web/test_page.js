@@ -3305,10 +3305,42 @@ async function main(){
     hEnc.slice(hEnc.indexOf("l-livrables"), hEnc.indexOf("l-livrables") + 120));
   check("...il vient APRÈS le texte, pas au milieu",
     hEnc.indexOf("l-livrables") > hEnc.indexOf("Voici le tableau"));
-  check("le fichier du disque s'ouvre ET s'emporte ; le bloc s'emporte seul",
+  check("les deux espèces s'ouvrent ET s'emportent — le geste ne dépend pas"
+    + " de l'endroit où sont les octets",
     /data-fichier="[^"]*notes\.md"[\s\S]*?l-ouvrir[\s\S]*?l-dl/.test(hEnc)
-    && /data-bloc="901:0"[\s\S]*?l-dl/.test(hEnc)
-    && !/data-bloc="901:0"[\s\S]*?l-ouvrir/.test(hEnc));
+    && /data-bloc="901:0"[\s\S]*?l-ouvrir[\s\S]*?l-dl/.test(hEnc));
+  check("...et chaque ligne dit ce que c'est : CSV, MD, le type en pastille",
+    /<span class="l-type">CSV<\/span><span class="l-nom">extrait\.csv/.test(hEnc)
+    && /<span class="l-type">MD<\/span><span class="l-nom">notes\.md/.test(hEnc),
+    (hEnc.match(/<span class="l-type">[^<]*<\/span><span class="l-nom">[^<]*/g)
+      || []).join(" · "));
+
+  /* ⚠ LE CONTENU D'UN FICHIER NE SE DÉROULE PAS DANS LE FIL. « Ça prend de la
+     place pour rien, et ce n'est pas là qu'il faut le développer » — kuchu,
+     2026-08-12. Il se regarde dans le volet, en cliquant sa ligne. */
+  check("le contenu du livrable a QUITTÉ le fil — il ne s'y déroule plus",
+    hEnc.indexOf("janvier,1240") < 0 && hEnc.indexOf("Voici le tableau") >= 0,
+    hEnc.indexOf("janvier,1240") < 0 ? "absent" : "encore déroulé");
+  /* ...mais ce qui n'est PAS un livrable reste lisible sur place. Retirer un
+     bloc d'exemple du fil le ferait disparaître sans rien en échange : il
+     n'entre pas non plus dans l'encart. */
+  const hEx = tour({ key: 905, role: "assistant", state: "done", tools: [],
+    text: "Lancez ceci :\n\n```bash\ncd web\npython serve.py\n```" });
+  check("...alors qu'un bloc d'exemple reste où il est — rien ne l'accueille",
+    hEx.indexOf("python serve.py") >= 0 && hEx.indexOf("l-livrables") < 0);
+  /* La découpe alimente le fil ET l'encart. Si elles divergeaient, un bloc
+     pourrait sortir du fil sans arriver dans l'encart : perdu, sans un mot. */
+  const dec = (s) => win.eval("JSON.stringify(decouperLivrables("
+    + JSON.stringify(s) + "))");
+  check("rien ne sort du fil sans entrer dans l'encart — une seule découpe",
+    JSON.parse(dec("a\n\n```csv\nx,y\n1,2\n```\n\nb")).texte.indexOf("x,y") < 0
+    && JSON.parse(dec("a\n\n```csv\nx,y\n1,2\n```\n\nb")).livrables.length === 1
+    && /a[\s\S]*b/.test(JSON.parse(dec("a\n\n```csv\nx,y\n1,2\n```\n\nb")).texte));
+  /* Un bloc encore ouvert n'est pas un fichier : le retirer pendant qu'il
+     arrive ferait clignoter la réponse, et l'emporter livrerait un tronçon. */
+  check("un bloc non clos reste dans le fil et n'est pas proposé à l'emport",
+    JSON.parse(dec("```csv\nx,y\n1,2")).livrables.length === 0
+    && JSON.parse(dec("```csv\nx,y\n1,2")).texte.indexOf("x,y") >= 0);
   check("un tour qui n'a rien produit n'affiche pas d'encart vide",
     tour({ key: 902, role: "assistant", state: "done",
            text: "Bonjour.", tools: [] }).indexOf("l-livrables") < 0);
