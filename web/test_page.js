@@ -1496,6 +1496,82 @@ async function main(){
      Ce qui suit éprouve ce qui l'a remplacé : la porte d'approbation, le plan
      lisible, et la bascule qui vaut validation.
      Voir PASSE-DESIGN-UN-SEUL-FIL.md. */
+
+  console.log("\n--- La reprise d'une session, après une vraie pause ---");
+  /* ⚠ CE CHEMIN N'AVAIT JAMAIS ETE TESTE, ET LA MEMOIRE REELLE MASQUAIT LE
+     DEFAUT DE L'ECRAN. Eprouve le 2026-08-12 en fermant l'onglet POUR DE VRAI
+     (pas juste couper le WebSocket), en le rouvrant, en reprenant via Travaux :
+     demander a l'agent de rappeler un secret donne AVANT la fermeture a marche
+     — le contexte cote Hermes est intact, la memoire tient. Mais le FIL,
+     lui, affichait l'accueil au-dessus de trois bulles vides.
+     Forme RÉELLE du payload, relevée sur l'installation — pas devinee : chaque
+     message porte `text` directement ; AUCUN ne porte `content`. Un message
+     d'appel d'outil (`role: "tool"`) n'a ni l'un ni l'autre. */
+  {
+    const messagesReels = [
+      { role: "user", text: "Nouveau fil. Retiens ce code secret : ULYSSE-7284-ECHO.", row_id: 1 },
+      { role: "tool", name: "memory", context: "+memory: \"Code secret à retenir\"" },
+      { role: "assistant", text: "Code secret **ULYSSE-7284-ECHO** noté en mémoire.", row_id: 2 },
+      { role: "user", text: "Rappelle-moi le code secret.", row_id: 3 },
+      { role: "assistant", text: "ULYSSE-7284-ECHO.", row_id: 4 }
+    ];
+    win.eval("window.__rpcOrig = link.rpc.bind(link); link.rpc = function(m, p){"
+      + " return m === 'session.resume'"
+      + "   ? Promise.resolve({ session_id: 'fresh1', session_key: 'stored1',"
+      + "       info: { cwd: 'C:/p' }, running: false,"
+      + "       messages: " + JSON.stringify(messagesReels) + " })"
+      + "   : window.__rpcOrig(m, p); };");
+    await win.eval("resumeSession('stored1')");
+    win.eval("paintThread()");
+    await wait(30);
+    const fil = win.document.getElementById("thread");
+    check("les DEUX tours de texte reviennent, avec leur contenu",
+      win.eval("conv.turns.filter(function(t){return t.text}).length") === 4,
+      win.eval("conv.turns.map(function(t){return t.role+':'+JSON.stringify(t.text).slice(0,20)})").join(" | "));
+    check("...et ils s'affichent — l'accueil ne les recouvre pas",
+      !win.document.getElementById("pDiscuter").classList.contains("accueil")
+      && /ULYSSE-7284-ECHO/.test(fil.textContent),
+      fil.textContent.slice(0, 40));
+    /* ⚠ ET UN RÔLE INCONNU N'AFFICHE PAS UNE BULLE VIDE. Le message `tool`
+       tombait dans la branche `else → "system"` : une marque muette dans le
+       fil, sans rien pour l'expliquer. On préfère l'omettre franchement — un
+       fil qui saute un détail qu'il ne sait pas reconstruire est honnête ; un
+       fil qui affiche une marque vide à sa place ne l'est pas. */
+    check("...et l'appel d'outil, qu'on ne sait pas reconstruire, est omis — pas vide",
+      win.eval("conv.turns.filter(function(t){return t.role==='system' && !t.text}).length") === 0,
+      win.eval("conv.turns.length") + " tour(s) au total pour 5 messages reçus");
+    win.eval("link.rpc = window.__rpcOrig; delete window.__rpcOrig;");
+  }
+  /* ⚠ ET « CONVERSATION REPRISE » S'AFFICHAIT SUR UN ÉCRAN VIDE. `#thread`
+     portait bien les quatre tours — la fonction ci-dessus les reconstruit
+     correctement. Mais `reprendre()`, le chemin RÉEL depuis Travaux, ne passe
+     ni par `attendreOuverture()` ni par `quitterAccueil()` : `accueil` restait
+     `true`, posé une fois au chargement, et `#pDiscuter.accueil` recouvre le
+     fil en CSS quel que soit ce que `paintThread()` a peint dessous.
+     Vu à l'écran, jamais au banc — celui-ci ne regardait que `conv.turns` et
+     `#thread`, jamais la classe qui décide si on les VOIT. */
+  {
+    win.eval("window.__rpcOrig = link.rpc.bind(link); link.rpc = function(m, p){"
+      + " return m === 'session.resume'"
+      + "   ? Promise.resolve({ session_id: 'fresh2', session_key: 'stored2',"
+      + "       info: { cwd: 'C:/p' }, running: false,"
+      + "       messages: [{ role: 'assistant', text: 'reponse reprise', row_id: 1 }] })"
+      + "   : window.__rpcOrig(m, p); };");
+    win.eval("accueil = true; majEtats();");
+    check("avant reprise : l'accueil est bien là (état de départ du test)",
+      win.document.getElementById("pDiscuter").classList.contains("accueil"));
+    win.eval("var _l = document.createElement('div'); _l.dataset.resume = 'stored2';"
+      + " reprendre(_l);");
+    await wait(60);
+    check("reprendre une session lève l'accueil qui la recouvrait",
+      !win.document.getElementById("pDiscuter").classList.contains("accueil"),
+      win.document.getElementById("pDiscuter").className);
+    check("...et le fil repris est bien ce qu'on voit derrière",
+      /reponse reprise/.test(win.document.getElementById("thread").textContent));
+    win.eval("link.rpc = window.__rpcOrig; delete window.__rpcOrig;"
+      + " accueil = false; majEtats();");
+  }
+
   console.log("\n--- Le mode : une permission, pas un moteur ---");
   const segs = win.document.querySelectorAll('.u-modeseg button[data-mode="plan"]');
   check("la bascule est sous le composeur, et il n'y en a qu'une",

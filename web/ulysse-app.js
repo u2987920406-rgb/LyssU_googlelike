@@ -1721,6 +1721,16 @@ function drawWorksListe(){
 function reprendre(ligne){
   ligne.style.opacity = ".5";
   return resumeSession(ligne.dataset.resume).then(() => {
+    /* ⚠ L'ACCUEIL RESTAIT DEVANT LE FIL REPRIS. Éprouvé le 2026-08-12 en
+       fermant l'onglet pour de vrai, en le rouvrant, en reprenant via Travaux :
+       `#thread` contenait bien les quatre tours, texte complet — la mémoire
+       tenait. Mais `#pDiscuter` gardait sa classe `accueil`, posée UNE FOIS à
+       `true` au chargement et jamais retirée ailleurs qu'au premier envoi
+       (`quitterAccueil()`, appelée depuis `attendreOuverture()`). Reprendre une
+       session n'est PAS envoyer un premier message : ce chemin ne passait par
+       aucun des deux, et l'accueil recouvrait un fil pourtant peint en dessous.
+       « Conversation reprise » s'affichait — sur un écran vide. */
+    quitterAccueil();
     nav("Discuter");
     snack("Conversation reprise.");
   }).catch((e) => {

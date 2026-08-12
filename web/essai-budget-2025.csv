@@ -1,9 +1,0 @@
-date,compte,libelle,montant,categorie,verif,ecart
-2025-02-03,Compte Courant,Achat réglé Carrefour Île-de-France,-52.30,Courses,OK,-258.73
-2025-02-05,Compte Courant,Virement salaire,2100.00,Revenus,OK,1893.57
-2025-02-10,Compte Épargne,Virement épargne,-200.00,Épargne,OK,-406.43
-2025-02-14,Carte Crédit,Restaurant Île-de-France,-38.50,Restauration,À rapprocher,-244.93
-2025-02-18,Compte Courant,Frais bancaires février,-4.90,Frais,OK,-211.33
-2025-02-22,Compte Courant,Retrait DAB Île-de-France,-60.00,Cash,À catégoriser,-266.43
-2025-02-25,Compte Courant,Électricité réglée,-79.90,Énergie,OK,-286.33
-2025-02-28,Compte Courant,Abonnement réglé,-12.99,Abonnements,OK,-219.42

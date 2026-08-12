@@ -907,7 +907,28 @@ function respondApproval(choice, all){
 }
 
 /* session.resume — methods_session.py:306. Prend l'identifiant PERSISTE
-   (celui de GET /api/sessions) et renvoie un NOUVEAU session_id vivant. */
+   (celui de GET /api/sessions) et renvoie un NOUVEAU session_id vivant.
+
+   ⚠ LA MÉMOIRE RÉELLE TIENT. LE FIL, LUI, ÉTAIT MUET. Éprouvé le 2026-08-12 en
+   fermant l'onglet pour de vrai (pas juste la coupure du lien), en rouvrant, et
+   en reprenant via Travaux : demander à l'agent de rappeler un secret donné
+   AVANT la fermeture a fonctionné — le contexte serveur est intact. Mais le
+   fil affichait l'ACCUEIL par-dessus trois bulles vides : `contentToText(m.content)`
+   lisait un champ `content` qui n'existe PAS dans la réponse réelle
+   d'Hermès — chaque message porte `text` directement, jamais `content`.
+   `paintThread()` traite alors `conv.turns.length === 0` comme vrai (le texte
+   est vide sur les trois tours) et affiche l'accueil au-dessus de bulles
+   fantômes.
+
+   ⚠ ET UN RÔLE INCONNU PRODUISAIT UNE BULLE VIDE, PAS UN OUBLI HONNÊTE.
+   Un message d'appel d'outil (`role: "tool"`, `{name, context}`, sans texte)
+   tombait dans la branche `else → "system"` et créait un tour "system" sans
+   contenu — une marque muette dans le fil, sans rien pour l'expliquer. Le
+   reconstruire fidèlement (le rattacher au tour assistant qui l'a lancé,
+   comme `tool.start` le fait en direct) demanderait de rejouer l'appariement
+   complet ; l'ignorer, lui, ne ment pas. Un fil qui omet un détail qu'il ne
+   sait pas reconstruire est honnête ; un fil qui affiche une marque vide à sa
+   place ne l'est pas. */
 async function resumeSession(storedId){
   await link.ready();
   const res = await link.rpc("session.resume", { session_id: storedId, cols: 100 }, 90000);
@@ -917,8 +938,8 @@ async function resumeSession(storedId){
   conv.info = res.info || null;
   conv.turns = [];
   (res.messages || []).forEach((m) => {
-    const role = m.role === "user" ? "user" : m.role === "assistant" ? "assistant" : "system";
-    const t = newTurn(role, contentToText(m.content));
+    if (m.role !== "user" && m.role !== "assistant") return;
+    const t = newTurn(m.role, typeof m.text === "string" ? m.text : contentToText(m.content));
     t.state = "done";
   });
   conv.running = !!res.running;
