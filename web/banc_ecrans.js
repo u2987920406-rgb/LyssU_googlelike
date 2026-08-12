@@ -696,16 +696,31 @@ async function main(){
      bon, et on remet son etat exactement comme il etait. */
   E("resetSession();");
   const listeAvant = await rest("sessions(100, \"recent\")");
-  const cible = ((listeAvant && listeAvant.sessions) || [])[0] || null;
-  check("il existe au moins une session enregistree a eprouver", !!cible,
-    cible ? "« " + (cible.title || cible.id) + " »" : "aucune session dans /api/sessions");
+  /* ⚠ UNE SESSION QUI PORTE DEJA UN TITRE, PAS « LA PREMIERE VENUE ».
+     Une session sans titre revient avec `title: null` — et on ne peut PAS lui
+     rendre son absence de titre : `PATCH {title:null}` est refuse en 400
+     (« Nothing to update »), la cle nulle ne compte pas comme un champ.
+     Le banc renommait donc une session sans titre et n'arrivait plus a la
+     remettre : le 2026-08-13 il a laisse « Essai banc — renomme » sur une
+     session reelle, et a mis son echec sur le dos du RENOMMAGE, qui avait
+     marche. Remis d'aplomb en posant `title: ""`.
+     On choisit donc une session dont le titre est non vide : c'est la seule
+     dont on sache defaire ce qu'on lui fait. */
+  const cible = ((listeAvant && listeAvant.sessions) || [])
+    .find((s) => s && typeof s.title === "string" && s.title.trim()) || null;
+  check("il existe au moins une session TITREE a eprouver", !!cible,
+    cible ? "« " + cible.title + " »"
+          : "aucune session titree dans /api/sessions (on ne renomme rien)");
   if (cible){
     const sid = String(cible.id);
     const titreAvant = cible.title;
     const pinAvant = !!cible.pinned;
     aDefaire.push(async () => {
+      // `|| ""` et non `titreAvant` seul : une cle absente ou nulle fait un
+      // corps vide, donc un 400, donc un titre d'essai laisse en place.
       try { await rest("patchSession(" + JSON.stringify(sid) + ", "
-        + JSON.stringify({ title: titreAvant, pinned: pinAvant, archived: false }) + ")"); } catch (e){}
+        + JSON.stringify({ title: titreAvant || "", pinned: pinAvant,
+                           archived: false }) + ")"); } catch (e){}
     });
     const patch = async (champs) => rest("patchSession(" + JSON.stringify(sid) + ", "
       + JSON.stringify(champs) + ")");
@@ -713,15 +728,21 @@ async function main(){
       const l = await rest("sessions(100, \"recent\")");
       return ((l && l.sessions) || []).find((s) => String(s.id) === sid) || null;
     };
+    /* ⚠ UN `try` PAR GESTE. Les deux tenaient dans le meme : quand la REMISE
+       EN ETAT echouait, le `catch` mettait le rouge sur le RENOMMAGE — qui,
+       lui, avait parfaitement marche. Un rouge qui designe le mauvais geste
+       envoie chercher le defaut a cote pendant que le vrai reste en place. */
     try {
       await patch({ title: "Essai banc — renomme" });
       const s = await relire();
       check("renommer une session depuis Travaux prend vraiment effet",
         !!s && s.title === "Essai banc — renomme", s ? s.title : "session introuvable");
+    } catch (e){ check("renommer une session depuis Travaux prend vraiment effet", false, e.message); }
+    try {
       await patch({ title: titreAvant });
       check("et le titre d'origine revient",
         ((await relire()) || {}).title === titreAvant, String(titreAvant));
-    } catch (e){ check("renommer une session depuis Travaux prend vraiment effet", false, e.message); }
+    } catch (e){ check("et le titre d'origine revient", false, e.message); }
     try {
       await patch({ pinned: !pinAvant });
       const s = await relire();

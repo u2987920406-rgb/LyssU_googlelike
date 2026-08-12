@@ -1,17 +1,26 @@
 #!/usr/bin/env python3
 """lancer_bancs.py — la serie complete, en une commande.
 
-Quatre bancs, et ils ne se valent pas :
+Six bancs, et ils ne se valent pas :
 
-    test_page.js      la page dans un DOM, contre un faux Hermes.  ~10 s
+    test_page.js      la page dans un DOM, contre un faux Hermes.  ~25 s
     test_serve.py     les frontieres de serve.py, sans reseau.      ~5 s
-    banc_ecrans.js    les ecrans, contre le VRAI Hermes.           ~4 min
-    banc_reel.js      la demande d'accord, contre le VRAI Hermes.  ~5 min
+    test_personas.py  dix personas x deux scenarios, faux Hermes.  ~10 s
+    test_reel.py      les 25 endpoints, contre le VRAI Hermes.     ~15 s
+    banc_ecrans.js    les ecrans, contre le VRAI Hermes.           ~45 s
+    banc_reel.js      la demande d'accord, contre le VRAI Hermes.  ~3 min
 
-Les deux premiers tournent toujours. Les deux autres exigent que la pile soit
-debout (`lancer_ulysse.bat`) : sans elle, ils ne sont pas ROUGES, ils sont
-IGNORES — une pile eteinte n'est pas un defaut du produit, et les confondre
-ferait chercher un bug la ou il n'y a qu'un serveur arrete.
+⚠ `test_personas.py` ET `test_reel.py` N'Y ETAIENT PAS jusqu'au 2026-08-13.
+  Ils existaient, ils passaient, et RIEN NE LES REJOUAIT LA NUIT : 180
+  verifications hors de la serie, dont les 53 qui interrogent le vrai Hermes.
+  Une serie qui s'appelle « complete » et laisse un tiers du parc dehors ment
+  sur ce qu'elle garantit. Trouve en remettant les comptes a jour dans le
+  coffre, pas par un rouge — c'est bien le probleme.
+
+Les trois qui ne touchent a rien tournent toujours. Les trois autres exigent
+que la pile soit debout (`lancer_ulysse.bat`) : sans elle, ils ne sont pas
+ROUGES, ils sont IGNORES — une pile eteinte n'est pas un defaut du produit, et
+les confondre ferait chercher un bug la ou il n'y a qu'un serveur arrete.
 
     python lancer_bancs.py            tout
     python lancer_bancs.py --rapide   sans `banc_reel.js` (le seul qui coute
@@ -90,9 +99,18 @@ def fichier_rapport(rapide, rouge, quand):
         "ROUGE" if rouge else "vert"))
 
 # (commande, libelle, exige la pile)
+#
+# ⚠ `test_serve.py` ET `test_personas.py` MONTENT LEUR PILE SUR LES MEMES
+# PORTS (18080 · 19123 · 18644 · 18645, decales de +10000 pour ne jamais
+# toucher la vraie). Ils ne peuvent donc pas tourner ENSEMBLE — ici ils ne le
+# font pas : `subprocess.run` attend la fin de chacun. Et si un port restait
+# pris, `test_personas.py` REFUSE de demarrer plutot que de mesurer le mauvais
+# serveur : on aurait un rouge franc, pas un vert menteur.
 BANCS = [
     (["node", "test_page.js"], "test_page.js — la page dans un DOM", False),
     ([sys.executable, "test_serve.py"], "test_serve.py — les frontieres", False),
+    ([sys.executable, "test_personas.py"], "test_personas.py — dix personas", False),
+    ([sys.executable, "test_reel.py"], "test_reel.py — les endpoints, vrai Hermes", True),
     (["node", "banc_ecrans.js"], "banc_ecrans.js — les ecrans, vrai Hermes", True),
     (["node", "banc_reel.js"], "banc_reel.js — l'accord, vrai Hermes", True),
 ]
@@ -205,8 +223,13 @@ def main():
         duree = time.time() - t0
         texte = (proc.stdout or "") + (proc.stderr or "")
         bilan = ""
+        # ⚠ TOUS NE COMPTENT PAS AVEC LE MEME MOT. `test_personas.py` finit sur
+        # « TOTAL 127 / 127 » et pas sur « verifications » : cherche le seul
+        # mot des autres, son bilan serait reste VIDE dans le rapport — un banc
+        # qui a tourne, au vert, dont la ligne ne dit rien.
         for ligne in reversed(texte.splitlines()):
-            if "verification" in ligne or "vérification" in ligne:
+            if ("verification" in ligne or "vérification" in ligne
+                    or "TOTAL" in ligne):
                 bilan = ligne.strip()
                 break
         etat = "vert" if proc.returncode == 0 else "ROUGE"
