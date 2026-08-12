@@ -1,9 +1,0 @@
-{
-  "annee": 2025,
-  "postes": [
-    { "nom": "Loyer", "montant": 850 },
-    { "nom": "Energie", "montant": 120 },
-    { "nom": "Abonnements", "montant": 45 }
-  ],
-  "total": 1015
-}
