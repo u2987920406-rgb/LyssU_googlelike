@@ -252,6 +252,8 @@ class HermesLink {
     this.listeners = new Set();
     this.stateListeners = new Set();
     this.retries = 0;
+    // Le lien revenu, l'absence n'est plus vraie : on pourra la redire.
+    this.absenceDite = false;
     this.retryTimer = null;
     this.giveUp = false;
   }
@@ -282,7 +284,7 @@ class HermesLink {
     // Le lien est utilisable des l'ouverture de la socket. Conditionner
     // « open » a la reception de gateway.ready liait tout Cowork a un
     // evenement precis : rate ou emis trop tot, plus rien ne partait.
-    ws.onopen = () => { this.retries = 0; this._setState("open"); };
+    ws.onopen = () => { this.retries = 0; this.absenceDite = false; this._setState("open"); };
 
     ws.onmessage = (ev) => {
       // Une trame peut porter plusieurs objets JSON : on decoupe toujours.
@@ -320,11 +322,28 @@ class HermesLink {
     };
   }
 
+  /* ⚠ TROIS ESSAIS RATÉS, ET CE N'EST PLUS UNE COUPURE : C'EST UNE ABSENCE.
+     Éprouvé le 2026-08-12 en fermant le dashboard Hermès pendant qu'Ulysse
+     tournait. Le message de coupure disait « Ulysse se rebranche tout seul,
+     renvoyez votre message » — vrai le matin, quand le lien était retombé seul
+     et que les trois backends répondaient. Faux ici : le dashboard est MORT,
+     il ne reviendra jamais, et renvoyer donnait une erreur brute.
+     Corriger un mensonge par un autre n'est pas corriger. La page sait
+     pourtant faire la différence : elle réessaie, et elle compte. Après trois
+     échecs — environ sept secondes — le lien n'est pas lent, il est absent, et
+     ça se dit. Une seule fois : répéter toutes les 30 s serait du bruit. */
   _scheduleRetry(){
     if (this.giveUp) return;
     const delays = [1000, 2000, 4000, 8000, 15000, 30000];
     const d = delays[Math.min(this.retries, delays.length - 1)];
     this.retries++;
+    if (this.retries === 3 && !this.absenceDite){
+      this.absenceDite = true;
+      coreHooks.onSystem("Le lien ne revient pas : la fenêtre « Ulysse-Dashboard » "
+        + "est probablement fermée. Relancez lancer_ulysse.bat, puis rechargez "
+        + "cette page. Le fil reste affiché.");
+      coreHooks.onChange();
+    }
     if (this.retryTimer) clearTimeout(this.retryTimer);
     this.retryTimer = setTimeout(() => { this.retryTimer = null; this._open(); }, d);
   }
@@ -670,10 +689,19 @@ link.onState((s) => {
        un port pris.
        Ce qui reste vrai, et c'est tout ce qu'on dit : la session est perdue,
        et Ulysse se rebranche seul. */
+    /* ⚠ ET CE MESSAGE A ETE CORRIGE DEUX FOIS DANS LA MEME JOURNEE.
+       Il disait d'abord « relancez lancer_ulysse.bat » alors que tout tournait.
+       Il a ensuite dit « Ulysse se rebranche TOUT SEUL » — vrai ce matin-la,
+       faux le soir : en fermant le dashboard on a vu que le lien ne revenait
+       jamais, et renvoyer donnait une erreur brute.
+       Corriger un mensonge par un autre n'est pas corriger. Il n'affirme donc
+       plus l'issue : il dit ce qu'Ulysse FAIT. Si le lien ne revient pas,
+       `_scheduleRetry` le dira lui-meme, apres trois essais — parce qu'a ce
+       moment-la on le SAIT, au lieu de le supposer. */
     if (conv.sessionId){
       coreHooks.onSystem("Lien interrompu : la session en cours est perdue. "
-        + "Ulysse se rebranche tout seul — renvoyez votre message, il ouvrira "
-        + "une nouvelle session. Le fil reste affiche.");
+        + "Ulysse essaie de se rebrancher — si le lien revient, renvoyez votre "
+        + "message. Le fil reste affiche.");
     }
     conv.sessionId = null;
     conv.info = null;
@@ -810,8 +838,18 @@ async function submitPrompt(text, opts){
         coreHooks.onChange();
       });
   } catch (e){
+    /* ⚠ « Impossible d'ouvrir la session : le WebSocket ne repond pas » — vrai,
+       et c'est un mur poli. C'est le nom d'une brique et le texte d'une
+       exception : la personne apprend que ca a rate, et rien d'autre. Le
+       fichier a deja sa regle pour ca, `pannePhrase` : dire QUE ca a rate,
+       POURQUOI en mots utiles, et QUOI FAIRE. Elle ne servait pas ici.
+       Vu en fermant le dashboard Hermes pendant qu'Ulysse tournait. */
     conv.running = false;
-    const err = newTurn("error", "Impossible d'ouvrir la session : " + e.message);
+    const err = newTurn("error",
+      "Votre message n'est pas parti : Ulysse n'a pas pu ouvrir de session "
+      + "aupres d'Hermes. La fenetre « Ulysse-Dashboard » est probablement "
+      + "fermee — relancez lancer_ulysse.bat, puis rechargez cette page. ("
+      + e.message + ")");
     err.state = "error";
   }
   coreHooks.onChange();

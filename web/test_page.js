@@ -1420,9 +1420,62 @@ async function main(){
      etait deja revenu a « open » — `_scheduleRetry()` rebranche seul — et le
      message suivant est parti sans rien relancer. Le banc ne verifiait que la
      PRESENCE du message, jamais que son conseil soit encore vrai. */
-  check("...et elle dit qu'Ulysse se rebranche seul, pas de relancer le .bat",
-    /rebranche tout seul/.test(txt) && !/Lien interrompu[^]{0,120}lancer_ulysse/.test(txt),
+  /* ⚠ CORRIGE DEUX FOIS DANS LA MEME JOURNEE, ET LE BANC A SUIVI LES DEUX FOIS.
+     Il a d'abord garde « relancez lancer_ulysse.bat » (faux quand tout tourne),
+     puis « Ulysse se rebranche TOUT SEUL » (faux quand le dashboard est mort —
+     vu en le fermant : le lien ne revient jamais, et renvoyer donne une erreur).
+     Un message de coupure ne peut pas connaitre l'issue A L'INSTANT OU IL EST
+     ECRIT. Il dit donc ce qu'Ulysse FAIT, sans promettre le resultat, et c'est
+     `_scheduleRetry` qui dira l'absence apres trois essais rates — quand on la
+     SAIT. Le garde verifie les deux : aucune promesse, aucune consigne
+     prematuree. */
+  check("...et elle dit ce qu'Ulysse fait, sans promettre l'issue",
+    /essaie de se rebrancher/.test(txt)
+    && !/rebranche tout seul/.test(txt)
+    && !/Lien interrompu[^]{0,140}lancer_ulysse/.test(txt),
     txt.slice(txt.indexOf("Lien interrompu"), txt.indexOf("Lien interrompu") + 150));
+  /* Et l'absence se dit quand elle est etablie, pas avant : trois essais rates,
+     soit environ sept secondes. Une seule fois — repeter toutes les 30 s serait
+     du bruit, et on apprend a sauter ce qui se repete. */
+  /* ⚠ ON NE TOUCHE PAS AU LIEN VIVANT POUR MESURER CA. Ecrit d'abord en
+     appelant `link._scheduleRetry()`, ce test a fait tomber VINGT verifications
+     plus loin, dans « Projets » : la vraie coupure du test avait deja arme un
+     minuteur de reconnexion, et mes appels l'ont ecrase. Le banc s'est arrete
+     sur un `TypeError` a mille lignes de la.
+     Un test qui repare son propre desordre est un test qui a deja casse
+     quelque chose. On appelle donc la VRAIE methode sur un objet jetable :
+     meme code, aucun effet de bord. */
+  {
+    /* ⚠ ET ON COMPTE EN ECART. Ecrit d'abord en cherchant le message dans TOUT
+       le fil, ce test comptait 5 occurrences pour 3 appels : le VRAI lien,
+       coupe plus haut par le test, faisait legitimement la meme chose pendant
+       ce temps-la. Le banc accusait la fonction d'un bavardage qui venait de sa
+       propre mise en scene. On fait taire le vrai (il a deja parle) et on ne
+       compte que ce que le sondage ajoute. */
+    win.eval("link.absenceDite = true;");
+    const dits = () =>
+      (win.document.getElementById("thread").textContent.match(/ne revient pas/g) || []).length;
+    const base = dits();
+    const faux = { giveUp: false, retries: 0, absenceDite: false,
+                   retryTimer: null, _open: function(){} };
+    win.__essai = faux;
+    const relance = () => win.eval(
+      "Object.getPrototypeOf(link)._scheduleRetry.call(window.__essai)");
+    relance(); relance();
+    check("l'absence ne se dit pas aux deux premiers essais ratés",
+      dits() === base, (dits() - base) + " de trop");
+    relance();
+    const txt3 = win.document.getElementById("thread").textContent;
+    check("...mais elle se dit au troisième, et elle nomme la fenêtre à relancer",
+      dits() === base + 1 && /Ulysse-Dashboard/.test(txt3)
+      && /lancer_ulysse\.bat/.test(txt3),
+      txt3.slice(Math.max(0, txt3.lastIndexOf("ne revient pas") - 30),
+                 txt3.lastIndexOf("ne revient pas") + 90));
+    relance(); relance();
+    check("...une seule fois : ce qui se répète s'apprend à se sauter",
+      dits() === base + 1, (dits() - base) + " fois pour un seul lien perdu");
+    win.eval("clearTimeout(window.__essai.retryTimer); delete window.__essai;");
+  }
   check("l'identifiant de session mort est abandonné (C3)",
     win.eval("conv.sessionId") === null, String(win.eval("conv.sessionId")));
   // `hs` est la cinquieme classe d'etat : c'est elle qui marquera le kebab.
