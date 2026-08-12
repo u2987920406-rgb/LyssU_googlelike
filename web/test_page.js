@@ -394,6 +394,59 @@ async function main(){
         : appeles.size + " nom(s) vérifié(s)");
   }
 
+  /* ⚠ UN GLYPHE DE TRAVERS NE CASSE RIEN, ET NE SE VOIT QU'À L'ŒIL.
+     L'icône « noeuds » (le Plan, dans le rail) portait deux traits de liaison
+     écrits à la main, à côté des cercles qu'ils relient : celui du bas partait
+     de x=7.4 quand le bord du cercle est à x=6.43. Presque une unité sur
+     vingt-quatre — assez pour que l'icône penche dans le rail. Aucune
+     vérification ne pouvait le voir : elles comptaient les noms, pas les
+     formes. Signalé par kuchu en regardant l'écran, le 2026-08-12.
+
+     On REMESURE donc la géométrie sur le glyphe rendu : chaque trait doit
+     joindre deux centres de cercles, et ses extrémités tomber exactement sur
+     leurs bords. Retoucher les nombres à la main sans refaire le calcul fait
+     désormais tomber ce test. */
+  {
+    const icones = fs.readFileSync(path.join(DIR, "ulysse-icons.js"), "utf8");
+    const bloc = icones.slice(icones.indexOf("if(o.nodes)"), icones.indexOf("if(o.tune)"));
+    const cercles = Array.from(bloc.matchAll(/<circle cx="([\d.]+)" cy="([\d.]+)" r="([\d.]+)"/g))
+      .map((m) => ({ x: +m[1], y: +m[2], r: +m[3] }));
+    const traits = Array.from(bloc.matchAll(/M([\d.]+) ([\d.]+) ([\d.]+) ([\d.]+)/g))
+      .map((m) => ({ x1: +m[1], y1: +m[2], x2: +m[3], y2: +m[4] }));
+    check("l'icône du Plan porte bien ses trois nœuds et ses deux liaisons",
+      cercles.length === 3 && traits.length === 2,
+      cercles.length + " cercle(s), " + traits.length + " trait(s)");
+
+    // Le cadre : la boîte englobante doit être centrée dans le viewBox 24x24.
+    const xs = cercles.flatMap((c) => [c.x - c.r, c.x + c.r]);
+    const ys = cercles.flatMap((c) => [c.y - c.r, c.y + c.r]);
+    const cx = (Math.min(...xs) + Math.max(...xs)) / 2;
+    const cy = (Math.min(...ys) + Math.max(...ys)) / 2;
+    check("le glyphe du Plan est centré dans son cadre",
+      Math.abs(cx - 12) < 0.15 && Math.abs(cy - 12) < 0.15,
+      "centre (" + cx.toFixed(2) + ", " + cy.toFixed(2) + ") pour 12, 12");
+
+    // Chaque trait joint deux centres, et s'arrête sur leurs bords.
+    const ecarts = traits.map((t) => {
+      let pire = 99, quel = "";
+      for (const a of cercles) for (const b of cercles){
+        if (a === b) continue;
+        const L = Math.hypot(b.x - a.x, b.y - a.y);
+        const ux = (b.x - a.x) / L, uy = (b.y - a.y) / L;
+        const d = Math.max(
+          Math.hypot(t.x1 - (a.x + a.r * ux), t.y1 - (a.y + a.r * uy)),
+          Math.hypot(t.x2 - (b.x - b.r * ux), t.y2 - (b.y - b.r * uy)));
+        if (d < pire){ pire = d; quel = "(" + a.x + "," + a.y + ")→(" + b.x + "," + b.y + ")"; }
+      }
+      return { pire: pire, quel: quel };
+    });
+    const pire = ecarts.length ? Math.max(...ecarts.map((e) => e.pire)) : 99;
+    check("chaque liaison part et arrive exactement sur le bord des nœuds qu'elle relie",
+      pire < 0.06,
+      "écart maximal " + pire.toFixed(2) + " unité(s) — "
+        + ecarts.map((e) => e.quel + " : " + e.pire.toFixed(2)).join(" · "));
+  }
+
   /* ⚠ LES DIX APERCUS RECOPIENT LA FEUILLE, ils ne la lient pas — il faut
      qu'ils s'ouvrent d'un double-clic, seuls. Autant de copies que de fichiers,
      donc autant d'occasions de diverger EN SILENCE : Cowork retouche la feuille et les

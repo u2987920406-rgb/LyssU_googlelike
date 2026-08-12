@@ -55,3 +55,8 @@ web/node_modules/
 __pycache__/
 *.pyc
 .DS_Store
+
+# Le rapport du dernier passage de la serie (`lancer_bancs.py`). Il change a
+# chaque lancement et ne dit rien que les bancs ne redisent : le garder suivi
+# ferait un diff a chaque essai.
+web/dernier-rapport-bancs.txt

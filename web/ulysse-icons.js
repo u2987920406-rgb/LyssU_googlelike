@@ -151,8 +151,18 @@ function svg(k,{size=24,fill=false,w=2}={}){
   if(o.people) return wrap(`<circle cx="9" cy="8" r="3.2"/>
     <path d="M3 19a6 6 0 0 1 12 0"/><circle cx="17" cy="9.5" r="2.4"/>
     <path d="M15.5 19h5.5a4.5 4.5 0 0 0-3-4.2"/>`, fill?'currentColor':'none');
+  /* ⚠ LES LIAISONS SUIVENT LES CENTRES, ELLES NE SONT PAS APPROXIMEES.
+     Ecrites a la main, elles etaient a cote : le trait vers le noeud du bas
+     partait de x=7.4 la ou le bord du cercle est a x=6.43 — presque une unite
+     sur vingt-quatre. Les deux traits ne pointaient donc pas vers les centres
+     qu'ils relient, et le glyphe paraissait de travers dans le rail, penche a
+     gauche. Signale par kuchu le 2026-08-12, capture a l'appui.
+     Chaque extremite est maintenant le point exact ou la droite centre-a-centre
+     coupe le cercle : centre + r x le vecteur unitaire. Le garde de
+     `test_page.js` le REMESURE sur le glyphe rendu, pour qu'une retouche a la
+     main ne puisse plus les desaligner en silence. */
   if(o.nodes) return wrap(`<circle cx="6" cy="6" r="2.6"/><circle cx="18" cy="10" r="2.6"/>
-    <circle cx="8" cy="18" r="2.6"/><path d="M8.4 7.1 15.5 9.3M7.4 8.5 7.9 15.4" fill="none"/>`,
+    <circle cx="8" cy="18" r="2.6"/><path d="M8.47 6.82 15.53 9.18M6.43 8.56 7.57 15.44" fill="none"/>`,
     fill?'currentColor':'none');
   if(o.tune) return wrap(`<path d="M4 7h6M15 7h5M4 12h11M4 17h3M12 17h8" fill="none"/>
     <circle cx="12.5" cy="7" r="2.3"/><circle cx="17.5" cy="12" r="2.3"/>
