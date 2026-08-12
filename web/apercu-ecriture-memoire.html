@@ -274,7 +274,10 @@ input{font:inherit;color:inherit;background:none;border:none;outline:none}
 .thread-in{max-width:720px;margin:0 auto}
 .msg{margin-bottom:26px;animation:rise .4s cubic-bezier(.2,0,0,1) both}
 @keyframes rise{from{opacity:1;transform:none}to{opacity:1;transform:none}}
-.msg.you{display:flex;justify-content:flex-end}
+/* `flex-wrap` sert aux puces de pièces jointes : sans lui, elles restaient sur
+   la MÊME rangée que le texte, donc à sa gauche, flottant loin de la bulle
+   qu'elles accompagnent. Vu à l'écran le 2026-08-12. Voir `.u-jdit`. */
+.msg.you{display:flex;justify-content:flex-end;flex-wrap:wrap}
 .msg.you p{background:var(--surface);border-radius:20px;padding:12px 20px;max-width:80%}
 .msg.ulysse p{line-height:1.65}
 .msg.ulysse p+p{margin-top:var(--space-3)}

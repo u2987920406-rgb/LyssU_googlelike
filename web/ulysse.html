@@ -264,7 +264,11 @@
 .u-jointe .o{color:var(--faint)}
 /* Les mêmes puces, mais DANS la bulle : elles ne sont plus centrées sur la
    largeur du composeur, elles suivent le texte auquel elles appartiennent. */
-.u-jdit{width:auto;margin:0 0 6px}
+/* `width:100%` prend la rangée entière : c'est ce qui pousse le texte en
+   dessous au lieu de le laisser à côté. `flex-end` les met contre le même bord
+   que la bulle — ce qu'on a joint appartient au message, ça se voit à ce
+   qu'ils sont alignés ensemble. */
+.u-jdit{width:100%;margin:0 0 6px;justify-content:flex-end}
 /* Le tour qu'on a coupé en corrigeant. En gris et en petit : ce n'est pas une
    panne ni une limite, c'est un fait — et c'est NOUS qui l'avons provoqué.
    Surtout PAS `.u-coupe` : cette classe-là habillait l'avis de troncature au

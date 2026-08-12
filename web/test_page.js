@@ -1318,6 +1318,19 @@ async function main(){
       && /note\.txt/.test(fil.querySelector(".msg.you .u-jointes").textContent),
       fil.querySelector(".msg.you .u-jointes")
         ? fil.querySelector(".msg.you .u-jointes").textContent : "aucune puce");
+    /* ⚠ ET DU BON COTE. `.msg.you` aligne ses enfants a droite EN RANGEE : les
+       puces, simples freres du texte, restaient donc sur la meme ligne, a sa
+       GAUCHE, flottant loin de la bulle qu'elles accompagnent. Vu a l'ecran le
+       2026-08-12, jamais au banc — il lisait le texte, pas la mise en page. */
+    {
+      const j = fil.querySelector(".msg.you .u-jointes");
+      const st = win.getComputedStyle(j);
+      check("...du même côté que la bulle, sur leur propre rangée",
+        st.justifyContent === "flex-end" && st.width === "100%",
+        "justify:" + st.justifyContent + " width:" + st.width);
+      check("...ce qui suppose que la bulle sache passer à la ligne",
+        win.getComputedStyle(fil.querySelector(".msg.you")).flexWrap === "wrap");
+    }
   }
 
 
