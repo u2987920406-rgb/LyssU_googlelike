@@ -49,8 +49,11 @@ Résumé de ce qui a changé :
    (jeton, Host, Origin du handshake, HMAC) : un test qui triche est refusé.
 
 5) À FAIRE ENSUITE (rien de bloquant) :
-   · un test contre le VRAI dashboard (hermes dashboard --port 9123) pour
-     confirmer les formes en conditions réelles ;
+   · [FAIT] un test contre le VRAI dashboard : web/banc_reel.js. Il monte la
+     page PRISE SUR LE SERVEUR dans jsdom, avec le vrai fetch et le vrai
+     WebSocket — aucun faux nulle part — et joue la demande d'accord de bout
+     en bout (refuser / autoriser / le refus structurel de Plan). La suite du
+     socle est la liste §16 de audit-fonctionnalites-ulysse.md ;
    · Terminal intégré (POST /api/pty existe, il faut un émulateur) ;
    · création de projet / coffre (projects.tree existe) ;
    · écriture des fichiers de profil (/api/fs/write-text existe) ;
