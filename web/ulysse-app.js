@@ -563,16 +563,19 @@ function paintThread(){
       + "et se ferme avec la fenêtre.</span></div>";
   }
   if (!turns.length){
-    /* ⚠ « Rien ne sera modifié sur le disque » N'EST PAS TOUJOURS VRAI.
-       Cette phrase s'affichait sans condition, alors qu'elle dépend d'un
-       réglage d'Hermès qu'Ulysse ne contrôle pas (voir
-       `avertissementAccordsHTML`). Une promesse affichée à l'accueil, là où
-       l'on décide de faire confiance, doit être vraie ou ne pas être. */
+    /* ⚠ « Rien ne sera modifié sur le disque » N'EST JAMAIS VRAI, ET LA PHRASE
+       EST PARTIE. Elle s'affichait d'abord sans condition ; on l'a ensuite
+       conditionnée à `planGaranti()`, en croyant qu'un réglage « manuel »
+       la rendait tenable. Éprouvé le 2026-08-12, accords en manuel : un
+       fichier a été écrit et une commande lancée, sans aucune demande
+       d'accord (voir `avertissementAccordsHTML` pour les deux lignes du code
+       d'Hermès qui l'expliquent). Il n'existe donc aucun réglage sous lequel
+       cette promesse soit vraie.
+       Une promesse affichée à l'accueil, là où l'on décide de faire confiance,
+       doit être vraie ou ne pas être. Celle-là ne pouvait pas être. */
     h += '<div class="u-load">' + (mode === "build"
       ? "Build : l'agent écrit et exécute. La vérification suit le build."
-      : planGaranti()
-        ? "Plan : on discute, on lit, on propose. Rien ne sera modifié sur le disque."
-        : "Plan : on discute, on lit, on propose.")
+      : "Plan : on discute, on lit, on propose.")
       + "</div>";
   }
   h += turns.map(turnHTML).join("");
@@ -602,8 +605,11 @@ function paintThread(){
     try {
       await link.rpc("config.set", { key: "approval_mode", value: "manual" }, 20000);
       await lireModeAccords();
-      snack(planGaranti()
-        ? "Accords en manuel — le mode Plan tient maintenant sa promesse."
+      // Le message disait « le mode Plan tient maintenant sa promesse ». Il ne
+      // la tient pas : Hermès ne demande rien pour une écriture ordinaire.
+      // On dit ce que le clic a vraiment obtenu, ni plus.
+      snack(porteConsultee()
+        ? "Accords en manuel — Ulysse est consulté quand Hermès demande."
         : "Le réglage n'a pas pris : les accords restent en « "
           + (modeAccords || "inconnu") + " ».");
     } catch (e){
@@ -1034,11 +1040,11 @@ function setMode2(m){
      par kuchu : elle s'affiche, elle ne se choisit pas. */
   const mention = $("modeMention");
   if (mention) mention.textContent = mode === "build" ? phaseBuild() : "Plan";
+  // Deuxième endroit où la promesse s'écrivait. Même raison de la retirer :
+  // aucun réglage ne la rend vraie (voir `avertissementAccordsHTML`).
   const note = mode === "build"
     ? "l'agent écrit et exécute, puis vérifie son travail contre le plan"
-    : planGaranti()
-      ? "on discute, on lit, on propose — rien ne sera modifié sur le disque"
-      : "on discute, on lit, on propose";
+    : "on discute, on lit, on propose";
   if ($("modenote1")) $("modenote1").textContent = note;
   majInvite();
   majEtats();
@@ -4930,11 +4936,60 @@ async function lireModeAccords(){
   paintThread();
 }
 
-/* Le mode Plan ne garantit rien tant que les accords ne sont pas en manuel. */
-function planGaranti(){ return modeAccords === "manual"; }
+/* ═══ ⚠ « MANUEL » N'EST PAS « ON VOUS DEMANDE » ════════════════════════════
+   Éprouvé le 2026-08-12, après que kuchu a cliqué « Passer les accords en
+   manuel » — donc dans les conditions mêmes que cet écran réclamait :
+
+     · `write_file` sur essai-refus.txt : le fichier est écrit. ZÉRO
+       `approval.request` dans le journal des événements.
+     · `terminal echo essai-porte` : exécuté en 185 ms. Zéro demande.
+
+   Le code source d'Hermès dit pourquoi, et c'est structurel :
+     · `tools/approval.py:3938` — `if not warnings: return {"approved": True}`,
+       AVANT toute lecture du mode. Une commande qui ne déclenche aucun motif
+       de danger est auto-approuvée dans TOUS les modes, manuel compris.
+       `approvals.mode` ne dit pas SI l'on demande : il dit quoi faire quand un
+       motif a DÉJÀ mordu.
+     · `tools/file_tools.py:706` — la seule porte toujours-demander sur une
+       écriture couvre quatre noms : agents.md, claude.md, soul.md,
+       .cursorrules. Un `write_file` ordinaire ne passe par aucune porte, à
+       aucun réglage.
+
+   `planGaranti()` valait donc « modeAccords === manual » et en tirait une
+   GARANTIE qui n'existe nulle part. Pire : en passant en manuel, l'écran
+   cessait d'avertir — le trou restait, l'avertissement partait. On était
+   moins protégé qu'avant le clic, et on le croyait davantage.
+
+   Ce qui retient vraiment l'agent en Plan, c'est la ligne de mode — la
+   consigne. C'est réel : on l'a vu refuser `write_file` sur instruction
+   directe. Mais `ligneDeMode()` le dit lui-même : « une garantie qui repose
+   sur la bonne volonté du modèle n'est pas une garantie. »
+
+   Alors on ne promet plus. On dit ce qui est vrai, dans les deux réglages. */
+function porteConsultee(){ return modeAccords === "manual"; }
 
 function avertissementAccordsHTML(){
-  if (mode !== "plan" || modeAccords === null || planGaranti()) return "";
+  if (mode !== "plan" || modeAccords === null) return "";
+  /* Accords en manuel : Ulysse EST consulté — mais seulement sur ce qu'Hermès
+     lui soumet, et il ne lui soumet pas une écriture ordinaire. Plus de
+     bouton : il n'y a plus rien à basculer. Plus de rouge non plus — ce n'est
+     pas une alarme, c'est la portée exacte de ce qu'on a. */
+  /* `m-portee` : ce n'est PAS un message de panne. Rien n'est cassé, rien à
+     relancer — c'est la portée de ce que le mode retient. Sans cette marque,
+     le garde « chaque message de panne dit quoi faire » l'attrape et réclame
+     une consigne qui n'aurait aucun sens ici. */
+  if (porteConsultee()){
+    return '<div class="msg u-sys m-portee"><div class="u-md">'
+      + "<strong>Ce que le mode Plan retient, et ce qu'il ne retient pas.</strong> "
+      + "Les accords sont en manuel : quand Hermès demande, Ulysse refuse ici. "
+      + "Mais Hermès ne demande pas pour tout — un fichier écrit ou une "
+      + "commande sans motif de danger passent sans question, à tout réglage. "
+      + "Ce qui retient l'agent en Plan, c'est la consigne qu'il reçoit, et "
+      + "il peut l'oublier."
+      + "<div class=\"u-meta\">Mesuré sur cette installation, pas déduit : "
+      + "un fichier écrit et une commande lancée, aucune demande d'accord.</div>"
+      + "</div></div>";
+  }
   return '<div class="msg u-sys m-refus"><div class="u-md">'
     + "<strong>Le mode Plan ne peut rien garantir pour l'instant.</strong> "
     + "Les accords d'Hermès sont réglés sur « " + esc(modeAccords) + " » : "
@@ -4943,7 +4998,8 @@ function avertissementAccordsHTML(){
     + '<div class="m-pied"><button class="m-bascule" type="button" '
     + 'id="accordsManuel">Passer les accords en manuel</button></div>'
     + "<div class=\"u-meta\">Ce réglage est global : il vaut aussi pour le "
-    + "terminal d'Hermès et les autres sessions.</div>"
+    + "terminal d'Hermès et les autres sessions. Il élargit ce qu'Ulysse peut "
+    + "refuser — il ne couvre pas les écritures de fichier.</div>"
     + "</div></div>";
 }
 

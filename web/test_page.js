@@ -1403,19 +1403,45 @@ async function main(){
      l'avertissement, ce serait dire une chose et son contraire sur le meme
      ecran — et c'est la version affirmative qu'on retiendrait. */
   check("...et la phrase « rien ne sera modifié » n'est PLUS affichée",
-    !/Rien ne sera modifié/.test(win.document.getElementById("thread").textContent),
+    !/[Rr]ien ne sera modifi/.test(win.document.getElementById("thread").textContent),
     win.document.getElementById("thread").textContent.slice(0, 70));
+  /* ⚠ CE BANC GARDAIT UNE FAUSSETE. Il verifiait ici « accords en manuel : la
+     promesse revient, l'avertissement part » — il exigeait le defaut.
+     Eprouve le 2026-08-12 APRES le passage en manuel, donc dans les conditions
+     que cet ecran reclamait : `write_file` a ecrit, `terminal echo` a tourne
+     en 185 ms, ZERO `approval.request`. Le code d'Hermes le dit :
+       · approval.py:3938 — `if not warnings: return {"approved": True}`,
+         avant toute lecture du mode. Sans motif de danger, pas de question,
+         dans TOUS les modes ;
+       · file_tools.py:706 — la seule porte toujours-demander sur une ecriture
+         couvre agents.md, claude.md, soul.md, .cursorrules. Rien d'autre.
+     Il n'existe donc aucun reglage sous lequel « rien ne sera modifie sur le
+     disque » soit vrai. La phrase est retiree partout, et l'encart ne
+     disparait plus : il change de propos. */
   win.eval('modeAccords = "manual"; paintThread();');
-  check("accords en « manuel » : la promesse revient, l'avertissement part",
-    !win.document.getElementById("accordsManuel")
-    && /Rien ne sera modifié/.test(win.document.getElementById("thread").textContent));
-  /* Tant qu'on n'a pas pu lire le reglage, on n'affirme RIEN — ni la
-     promesse, ni l'accusation. On ne remplace pas un mensonge par un autre. */
+  {
+    const fil = win.document.getElementById("thread").textContent;
+    check("accords en « manuel » : la promesse ne revient PAS — elle n'est vraie nulle part",
+      !/[Rr]ien ne sera modifi/.test(fil), fil.slice(0, 80));
+    check("...et l'écran ne se tait pas non plus : il dit ce qui n'est pas retenu",
+      /ne retient pas/.test(fil) && /sans question/.test(fil), fil.slice(0, 120));
+    check("...sans bouton, puisqu'il n'y a plus rien à basculer",
+      !win.document.getElementById("accordsManuel"));
+  }
+  /* Tant qu'on n'a pas pu lire le reglage, on n'affirme RIEN — ni promesse,
+     ni accusation, ni portee. On ne remplace pas un mensonge par un autre. */
   win.eval('modeAccords = null; paintThread();');
-  check("...et tant qu'on ignore le réglage, on n'affirme ni l'un ni l'autre",
+  check("...et tant qu'on ignore le réglage, on n'affirme rien du tout",
     !win.document.getElementById("accordsManuel")
-    && !/Rien ne sera modifié/.test(win.document.getElementById("thread").textContent));
-  win.eval('modeAccords = "manual"; paintThread();');
+    && !/[Rr]ien ne sera modifi/.test(win.document.getElementById("thread").textContent)
+    && !/ne retient pas/.test(win.document.getElementById("thread").textContent));
+  /* La phrase ne doit pas non plus se reinstaller par la bande — elle vivait a
+     TROIS endroits : l'accueil, la note sous le composeur, et l'encart. */
+  win.eval('modeAccords = "manual"; conv.turns.length = 0; setMode2("plan"); paintThread();');
+  check("...et la promesse n'est nulle part ailleurs sur l'écran",
+    !/[Rr]ien ne sera modifi/.test(win.document.getElementById("pDiscuter").textContent),
+    win.document.getElementById("modenote1")
+      ? win.document.getElementById("modenote1").textContent : "");
 
   check("la ligne de mode tient en une ligne courte — le préfixe pèse déjà 15 067 tokens",
     /\[Mode Plan/.test(win.eval("ligneDeMode()"))
@@ -3717,7 +3743,11 @@ async function main(){
      que « le prochain message ouvrira une nouvelle session » alors que le lien
      venait d'être coupé. Deux messages qui se contredisent, et c'est le
      premier qu'on lit. Les deux doivent donc tenir. */
-  const pannes = [...win.document.querySelectorAll("#thread .msg.u-err, #thread .msg.u-sys")];
+  /* `.m-portee` est exclu : c'est l'encart qui dit ce que le mode Plan retient
+     et ne retient pas. Rien n'y est cassé, il n'y a donc rien à relancer — lui
+     réclamer une consigne reviendrait à lui faire inventer une panne. */
+  const pannes = [...win.document.querySelectorAll(
+    "#thread .msg.u-err, #thread .msg.u-sys:not(.m-portee)")];
   const muets = pannes.filter((m) => !/(relanc|lancez|Discussion)/i.test(m.textContent));
   check("lien coupé · ...et CHAQUE message dit quoi faire, aucun ne se contredit",
     pannes.length > 0 && muets.length === 0,
