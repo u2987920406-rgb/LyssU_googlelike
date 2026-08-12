@@ -44,8 +44,21 @@ for flux in (sys.stdout, sys.stderr):
         pass
 
 DOSSIER = os.path.dirname(os.path.abspath(__file__))
-RAPPORT = os.path.join(DOSSIER, "dernier-rapport-bancs.txt")
 ULYSSE = "http://127.0.0.1:8080/api/status"
+
+# ⚠ UN RAPPORT PAR MODE, ET UN HISTORIQUE QUI NE S'EFFACE PAS.
+# Un seul fichier « dernier rapport » suffisait tant qu'on lancait a la main.
+# Planifie, le passage horaire en `--rapide` ECRASERAIT le rapport de la serie
+# complete de la nuit — c'est-a-dire precisement celui qui vaut quelque chose.
+# Et un rouge tombe a 3 h du matin doit rester lisible au reveil : d'ou une
+# ligne par lancement, ajoutee, jamais reecrite.
+HISTORIQUE = os.path.join(DOSSIER, "historique-bancs.txt")
+
+
+def fichier_rapport(rapide):
+    return os.path.join(DOSSIER,
+                        "dernier-rapport-bancs-rapide.txt" if rapide
+                        else "dernier-rapport-bancs.txt")
 
 # (commande, libelle, exige la pile)
 BANCS = [
@@ -139,12 +152,31 @@ def main():
         for libelle, _, _, bilan in rouges:
             dire(sortie, "  · " + libelle + ("  — " + bilan if bilan else ""))
 
+    rapport = fichier_rapport(rapide)
     try:
-        with open(RAPPORT, "w", encoding="utf-8", newline="") as fh:
+        with open(rapport, "w", encoding="utf-8", newline="") as fh:
             fh.write(sortie.getvalue())
-        print("\nRapport ecrit : " + RAPPORT)
+        print("\nRapport ecrit : " + rapport)
     except OSError as exc:
         print("\nRapport non ecrit (%s) — le resultat ci-dessus fait foi." % exc)
+
+    # Une ligne, ajoutee. C'est ce qu'on lira le lendemain matin pour savoir si
+    # quelque chose a rougi pendant la nuit — le rapport, lui, aura ete ecrase
+    # par le passage suivant.
+    try:
+        with open(HISTORIQUE, "a", encoding="utf-8", newline="") as fh:
+            fh.write("%s  %-8s  %-6s  %s\n" % (
+                time.strftime("%Y-%m-%d %H:%M"),
+                "rapide" if rapide else "complet",
+                "ROUGE" if rouges else "vert",
+                # Separateur ASCII : ce fichier se lit avec n'importe quoi —
+                # `Get-Content`, le Bloc-notes, un « type » dans une console —
+                # et un point median en UTF-8 y ressort en « Â· » des que le
+                # lecteur suppose du cp1252. Un historique illisible ne se lit
+                # pas, donc ne sert a rien.
+                " | ".join("%s %s" % (l.split(" ")[0], e) for l, e, _, _ in resultats)))
+    except OSError:
+        pass
 
     return 1 if rouges else 0
 

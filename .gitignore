@@ -60,3 +60,5 @@ __pycache__/
 # chaque lancement et ne dit rien que les bancs ne redisent : le garder suivi
 # ferait un diff a chaque essai.
 web/dernier-rapport-bancs.txt
+web/dernier-rapport-bancs-rapide.txt
+web/historique-bancs.txt
