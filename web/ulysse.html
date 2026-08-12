@@ -196,7 +196,7 @@
 #pDiscuter .foot{transition:padding-bottom .52s cubic-bezier(.2,0,0,1)}
 #pDiscuter.accueil .foot{padding-bottom:calc(38vh - 40px)}
 
-.u-marque{width:min(720px,calc(100vw - 48px));margin:0 auto;text-align:center;
+.u-marque{width:min(720px,calc(100% - 48px));margin:0 auto;text-align:center;
   font-size:34px;font-weight:500;letter-spacing:-.6px;
   background:linear-gradient(74deg,#4285F4 0%,#9B72CB 46%,#D96570 100%);
   -webkit-background-clip:text;background-clip:text;color:transparent;
@@ -225,8 +225,17 @@
 /* La barre sous le composeur : la bascule Cowork/Discussion, et ce qu'elle
    change. On la met LÀ et pas dans une barre du haut parce qu'elle décrit ce
    qu'on s'apprête à écrire — pas l'écran. */
+/* ⚠ LA MÊME LARGEUR QUE LE CHAMP, CALCULÉE PAREIL. Signalé par kuchu le
+   2026-08-13, capture à l'appui : « Plan » et « Cadre » commençaient 24 px à
+   GAUCHE du bord du champ. Le champ vaut `min(720px, calc(100% - 48px))` —
+   un pourcentage de SON parent — pendant que cette barre valait
+   `calc(100vw - 48px)`, la largeur de la FENÊTRE. Dans un parent de 720 px,
+   le champ fait donc 672 et cette barre 720 : 24 px de décalage de chaque
+   côté, invisibles au test parce que jsdom ne met rien en page.
+   Les deux formules doivent rester identiques — `test_page.js` le vérifie
+   maintenant sur le texte de la feuille. */
 .u-sousbarre{position:relative;z-index:1;display:flex;align-items:center;gap:12px;
-  width:min(720px,calc(100vw - 48px));margin:10px auto 0}
+  width:min(720px,calc(100% - 48px));margin:10px auto 0}
 /* L'interrupteur ne se comprime jamais : c'est la seule chose de cette barre
    sur laquelle on clique. Les deux mentions, elles, sont du commentaire —
    elles se coupent proprement plutôt que de renvoyer la barre à la ligne et
@@ -253,7 +262,7 @@
 /* Les pièces jointes en attente, juste au-dessus du champ : on voit ce qu'on
    emporte avant d'envoyer, et on peut encore l'enlever. */
 .u-jointes{position:relative;z-index:1;display:flex;flex-wrap:wrap;gap:6px;
-  width:min(720px,calc(100vw - 48px));margin:0 auto 8px}
+  width:min(720px,calc(100% - 48px));margin:0 auto 8px}
 .u-jointes:empty{display:none}
 .u-jointe{display:inline-flex;align-items:center;gap:7px;background:var(--surface);
   border-radius:var(--radius-pill);padding:5px 6px 5px 12px;font-size:var(--font-size-xs)}

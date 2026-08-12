@@ -68,3 +68,9 @@ web/dernier-rapport-bancs-rapide.txt
 
 # Le verrou de `lancer_bancs.py` : il ne vit que le temps d une serie.
 web/.bancs-en-cours
+
+# Les photos d ecran prises par web/photo_ecran.js. Elles portent l etat
+# REEL du poste (vos taches, vos fichiers ouverts) et pesent 200 ko piece.
+# Hors de web/ a dessein : tout ce qui tombe dans le dossier servi est
+# telechargeable depuis :8080.
+photos-ulysse/

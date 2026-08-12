@@ -457,6 +457,35 @@ async function main(){
   if (html.indexOf(lien) < 0) throw new Error("ulysse.html ne charge plus ulysse.css");
   check("« ulysse.css » est bien référencé par la page", true);
 
+  /* ⚠ CE QUI S'EMPILE SOUS LE CHAMP DOIT AVOIR SA LARGEUR, CALCULÉE PAREIL.
+     jsdom ne met rien en page : aucune vérification de ce fichier ne peut voir
+     un décalage. C'est kuchu qui l'a vu, le 2026-08-13, capture à l'appui —
+     « Plan » et « Cadre » commençaient 24 px à gauche du bord du champ.
+     La cause tient en un mot : le champ mesure `calc(100% - 48px)` (son
+     PARENT), la sous-barre mesurait `calc(100vw - 48px)` (la FENÊTRE). Dans
+     un parent de 720 px, 672 contre 720.
+     On ne peut pas mesurer la mise en page ici, mais on peut exiger que les
+     quatre éléments du même empilement portent la MÊME formule — c'est le
+     seul endroit où la divergence était lisible. */
+  {
+    const formule = (source, sel) => {
+      const i = source.indexOf(sel + "{");
+      if (i < 0) return "(règle absente)";
+      const bloc = source.slice(i, source.indexOf("}", i));
+      const m = bloc.match(/width:\s*(min\([^)]*\)[^;]*)/);
+      return m ? m[1].replace(/\s+/g, " ").trim() : "(sans width)";
+    };
+    const champ = formule(CSS, ".composer");
+    const empiles = [".u-marque", ".u-jointes", ".u-sousbarre"]
+      .map((s) => [s, formule(html, s)]);
+    check("le champ garde une largeur relative à SON parent, pas à la fenêtre",
+      champ.indexOf("100%") >= 0 && champ.indexOf("100vw") < 0, champ);
+    empiles.forEach(([sel, f]) => {
+      check("« " + sel + " » mesure exactement comme le champ",
+        f === champ, f + "  ≠  " + champ);
+    });
+  }
+
   /* ⚠ `svg()` fait `I[k] || {}` : un nom d'icône inconnu ne lève RIEN, il
      rend un carré vide. Le défaut ne casse pas, il ne se voit qu'à l'œil et
      seulement sur l'écran concerné — j'ai écrit `svg("horloge")` le
