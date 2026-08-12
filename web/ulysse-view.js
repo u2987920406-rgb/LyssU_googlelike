@@ -1154,6 +1154,9 @@ const Notifs = {
     // On retire d'abord pour que l'interface réponde tout de suite, mais on
     // sait remettre : si le serveur refuse, la demande revient à sa place.
     this.list.splice(i, 1);
+    // Répondu depuis le panneau : le bandeau flottant tombe aussi. Sans ça, on
+    // répond dans la cloche et la question reste posée à l'écran.
+    this.dropToast(id);
     this.drawBell(); this.draw();
     const remettre = () => { this.list.splice(i, 0, n); this.drawBell(); this.draw(); };
     let p;
@@ -1181,6 +1184,15 @@ const Notifs = {
     if (!host) return n.id;
     const el = document.createElement("div");
     el.className = "toast";
+    /* ⚠ LE BANDEAU DOIT POUVOIR ÊTRE RETROUVÉ. Il vivait sans identité : `drop`
+       ne connaissait que `this.list`, donc il retirait la demande de la cloche
+       et laissait le bandeau flotter — avec ses deux boutons. Vu le 2026-08-12,
+       la première fois que la porte d'accord s'est ouverte pour de vrai : après
+       un refus donné DANS LE FIL, « Autoriser une fois » restait à l'écran.
+       Le clic ne réautorisait rien (`answer` sort si l'entrée a disparu) : il
+       ne faisait RIEN, sans un mot. Un bouton vivant sur une décision déjà
+       prise est pire qu'un bouton absent. */
+    el.dataset.nid = n.id;
     el.innerHTML = '<span class="nic" style="background:' + K.bg + ";color:" + K.col + '">'
       + svg(K.ico, { size: 19 }) + "</span>"
       + '<div style="flex:1;min-width:0"><div class="nt">' + esc(n.titre) + "</div>"
@@ -1206,12 +1218,28 @@ const Notifs = {
     return n.id;
   },
 
+  /* Le bandeau flottant est le TROISIÈME endroit où vit une demande — après la
+     cloche et le fil. Les trois doivent tomber ensemble : une décision prise
+     quelque part est prise partout. */
+  dropToast(id){
+    const el = document.querySelector('#toasts .toast[data-nid="' + id + '"]');
+    if (!el) return;
+    /* Les boutons partent TOUT DE SUITE, la carte s'efface ensuite. L'inverse
+       — laisser vivre les boutons pendant les 400 ms du fondu — rouvrirait la
+       fenêtre qu'on vient de fermer, en plus petit. */
+    const actes = el.querySelector(".nacts");
+    if (actes) actes.remove();
+    el.classList.remove("on");
+    setTimeout(() => el.remove(), 400);
+  },
+
   /* Retire une demande sans y répondre — le serveur l'a résolue autrement
      (l'agent a été interrompu, la session est morte). */
   drop(id){
     const i = this.list.findIndex((n) => n.id === id);
     if (i < 0) return;
     this.list.splice(i, 1);
+    this.dropToast(id);
     this.drawBell();
     if (this.open) this.draw();
   }

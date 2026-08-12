@@ -5027,10 +5027,27 @@ function avertissementAccordsHTML(){
 }
 
 /* La porte, côté écran. Rend la phrase du refus, ou "" pour laisser passer. */
+/* ⚠ LE VRAI PAYLOAD N'A PAS DE `tool`, ET LE FAUX EN AVAIT UN.
+   Relevé sur l'installation le 2026-08-12, à la PREMIÈRE ouverture réelle de
+   la porte d'accord. Pour une commande, Hermès envoie :
+     {command, pattern_key, pattern_keys, description,
+      allow_permanent, allow_session, choices}
+   — ni `tool`, ni `path`. `refusDeMode` lisait `pl.tool || pl.name`, ne
+   trouvait rien, et laissait passer : en Plan, une COMMANDE n'était donc pas
+   refusée d'office, elle était soumise à la personne. Le mode ne tenait pas ce
+   qu'il pouvait tenir, et c'est le seul endroit où il tient quelque chose.
+   Le faux du banc envoyait `{tool, command, path}` — dixième fois qu'un faux
+   qui ne ment pas comme le vrai ne prouve rien.
+
+   La règle ajoutée se lit toute seule : **une demande qui porte une `command`
+   est une exécution**, et l'exécution est exactement ce que Plan exclut. On
+   continue de NOMMER ce qu'on refuse — un outil inconnu, sans commande,
+   demande toujours l'accord plutôt que d'être avalé en silence. */
 coreHooks.refusDeMode = (pl) => {
   if (mode !== "plan") return "";
   const outil = String((pl && (pl.tool || pl.name)) || "").toLowerCase();
-  if (!OUTILS_QUI_MODIFIENT[outil]) return "";
+  const commande = String((pl && pl.command) || "").trim();
+  if (!OUTILS_QUI_MODIFIENT[outil] && !(commande && !outil)) return "";
   /* ⚠ LE REFUS DIT SA CAUSE ET LA SORTIE. Un refus qui s'arrête à « non » est
      un mur poli : la personne voit l'agent s'interrompre sans savoir que le
      mode en est la raison, ni que la sortie tient en un clic. */

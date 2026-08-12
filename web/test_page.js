@@ -1189,8 +1189,50 @@ async function main(){
   check("le refus part au serveur", r3 && r3.params.choice === "deny",
     JSON.stringify(r3 && r3.params));
   check("et le fil le dit", /Refusé/.test(win.document.getElementById("thread").textContent));
+  /* ⚠ ET LE BANDEAU FLOTTANT TOMBE AVEC. Une demande vit a TROIS endroits : la
+     cloche, le fil, et le bandeau. `drop()` ne connaissait que `this.list` — il
+     retirait la demande de la cloche et laissait le bandeau a l'ecran, avec ses
+     deux boutons, apres un refus donne dans le fil.
+     Le clic ne reautorisait rien (`answer` sort si l'entree a disparu) : il ne
+     faisait RIEN, sans un mot. Un bouton vivant sur une decision deja prise est
+     pire qu'un bouton absent.
+     Vu le 2026-08-12, la PREMIERE fois que la porte s'est ouverte pour de vrai.
+     Aucun scenario ne pouvait l'atteindre avant : Hermes ne demandait jamais. */
+  check("...et le bandeau flottant tombe avec : une décision prise l'est partout",
+    !win.document.querySelector("#toasts .toast .nacts"),
+    win.document.querySelectorAll("#toasts .toast").length + " bandeau(x) restant(s)");
   FakeWS.last.push({ jsonrpc: "2.0", id: r3.id, result: { resolved: 1 } });
   await wait(50);
+
+  /* ⚠ LA VRAIE FORME DU PAYLOAD, RELEVEE SUR L'INSTALLATION LE 2026-08-12.
+     Le faux d'ici envoyait `{tool, command, path}`. Le vrai Hermes, pour une
+     commande terminal, envoie :
+       {command, pattern_key, pattern_keys, description,
+        allow_permanent, allow_session, choices}
+     — NI `tool`, NI `path`. C'est ce qui casse `refusDeMode`, qui lit
+     `pl.tool || pl.name` et ne trouve rien : en Plan, une commande n'est donc
+     PAS refusee d'office, elle est soumise a la personne.
+     Dixieme fois qu'un faux qui ne ment pas comme le vrai ne prouve rien. */
+  {
+    const vrai = { command: 'echo "DROP TABLE clients"', pattern_key: "SQL DROP",
+      pattern_keys: ["SQL DROP"], description: "SQL DROP",
+      allow_permanent: true, allow_session: true,
+      choices: ["once", "session", "always", "deny"] };
+    check("le payload d'accord d'Hermès n'a NI tool NI path — le faux en avait",
+      !("tool" in vrai) && !("path" in vrai) && !!vrai.command && !!vrai.pattern_key);
+    win.eval("conv.approval = null; conv.turns.length = 0;");
+    win.eval('setMode2("plan");');
+    win.eval("link.listeners.forEach(function(f){ f('approval.request', "
+      + JSON.stringify({ type: "approval.request", session_id: "S1", payload: vrai })
+      + "); });");
+    await wait(40);
+    win.eval("paintThread()");
+    check("...et en Plan, une COMMANDE est refusée d'office comme une écriture",
+      !!win.document.querySelector("#thread .m-refus")
+      && win.eval("conv.approval") === null,
+      win.eval("conv.approval") ? "la question a été posée" : "refusée");
+    win.eval('setMode2("build"); conv.approval = null; conv.turns.length = 0; paintThread();');
+  }
 
   console.log("\n--- Les pieces jointes ---");
   /* Le navigateur n'a pas de chemin serveur : il envoie les octets, le
