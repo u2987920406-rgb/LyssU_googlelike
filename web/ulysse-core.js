@@ -418,7 +418,19 @@ const conv = {
   status: null,      // derniere status.update
   running: false,
   approval: null,
-  turns: []
+  turns: [],
+  /* ⚠ VRAIE, MAIS PAS ENTIÈRE. `resumeSession` reconstruit le texte des tours
+     (voir plus bas), mais `session.resume` ne rend le contenu structuré
+     d'AUCUN outil — pour `todo`, il rend « planning 6 task(s) », jamais la
+     liste {id, content, status} que `lireTodo()` sait lire. Impossible donc de
+     reconstruire le graphe du Plan après une reprise, MÊME quand le texte du
+     tour dit noir sur blanc que l'agent l'a posé.
+     Ce drapeau distingue « aucun outil n'a été utilisé » (silence honnête) de
+     « des outils ont été utilisés mais on ne peut plus les montrer » (silence
+     qui mentirait). Il retombe au premier événement live — un nouveau tour
+     REND la vraie reconstruction possible, la mise en garde n'a plus lieu
+     d'être. */
+  resumed: false
 };
 const studioLog = [];
 let turnSeq = 0;
@@ -495,6 +507,9 @@ link.onEvent((type, params) => {
 
   switch (type){
     case "message.start":
+      // Un vrai tour live commence : la reconstruction redevient possible,
+      // la mise en garde de la reprise n'a plus lieu d'être.
+      conv.resumed = false;
       newTurn("assistant");
       break;
 
@@ -937,6 +952,7 @@ async function resumeSession(storedId){
   conv.storedId = res.session_key || storedId;
   conv.info = res.info || null;
   conv.turns = [];
+  conv.resumed = true;
   (res.messages || []).forEach((m) => {
     if (m.role !== "user" && m.role !== "assistant") return;
     const t = newTurn(m.role, typeof m.text === "string" ? m.text : contentToText(m.content));
@@ -1026,6 +1042,7 @@ function resetSession(){
   conv.running = false;
   conv.approval = null;
   conv.turns = [];
+  conv.resumed = false;
   studioLog.length = 0;
   clearTimeout(turnWatchdog);
   coreHooks.onChange();

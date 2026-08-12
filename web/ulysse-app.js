@@ -1391,6 +1391,26 @@ function drawPlan(){
   graph.setData(steps, edges, FAMILLES);
 
   if (!steps.length){
+    /* ⚠ « RIEN ENCORE » MENT APRÈS UNE REPRISE. Éprouvé le 2026-08-12 : fermer
+       l'onglet en plein plan, le rouvrir, reprendre via Travaux — le FIL dit
+       « Plan posé avec l'outil todo, 6 étapes » et les nomme. Cet écran, lui,
+       disait « Rien encore », comme si l'agent n'avait touché aucun outil.
+       Ce n'est pas un oubli qu'on peut réparer : `session.resume` ne rend
+       JAMAIS le contenu structuré d'un outil — pour `todo`, un résumé
+       (« planning 6 task(s) »), jamais la liste que `lireTodo()` sait lire.
+       Le graphe ne peut donc pas se reconstruire, à aucun prix honnête.
+       On ne le fait pas semblant : on dit CE QUI MANQUE et OÙ le retrouver
+       plutôt que RIEN — la même règle que `Notifications` et `Panneau des
+       fichiers` appliquent déjà chacun à leur manque. */
+    if (conv.resumed && conv.turns.length){
+      H("steps", '<div class="empty" style="padding:36px 20px">'
+        + '<div class="big">Le détail ne survit pas à une reprise.</div>'
+        + '<div class="u-vide-sub">Cette conversation a été reprise depuis Travaux : '
+        + "Hermès ne renvoie pas la structure des outils déjà appelés, seulement "
+        + "un résumé. Le fil, lui, garde ce que l'agent a répondu — c'est là qu'il "
+        + "faut lire ce qui a été fait.</div></div>");
+      return;
+    }
     // L'état vide arrête de faire peur. La réserve technique est JUSTE — sans
     // ce réglage rien n'apparaîtra jamais, et il fallait le dire — mais elle
     // s'adresse à quelqu'un qui débogue, pas à quelqu'un qui attend. Ce qui

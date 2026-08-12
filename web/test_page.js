@@ -1571,6 +1571,51 @@ async function main(){
     win.eval("link.rpc = window.__rpcOrig; delete window.__rpcOrig;"
       + " accueil = false; majEtats();");
   }
+  /* ⚠ ET LE GRAPHE DU PLAN, LUI, RESTE MUET SANS LE DIRE. Trouvé en fermant
+     l'onglet en PLEIN plan (le todo posé côté serveur pendant la fermeture),
+     en reprenant : le fil dit noir sur blanc « Plan posé avec l'outil todo, 6
+     étapes » et les nomme — l'écran « Ce que fait l'agent » disait « Rien
+     encore. », comme si aucun outil n'avait jamais tourné.
+     Ce n'est pas réparable au sens plein : `session.resume` ne rend JAMAIS le
+     contenu structuré d'un outil, pour `todo` un simple résumé texte
+     (« planning 6 task(s) »), jamais {id, content, status}. Le mieux honnête
+     est de dire ce qui manque, pas de prétendre qu'il n'y a rien à montrer. */
+  {
+    win.eval("window.__rpcOrig = link.rpc.bind(link); link.rpc = function(m, p){"
+      + " return m === 'session.resume'"
+      + "   ? Promise.resolve({ session_id: 'fresh3', session_key: 'stored3',"
+      + "       info: { cwd: 'C:/p' }, running: false,"
+      + "       messages: ["
+      + "         { role: 'user', text: 'fais un plan', row_id: 1 },"
+      + "         { role: 'tool', name: 'todo', context: 'planning 6 task(s)' },"
+      + "         { role: 'assistant', text: 'Plan pose : 6 etapes.', row_id: 2 }"
+      + "       ] })"
+      + "   : window.__rpcOrig(m, p); };");
+    await win.eval("resumeSession('stored3')");
+    win.eval("drawPlan()");
+    const vide = win.document.getElementById("steps");
+    check("le graphe dit que le détail ne survit pas à une reprise — pas « rien encore »",
+      /ne survit pas à une reprise/.test(vide.textContent)
+      && !/Rien encore/.test(vide.textContent),
+      vide.textContent.slice(0, 60));
+    /* Et une conversation NEUVE, sans outil appelé, garde son vrai message :
+       le drapeau ne doit pas fuir sur une session qui n'a simplement rien
+       demandé à un outil. */
+    win.eval("resetSession(); conv.turns.length = 0; newTurn('assistant').state = 'done';"
+      + " drawPlan();");
+    check("...mais une conversation neuve sans outil garde bien « Rien encore »",
+      /Rien encore/.test(win.document.getElementById("steps").textContent));
+    /* Et le drapeau retombe aussi SANS `resetSession()` — le cas réel : on
+       reprend un fil, puis on continue de discuter DANS la même session. Le
+       premier événement live (`message.start`) doit lever la mise en garde,
+       pas seulement un nouveau fil explicite. */
+    win.eval("conv.resumed = true;");
+    win.eval("link.listeners.forEach(function(f){ f('message.start',"
+      + " { type: 'message.start', session_id: 'S1', payload: {} }); });");
+    check("...et un vrai tour live suffit à lever le drapeau, sans passer par resetSession",
+      win.eval("conv.resumed") === false);
+    win.eval("link.rpc = window.__rpcOrig; delete window.__rpcOrig; resetSession();");
+  }
 
   console.log("\n--- Le mode : une permission, pas un moteur ---");
   const segs = win.document.querySelectorAll('.u-modeseg button[data-mode="plan"]');
