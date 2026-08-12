@@ -611,38 +611,24 @@ function paintThread(){
   // La demande d'accord se pose EN FIN DE FIL, là où l'agent s'est arrêté.
   // C'est ce qui le bloque : ça ne peut pas vivre seulement dans une cloche.
   h += accordHTML();
-  // Et l'avertissement des accords vient APRÈS tout le reste : c'est la
-  // dernière chose qu'on lit avant de retaper, donc celle qu'on n'ignore pas.
-  h += avertissementAccordsHTML();
+  /* ⚠ LA PORTÉE DU MODE NE S'ÉCRIT PLUS DANS LE FIL. Elle s'y posait après
+     chaque tour, en gros pavé, sous des réponses qui n'avaient rien à voir —
+     kuchu, 2026-08-13 : « ça n'a rien à faire là ». Il avait raison : le fil
+     appartient à la conversation. Un avertissement permanent qui s'invite dans
+     un échange sur autre chose n'est plus lu comme un avertissement, il est lu
+     comme du bruit — et un avertissement qu'on apprend à sauter ne protège
+     plus de rien.
+     Le texte n'a pas disparu : il vit derrière le « i » de la gélule Plan,
+     là où l'on va quand on se demande ce que ce mode retient. Voir
+     `infoModeHTML()`. */
 
   host.innerHTML = h;
   host.querySelectorAll("[data-ch]").forEach((b) => {
     b.onclick = () => repondreAccord(b.dataset.ch);
   });
-  /* Le bouton bascule ET relance. Basculer sans rien dire laisserait la
-     personne devant un mode changé et un agent qui attend : elle devrait
-     retaper « vas-y ». Le message part donc avec, court et explicite. */
-  /* Le clic EST l'accord — et il est explicite, parce que ce réglage sort
-     d'Ulysse : il vaut pour le terminal d'Hermès et toutes les sessions.
-     Ulysse ne l'écrit jamais de lui-même. */
-  const am = host.querySelector("#accordsManuel");
-  if (am) am.onclick = async () => {
-    am.disabled = true;
-    try {
-      await link.rpc("config.set", { key: "approval_mode", value: "manual" }, 20000);
-      await lireModeAccords();
-      // Le message disait « le mode Plan tient maintenant sa promesse ». Il ne
-      // la tient pas : Hermès ne demande rien pour une écriture ordinaire.
-      // On dit ce que le clic a vraiment obtenu, ni plus.
-      snack(porteConsultee()
-        ? "Accords en manuel — Ulysse est consulté quand Hermès demande."
-        : "Le réglage n'a pas pris : les accords restent en « "
-          + (modeAccords || "inconnu") + " ».");
-    } catch (e){
-      am.disabled = false;
-      snack("Le réglage des accords n'a pas pu être écrit : " + pannePhrase(e));
-    }
-  };
+  /* `#accordsManuel` ne se câble plus ici : le bouton a suivi son texte dans
+     la bulle du « i ». Le laisser aurait fait un câblage qui ne trouve jamais
+     son bouton — du code mort, c'est-à-dire une embuscade pour qui le lira. */
   const bb = host.querySelector("#basculeBuild");
   if (bb) bb.onclick = async () => {
     bb.disabled = true;
@@ -4354,6 +4340,8 @@ function ajusterTerm(){
 
 function ouvrirPty(){
   if (!term) return;
+  // L'heure de la dernière ouverture : elle sert au garde-fou de `onclose`.
+  ouvrirPty._derniere = Date.now();
   termEtat = "ouverture";
   majTermEtat();
   let ws;
@@ -4397,20 +4385,61 @@ function ouvrirPty(){
     majTermEtat();
     // Les codes viennent d'Hermès (web_server.py:15748) : chacun dit une
     // cause différente, et les confondre ferait chercher au mauvais endroit.
+    /* ⚠ UNE FIN NORMALE REND LA MAIN SUR UNE PAGE NEUVE ; UN REFUS, NON.
+       Quand la TUI se termine d'elle-même (`exit`, code 4410), on n'a pas
+       quitté le terminal — on a fini une séance. Rester devant l'écran mort de
+       la précédente oblige à cliquer pour retrouver ce qu'on avait : Ulysse
+       rouvre donc tout seul, sur une page propre.
+       Les autres codes sont des REFUS (authentification, origine, surface
+       desactivée). Rouvrir dessus ferait une boucle qui ne se voit pas et qui
+       cogne au serveur — on garde l'écran tel quel, avec le motif dessus, et
+       c'est la personne qui décide. */
     const pourquoi = { 4401: "l'authentification a été refusée",
                        4403: "l'origine ou l'hôte a été refusé",
                        4404: "la surface intégrée est désactivée côté serveur",
                        4408: "ce client n'est pas autorisé",
                        4410: "la session s'est terminée" }[ev.code];
+    /* Le garde-fou compte les morts INSTANTANÉES, pas le temps depuis la
+       dernière ouverture. Écrit d'abord « pas de relance si on a ouvert il y a
+       moins de 5 s », il refusait de rouvrir après une séance de trois
+       secondes — une vraie séance, courte. Ce qui distingue une boucle d'une
+       fin normale, ce n'est pas quand on a ouvert : c'est que la session n'ait
+       pas VÉCU. Deux morts à l'ouverture d'affilée, et on s'arrête en le
+       disant ; le bouton reste. */
+    const vecu = Date.now() - (ouvrirPty._derniere || 0);
+    if (ev.code === 4410){
+      ouvrirPty._instantanees = vecu < 2000 ? (ouvrirPty._instantanees || 0) + 1 : 0;
+      if (ouvrirPty._instantanees >= 2){
+        termDit("La session s'est refermée aussitôt ouverte, deux fois — on ne "
+          + "la relance pas en boucle. « Ouvrir une session » réessaie.", "33");
+        return;
+      }
+      pageNeuve();
+      ouvrirPty();
+      return;
+    }
     termDit(pourquoi ? "Session terminée — " + pourquoi + "."
       : "Session terminée." + (ev.reason ? " " + ev.reason : ""), "33");
   };
+}
+
+/* ⚠ UNE SESSION FERMÉE LAISSE UNE PAGE NEUVE, PAS SON CADAVRE.
+   kuchu, 2026-08-13 : « lorsque je ferme une session il faut se retrouver avec
+   une nouvelle page de session cli ». Avant, le tampon de xterm gardait tout —
+   on refermait, et l'écran restait couvert du texte de la séance finie, avec
+   un curseur qui ne répondait plus. La session d'après s'ouvrait EN DESSOUS,
+   à la suite de la précédente : deux séances mêlées dans le même défilement,
+   et rien pour dire où l'une finissait. */
+function pageNeuve(){
+  if (!term) return;
+  try { term.reset(); } catch (e){ /* xterm absent ou déjà libéré */ }
 }
 
 function fermerPty(){
   if (termWS){ try { termWS.close(); } catch (e){ /* déjà fermé */ } }
   termWS = null;
   termEtat = "repos";
+  pageNeuve();
   majTermEtat();
 }
 
@@ -4806,6 +4835,9 @@ function drawTerm(){
   $("tGo").onclick = () => {
     if (termEtat === "ouvert"){ fermerPty(); return; }
     if (!term){ brancherTerminal(); return; }
+    // On n'ouvre jamais une session SOUS la précédente : deux séances dans le
+    // même défilement, sans rien pour dire où l'une finit.
+    pageNeuve();
     ouvrirPty();
   };
   const sortie = $("tSortie");
@@ -5497,30 +5529,47 @@ async function lireModeAccords(){
    Alors on ne promet plus. On dit ce qui est vrai, dans les deux réglages. */
 function porteConsultee(){ return modeAccords === "manual"; }
 
+/* Le contenu du « i », à côté de la gélule du mode.
+   ⚠ IL DIT LA MÊME CHOSE QU'AVANT, AU MÊME ENDROIT DANS LE CODE. Ce texte a
+   coûté une soirée de mesures sur cette installation ; ce qui a changé le
+   2026-08-13, c'est OÙ il s'affiche, pas ce qu'il affirme. Le déplacer dans un
+   second texte « plus court pour la bulle » aurait fait deux versions d'une
+   phrase dont la justesse est tout l'intérêt. */
+function infoModeHTML(){
+  if (modeAccords === null){
+    return "<strong>Ce que ce mode retient.</strong> Le réglage des accords "
+      + "d'Hermès n'a pas encore été lu — sans lui, on ne peut rien affirmer "
+      + "ici, et on préfère ne rien dire que dire à faux.";
+  }
+  if (mode === "build"){
+    return "<strong>Build : l'agent écrit et exécute.</strong> Il fait le "
+      + "travail, puis le vérifie contre le plan. Rien ne l'en empêche, et "
+      + "c'est le but de ce mode."
+      + '<div class="u-meta">Les accords d\'Hermès sont sur « '
+      + esc(modeAccords) + " ».</div>";
+  }
+  return avertissementAccordsHTML();
+}
+
 function avertissementAccordsHTML(){
   if (mode !== "plan" || modeAccords === null) return "";
   /* Accords en manuel : Ulysse EST consulté — mais seulement sur ce qu'Hermès
      lui soumet, et il ne lui soumet pas une écriture ordinaire. Plus de
      bouton : il n'y a plus rien à basculer. Plus de rouge non plus — ce n'est
      pas une alarme, c'est la portée exacte de ce qu'on a. */
-  /* `m-portee` : ce n'est PAS un message de panne. Rien n'est cassé, rien à
-     relancer — c'est la portée de ce que le mode retient. Sans cette marque,
-     le garde « chaque message de panne dit quoi faire » l'attrape et réclame
-     une consigne qui n'aurait aucun sens ici. */
+  /* Rend le CONTENU seul, sans enveloppe de message : il ne se pose plus dans
+     le fil, il remplit la bulle du « i ». */
   if (porteConsultee()){
-    return '<div class="msg u-sys m-portee"><div class="u-md">'
-      + "<strong>Ce que le mode Plan retient, et ce qu'il ne retient pas.</strong> "
+    return "<strong>Ce que le mode Plan retient, et ce qu'il ne retient pas.</strong> "
       + "Les accords sont en manuel : quand Hermès demande, Ulysse refuse ici. "
       + "Mais Hermès ne demande pas pour tout — un fichier écrit ou une "
       + "commande sans motif de danger passent sans question, à tout réglage. "
       + "Ce qui retient l'agent en Plan, c'est la consigne qu'il reçoit, et "
       + "il peut l'oublier."
       + "<div class=\"u-meta\">Mesuré sur cette installation, pas déduit : "
-      + "un fichier écrit et une commande lancée, aucune demande d'accord.</div>"
-      + "</div></div>";
+      + "un fichier écrit et une commande lancée, aucune demande d'accord.</div>";
   }
-  return '<div class="msg u-sys m-refus"><div class="u-md">'
-    + "<strong>Le mode Plan ne peut rien garantir pour l'instant.</strong> "
+  return "<strong>Le mode Plan ne peut rien garantir pour l'instant.</strong> "
     + "Les accords d'Hermès sont réglés sur « " + esc(modeAccords) + " » : "
     + "l'agent s'autorise lui-même ce qu'il juge sans danger, et Ulysse n'est "
     + "jamais consulté. Il peut donc écrire et exécuter, même ici."
@@ -5528,8 +5577,7 @@ function avertissementAccordsHTML(){
     + 'id="accordsManuel">Passer les accords en manuel</button></div>'
     + "<div class=\"u-meta\">Ce réglage est global : il vaut aussi pour le "
     + "terminal d'Hermès et les autres sessions. Il élargit ce qu'Ulysse peut "
-    + "refuser — il ne couvre pas les écritures de fichier.</div>"
-    + "</div></div>";
+    + "refuser — il ne couvre pas les écritures de fichier.</div>";
 }
 
 /* La porte, côté écran. Rend la phrase du refus, ou "" pour laisser passer. */
@@ -5671,6 +5719,40 @@ function boot(){
       e.stopPropagation();
       const p = document.querySelector(".u-modeseg");
       if (p) p.classList.toggle("on");
+    };
+  }
+  /* Le « i ». Il REMPLIT au moment du clic, jamais d'avance : le réglage des
+     accords se lit au démarrage et peut changer depuis le terminal d'Hermès —
+     une bulle peinte une fois pour toutes finirait par affirmer l'état d'hier. */
+  if ($("infoMode")){
+    $("infoMode").onclick = (e) => {
+      e.stopPropagation();
+      const p = $("infoModePop");
+      if (!p) return;
+      if (p.classList.contains("on")){ p.classList.remove("on"); return; }
+      p.innerHTML = infoModeHTML();
+      p.classList.add("on");
+      // Un clic DANS la bulle ne la referme pas : le clic global ferme tous
+      // les `.pop.on`, et le bouton du réglage vit dedans.
+      p.onclick = (ev) => ev.stopPropagation();
+      // Le même bouton que dans l'ancien encart, avec le même effet : il sort
+      // d'Ulysse et vaut pour tout Hermès, donc le clic EST l'accord.
+      const b = p.querySelector("#accordsManuel");
+      if (b) b.onclick = async () => {
+        b.disabled = true;
+        try {
+          await link.rpc("config.set", { key: "approval_mode", value: "manual" }, 20000);
+          await lireModeAccords();
+          snack(porteConsultee()
+            ? "Accords en manuel — Ulysse est consulté quand Hermès demande."
+            : "Le réglage n'a pas pris : les accords restent en « "
+              + String(modeAccords) + " ».");
+          p.innerHTML = infoModeHTML();
+        } catch (err){
+          snack("Réglage non changé : " + err.message);
+          b.disabled = false;
+        }
+      };
     };
   }
   setMode2(mode);

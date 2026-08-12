@@ -378,6 +378,10 @@ class FakeTerminal {
      taille en pixels : sans `refresh`, le contenu reste dans le tampon,
      invisible. On compte les repeints pour pouvoir l'exiger. */
   refresh(){ this.repeints++; }
+  /* `reset()` vide le tampon — c'est ce que fait le vrai xterm. Le compter
+     permet d'exiger qu'une session fermee laisse une PAGE NEUVE, et pas le
+     texte de la seance finie sous un curseur qui ne repond plus. */
+  reset(){ this.ecrit.length = 0; this.remises = (this.remises || 0) + 1; }
   /* Tout ce qui a ete peint, mis bout a bout — pratique pour chercher une
      phrase sans se soucier du decoupage des ecritures. */
   tout(){ return this.ecrit.join(""); }
@@ -1927,11 +1931,31 @@ async function main(){
      yeux. Trouve en jouant un scenario reel, jamais au banc.
      Ulysse ne peut pas reparer seul (le reglage est GLOBAL, il vaut pour le
      TUI). Alors il regarde, il le DIT, et il propose. Le clic est l'accord. */
+  /* ⚠ ET IL LE DIT AILLEURS QUE DANS LE FIL, DEPUIS LE 2026-08-13. L'encart se
+     posait après chaque tour, sous des réponses qui n'avaient rien à voir.
+     kuchu, capture à l'appui : « ça n'a rien à faire là ». Un avertissement
+     permanent qui s'invite dans un échange sur autre chose n'est plus lu comme
+     un avertissement — il est lu comme du bruit, et on apprend à le sauter.
+     Il vit derrière le « i » de la gélule du mode. Ce qu'on vérifie ici est
+     donc double : que le fil n'en porte plus rien, ET que la bulle le dit. */
+  const bulle = () => (win.document.getElementById("infoModePop") || {}).textContent || "";
+  const ouvrirBulle = () => {
+    const p = win.document.getElementById("infoModePop");
+    if (p) p.classList.remove("on");
+    win.document.getElementById("infoMode").click();
+  };
   win.eval('conv.turns.length = 0; modeAccords = "smart"; setMode2("plan"); paintThread();');
-  check("accords en « smart » : Ulysse dit que Plan ne garantit rien",
-    !!win.document.getElementById("accordsManuel")
-    && /s'autorise lui-même/.test(win.document.getElementById("thread").textContent),
-    win.document.getElementById("accordsManuel") ? "" : "aucun avertissement");
+  check("le fil ne porte AUCUN pavé d'avertissement — il appartient à la conversation",
+    !/s'autorise lui-même/.test(win.document.getElementById("thread").textContent)
+    && !win.document.getElementById("accordsManuel"),
+    win.document.getElementById("thread").textContent.slice(0, 80));
+  check("un « i » se tient à côté de la gélule du mode",
+    !!win.document.getElementById("infoMode"));
+  ouvrirBulle();
+  check("accords en « smart » : la bulle dit que Plan ne garantit rien",
+    /s'autorise lui-même/.test(bulle())
+    && !!win.document.querySelector("#infoModePop #accordsManuel"),
+    bulle().slice(0, 90));
   /* ⚠ ET LA PROMESSE ELLE-MEME DISPARAIT. Le garder tout en affichant
      l'avertissement, ce serait dire une chose et son contraire sur le meme
      ecran — et c'est la version affirmative qu'on retiendrait. */
@@ -1956,18 +1980,30 @@ async function main(){
     const fil = win.document.getElementById("thread").textContent;
     check("accords en « manuel » : la promesse ne revient PAS — elle n'est vraie nulle part",
       !/[Rr]ien ne sera modifi/.test(fil), fil.slice(0, 80));
-    check("...et l'écran ne se tait pas non plus : il dit ce qui n'est pas retenu",
-      /ne retient pas/.test(fil) && /sans question/.test(fil), fil.slice(0, 120));
+    /* ⚠ LA BULLE SE REMPLIT AU CLIC, PAS UNE FOIS POUR TOUTES. Le réglage des
+       accords se lit au démarrage et peut changer depuis le terminal d'Hermès :
+       une bulle peinte d'avance finirait par affirmer l'état d'hier — c'est-à-
+       dire exactement le genre de promesse fausse qu'on vient de retirer. On
+       change donc le réglage ENTRE deux ouvertures, et on exige que le texte
+       change avec lui. */
+    ouvrirBulle();
+    check("...et la bulle ne se tait pas : elle dit ce qui n'est PAS retenu",
+      /ne retient pas/.test(bulle()) && /sans question/.test(bulle()),
+      bulle().slice(0, 120));
     check("...sans bouton, puisqu'il n'y a plus rien à basculer",
-      !win.document.getElementById("accordsManuel"));
+      !win.document.querySelector("#infoModePop #accordsManuel"));
   }
   /* Tant qu'on n'a pas pu lire le reglage, on n'affirme RIEN — ni promesse,
      ni accusation, ni portee. On ne remplace pas un mensonge par un autre. */
   win.eval('modeAccords = null; paintThread();');
+  ouvrirBulle();
   check("...et tant qu'on ignore le réglage, on n'affirme rien du tout",
-    !win.document.getElementById("accordsManuel")
-    && !/[Rr]ien ne sera modifi/.test(win.document.getElementById("thread").textContent)
-    && !/ne retient pas/.test(win.document.getElementById("thread").textContent));
+    !win.document.querySelector("#infoModePop #accordsManuel")
+    && !/[Rr]ien ne sera modifi/.test(bulle())
+    && !/ne retient pas/.test(bulle()), bulle().slice(0, 90));
+  check("...et le fil, lui, n'a jamais rien porté de tout ça",
+    !/ne retient pas|s'autorise lui-même/.test(
+      win.document.getElementById("thread").textContent));
   /* La phrase ne doit pas non plus se reinstaller par la bande — elle vivait a
      TROIS endroits : l'accueil, la note sous le composeur, et l'encart. */
   win.eval('modeAccords = "manual"; conv.turns.length = 0; setMode2("plan"); paintThread();');
@@ -3284,11 +3320,52 @@ async function main(){
   check("« Ouvrir une session » rouvre bien un pont",
     ptyUrls().length === 2 && win.eval("termEtat") === "ouvert",
     ptyUrls().length + " pont(s), état " + win.eval("termEtat"));
+  /* ⚠ UNE SESSION FERMEE LAISSE UNE PAGE NEUVE, PAS SON CADAVRE.
+     kuchu, 2026-08-13. Avant, le tampon de xterm gardait tout : on refermait,
+     l'ecran restait couvert du texte de la seance finie sous un curseur qui ne
+     repondait plus — et la session suivante s'ouvrait EN DESSOUS, a la suite,
+     deux seances melees dans le meme defilement. */
+  FakeTerminal.last.write("des lignes de la seance precedente");
   win.document.getElementById("tGo").click();
   await wait(20);
   check("« Fermer la session » ferme vraiment",
     win.eval("termEtat") === "repos" && win.eval("termWS") === null,
     win.eval("termEtat"));
+  check("...et laisse une PAGE NEUVE, pas le texte de la seance finie",
+    FakeTerminal.last.tout() === "", FakeTerminal.last.tout().slice(0, 60));
+  win.document.getElementById("tGo").click();
+  await wait(60);
+  check("...et rouvrir n'empile pas la nouvelle session sous l'ancienne",
+    win.eval("termEtat") === "ouvert" && FakeTerminal.last.remises >= 2,
+    "remises : " + FakeTerminal.last.remises);
+
+  /* ⚠ UNE FIN NORMALE REND LA MAIN SUR UNE SESSION NEUVE ; UN REFUS, NON.
+     `exit` dans la TUI (code 4410) ne veut pas dire « je quitte le terminal » :
+     la seance est finie, on en veut une autre. Rouvrir sur un REFUS, en
+     revanche, ferait une boucle invisible qui cogne au serveur. */
+  {
+    const avant = ptyUrls().length;
+    FakeTerminal.last.write("la seance qui vient de finir");
+    FakeWS.dernierPty.onclose({ code: 4410 });
+    await wait(80);
+    check("une fin normale (4410) rouvre TOUT SEUL une session neuve",
+      ptyUrls().length === avant + 1 && win.eval("termEtat") === "ouvert",
+      ptyUrls().length + " pont(s), etat " + win.eval("termEtat"));
+    check("...sur une page vide, sans le texte de la precedente",
+      !/seance qui vient de finir/.test(FakeTerminal.last.tout()),
+      FakeTerminal.last.tout().slice(0, 60));
+
+    // Deux fins coup sur coup : on s'arrete, et on le DIT. Une TUI qui meurt a
+    // la seconde ou elle s'ouvre relancerait sans fin, sans que ca se voie.
+    const avant2 = ptyUrls().length;
+    FakeWS.dernierPty.onclose({ code: 4410 });
+    await wait(80);
+    check("...mais deux fins coup sur coup n'entrent pas en boucle",
+      ptyUrls().length === avant2, ptyUrls().length + " vs " + avant2);
+    check("...et l'ecran dit pourquoi il ne relance plus",
+      /refermée aussitôt|refermee aussitot/.test(FakeTerminal.last.tout()),
+      FakeTerminal.last.tout().slice(0, 80));
+  }
 
   // xterm.js absent : la page ne peut pas le savoir avant d'essayer, et un
   // écran noir muet ferait croire à une panne d'Hermès.
@@ -4523,11 +4600,12 @@ async function main(){
      que « le prochain message ouvrira une nouvelle session » alors que le lien
      venait d'être coupé. Deux messages qui se contredisent, et c'est le
      premier qu'on lit. Les deux doivent donc tenir. */
-  /* `.m-portee` est exclu : c'est l'encart qui dit ce que le mode Plan retient
-     et ne retient pas. Rien n'y est cassé, il n'y a donc rien à relancer — lui
-     réclamer une consigne reviendrait à lui faire inventer une panne. */
+  /* L'exception `.m-portee` a disparu avec l'encart : ce que le mode retient
+     ne s'écrit plus dans le fil depuis le 2026-08-13, il vit derrière le « i »
+     de la gélule. Plus rien à exclure — tout message du fil est un message qui
+     parle d'un ennui, et doit donc dire quoi faire. */
   const pannes = [...win.document.querySelectorAll(
-    "#thread .msg.u-err, #thread .msg.u-sys:not(.m-portee)")];
+    "#thread .msg.u-err, #thread .msg.u-sys")];
   const muets = pannes.filter((m) => !/(relanc|lancez|Discussion)/i.test(m.textContent));
   check("lien coupé · ...et CHAQUE message dit quoi faire, aucun ne se contredit",
     pannes.length > 0 && muets.length === 0,
