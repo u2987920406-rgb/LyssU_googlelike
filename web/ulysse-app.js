@@ -421,6 +421,17 @@ function turnHTML(t){
     h += "<details><summary>réflexion de l'agent</summary><pre class=\"u-raw\">"
       + esc(t.reasoning) + "</pre></details>";
   }
+  /* ⚠ UN BLOC MUET NE DIT PAS POURQUOI IL SE TAIT. On corrige sa demande en
+     plein tour, l'agent repart sur la correction, et le premier bloc « Ulysse »
+     reste vide pour toujours. En relisant demain, on voit Ulysse ne rien
+     répondre sans savoir que c'est nous qui l'avons coupé.
+     La marque se pose tout de suite (tranché par kuchu). Elle ne peut pas
+     accuser à tort : une fois la correction envoyée, ce bloc-là ne peut plus
+     rien recevoir — voir la note sur `currentAssistantTurn` dans
+     ulysse-core.js. */
+  if (t.interrompu){
+    h += '<div class="u-coupe">↩ Interrompu par votre correction.</div>';
+  }
   if (t.text || t.role !== "assistant" || !(t.tools && t.tools.length)){
     // Catégorie 3 (mauvais affichage) : le markdown de l'agent est rendu
     // (tables, gras, listes...) au lieu d'être affiché en texte brut.

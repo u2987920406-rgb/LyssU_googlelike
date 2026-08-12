@@ -1248,6 +1248,66 @@ async function main(){
   }
 
 
+  console.log("\n--- Le tour qu'on coupe en corrigeant ---");
+  /* Vu en jouant un scenario le 2026-08-12 : on corrige sa demande pendant que
+     l'agent travaille, il repart sur la correction, et le premier bloc
+     « Ulysse » reste vide POUR TOUJOURS. En relisant le fil, on voit Ulysse ne
+     rien repondre sans savoir que c'est nous qui l'avons coupe.
+     Trancher par kuchu : marquer TOUT DE SUITE, pas a la fermeture du tour. */
+  {
+    win.eval('conv.turns.length = 0; conv.approval = null; conv.running = false;');
+    win.eval('newTurn("user", "Un plan pour 2026").state = "done"; newTurn("assistant");');
+    win.eval("conv.running = true; paintThread();");
+    win.document.getElementById("reply").value = "Attends, c'est 2025";
+    win.document.getElementById("composer").dispatchEvent(new win.Event("submit"));
+    await wait(80);
+    const fil = win.document.getElementById("thread");
+    check("un tour coupé en plein vol est marqué tout de suite, pas au bout de 3 min",
+      /Interrompu par votre correction/.test(fil.textContent),
+      fil.textContent.replace(/\s+/g, " ").slice(0, 90));
+    /* ⚠ CE GARDE A TUE MA PROPRE PRECAUTION, ET C'ETAIT LE BON RESULTAT.
+       Marquer tot semblait risquer d'accuser un tour LENT qui allait repondre.
+       J'avais donc ecrit un mecanisme pour LEVER la marque a la premiere
+       reponse. Ce garde, ecrit pour le prouver, est tombe du premier coup :
+       `currentAssistantTurn()` s'ARRETE au premier tour utilisateur en
+       remontant, donc une reponse tardive entre dans un tour NEUF et le bloc
+       marque reste vide quoi qu'il arrive.
+       La marque est exacte par construction ; la precaution etait du code mort
+       qui pretendait le contraire. C'est cette propriete-la qu'on garde. */
+    const marques = () =>
+      win.eval('conv.turns.filter(function(t){return t.interrompu}).length');
+    check("...et un seul tour porte la marque, celui qui est resté vide",
+      marques() === 1, marques() + " tour(s) marqué(s)");
+    const avant = win.eval("conv.turns.length");
+    ws.push({ jsonrpc: "2.0", method: "event", params: {
+      type: "message.delta", session_id: "live_1",
+      payload: { text: "réponse tardive du tour coupé" } } });
+    await wait(60);
+    check("...une réponse tardive entre dans un tour NEUF, jamais dans le bloc marqué",
+      win.eval("conv.turns.length") === avant + 1
+      && win.eval("conv.turns[conv.turns.length-1].text")
+           .indexOf("réponse tardive") >= 0
+      && !win.eval("conv.turns[conv.turns.length-1].interrompu"),
+      "tours : " + avant + " → " + win.eval("conv.turns.length"));
+    check("...donc la marque tient : le bloc coupé ne recevra plus rien",
+      marques() === 1
+      && /Interrompu par votre correction/
+           .test(win.document.getElementById("thread").textContent),
+      marques() + " tour(s) marqué(s)");
+    /* Un tour qui a DEJA produit n'est pas « interrompu » : il est incomplet,
+       ce qui n'est pas la meme chose et ne se dit pas pareil. */
+    win.eval('conv.turns.length = 0; conv.running = false;');
+    win.eval('newTurn("user", "x").state = "done";');
+    win.eval('var _a = newTurn("assistant"); _a.text = "j\'ai deja ecrit ceci";');
+    win.eval("conv.running = true;");
+    win.document.getElementById("reply").value = "autre chose";
+    win.document.getElementById("composer").dispatchEvent(new win.Event("submit"));
+    await wait(80);
+    check("...et un tour qui avait déjà produit n'est PAS accusé",
+      win.eval('conv.turns.filter(function(t){return t.interrompu}).length') === 0);
+    win.eval('conv.turns.length = 0; conv.running = false; paintThread();');
+  }
+
   console.log("\n--- La coupure du lien ---");
   ws.onclose({ code: 1006 });
   await wait(60);

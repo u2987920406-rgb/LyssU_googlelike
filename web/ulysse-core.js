@@ -411,6 +411,18 @@ function newTurn(role, text){
   return t;
 }
 
+/* ⚠ POURQUOI LA MARQUE « INTERROMPU » NE PEUT PAS SE TROMPER — et pourquoi la
+   précaution que j'avais écrite était du code mort.
+   J'avais ajouté un `_laverInterruption()` appelé sur `message.delta` et
+   `tool.start`, pour lever la marque si le tour finissait par répondre. Le
+   garde correspondant est tombé du premier coup, et il avait raison : la
+   boucle ci-dessous s'ARRÊTE au premier tour utilisateur en remontant. Une
+   fois la correction envoyée, le tour d'avant n'est plus atteignable — tout
+   ce qui arrive ensuite, même la fin de sa réponse à lui, entre dans un tour
+   NEUF. La marque est donc définitive parce que le bloc l'est.
+   La précaution ne protégeait de rien et affirmait le contraire : retirée.
+   Un commentaire qui promet ce que le code ne fait pas est le défaut qu'on a
+   passé la journée à réparer. */
 function currentAssistantTurn(){
   for (let i = conv.turns.length - 1; i >= 0; i--){
     const t = conv.turns[i];
@@ -739,6 +751,34 @@ async function submitPrompt(text, opts){
     return;
   }
 
+  /* ═══ LE TOUR QU'ON COUPE EN CORRIGEANT ═══════════════════════════════════
+     Vu en jouant un scénario le 2026-08-12 : on corrige sa demande pendant que
+     l'agent travaille, il repart sur la correction — et le premier bloc
+     « Ulysse » reste vide POUR TOUJOURS, sans un mot. En relisant le fil le
+     lendemain, on voit Ulysse ne rien répondre et on ne sait pas pourquoi.
+
+     Tranché par kuchu : le marquer TOUT DE SUITE, pas à la fermeture du tour.
+     Attendre voulait dire attendre le chien de garde — trois minutes d'un bloc
+     muet, ce qui est précisément le défaut qu'on répare.
+
+     ⚠ ET ELLE NE PEUT PAS ACCUSER À TORT — mais pas pour la raison que je
+     croyais. J'avais écrit un mécanisme pour LEVER la marque si le tour
+     finissait par répondre. Le garde correspondant est tombé du premier coup :
+     `currentAssistantTurn()` s'arrête au premier tour utilisateur en
+     remontant, donc dès que la correction est envoyée, le tour d'avant n'est
+     plus atteignable — la suite de sa réponse, s'il en produit une, entre dans
+     un tour NEUF. Le bloc marqué restera vide quoi qu'il arrive.
+     La marque est donc exacte par construction, et la précaution était du
+     code mort qui prétendait le contraire. Retirée. */
+  for (let i = conv.turns.length - 1; i >= 0; i--){
+    const p = conv.turns[i];
+    if (p.role === "user") break;
+    if (p.role === "assistant" && p.state === "streaming"
+        && !p.text && !(p.tools && p.tools.length)){
+      p.interrompu = true;
+      break;
+    }
+  }
   const t = newTurn("user", shown);
   if (opts.preambleLabel) t.preamble = opts.preambleLabel;
   /* Ce qu'on a joint se voit dans SA bulle, en puces — comme avant l'envoi.
