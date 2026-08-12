@@ -919,6 +919,42 @@ def main():
     st, _, _ = req("GET", "/ulysse/premier-vu", headers=same)
     check("La route refuse tout sauf POST", st in (404, 405), "HTTP %d" % st)
 
+    # --- set_config_value : ecrire une cle sans abimer le fichier -------
+    # ⚠ TROUVE PAR LE BANC DES ECRANS, PAS ICI. Un aller-retour cense ne rien
+    # changer (poser un override de modele, puis remettre la valeur d'avant)
+    # laissait un `git diff` non vide : la ligne revenait DESINDENTEE. La cause
+    # est dans `_VALUE_RE`, qui commence par `^\s*` et consomme donc
+    # l'indentation que la substitution ne remettait pas.
+    # C'est petit, et c'est exactement ce qui s'accumule : ulysse-config.js est
+    # un fichier suivi, et chaque changement de modele depuis Reglages y
+    # laissait une ligne de bruit.
+    src = ('window.ULYSSE_CONFIG = {\n'
+           '\n'
+           '  // un commentaire\n'
+           '  PROXY_MODEL: "avant",\n'
+           '  AUTRE: "x",\n'
+           '};\n')
+    out = serve.set_config_value(src, "PROXY_MODEL", "apres")
+    check("set_config_value ecrit bien la nouvelle valeur",
+          'PROXY_MODEL: "apres"' in out, out)
+    check("set_config_value GARDE l'indentation de la cle",
+          '\n  PROXY_MODEL: "apres"' in out,
+          repr([l for l in out.split("\n") if "PROXY_MODEL" in l]))
+    check("set_config_value ne touche a rien d'autre",
+          out.count("\n") == src.count("\n") and 'AUTRE: "x"' in out
+          and "// un commentaire" in out,
+          "%d lignes contre %d" % (out.count("\n"), src.count("\n")))
+    # ⚠ UNE VALEUR AVEC UNE CONTRE-OBLIQUE. `safe` DOUBLE les contre-obliques,
+    # et une substitution par CHAINE les aurait relues comme des motifs
+    # (« \1 », « \g<1> ») au lieu de les ecrire. Meme piege que « $& » cote
+    # JavaScript, qui a deja corrompu un fichier inline le 2026-08-11.
+    out2 = serve.set_config_value(src, "PROXY_MODEL", "a\\b")
+    check("set_config_value ecrit une contre-oblique sans la reinterpreter",
+          'PROXY_MODEL: "a\\\\b"' in out2,
+          repr([l for l in out2.split("\n") if "PROXY_MODEL" in l]))
+    check("une cle absente laisse le texte intact",
+          serve.set_config_value(src, "INCONNUE", "x") == src)
+
     # --- bilan ---------------------------------------------------------
     passed = sum(1 for _, ok, _ in results if ok)
     total = len(results)

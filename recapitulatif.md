@@ -49,11 +49,14 @@ Résumé de ce qui a changé :
    (jeton, Host, Origin du handshake, HMAC) : un test qui triche est refusé.
 
 5) À FAIRE ENSUITE (rien de bloquant) :
-   · [FAIT] un test contre le VRAI dashboard : web/banc_reel.js. Il monte la
-     page PRISE SUR LE SERVEUR dans jsdom, avec le vrai fetch et le vrai
-     WebSocket — aucun faux nulle part — et joue la demande d'accord de bout
-     en bout (refuser / autoriser / le refus structurel de Plan). La suite du
-     socle est la liste §16 de audit-fonctionnalites-ulysse.md ;
+   · [FAIT] les tests contre le VRAI dashboard. Ils montent la page PRISE SUR
+     LE SERVEUR dans jsdom, avec le vrai fetch et le vrai WebSocket — aucun
+     faux nulle part. Montage commun dans web/banc_socle.js :
+       node banc_reel.js     la demande d'accord (point 1) — de vrais tours
+       node banc_ecrans.js   les points 2 à 22 — un seul tour, court
+     Le point 23 (toasts) est laissé de côté, comme l'audit le demande.
+     Ne PAS les passer dans un tube (`| tee`) : le code de sortie serait
+     celui du dernier maillon, et un rouge passerait pour un vert ;
    · Terminal intégré (POST /api/pty existe, il faut un émulateur) ;
    · création de projet / coffre (projects.tree existe) ;
    · écriture des fichiers de profil (/api/fs/write-text existe) ;

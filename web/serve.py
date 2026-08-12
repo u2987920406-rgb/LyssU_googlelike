@@ -190,11 +190,26 @@ def set_config_value(text, key, value):
     n'existe pas, le texte est rendu tel quel et l'appelant doit le verifier.
     """
     safe = str(value).replace("\\", "\\\\").replace('"', '\\"').replace("\n", " ")
-    new = '%s: "%s"' % (key, safe)
     pat = re.compile(_VALUE_RE % re.escape(key))
-    if pat.search(text):
-        return pat.sub(new, text, count=1)
-    return text
+    m = pat.search(text)
+    if not m:
+        return text
+    # ⚠ CE QUI PRECEDE LA CLE FAIT PARTIE DU FICHIER, ET LE MOTIF LE MANGE.
+    # `_VALUE_RE` commence par `^\s*` : il CONSOMME l'indentation (et, sur une
+    # ligne precedee d'une ligne vide, le saut de ligne lui-meme). Une
+    # substitution qui ne les remet pas recolle la cle en colonne 0 : changer
+    # de modele depuis Reglages abimait la mise en forme de ulysse-config.js a
+    # chaque fois. Vu le 2026-08-12 par le banc des ecrans, sur un `git diff`
+    # qui montrait une ligne desindentee apres un aller-retour cense ne rien
+    # changer. On rend donc le prefixe tel qu'il a ete pris.
+    tete = m.group(0)[:m.group(0).index(key)]
+    # ⚠ UNE FONCTION, PAS UNE CHAINE. Dans le remplacement de `re.sub`, « \1 »
+    # et « \g<1> » sont des MOTIFS : une valeur contenant une contre-oblique —
+    # et `safe` en produit justement, en doublant celles qu'on lui donne —
+    # serait reinterpretee au lieu d'etre ecrite. C'est le meme piege que
+    # « $& » dans `String.replace` cote JavaScript, qui a deja corrompu un
+    # fichier inline dans test_page.js le 2026-08-11.
+    return pat.sub(lambda _m: '%s%s: "%s"' % (tete, key, safe), text, count=1)
 
 
 def read_config_text():

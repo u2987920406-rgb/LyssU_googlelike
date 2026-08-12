@@ -31,137 +31,22 @@
  * Sorties : 0 tout au vert · 1 au moins un echec · 2 la pile ne repond pas
  * (une pile absente n'est pas un defaut de la page — la distinguer evite de
  * chercher un bug la ou il n'y a qu'un serveur eteint).
- * ========================================================================== */
-"use strict";
+ * ========================================================================== */"use strict";
 
 const fs = require("fs");
 const path = require("path");
-const { JSDOM, VirtualConsole } = require("jsdom");
 
-const BASE = "http://127.0.0.1:8080";
-const PAGE = BASE + "/ulysse.html";
-
-const results = [];
-const journal = [];
-
-function check(claim, ok, detail){
-  results.push([claim, !!ok, detail || ""]);
-  console.log("  " + (ok ? "[ok]   " : "[ECHEC]") + " " + claim
-    + (detail ? "  — " + detail : ""));
-}
-function note(txt){ journal.push(txt); console.log("       · " + txt); }
-
-const dodo = (ms) => new Promise((r) => setTimeout(r, ms));
-
-/* Attendre qu'une condition devienne vraie, ou renoncer en le DISANT. Un banc
-   qui attend sans borne se fige la nuit et personne ne sait sur quoi. */
-async function attendre(quoi, cond, msMax){
-  const t0 = Date.now();
-  while (Date.now() - t0 < msMax){
-    let v;
-    try { v = cond(); } catch (e){ v = false; }
-    if (v) return true;
-    await dodo(250);
-  }
-  return false;
-}
-
-/* --- La pile repond-elle ? ----------------------------------------------- */
-async function preflight(){
-  let st;
-  try {
-    const r = await fetch(BASE + "/api/status");
-    if (!r.ok) throw new Error("HTTP " + r.status);
-    st = await r.json();
-  } catch (e){
-    console.error("\nLa pile Ulysse ne repond pas sur " + BASE + " (" + e.message + ").");
-    console.error("Lancez `lancer_ulysse.bat`, attendez l'ouverture, puis relancez.");
-    process.exit(2);
-  }
-  if (!st.gateway_running){
-    console.error("\nLe serveur repond mais la gateway Hermes est a l'arret"
-      + " (gateway_state: " + st.gateway_state + ").");
-    process.exit(2);
-  }
-  console.log("Pile en place — Hermes " + st.version + ", gateway "
-    + st.gateway_state + ", home " + st.hermes_home + "\n");
-}
-
-/* --- Monter la page, telle que le navigateur la recoit -------------------- */
-async function monter(){
-  const prendre = async (rel) => {
-    const r = await fetch(BASE + "/" + rel);
-    if (!r.ok) throw new Error(rel + " : HTTP " + r.status);
-    return r.text();
-  };
-
-  let html = await prendre("ulysse.html");
-
-  /* La liste des scripts est LUE DANS LA PAGE, comme dans `test_page.js` :
-     un fichier ajoute a la page entre ici tout seul. Un fichier oublie a
-     laisse tourner tout un banc contre une page amputee, le 2026-08-11. */
-  const SCRIPTS = Array.from(
-    html.matchAll(/<script src="(ulysse-[^"]+\.js)"[^>]*><\/script>/g)).map((m) => m[1]);
-  if (SCRIPTS.length < 5) throw new Error("la page ne charge que " + SCRIPTS.length + " script(s)");
-  note("scripts pris sur le serveur : " + SCRIPTS.join(" → "));
-
-  for (const f of SCRIPTS){
-    const code = await prendre(f);
-    const tag = new RegExp('<script src="' + f.replace(/[.]/g, "\\$&") + '"[^>]*></script>');
-    // Une FONCTION de remplacement, jamais une chaine : « $& » et « $1 » sont
-    // des motifs, et un fichier qui en contient un s'inline corrompu.
-    html = html.replace(tag, () => "<script>\n" + code + "\n</script>");
-  }
-
-  const css = await prendre("ulysse.css");
-  html = html.replace('<link rel="stylesheet" href="ulysse.css">', () => "<style>\n" + css + "\n</style>");
-
-  const vc = new VirtualConsole();
-  const erreurs = [];
-  vc.on("jsdomError", (e) => erreurs.push("jsdomError: " + e.message));
-  vc.on("error", (m) => erreurs.push("console.error: " + m));
-
-  const dom = new JSDOM(html, {
-    runScripts: "dangerously",
-    url: PAGE,
-    virtualConsole: vc,
-    beforeParse(win){
-      /* Le vrai fetch, avec la seule adaptation necessaire : Node exige une
-         URL absolue la ou le navigateur resout contre la page. */
-      win.fetch = (input, init) => {
-        const u = typeof input === "string" ? input : (input && input.url) || String(input);
-        return fetch(new URL(u, PAGE).href, init);
-      };
-      /* `win.WebSocket` n'est PAS remplace : celui de jsdom ouvre une vraie
-         connexion, avec l'Origin de la page — exactement ce que serve.py
-         attend avant de rejouer le handshake vers le dashboard. */
-
-      // xterm arrive par CDN dans un navigateur ; jsdom ne charge pas les
-      // ressources externes. Le Terminal n'est pas ce qu'on eprouve ici.
-      win.Terminal = class { constructor(){ this.buffer = { active: {} }; }
-        open(){} write(){} onData(){} loadAddon(){} focus(){} dispose(){} };
-      win.FitAddon = { FitAddon: class { fit(){} } };
-      win.requestAnimationFrame = (fn) => win.setTimeout(fn, 0);
-      Object.defineProperty(win.navigator, "clipboard", {
-        value: { writeText: () => Promise.resolve() }, configurable: true });
-    }
-  });
-
-  const win = dom.window;
-  await dodo(300);
-  check("la page s'amorce sans erreur JavaScript", erreurs.length === 0,
-    erreurs.slice(0, 2).join(" | "));
-  return { dom, win, erreurs };
-}
-
-/* ========================================================================== */
+/* Le montage de la page vit dans `banc_socle.js`, pas ici. Le recopier dans
+   chaque banc aurait fini par ne plus monter la meme page selon le banc —
+   c'est exactement ce qui est arrive aux dix apercus de `ulysse.css`. */
+const { check, note, titre, dodo, attendre, preflight, monter, fin } = require("./banc_socle");
 
 async function main(){
   await preflight();
   const { win, erreurs } = await monter();
   const E = (src) => win.eval(src);
 
-  const ouvert = await attendre("lien", () => E("link.state") === "open", 30000);
+  const ouvert = await attendre(() => E("link.state") === "open", 30000);
   check("le lien WebSocket s'ouvre vraiment vers Hermes", ouvert,
     ouvert ? E("link.state") : "etat : " + E("link.state") + " · " + E("link.reason || ''"));
   if (!ouvert) return fin();
@@ -174,7 +59,7 @@ async function main(){
   const envoyer = (txt) =>
     E('(function(){ $("reply").value = ' + JSON.stringify(txt) + '; return onSend(); })()');
 
-  const finDeTour = () => attendre("tour", () => E("conv.running") === false, 240000);
+  const finDeTour = () => attendre(() => E("conv.running") === false, 240000);
   const carte = () => win.document.querySelector("#thread .u-accord .ask:not(.done)");
   const traces = () => Array.from(win.document.querySelectorAll("#thread .u-accord .ask.done"));
   /* ⚠ PAS `closest("#thread > *")`. Ecrit ainsi d'abord, il rend `null` sous
@@ -215,9 +100,8 @@ async function main(){
   const provoquerAccord = async (txt, essais) => {
     for (let i = 1; i <= essais; i++){
       envoyer(txt).catch(() => {});
-      await attendre("depart", () => E("conv.running") === true, 30000);
-      await attendre("accord",
-        () => (!!E("conv.approval") && !!carte()) || E("conv.running") === false, 240000);
+      await attendre(() => E("conv.running") === true, 30000);
+      await attendre(() => (!!E("conv.approval") && !!carte()) || E("conv.running") === false, 240000);
       if (E("conv.approval") && carte()) return true;
       if (E("conv.running") === true) return false;   // silence total : insister n'aiderait pas
       note("essai " + i + "/" + essais + " : l'agent n'a pas tente la commande, on redemande");
@@ -283,7 +167,7 @@ async function main(){
      — sans que rien ne le dise. */
   const bonjour = envoyer("Reponds seulement : pret.");
   bonjour.catch(() => {});
-  const ouvre = await attendre("session", () => !!E("conv.sessionId"), 90000);
+  const ouvre = await attendre(() => !!E("conv.sessionId"), 90000);
   check("le premier message ouvre une session", ouvre,
     ouvre ? E("conv.sessionId || ''") : pourquoi());
   cwd = E("(conv.info && conv.info.cwd) || ''");
@@ -416,7 +300,7 @@ async function main(){
     tr3.length ? derniere.textContent.trim().slice(0, 60) : "aucune");
 
   await finDeTour();
-  const ecrit = await attendre("fichier", () => existe("preuve-accord-b.txt"), 30000);
+  const ecrit = await attendre(() => existe("preuve-accord-b.txt"), 30000);
   check("AUTORISE veut dire oui : la commande s'est vraiment executee", ecrit,
     ecrit ? preuve("preuve-accord-b.txt") : "fichier absent apres 30 s");
   const txt = contenu("preuve-accord-b.txt") || "";
@@ -434,7 +318,7 @@ async function main(){
 
   const p3 = envoyer(consigneQuandMeme("preuve-accord-c.txt"));
   p3.catch(() => {});
-  await attendre("session", () => !!E("conv.sessionId"), 90000);
+  await attendre(() => !!E("conv.sessionId"), 90000);
   await finDeTour();
   await dodo(2000);
   clearInterval(guet);
@@ -502,17 +386,6 @@ async function main(){
      faire passer un vieux fichier pour une preuve fraiche. */
   ["preuve-accord-a.txt", "preuve-accord-b.txt", "preuve-accord-c.txt"].forEach(efface);
   fin();
-}
-
-function fin(){
-  const ko = results.filter((r) => !r[1]);
-  console.log("\n" + (results.length - ko.length) + "/" + results.length
-    + " verifications au vert contre le vrai Hermes.");
-  if (ko.length){
-    console.log("\nEchecs :");
-    ko.forEach((r) => console.log("  · " + r[0] + (r[2] ? "  — " + r[2] : "")));
-  }
-  process.exit(ko.length ? 1 : 0);
 }
 
 main().catch((e) => {
