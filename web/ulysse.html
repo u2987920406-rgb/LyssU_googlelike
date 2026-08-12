@@ -761,10 +761,19 @@
 .u-role.on .tick{border-color:var(--accent);background:var(--accent);color:#fff}
 
 .u-cadrewrap{position:relative;flex:none}
-.u-cadre{display:inline-flex;align-items:center;gap:7px;height:28px;padding:0 13px;
-  border-radius:var(--radius-pill);background:var(--surface);color:var(--muted);
-  font-size:var(--font-size-xs);white-space:nowrap}
-.u-cadre:hover{background:var(--surface-hi);color:var(--text)}
+/* ⚠ UNE SEULE RÈGLE POUR LES DEUX GÉLULES DE LA SOUS-BARRE. « Plan » et
+   « Cadre » sont deux mentions de même rang, côte à côte sous le champ : les
+   habiller dans deux règles séparées, c'est se donner deux endroits à
+   corriger et un jour où l'une a 28 px de haut et l'autre 26.
+   Elles l'ont été — « Plan » est resté un mot nu du 2026-08-12 au 13, à côté
+   d'une gélule, et ça se voyait. kuchu, 2026-08-13 : « habille-le comme
+   Cadre ». Un seul sélecteur, donc, et elles ne peuvent plus diverger.
+   `.u-modemention` garde sa propre règle pour le seul état qui lui appartient :
+   le bleu du build (ulysse.css). */
+.u-cadre,.u-modemention{display:inline-flex;align-items:center;gap:7px;height:28px;
+  padding:0 13px;border-radius:var(--radius-pill);background:var(--surface);
+  color:var(--muted);font-size:var(--font-size-xs);white-space:nowrap}
+.u-cadre:hover,.u-modemention:hover{background:var(--surface-hi);color:var(--text)}
 .u-cadre i{width:6px;height:6px;border-radius:50%;background:var(--accent);flex:none}
 /* La gélule n'apparaît qu'en Cowork. Ce n'est pas une préférence : en Chat,
    `sendPure()` n'appelle pas `roleOpts()` — le cadre n'agirait sur rien, et

@@ -341,10 +341,12 @@ input{font:inherit;color:inherit;background:none;border:none;outline:none}
    mentions discrètes de la barre. Il ne se colore QUE pendant le build :
    c'est le seul moment où l'on veut le savoir sans le demander. */
 .u-modewrap{position:relative;display:inline-flex}
-.u-modemention{font-size:var(--font-size-xs);color:var(--muted,#5F6368);
-  padding:4px 9px;border-radius:var(--radius-pill);font-weight:500;
-  transition:background .15s,color .15s}
-.u-modemention:hover{background:var(--hover-bg);color:var(--text,#1F1F1F)}
+/* ⚠ SA FORME EST CELLE DE `.u-cadre`, ET ELLE EST DÉFINIE AVEC ELLE (bloc
+   <style> d'ulysse.html, `.u-cadre,.u-modemention`). Deux mentions de même
+   rang, côte à côte sous le champ, ne doivent pas avoir deux règles : c'est
+   ainsi que « Plan » est resté un mot nu à côté d'une gélule. Ici, seulement
+   ce qui lui appartient en propre. */
+.u-modemention{font-weight:500;transition:background .15s,color .15s}
 #pDiscuter.build .u-modemention{background:var(--accent-container,#D3E3FD);
   color:var(--accent,#0B57D0);font-weight:600}
 /* Le repli emprunte `.pop` : un deuxième mécanisme de repli dans le même

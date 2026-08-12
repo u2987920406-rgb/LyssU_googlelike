@@ -484,6 +484,19 @@ async function main(){
       check("« " + sel + " » mesure exactement comme le champ",
         f === champ, f + "  ≠  " + champ);
     });
+
+    /* Les DEUX gélules de la sous-barre, habillées par la MÊME règle. « Plan »
+       est resté un mot nu à côté de « Cadre » du 2026-08-12 au 13 : deux
+       règles séparées, et personne pour les comparer. On exige donc un seul
+       sélecteur — pas deux blocs qui se ressemblent aujourd'hui. */
+    check("« Plan » et « Cadre » sont habillés par une seule et même règle",
+      /\.u-cadre\s*,\s*\.u-modemention\s*\{/.test(html)
+      || /\.u-modemention\s*,\s*\.u-cadre\s*\{/.test(html),
+      "aucune règle ne les prend ensemble");
+    check("et la règle propre à « Plan » ne redéfinit plus sa forme",
+      !/\.u-modemention\{[^}]*(padding|height|border-radius)/.test(
+        CSS.replace(/\s+/g, "")),
+      (CSS.match(/\.u-modemention\{[^}]*\}/) || [""])[0].slice(0, 70));
   }
 
   /* ⚠ `svg()` fait `I[k] || {}` : un nom d'icône inconnu ne lève RIEN, il
