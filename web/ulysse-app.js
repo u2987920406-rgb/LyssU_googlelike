@@ -292,6 +292,52 @@ function majCadre(){
     : "Choisir un cadre — il dit à l'agent comment travailler";
 }
 
+/* Les blocs de code emportables, gardés hors du DOM. Voir turnHTML.
+   Clés `<tour>:<rang>` — stables d'une peinture à l'autre. */
+const blocsLivrables = new Map();
+
+/* Emporter un livrable. UNE délégation, sur le document — comme pour le volet :
+   l'encart vit dans le fil aujourd'hui, il vivra ailleurs demain.
+
+   Les deux espèces ne réagissent pas au même geste, et c'est voulu :
+     · un bloc de la RÉPONSE — toute la ligne emporte. Il n'y a rien d'autre à
+       en faire, et une ligne qui a l'air cliquable doit cliquer ;
+     · un fichier du DISQUE — la ligne ouvre le volet (ulysse-artifact.js, qui
+       écarte `.l-dl` de sa propre délégation), et seul le ⤓ emporte. */
+document.addEventListener("click", async (e) => {
+  if (!e.target.closest) return;
+  const item = e.target.closest(".l-item");
+  if (!item) return;
+  const surDl = e.target.closest(".l-dl");
+  if (!surDl && !item.dataset.bloc) return;
+  const b = surDl || item.querySelector(".l-dl");
+  if (!b) return;
+  if (item.dataset.bloc){
+    const f = blocsLivrables.get(item.dataset.bloc);
+    if (f) emporter(f.nom, f.contenu);
+  } else if (item.dataset.fichier){
+    // Un fichier du disque : on va chercher ses octets là où ils sont.
+    const chemin = decodeURIComponent(item.dataset.fichier);
+    try {
+      const d = await REST.readFile(chemin);
+      const txt = decodeDataUrlText(d.data_url || "");
+      if (txt === null){
+        // Binaire : le data-url est déjà le fichier, on le donne tel quel.
+        const a = document.createElement("a");
+        a.href = d.data_url; a.download = chemin.split(/[\\/]/).pop();
+        document.body.appendChild(a); a.click(); a.remove();
+      } else {
+        emporter(chemin.split(/[\\/]/).pop(), txt);
+      }
+    } catch (err){
+      snack("Ce fichier n'a pas pu être lu : " + pannePhrase(err));
+      return;
+    }
+  }
+  b.classList.add("ok");
+  setTimeout(() => b.classList.remove("ok"), 1100);
+});
+
 function turnHTML(t){
   const cls = t.role === "user" ? "you" : t.role === "assistant" ? "ulysse"
     : t.role === "error" ? "u-err" : "u-sys";
@@ -348,6 +394,62 @@ function turnHTML(t){
      réponse-là, et elle doit rester lisible quand on relit le fil demain.
      En ambre, pas en rouge — ce n'est pas une panne, c'est une limite. Et on
      dit où elle se règle : une limite qu'on ne peut pas trouver est un mur. */
+  /* ═══ L'ENCART DES LIVRABLES, À LA FIN DU TOUR ═══════════════════════════
+     « J'ai regardé la fin de la discussion, il n'y avait rien. Par contre, en
+     plein milieu, il y avait plein de fichiers que je pouvais cliquer. »
+     — kuchu, 2026-08-12.
+
+     On lit la réponse en entier, PUIS on veut ce qu'elle a produit. À ce
+     moment-là on est en bas. Ce qu'on emporte ne se range donc pas dans la
+     phrase qui en parle : ça se range là où on arrive quand on a fini de lire.
+
+     Deux espèces, et elles n'ont pas les mêmes actions :
+       · écrit sur le DISQUE (write_file / patch) → Ouvrir dans le volet, ET
+         emporter ;
+       · écrit dans la RÉPONSE (un bloc de code) → emporter seulement. Il n'y a
+         rien à ouvrir tant qu'on ne l'a pas emporté, et un bouton qui n'agit
+         pas est pire qu'un bouton absent.
+
+     Voir PASSE-DESIGN-LIVRABLES-DU-TOUR.md. */
+  if (t.role === "assistant" && t.state !== "streaming"){
+    const surDisque = (t.tools || []).filter((x) => x.path)
+      .filter((x, i, tab) => tab.findIndex((y) => y.path === x.path) === i);
+    const dansTexte = typeof livrablesDuTexte === "function"
+      ? livrablesDuTexte(t.text) : [];
+    if (surDisque.length + dansTexte.length){
+      const n = surDisque.length + dansTexte.length;
+      h += '<div class="l-livrables"><div class="l-titre">' + svg("doc", { size: 15 })
+        + "<span>" + n + (n > 1 ? " fichiers produits" : " fichier produit")
+        + "</span></div>"
+        + surDisque.map((x) =>
+            '<div class="l-item" data-fichier="' + encodeURIComponent(x.path) + '">'
+            + '<span class="l-nom">' + esc(x.path.split(/[\\/]/).pop()) + "</span>"
+            + '<span class="l-ou">' + esc(x.path.replace(/[\\/][^\\/]*$/, "")) + "</span>"
+            + '<span class="l-actes"><button class="l-ouvrir" type="button">Ouvrir</button>'
+            + '<button class="l-dl" type="button" title="Télécharger">⤓</button></span>'
+            + "</div>").join("")
+        + dansTexte.map((f, k) => {
+            /* Le contenu ne passe PAS par un attribut : un CSV de cent lignes
+               dans du HTML serait échappé, tronqué à la relecture, et recopié
+               à chaque peinture du fil. On le garde ici, et le DOM ne porte
+               qu'une clé.
+               ⚠ La clé se DÉDUIT du tour et du rang — elle ne se compte pas.
+               Un compteur donnerait une clé neuve à chaque peinture, et le fil
+               est repeint à chaque frappe : la Map enflerait d'une copie du
+               fichier par peinture. `t.key` ne se réutilise jamais, même en
+               changeant de conversation. */
+            const cle = t.key + ":" + k;
+            blocsLivrables.set(cle, f);
+            return '<div class="l-item" data-bloc="' + cle + '">'
+              + '<span class="l-nom">' + esc(f.nom) + "</span>"
+              + '<span class="l-ou">dans cette réponse · ' + f.lignes + " lignes</span>"
+              + '<span class="l-actes"><button class="l-dl" type="button" '
+              + 'title="Télécharger">⤓</button></span>'
+              + "</div>";
+          }).join("")
+        + "</div>";
+    }
+  }
   if (t.coupe){
     h += '<div class="u-coupe">' + svg("alerte", { size: 14 })
       + "<span>Réponse coupée : la limite de " + esc(String(CFG.PROXY_MAX_TOKENS))

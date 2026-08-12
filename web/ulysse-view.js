@@ -74,6 +74,20 @@ function esc(s){
       markdown n'avait aucun style. Les règles suivent maintenant la
       classe, pas l'endroit.
    ────────────────────────────────────────────────────────────────────── */
+/* Les langues qui font d'un bloc un FICHIER. Fermée, et volontairement.
+
+   ⚠ UN BLOC DE CODE N'EST PAS TOUJOURS UN LIVRABLE. Une URL dans un
+   ` ```texte `, une commande d'exemple en ` ```bash `, trois lignes citées :
+   ce sont des ILLUSTRATIONS. Le 2026-08-12, un bloc contenant une seule URL
+   s'est vu proposer au téléchargement — du bruit, et une liste qui contient
+   du bruit cesse d'être lue.
+   On préfère oublier un livrable que d'en inventer trois. */
+const LANGUES_FICHIER = {
+  csv: 1, json: 1, md: 1, markdown: 1, html: 1, css: 1, js: 1, javascript: 1,
+  py: 1, python: 1, sql: 1, xml: 1, yaml: 1, yml: 1, svg: 1, ts: 1,
+  typescript: 1
+};
+
 /* Ce qui suit la clôture d'un bloc — « ```csv », « ```csv ventes.csv », rien.
    On en tire un NOM DE FICHIER et une étiquette.
 
@@ -88,14 +102,18 @@ function nomDeBloc(info){
   const propose = bouts.slice(1).join(" ").trim();
   if (propose && /^[^\\/:*?"<>|]+\.[A-Za-z0-9]{1,8}$/.test(propose)
       && propose.indexOf("..") < 0){
-    return { nom: propose, etiquette: propose };
+    return { nom: propose, etiquette: propose, explicite: true };
   }
   const EXT = { js: "js", javascript: "js", json: "json", csv: "csv", md: "md",
                 markdown: "md", html: "html", css: "css", py: "py",
                 python: "py", sql: "sql", xml: "xml", yaml: "yaml", yml: "yaml",
                 svg: "svg", sh: "sh", bash: "sh", txt: "txt" };
   const ext = EXT[langue] || "txt";
-  return { nom: "extrait." + ext, etiquette: langue || "texte" };
+  /* `explicite` dit si le NOM vient de l'agent ou de moi. La différence n'est
+     pas cosmétique : elle décide seule si le bloc entre dans l'encart de fin.
+     Sans elle, on lisait « le nom deviné n'est pas extrait.txt donc c'est un
+     fichier » — et ` ```bash `, qui donne extrait.sh, passait. */
+  return { nom: "extrait." + ext, etiquette: langue || "texte", explicite: false };
 }
 
 function mdRender(src, prof){
@@ -178,14 +196,17 @@ function mdRender(src, prof){
          comme en Cowork. La rendre valable d'un seul côté serait une seconde
          mécanique pour la même chose.
          Voir PASSE-DESIGN-CHAT-NON-BLOQUANT.md §3. */
-      const info = String(cloture[2] || "").trim();
-      out.push('<figure class="u-md-fig">'
-        + '<figcaption class="u-md-cap"><span>' + esc(nomDeBloc(info).etiquette)
-        + '</span><button class="u-md-dl" type="button" data-nom="'
-        + encodeURIComponent(nomDeBloc(info).nom) + '" title="Emporter ce bloc">⤓</button>'
-        + '</figcaption>'
-        + '<pre class="u-md-c"><code>' + esc(code.join("\n")) + "</code></pre>"
-        + '</figure>');
+      /* ⚠ PAS DE BOUTON ICI. Il y en a eu un — un ⤓ au coin du bloc, construit
+         le 2026-08-12 à 1 h. Il était NOYÉ : gris sur gris, au milieu du
+         texte, visible au survol seulement. kuchu a lu la réponse en entier,
+         regardé la fin, et n'a rien vu — alors que trois fichiers
+         l'attendaient au milieu.
+         Ce qu'on emporte ne se range pas dans la phrase qui en parle : ça se
+         range À LA FIN, là où on arrive quand on a fini de lire. L'encart des
+         livrables (`l-livrables`, ulysse-app.js) le remplace — il ne s'y
+         ajoute pas, sinon le même fichier porterait deux boutons.
+         Voir PASSE-DESIGN-LIVRABLES-DU-TOUR.md §1 et §2. */
+      out.push('<pre class="u-md-c"><code>' + esc(code.join("\n")) + "</code></pre>");
       continue;
     }
     // --- Tableau : | en-tête |, ligne |---|, lignes corps | ... | ---
@@ -316,25 +337,52 @@ function mdRender(src, prof){
    et une data URL le recopierait en base64 dans le DOM (+33 %). L'URL est
    révoquée juste après — un objet non révoqué reste en mémoire jusqu'au
    rechargement de la page. */
-document.addEventListener("click", (e) => {
-  const b = e.target.closest && e.target.closest(".u-md-dl");
-  if (!b) return;
-  const fig = b.closest(".u-md-fig");
-  const code = fig && fig.querySelector("pre code");
-  if (!code) return;
-  const nom = decodeURIComponent(b.dataset.nom || "extrait.txt");
-  const url = URL.createObjectURL(new Blob([code.textContent],
+function emporter(nom, contenu){
+  const url = URL.createObjectURL(new Blob([contenu],
     { type: "text/plain;charset=utf-8" }));
   const a = document.createElement("a");
   a.href = url;
-  a.download = nom;
+  a.download = nom || "extrait.txt";
   document.body.appendChild(a);
   a.click();
   a.remove();
   setTimeout(() => URL.revokeObjectURL(url), 1000);
-  b.classList.add("ok");
-  setTimeout(() => b.classList.remove("ok"), 1100);
-});
+}
+
+/* Les blocs d'un texte markdown qui sont des FICHIERS. Rendu par `mdRender`
+   pour l'affichage ; relu ici pour le bilan de fin de tour.
+
+   On relit la SOURCE, pas le HTML : le rendu échappe et décore, alors qu'un
+   fichier doit partir avec les octets que l'agent a écrits. */
+function livrablesDuTexte(src){
+  const lignes = String(src || "").split(/\r?\n/);
+  const out = [];
+  let i = 0;
+  while (i < lignes.length){
+    const m = lignes[i].replace(/\s+$/, "").replace(/^\s+/, "")
+      .match(/^(```+|~~~+)(.*)$/);
+    if (!m){ i++; continue; }
+    const marque = m[1][0] === "`" ? "```" : "~~~";
+    const info = String(m[2] || "").trim();
+    const corps = [];
+    i++;
+    while (i < lignes.length && !new RegExp("^\\s*" + marque).test(lignes[i])){
+      corps.push(lignes[i]);
+      i++;
+    }
+    if (i < lignes.length) i++;
+    const langue = (info.split(/\s+/)[0] || "").toLowerCase();
+    const nomme = nomDeBloc(info);
+    // Une langue de fichier, OU un nom donné par l'agent. Et au moins deux
+    // lignes : une URL seule, un nom de commande, un chiffre — pas un fichier.
+    // `texte`, `bash`, `console`, ou rien du tout : ça reste un extrait.
+    const estFichier = (!!LANGUES_FICHIER[langue] || nomme.explicite)
+                       && corps.filter((l) => l.trim()).length >= 2;
+    if (estFichier) out.push({ nom: nomme.nom, contenu: corps.join("\n"),
+                               lignes: corps.length });
+  }
+  return out;
+}
 
 /* ═══ Le bandeau du bas (snack) ═══════════════════════════════════════════
    Repris verbatim. Une action annulable le dit sur place, et pendant six

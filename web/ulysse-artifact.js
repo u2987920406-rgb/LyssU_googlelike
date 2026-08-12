@@ -325,9 +325,11 @@ function closeArtifactViewer(){
   const thread = $("thread");
   if (!thread) return;
   const depuis = (e) => {
-    // Le « ▸ resultat » d'une ligne d'outil se deplie : c'est son propre
-    // geste, il ne doit pas ouvrir le volet par-dessus.
-    if (e.target.closest && e.target.closest("details")) return null;
+    // Le « ▸ resultat » d'une ligne d'outil se deplie, et le ⤓ d'un livrable
+    // emporte : ce sont leurs propres gestes, ils ne doivent pas ouvrir le
+    // volet par-dessus.
+    if (e.target.closest && (e.target.closest("details")
+        || e.target.closest(".l-dl"))) return null;
     const c = e.target.closest && e.target.closest("[data-fichier]");
     return c && c.dataset.fichier && !c.classList.contains("absent") ? c : null;
   };

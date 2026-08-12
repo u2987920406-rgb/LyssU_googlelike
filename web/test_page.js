@@ -3240,43 +3240,105 @@ async function main(){
     pre.overflowX === "auto", pre.overflowX);
   dehors.remove();
 
-  /* ══ Emporter un bloc de code ═════════════════════════════════════════════
+  /* ══ Emporter un livrable ═════════════════════════════════════════════════
      En Discussion, le modèle ne peut rien écrire sur le disque — et il n'en a
      pas besoin. Il écrit le contenu dans sa réponse ; c'est Ulysse qui en fait
      un fichier, au clic, dans le navigateur. Rien ne touche le disque tant
      qu'on ne clique pas, et ce clic EST l'accord.
-     Voir PASSE-DESIGN-CHAT-NON-BLOQUANT.md §1 et §3. */
+
+     ⚠ CE QUI SUIT A CHANGÉ DE PLACE LE 2026-08-12. Le ⤓ était au coin du bloc,
+     au milieu du texte. kuchu a parcouru une réponse entière, a regardé la fin,
+     n'a rien vu — et les trois fichiers étaient là, noyés. Le bilan est
+     maintenant à la FIN du tour, et le ⤓ inline a disparu : un fichier, un
+     signe. Voir PASSE-DESIGN-LIVRABLES-DU-TOUR.md §1 et §2. */
   const bloc2 = md("```csv\nmois,ventes\njanvier,1240\n```");
-  check("un bloc de code porte de quoi l'emporter",
-    bloc2.indexOf("u-md-dl") >= 0 && bloc2.indexOf("u-md-fig") >= 0,
+  check("un bloc de code ne porte PLUS de bouton au milieu du texte",
+    bloc2.indexOf("u-md-dl") < 0 && bloc2.indexOf("u-md-fig") < 0
+    && bloc2.indexOf("<pre class=\"u-md-c\"") >= 0,
     bloc2.slice(0, 110));
   check("...et PAS une carte de fichier — il n'y a rien à ouvrir",
     bloc2.indexOf("f-carte") < 0);
+
+  /* Ce qui entre dans l'encart, et surtout ce qui n'y entre pas. Une liste qui
+     contient du bruit cesse d'être lue : on préfère oublier un livrable que
+     d'en inventer trois. */
+  const livr = (s) => win.eval("livrablesDuTexte(" + JSON.stringify(s) + ")");
+  check("un bloc en langue de fichier est un livrable",
+    livr("```csv\nmois,ventes\njanvier,1240\n```").length === 1);
+  check("...mais pas un ```texte, un ```bash, ni un bloc sans langue",
+    livr("```texte\nhttps://exemple.fr\nvoir plus haut\n```").length === 0
+    && livr("```bash\ncd /tmp\nls -la\n```").length === 0
+    && livr("```\ndeux lignes\nsans langue\n```").length === 0,
+    [livr("```texte\na\nb\n```").length, livr("```bash\na\nb\n```").length,
+     livr("```\na\nb\n```").length].join(" · "));
+  check("...ni un bloc d'une seule ligne — une URL n'est pas un fichier",
+    livr("```csv\nhttps://exemple.fr\n```").length === 0);
+  check("un nom explicite suffit, même sans langue de fichier",
+    livr("```texte notes.txt\nune ligne\net deux\n```").length === 1);
+
   // Le nom : la clôture d'abord, sinon la langue, jamais un nom inventé.
-  const nomDe = (src) => decodeURIComponent(
-    (md(src).match(/data-nom="([^"]*)"/) || [])[1] || "");
+  const nomDe = (src) => (livr(src)[0] || {}).nom || "";
   check("le nom vient de la clôture quand l'agent en donne un",
-    nomDe("```csv ventes-2026.csv\na,b\n```") === "ventes-2026.csv",
-    nomDe("```csv ventes-2026.csv\na,b\n```"));
+    nomDe("```csv ventes-2026.csv\na,b\nc,d\n```") === "ventes-2026.csv",
+    nomDe("```csv ventes-2026.csv\na,b\nc,d\n```"));
   check("...sinon de la langue, sans rien inventer de plausible",
-    nomDe("```csv\na,b\n```") === "extrait.csv"
-    && nomDe("```python\nx=1\n```") === "extrait.py"
-    && nomDe("```\ntexte\n```") === "extrait.txt",
-    [nomDe("```csv\na,b\n```"), nomDe("```python\nx=1\n```"),
-     nomDe("```\ntexte\n```")].join(" · "));
+    nomDe("```csv\na,b\nc,d\n```") === "extrait.csv"
+    && nomDe("```python\nx=1\ny=2\n```") === "extrait.py",
+    [nomDe("```csv\na,b\nc,d\n```"), nomDe("```python\nx=1\ny=2\n```")].join(" · "));
   /* ⚠ UN NOM N'EST PAS UN CHEMIN. `download` accepte ce qu'on lui donne : un
      agent qui écrirait « ```csv ../../ailleurs.csv » ne doit pas pouvoir
      viser hors du dossier de téléchargement. On n'accepte comme nom que ce
      qui EST un nom, et on retombe sur le défaut sinon. */
   check("un chemin proposé comme nom est refusé, pas nettoyé à moitié",
-    nomDe("```csv ../../ailleurs.csv\na\n```") === "extrait.csv"
-    && nomDe("```csv C:\\\\Windows\\\\x.csv\na\n```") === "extrait.csv",
-    nomDe("```csv ../../ailleurs.csv\na\n```"));
-  // Le geste est branché sur le DOCUMENT : le bloc s'emporte dans le fil ET
-  // dans le volet. Le brancher par endroit finirait par marcher ici, pas là.
-  const srcVue = fs.readFileSync(path.join(DIR, "ulysse-view.js"), "utf8");
+    nomDe("```csv ../../ailleurs.csv\na,b\nc,d\n```") === "extrait.csv"
+    && nomDe("```csv C:\\\\Windows\\\\x.csv\na,b\nc,d\n```") === "extrait.csv",
+    nomDe("```csv ../../ailleurs.csv\na,b\nc,d\n```"));
+
+  /* L'ENCART, DANS LE TOUR. C'est le point que kuchu a signalé : il doit être
+     APRÈS le texte, et se voir en faisant défiler sans lire. */
+  const tour = (t) => win.eval("turnHTML(" + JSON.stringify(t) + ")");
+  const hEnc = tour({ key: 901, role: "assistant", state: "done",
+    text: "Voici le tableau.\n\n```csv\nmois,ventes\njanvier,1240\n```",
+    tools: [{ name: "write_file", path: "C:/p/notes.md", state: "done" }] });
+  check("l'encart existe et compte les deux espèces ensemble",
+    hEnc.indexOf("l-livrables") >= 0 && /2 fichiers produits/.test(hEnc),
+    hEnc.slice(hEnc.indexOf("l-livrables"), hEnc.indexOf("l-livrables") + 120));
+  check("...il vient APRÈS le texte, pas au milieu",
+    hEnc.indexOf("l-livrables") > hEnc.indexOf("Voici le tableau"));
+  check("le fichier du disque s'ouvre ET s'emporte ; le bloc s'emporte seul",
+    /data-fichier="[^"]*notes\.md"[\s\S]*?l-ouvrir[\s\S]*?l-dl/.test(hEnc)
+    && /data-bloc="901:0"[\s\S]*?l-dl/.test(hEnc)
+    && !/data-bloc="901:0"[\s\S]*?l-ouvrir/.test(hEnc));
+  check("un tour qui n'a rien produit n'affiche pas d'encart vide",
+    tour({ key: 902, role: "assistant", state: "done",
+           text: "Bonjour.", tools: [] }).indexOf("l-livrables") < 0);
+  /* Pendant que ça coule, le texte n'est pas fini : un encart qui apparaîtrait
+     ligne après ligne se lirait comme une liste qui se trompe. */
+  check("...ni un tour encore en train de couler",
+    tour({ key: 903, role: "assistant", state: "streaming",
+           text: "```csv\na,b\nc,d\n```", tools: [] }).indexOf("l-livrables") < 0);
+
+  // Le geste est branché sur le DOCUMENT : l'encart vit dans le fil
+  // aujourd'hui, ailleurs demain. Le brancher par endroit finirait par
+  // marcher ici et pas là.
+  const srcApp = fs.readFileSync(path.join(DIR, "ulysse-app.js"), "utf8");
   check("le geste est branché une fois, sur le document — pas par endroit",
-    /document\.addEventListener\("click"[\s\S]{0,120}u-md-dl/.test(srcVue));
+    /document\.addEventListener\("click"[\s\S]{0,300}l-dl/.test(srcApp));
+  /* ⚠ La clé d'un bloc se DÉDUIT, elle ne se compte pas. Un compteur donnerait
+     une clé neuve à chaque peinture du fil — et le fil est repeint à chaque
+     frappe : la Map enflerait d'une copie du fichier par peinture. */
+  check("la clé d'un bloc survit à la repeinture du fil",
+    tour({ key: 904, role: "assistant", state: "done",
+           text: "```csv\na,b\nc,d\n```", tools: [] })
+    === tour({ key: 904, role: "assistant", state: "done",
+               text: "```csv\na,b\nc,d\n```", tools: [] })
+    && win.eval("blocsLivrables.size") <= 4,
+    "taille " + win.eval("blocsLivrables.size"));
+  // Le liseré : c'est ce qui le fait repérer sans lire. Sur la source, parce
+  // que jsdom rend « 16px » pour tout raccourci `border-left`.
+  check("l'encart porte un liseré d'accent — il se repère sans lire",
+    /\.l-livrables\{[^}]*border-left:3px solid var\(--accent/.test(
+      fs.readFileSync(path.join(DIR, "ulysse.css"), "utf8")));
 
   /* ══ LES CHEMINS DÉGRADÉS ═════════════════════════════════════════════════
      C'est là qu'un produit non poli casse en public. Le produit a des messages
