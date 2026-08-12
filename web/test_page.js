@@ -1265,6 +1265,22 @@ async function main(){
     check("un tour coupé en plein vol est marqué tout de suite, pas au bout de 3 min",
       /Interrompu par votre correction/.test(fil.textContent),
       fil.textContent.replace(/\s+/g, " ").slice(0, 90));
+    /* ⚠ DEUX DEFAUTS VUS A L'ECRAN, JAMAIS AU BANC, LE JOUR MEME OU CETTE NOTE
+       EST NEE. Le banc verifiait que le TEXTE est la ; il ne regardait ni son
+       habit ni ce qui l'entoure.
+       ① La note portait `.u-coupe` — une classe deja prise par l'avis de
+          troncature au plafond de tokens, retire mais dont la regle survivait
+          en orpheline. Elle s'habillait donc en ambre a lisere et heritait
+          d'un sens qui n'etait pas le sien.
+       ② Le tour reste `streaming` (le gateway n'annonce jamais sa fin), donc
+          le curseur clignotait JUSTE SOUS la note : « j'ecris » au-dessus de
+          « je me suis arrete ». */
+    check("...sous son propre nom, pas sous celui de l'avis de troncature",
+      !!fil.querySelector(".u-interrompu") && !fil.querySelector(".u-coupe"),
+      fil.querySelector(".u-coupe") ? "porte encore .u-coupe" : "");
+    check("...et le curseur cesse de clignoter : on n'écrit plus et on ne l'a plus",
+      !fil.querySelector('.msg.ulysse .u-md[data-caret="1"]'),
+      fil.querySelector('[data-caret="1"]') ? "un curseur clignote encore" : "");
     /* ⚠ CE GARDE A TUE MA PROPRE PRECAUTION, ET C'ETAIT LE BON RESULTAT.
        Marquer tot semblait risquer d'accuser un tour LENT qui allait repondre.
        J'avais donc ecrit un mecanisme pour LEVER la marque a la premiere

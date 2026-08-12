@@ -429,8 +429,14 @@ function turnHTML(t){
      accuser à tort : une fois la correction envoyée, ce bloc-là ne peut plus
      rien recevoir — voir la note sur `currentAssistantTurn` dans
      ulysse-core.js. */
+  /* ⚠ CE N'EST PAS `.u-coupe`. J'avais d'abord écrit cette note avec cette
+     classe-là, et elle s'est habillée toute seule en ambre à liseré : `.u-coupe`
+     existait déjà pour l'avis de troncature au plafond de tokens — un avis
+     RETIRÉ, dont la règle survivait en orphelin. Deux faits différents
+     portaient le même habit, et le second héritait du sens du premier.
+     Vu à l'écran en éprouvant la correction, pas au banc. */
   if (t.interrompu){
-    h += '<div class="u-coupe">↩ Interrompu par votre correction.</div>';
+    h += '<div class="u-interrompu">↩ Interrompu par votre correction.</div>';
   }
   if (t.text || t.role !== "assistant" || !(t.tools && t.tools.length)){
     // Catégorie 3 (mauvais affichage) : le markdown de l'agent est rendu
@@ -449,8 +455,14 @@ function turnHTML(t){
                  && typeof decouperLivrables === "function";
     let rendu = mdRender(fini ? decouperLivrables(t.text).texte : t.text);
     if (typeof injectArtifacts === "function") rendu = injectArtifacts(rendu);
-    h += "<div class=\"u-md\"" + (t.state === "streaming" && !t.text ? ' data-caret=\"1\"' : "") + ">"
-      + rendu + "</div>";
+    /* ⚠ PAS DE CURSEUR SOUS « INTERROMPU ». Le tour reste `streaming` — le
+       gateway n'a jamais annoncé sa fin — donc le curseur continuait de
+       clignoter JUSTE SOUS la note qui dit qu'on l'a coupé. L'écran disait
+       « j'écris » et « je me suis arrêté » l'un au-dessus de l'autre.
+       Vu à l'écran en éprouvant la correction. */
+    h += "<div class=\"u-md\""
+      + (t.state === "streaming" && !t.text && !t.interrompu ? ' data-caret=\"1\"' : "")
+      + ">" + rendu + "</div>";
   }
   /* La réponse a été coupée par le plafond. On le dit SOUS le texte, dans la
      bulle : ce n'est pas un événement qui passe, c'est une propriété de cette
