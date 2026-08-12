@@ -977,6 +977,72 @@ def main():
     check("poser puis remettre une valeur rend le texte IDENTIQUE",
           retour == crlf, repr(retour[:70]))
 
+    # -----------------------------------------------------------------------
+    # Le menage des rapports de `lancer_bancs.py`
+    #
+    # ⚠ CE CODE EFFACE DES FICHIERS. C'est la seule chose de ce depot qui
+    # supprime quoi que ce soit sans qu'on le lui demande, et ce qu'il efface
+    # est precisement la preuve qu'on garde pour expliquer un rouge nocturne.
+    # Une regle « on garde les N plus recents » se trompe dans le sens le plus
+    # couteux : elle jette le rouge de la nuit AVANT qu'on l'ait ouvert.
+    # -----------------------------------------------------------------------
+    print("\n--- Rapports dates : le menage n'emporte jamais un rouge ---")
+    import lancer_bancs  # noqa: E402  (import tardif : il reconfigure stdout)
+
+    quand = time.struct_time((2026, 8, 12, 23, 1, 0, 2, 224, 0))
+    nom = os.path.basename(lancer_bancs.fichier_rapport(True, True, quand))
+    check("le nom du rapport porte la date, le mode et l'etat",
+          nom == "2026-08-12_2301-rapide-ROUGE.txt", nom)
+    check("et une serie complete au vert se nomme pareil, en disant vert",
+          os.path.basename(lancer_bancs.fichier_rapport(False, False, quand))
+          == "2026-08-12_2301-complet-vert.txt")
+
+    vrai_dossier = lancer_bancs.RAPPORTS
+    try:
+        with tempfile.TemporaryDirectory() as tmp:
+            lancer_bancs.RAPPORTS = tmp
+
+            def poser(noms):
+                for n in os.listdir(tmp):
+                    os.remove(os.path.join(tmp, n))
+                for n in noms:
+                    with open(os.path.join(tmp, n), "w", encoding="utf-8") as fh:
+                        fh.write("x")
+
+            def restants():
+                return sorted(os.listdir(tmp))
+
+            # Bien plus de verts que le seuil, et un rouge tres ancien coince
+            # au milieu : c'est le cas de la nuit du 2026-08-12.
+            verts = ["2026-08-%02d_%02d00-rapide-vert.txt" % (1 + i // 24, i % 24)
+                     for i in range(lancer_bancs.GARDE_VERTS + 12)]
+            poser(verts + ["2026-08-01_0300-complet-ROUGE.txt"])
+            lancer_bancs.elaguer()
+            apres = restants()
+            check("le rouge le plus VIEUX de tous survit au menage",
+                  "2026-08-01_0300-complet-ROUGE.txt" in apres)
+            check("les verts sont ramenes au seuil, pas plus",
+                  len([n for n in apres if "-vert" in n]) == lancer_bancs.GARDE_VERTS,
+                  str(len([n for n in apres if "-vert" in n])))
+            check("ce sont les verts les plus RECENTS qui restent",
+                  verts[-1] in apres and verts[0] not in apres)
+
+            # Sous le seuil, le menage ne doit rien faire du tout.
+            poser(verts[:3])
+            lancer_bancs.elaguer()
+            check("sous le seuil, le menage ne touche a rien",
+                  restants() == sorted(verts[:3]))
+
+            # Un dossier qui n'existe pas encore : premier lancement.
+            lancer_bancs.RAPPORTS = os.path.join(tmp, "pas-encore-la")
+            try:
+                lancer_bancs.elaguer()
+                check("un dossier absent ne fait pas tomber le menage", True)
+            except OSError as exc:
+                check("un dossier absent ne fait pas tomber le menage", False, str(exc))
+    finally:
+        lancer_bancs.RAPPORTS = vrai_dossier
+
     # --- bilan ---------------------------------------------------------
     passed = sum(1 for _, ok, _ in results if ok)
     total = len(results)

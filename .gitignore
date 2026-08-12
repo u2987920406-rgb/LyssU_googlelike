@@ -56,12 +56,15 @@ __pycache__/
 *.pyc
 .DS_Store
 
-# Le rapport du dernier passage de la serie (`lancer_bancs.py`). Il change a
-# chaque lancement et ne dit rien que les bancs ne redisent : le garder suivi
-# ferait un diff a chaque essai.
+# Les rapports de la serie (`lancer_bancs.py`), un par lancement, dates. Ils
+# ne disent rien que les bancs ne redisent, et il en nait un par heure : les
+# suivre ferait un diff a chaque essai. Ils appartiennent a CETTE machine —
+# c'est ici qu'on va chercher pourquoi la serie de 3 h du matin a rougi.
+web/rapports-bancs/
+web/historique-bancs.txt
+# Les deux fichiers d'avant, quand un seul rapport par mode s'ecrasait.
 web/dernier-rapport-bancs.txt
 web/dernier-rapport-bancs-rapide.txt
-web/historique-bancs.txt
 
 # Le verrou de `lancer_bancs.py` : il ne vit que le temps d une serie.
 web/.bancs-en-cours
