@@ -475,11 +475,22 @@ async function main(){
   check("le titre « Discuter » s'efface : le mot-marque le dit déjà",
     win.getComputedStyle(win.document.querySelector("#pDiscuter .topbar .title"))
       .opacity === "0");
-  // Chat par defaut : on n'ouvre pas quelqu'un sur le mode ou l'agent ecrit.
-  check("Chat est le mode par défaut",
-    win.eval("mode") === "pur"
-    && win.document.querySelector('#pDiscuter .u-modeseg button.on').dataset.mode === "pur",
+  /* Plan par defaut : on n'ouvre pas quelqu'un sur le mode ou l'agent ecrit
+     dans son projet. Le mode ne choisit plus un MOTEUR (c'etait "pur" ou
+     "cowork", un detail de transport promu au rang de decision) mais ce que
+     l'agent a le droit de MODIFIER. Voir PASSE-DESIGN-UN-SEUL-FIL.md §1. */
+  check("Plan est le mode par défaut",
+    win.eval("mode") === "plan"
+    && win.document.querySelector('#pDiscuter .u-modeseg button.on').dataset.mode === "plan",
     String(win.eval("mode")));
+  /* « Quasi invisible » : le segment de 120 px est devenu un mot, et les deux
+     positions sont derriere. Un choix qu'on fait deux fois par heure ne
+     s'affiche pas en permanence a cote de ce qu'on ecrit. */
+  check("...et le mode est une mention, pas un segment permanent",
+    !!win.document.getElementById("modeMention")
+    && win.document.getElementById("modeMention").textContent === "Plan"
+    && win.document.querySelector(".u-modeseg").classList.contains("pop"),
+    (win.document.getElementById("modeMention") || {}).textContent);
 
   console.log("\n--- Le menu ---");
   const railBtns = win.document.querySelectorAll("#railItems .rail-btn");
@@ -778,12 +789,12 @@ async function main(){
   check("aucun jeton ne part dans l'URL du WebSocket (S9)",
     !FakeWS.urls[0].includes("token"), FakeWS.urls[0]);
 
-  // Un tour complet, joue par le faux serveur, DEPUIS L'ACCUEIL. Il faut
-  // passer en Cowork : c'est le mode ou une session s'ouvre. En Chat, le
-  // modele repond par /proxy/chat et il n'y a rien a ouvrir.
-  win.document.querySelector('#pDiscuter .u-modeseg button[data-mode="cowork"]').click();
+  /* Un tour complet, joue par le faux serveur, DEPUIS L'ACCUEIL. Les DEUX
+     modes ouvrent maintenant une session — c'etait la difference de fond
+     entre Chat et Cowork, et elle a disparu avec le chemin pur. */
+  win.document.querySelector('#pDiscuter .u-modeseg button[data-mode="build"]').click();
   await wait(30);
-  check("passer en Cowork ne quitte pas l'accueil",
+  check("changer de mode ne quitte pas l'accueil",
     win.document.getElementById("pDiscuter").classList.contains("accueil"));
   win.document.getElementById("reply").value = "Fais le point";
   win.document.getElementById("composer").dispatchEvent(new win.Event("submit"));
@@ -800,6 +811,26 @@ async function main(){
 
   check("l'accueil s'efface dès que la session existe",
     !win.document.getElementById("pDiscuter").classList.contains("accueil"));
+
+  /* ⚠ LA LIGNE DE MODE PART DANS LA TRAME, ET IL FAUT LE VERIFIER LA.
+     Ecrite plus bas en n'appelant que `ligneDeMode()`, cette verification
+     prouvait que la fonction rend la bonne phrase — pas qu'elle atteint le
+     moteur. Retirer `+ ligneDeMode()` de `onSend` laissait le banc au vert :
+     mutation posee, mutation AVEUGLE. C'est ici qu'il faut regarder, parce
+     que c'est ici qu'une session vit et qu'un `prompt.submit` part vraiment.
+
+     Elle voyage dans le TOUR DE L'UTILISATEUR, apres le prefixe : le prefixe
+     pese 15 067 tokens et le cache ne tient que s'il ne bouge pas. */
+  await wait(60);
+  {
+    const submit = FakeWS.sent.map((x) => { try { return JSON.parse(x.trim()); }
+                                            catch (e){ return {}; } })
+      .find((m) => m.method === "prompt.submit"
+                   && /Fais le point/.test(String((m.params || {}).text)));
+    check("le mode voyage avec le message, dans la trame envoyée",
+      !!submit && /\[Mode Build/.test(String(submit.params.text)),
+      submit ? String(submit.params.text).slice(-58) : "aucun prompt.submit");
+  }
 
   /* ── OÙ CE FIL TRAVAILLE ────────────────────────────────────────────────
      La barre ne disait rien du dossier. Le fil annonçait « j'ai écrit dans
@@ -894,27 +925,29 @@ async function main(){
     && !lieu().querySelector(".l-lieu.change"),
     win.eval("CFG.SESSION_CWD"));
 
-  /* ⚠ EN MODE CHAT, IL N'Y A PAS DE LIEU. Ce mode n'ouvre AUCUNE session
-     Hermès — le modèle répond, il n'agit pas. `conv.info.cwd` ne viendra
-     jamais, et « dossier en attente » annoncerait indéfiniment quelque chose
-     qui n'arrive pas.
+  /* ⚠ CE QUE CE TEST GARDAIT N'EXISTE PLUS, ET C'EST UNE BONNE NOUVELLE.
+     Il exigeait qu'AUCUNE gélule de lieu n'apparaisse en mode Chat : ce mode
+     n'ouvrait aucune session, `conv.info.cwd` ne venait jamais, et « dossier
+     en attente » promettait indéfiniment quelque chose qui n'arrivait pas
+     (signalé par kuchu le 2026-08-09, capture à l'appui).
 
-     Signalé par kuchu le 2026-08-09, capture à l'appui : la gélule était
-     restée en attente sur un écran où rien ne pouvait l'ouvrir. Le défaut
-     est passé parce que ce test n'existait pas. */
+     Le mode Chat a disparu le 2026-08-12. Les deux modes ouvrent une session,
+     donc le lieu est réel dans les deux — et il compte AUTANT en Plan : c'est
+     le dossier qu'on lit pour bâtir le plan. Ce qu'on garde maintenant, c'est
+     l'inverse : que la gélule reste là quand on change de mode. */
   const modeAvant = win.eval("mode");
-  win.eval('mode = "pur"; paintHint();');
+  win.eval('setMode2("plan");');
   await wait(40);
-  check("Lieu · en mode Chat, aucune gélule — rien n'y travaille",
-    !lieu().querySelector(".l-lieu"),
+  check("Lieu · la gélule est là en Plan — on lit le dossier pour planifier",
+    !!lieu().querySelector(".l-lieu"),
     lieu().textContent.trim().slice(0, 50) || "vide");
-  check("Lieu · ...et surtout pas « en attente », qui promettrait un dossier",
-    !/en attente/.test(lieu().textContent));
-  win.eval('mode = "' + modeAvant + '"; paintHint();');
+  win.eval('setMode2("build");');
   await wait(40);
-  check("Lieu · elle revient dès qu'on repasse en Cowork",
+  check("Lieu · ...et elle ne bouge pas en passant en Build",
     !!lieu().querySelector(".l-lieu"),
     lieu().textContent.trim().slice(0, 40));
+  win.eval('setMode2("' + modeAvant + '");');
+  await wait(40);
 
   /* ── PAR LE BOUTON, POUR DE VRAI ────────────────────────────────────────
      On repart d'un fil ouvert avec des tours, on va dans Projets, on clique
@@ -1193,89 +1226,237 @@ async function main(){
     win.document.getElementById("pDiscuter").classList.contains("hs"),
     "état du lien : " + win.eval("link.state"));
 
-  console.log("\n--- Le mode Chat (sans outils) ---");
-  // La bascule est SOUS le composeur, et il n'y en a plus qu'une : l'ecran
-  // d'entree et l'application sont le meme ecran. Chat vient en premier.
-  const segs = win.document.querySelectorAll('.u-modeseg button[data-mode="pur"]');
+  /* ══ LE MODE, QUI N'EST PLUS UN MOTEUR MAIS UNE PERMISSION ═════════════════
+     Ce bloc éprouvait « le mode Chat (sans outils) » : /proxy/chat, le plafond
+     PROXY_MAX_TOKENS, l'avis de troncature. Tout cela a disparu le 2026-08-12.
+
+     kuchu : « si l'on ne peut pas éditer des fichiers, créer des fichiers, les
+     télécharger, il ne sert à rien, strictement à rien. » Le mode Chat ne
+     choisissait pas une posture, il amputait le produit — et nous étions en
+     train de lui rendre une à une les capacités de Cowork.
+
+     Ce qui suit éprouve ce qui l'a remplacé : la porte d'approbation, le plan
+     lisible, et la bascule qui vaut validation.
+     Voir PASSE-DESIGN-UN-SEUL-FIL.md. */
+  console.log("\n--- Le mode : une permission, pas un moteur ---");
+  const segs = win.document.querySelectorAll('.u-modeseg button[data-mode="plan"]');
   check("la bascule est sous le composeur, et il n'y en a qu'une",
     segs.length === 1, segs.length + " trouvee(s)");
   const boutons = win.document.querySelectorAll(".u-modeseg button");
-  check("Chat est proposé avant Cowork",
-    boutons[0].dataset.mode === "pur" && /Chat/.test(boutons[0].textContent),
+  check("Plan est proposé avant Build",
+    boutons[0].dataset.mode === "plan" && /Plan/.test(boutons[0].textContent),
     boutons[0].textContent);
   segs[0].click();
   await wait(30);
   check("la bascule répond", segs[0].classList.contains("on")
-    && win.eval("mode") === "pur");
-  await wait(40);
+    && win.eval("mode") === "plan");
+
+  /* ⚠ PLUS AUCUN APPEL A /proxy/chat. C'etait le chemin du mode pur : le
+     modele nu, sans session, sans outils. Il ne doit plus rien emprunter —
+     un second chemin qui survit est un second endroit ou diverger. */
   fetched.length = 0;
+  const avantPlan = FakeWS.sent.length;
   win.document.getElementById("reply").value = "Un plan de chapitre";
   win.document.getElementById("composer").dispatchEvent(new win.Event("submit"));
-  await wait(120);
-  check("l'appel part vers /proxy/chat",
-    fetched.some((f) => f.path === "/proxy/chat" && f.method === "POST"),
-    JSON.stringify(fetched));
-  txt = win.document.getElementById("thread").textContent;
-  check("la réponse s'affiche", txt.includes("Réponse sans outils"));
-  check("...et une réponse COMPLÈTE ne s'annonce pas comme coupée",
-    !win.document.querySelector("#thread .u-coupe"));
-
-  /* ⚠ LA RÉPONSE COUPÉE. `PROXY_MAX_TOKENS` vaut 800 : en Discussion, toute
-     réponse un peu longue est tronquée par le plafond. Le modèle le dit dans
-     `finish_reason`, et ce champ n'avait pas UNE occurrence dans le produit —
-     la bulle s'arrêtait au milieu d'une phrase et rien ne le signalait.
-     Un écran qui montre un texte coupé comme un texte complet ment ; c'est le
-     seul point de la passe du chat qui ne demandait d'arbitrer sur rien.
-     Voir PASSE-DESIGN-CHAT-NON-BLOQUANT.md §2. */
-  PROXY_FIN.texte = "Un début de plan, interrompu net au milieu d'une";
-  PROXY_FIN.raison = "length";
-  /* ⚠ ON DÉPLACE LE PLAFOND PENDANT L'ÉPREUVE. Écrit d'abord en comparant au
-     `CFG.PROXY_MAX_TOKENS` courant, ce test passait aussi bien avec un « 800 »
-     ÉCRIT EN DUR dans le message — vérifié en remettant le défaut. Un nombre
-     qui se trouve être juste ne prouve pas qu'on l'a lu. */
-  const plafondVrai = win.eval("CFG.PROXY_MAX_TOKENS");
-  win.eval("CFG.PROXY_MAX_TOKENS = 4242");
-  win.document.getElementById("reply").value = "Écris-moi un long chapitre";
-  win.document.getElementById("composer").dispatchEvent(new win.Event("submit"));
+  await wait(80);
+  /* Le faux ne repond pas tout seul — c'est voulu, ca permet de regarder la
+     trame avant d'y repondre. Mais un message qui attend une session qui
+     n'arrive jamais ne produit AUCUN `prompt.submit`, et la verification
+     suivante n'aurait rien a lire. On ouvre donc la session a la main. */
+  FakeWS.sent.slice(avantPlan).forEach((brut) => {
+    let m; try { m = JSON.parse(brut.trim()); } catch (e){ return; }
+    if (m && m.method === "session.create"){
+      FakeWS.last.push({ jsonrpc: "2.0", id: m.id,
+        result: { session_id: "live_1", info: { cwd: "C:/p" } } });
+    }
+  });
   await wait(140);
-  const coupee = win.document.querySelector("#thread .u-coupe");
-  check("une réponse coupée par le plafond le DIT",
-    !!coupee && /Réponse coupée/.test(coupee.textContent),
-    coupee ? coupee.textContent.trim().slice(0, 60) : "rien ne le signale");
-  check("...avec le plafond réellement en vigueur, pas un nombre écrit",
-    !!coupee && coupee.textContent.indexOf("4242") >= 0,
-    coupee ? coupee.textContent.trim() : "");
-  win.eval("CFG.PROXY_MAX_TOKENS = " + plafondVrai);
-  check("...et où le régler — une limite qu'on ne peut pas trouver est un mur",
-    !!coupee && /PROXY_MAX_TOKENS/.test(coupee.textContent)
-    && /ulysse-config\.js/.test(coupee.textContent));
-  /* ⚠ LE PLAFOND EST ÉCRIT À DEUX ENDROITS : dans `ulysse-config.js` (cette
-     installation) et comme repli dans `ulysse-core.js` (le défaut du produit,
-     quand la config ne dit rien). Ils valaient tous deux 800 ; monter l'un
-     sans l'autre donnerait un produit qui promet une chose à qui a une config
-     et une autre à qui n'en a pas. Deux vérités pour une seule chose. */
+  check("aucun message ne passe plus par /proxy/chat",
+    !fetched.some((f) => f.path === "/proxy/chat"),
+    JSON.stringify(fetched.map((f) => f.path)));
   {
-    const cfgSrc = fs.readFileSync(path.join(DIR, "ulysse-config.js"), "utf8");
-    const coreSrc = fs.readFileSync(path.join(DIR, "ulysse-core.js"), "utf8");
-    const aCfg = (cfgSrc.match(/PROXY_MAX_TOKENS:\s*(\d+)/) || [])[1];
-    const aCore = (coreSrc.match(/PROXY_MAX_TOKENS:\s*RAW_CFG\.PROXY_MAX_TOKENS\s*\|\|\s*(\d+)/) || [])[1];
-    check("le plafond de la config et le repli du produit disent la même chose",
-      !!aCfg && aCfg === aCore, "config " + aCfg + " · repli " + aCore);
+    /* ⚠ ON CHERCHE DU CODE, PAS DES MOTS. Écrite en cherchant « sendPure »
+       n'importe où, cette vérification tombait sur mes propres commentaires
+       — ceux qui racontent POURQUOI le chemin a été retiré, et qui doivent
+       rester. Un test qui interdit de nommer ce qu'on a supprimé interdit
+       d'en garder la mémoire. */
+    const appSrc = fs.readFileSync(path.join(DIR, "ulysse-app.js"), "utf8");
+    const coreSrc2 = fs.readFileSync(path.join(DIR, "ulysse-core.js"), "utf8");
+    check("...et le chemin pur n'existe plus dans le code",
+      !/function\s+sendPure|sendPure\s*\(/.test(appSrc)
+      && !/pureTurns\s*[.[]|pureHistory\s*[.[]|pureBusy\s*=/.test(appSrc)
+      && !/pureChat\s*:/.test(coreSrc2),
+      /sendPure\s*\(/.test(appSrc) ? "sendPure appelé" : "");
+    /* Une issue qui n'ouvre plus est pire qu'une absence d'issue : on la
+       prend, et on retombe devant la même porte. Les messages du lien coupé
+       renvoyaient vers « la Discussion, elle n'a pas besoin de ce lien ».
+       Le banc ne l'avait pas vu — il vérifie qu'un message dit QUOI FAIRE,
+       jamais que ce qu'il dit soit encore vrai. */
+    /* ⚠ ON VISE LES CHAINES, PAS LE TEXTE. Même piège que juste au-dessus, et
+       je l'ai repris deux fois : la première version attrapait le commentaire
+       qui EXPLIQUE le retrait. On exige donc que la phrase soit dans un
+       littéral entre guillemets droits — c'est-à-dire dans quelque chose que
+       quelqu'un lira à l'écran. */
+    /* `[^"]*` traverse les retours à la ligne : il enjambait soixante lignes
+       pour atteindre le commentaire, exactement ce qu'on voulait éviter.
+       `[^"\n]*` reste dans la ligne, là où vit un littéral. */
+    const versUnModeMort = /"[^"\n]*passez en (Discussion|Cowork)/;
+    check("...et aucun message ne renvoie vers un mode qui n'existe plus",
+      !versUnModeMort.test(coreSrc2) && !versUnModeMort.test(appSrc),
+      versUnModeMort.test(coreSrc2) ? "renvoi dans ulysse-core.js"
+        : versUnModeMort.test(appSrc) ? "renvoi dans ulysse-app.js" : "");
   }
-  // Le texte reçu reste affiché : on prévient, on n'escamote pas.
-  check("...le texte reçu reste affiché, on ne l'escamote pas",
-    win.document.getElementById("thread").textContent.includes("interrompu net"));
-  // ⚠ Les fournisseurs n'écrivent pas tous le même mot : OpenAI dit
-  //    « length », d'autres « max_tokens ». Les deux comptent.
-  PROXY_FIN.raison = "max_tokens";
-  win.document.getElementById("reply").value = "Encore";
-  win.document.getElementById("composer").dispatchEvent(new win.Event("submit"));
-  await wait(140);
-  check("...« max_tokens » compte comme une coupure, pas seulement « length »",
-    win.document.querySelectorAll("#thread .u-coupe").length === 2,
-    win.document.querySelectorAll("#thread .u-coupe").length + " avis");
-  PROXY_FIN.texte = "Réponse sans outils.";
-  PROXY_FIN.raison = "stop";
+
+  /* ⚠ LA LIGNE DE CADRE PART DANS LE TOUR, PAS DANS LE SYSTEM PROMPT.
+     Le prefixe pese 15 067 tokens (mesure sur l'installation de kuchu) et le
+     cache ne tient que s'il ne bouge pas. L'ecrire dans le system prompt
+     l'invaliderait A CHAQUE BASCULE — la simplicite payee en argent. */
+  /* ⚠ ET IL FAUT VERIFIER QU'ELLE PART VRAIMENT. Ecrite en n'appelant que
+     `ligneDeMode()`, cette verification prouvait que la fonction rend la
+     bonne phrase — pas qu'elle atteint le fil. Retirer `+ ligneDeMode()` de
+     `onSend` laissait le banc au vert : mutation posee, mutation AVEUGLE.
+     On regarde donc la trame envoyee. */
+  // Que la ligne parte VRAIMENT est verifie plus haut, sur une session vivante
+  // (« le mode voyage avec le message »). Ici le lien est deja coupe par les
+  // essais precedents : on n'y eprouve que la phrase elle-meme.
+  check("la ligne de mode tient en une ligne courte — le préfixe pèse déjà 15 067 tokens",
+    /\[Mode Plan/.test(win.eval("ligneDeMode()"))
+    && win.eval("ligneDeMode()").length < 200,
+    win.eval("ligneDeMode()").trim().slice(0, 70));
+  win.eval('setMode2("build")');
+  check("...et elle change avec le mode",
+    /\[Mode Build/.test(win.eval("ligneDeMode()")));
+  win.eval('setMode2("plan")');
+  {
+    const appSrc = fs.readFileSync(path.join(DIR, "ulysse-app.js"), "utf8");
+    check("...jamais dans le préambule de session — le cache sauterait",
+      !/preamble[\s\S]{0,200}Mode (Plan|Build)/.test(appSrc));
+  }
+
+  /* ══ LA PORTE D'APPROBATION ════════════════════════════════════════════════
+     En Plan, ecrire et executer sont refuses AVANT meme d'afficher la
+     question. C'est structurel : la ligne de cadre le dit a l'agent, mais si
+     le modele l'oublie, la porte tient. Une garantie qui repose sur la bonne
+     volonte du modele n'est pas une garantie. */
+  /* ⚠ LE PAYLOAD EST SOUS `params.payload`, PAS A PLAT. Ecrit a plat, ce
+     harnais envoyait des evenements vides : le produit ne refusait rien et
+     les verifications passaient au rouge en accusant le produit. Un faux qui
+     ne parle pas comme le vrai n'eprouve rien. */
+  const evenement = (type, payload) => {
+    win.eval('link.listeners.forEach(function(f){ f(' + JSON.stringify(type)
+      + ', ' + JSON.stringify({ type: type, session_id: "S1", payload: payload })
+      + '); });');
+  };
+  const demandeAccord = (outil, cible) => evenement("approval.request",
+    { tool: outil, command: cible, path: cible,
+      choices: ["once", "session", "deny"] });
+  win.eval("conv.approval = null; conv.turns.length = 0;");
+  demandeAccord("write_file", "C:/p/note.md");
+  await wait(40);
+  win.eval("paintThread()");
+  let refus = win.document.querySelector("#thread .m-refus");
+  check("en Plan, une écriture est refusée sans qu'on ait à répondre",
+    !!refus && win.eval("conv.approval") === null,
+    refus ? "refusée" : "la question a été posée");
+  /* ⚠ UN REFUS QUI S'ARRETE A « NON » EST UN MUR POLI. Il doit dire sa cause
+     ET sa sortie : sans ca, on voit l'agent s'interrompre sans savoir que le
+     mode en est la raison, ni qu'un clic suffit. */
+  check("...et le refus dit sa cause ET la sortie",
+    !!refus && /Plan/.test(refus.textContent)
+    && /Build/.test(refus.textContent)
+    && /write_file/.test(refus.textContent),
+    refus ? refus.textContent.trim().slice(0, 90) : "");
+  // Lire n'est pas modifier : le mode Plan n'a aucune raison de s'y opposer.
+  win.eval("conv.approval = null;");
+  demandeAccord("read_file", "C:/p/note.md");
+  await wait(40);
+  check("...mais une LECTURE passe : le mode ne refuse que ce qui modifie",
+    win.eval("conv.approval") !== null);
+  /* ⚠ ON NOMME CE QU'ON REFUSE, JAMAIS CE QU'ON AUTORISE. Une liste blanche
+     laisserait passer tout outil ajoute demain par Hermes — la promesse
+     rompue en silence. Un outil inconnu demande l'accord, comme avant. */
+  win.eval("conv.approval = null;");
+  demandeAccord("outil_invente_demain", "quelque chose");
+  await wait(40);
+  check("...et un outil inconnu demande l'accord au lieu d'être avalé",
+    win.eval("conv.approval") !== null);
+  // En Build, plus rien n'est refuse d'office : c'est tout l'objet du mode.
+  win.eval('setMode2("build"); conv.approval = null;');
+  demandeAccord("write_file", "C:/p/note.md");
+  await wait(40);
+  check("en Build, l'écriture repose la question au lieu d'être refusée",
+    win.eval("conv.approval") !== null);
+  win.eval('setMode2("plan"); conv.approval = null; conv.turns.length = 0; paintThread();');
+
+  /* ══ LE PLAN, ET LE BOUTON QUI LE VALIDE ═══════════════════════════════════
+     Hermes n'emet AUCUN evenement de plan — les 60 `_emit(...)` du serveur ont
+     ete releves. Mais l'outil `todo` renvoie la liste complete a chaque appel,
+     et c'est un signal lisible : {id, content, status}. */
+  const envoieTodo = (items) => {
+    evenement("tool.start", { tool_id: "T1", name: "todo" });
+    evenement("tool.complete", { tool_id: "T1", name: "todo",
+                                 result: JSON.stringify(items) });
+  };
+  win.eval('conv.turns.length = 0; conv.running = true;');
+  envoieTodo([{ id: "1", content: "Retirer le chemin pur", status: "pending" },
+              { id: "2", content: "Brancher la porte", status: "pending" },
+              { id: "3", content: "Rejouer le banc", status: "pending" }]);
+  win.eval('conv.turns.forEach(function(t){ t.state = "done"; }); paintThread();');
+  const plan = win.document.querySelector("#thread .m-plan");
+  check("un plan posé avec todo s'affiche, étapes comprises",
+    !!plan && win.document.querySelectorAll("#thread .m-etape").length === 3
+    && /Rejouer le banc/.test(plan.textContent),
+    plan ? plan.textContent.trim().slice(0, 70) : "aucun plan");
+  check("...et il porte le bouton « Build and Vérif »",
+    !!win.document.getElementById("basculeBuild"));
+  /* ⚠ ON NE DEVINE JAMAIS UN PLAN DANS LE TEXTE. Compter des puces ferait
+     apparaitre le bouton sur une reponse qui enumere trois restaurants — et
+     un bouton qui se propose a tort apprend a ne plus le lire. */
+  win.eval('conv.turns.length = 0;');
+  win.eval('var t = newTurn("assistant", "Etape 1 : faire ceci\\nEtape 2 : cela\\n- puis ca"); t.state = "done"; paintThread();');
+  check("...alors qu'un texte en forme de plan n'en produit AUCUN",
+    !win.document.querySelector("#thread .m-plan"),
+    win.document.querySelector("#thread .m-plan") ? "un plan a ete devine" : "rien");
+  // Un travail deja commence n'est plus a valider : proposer de le « lancer »
+  // serait proposer de le recommencer.
+  win.eval('conv.turns.length = 0;');
+  envoieTodo([{ id: "1", content: "Deja fait", status: "completed" },
+              { id: "2", content: "En cours", status: "in_progress" }]);
+  win.eval('conv.turns.forEach(function(t){ t.state = "done"; }); paintThread();');
+  check("un plan déjà entamé s'affiche SANS bouton — il n'y a plus à valider",
+    !!win.document.querySelector("#thread .m-plan")
+    && !win.document.getElementById("basculeBuild"));
+  check("...et l'étape faite se distingue de celle en cours",
+    !!win.document.querySelector("#thread .m-etape.completed")
+    && !!win.document.querySelector("#thread .m-etape.in_progress"));
+
+  /* « Verif » n'est pas un cran du selecteur : c'est la fin du build, decidee
+     par kuchu. Elle s'affiche quand TOUTES les etapes sont terminees — on ne
+     l'invente pas, une phase inventee serait pire qu'une phase absente. */
+  win.eval('setMode2("build"); paintThread();');
+  check("tant qu'une étape reste ouverte, la phase dit « Build »",
+    win.document.getElementById("modeMention").textContent === "Build",
+    win.document.getElementById("modeMention").textContent);
+  win.eval('conv.turns.length = 0;');
+  envoieTodo([{ id: "1", content: "Fini", status: "completed" },
+              { id: "2", content: "Fini aussi", status: "completed" }]);
+  win.eval('conv.turns.forEach(function(t){ t.state = "done"; }); paintThread();');
+  check("...et « Vérif » quand tout est terminé",
+    win.document.getElementById("modeMention").textContent === "Vérif",
+    win.document.getElementById("modeMention").textContent);
+  /* ⚠ ON LAISSE LE PLAN EN PLACE. L'ecran Plan suit desormais le PLAN quand il
+     y en a un, et la trace des outils sinon : « lorsqu'un plan est lance, on
+     peut suivre le plan car il apparait dans Plan, on voit le graph node »
+     (kuchu). Vider le fil ici priverait les verifications de l'ecran Plan de
+     ce qu'elles doivent justement voir. */
+  win.eval('setMode2("plan"); conv.running = false; paintThread();');
+  check("le plan alimente l'écran Plan, pas seulement le fil",
+    win.eval("etapesReelles().length") === 2
+    && win.eval("etapesReelles()[0].t") === "Fini",
+    win.eval("JSON.stringify(etapesReelles().map(function(s){return s.t;}))"));
+  check("...et une étape terminée y est à 100 %, une étape à faire à 0",
+    win.eval("etapesReelles()[0].pct") === 100,
+    String(win.eval("etapesReelles()[0].pct")));
 
   /* ══ Les six defauts trouves par la passe de design du 2026-08-08 ══════════
      Chacun etait invisible cote reseau et invisible cote contrat : la page
@@ -1913,7 +2094,7 @@ async function main(){
   win.document.getElementById("moreBtn").click();
   await wait(40);
 
-  win.document.querySelector('.u-modeseg button[data-mode="cowork"]').click();
+  win.document.querySelector('.u-modeseg button[data-mode="build"]').click();
   await wait(60);
   check("Discuter · les six cadres sont repliés derrière une gélule",
     !!win.document.getElementById("cadreBtn")
@@ -3033,18 +3214,45 @@ async function main(){
   // En Discussion le proxy n'envoie que du texte : joindre ouvrirait une
   // session Cowork dans le dos de la personne pour une pièce qui n'arriverait
   // pas. On le dit, on ne le fait pas.
-  /* ══ Coller une image en DISCUSSION ═══════════════════════════════════════
-     Un refus y a été posé le 2026-08-11, justifié par « le proxy n'envoie que
-     du texte ». C'était FAUX : `hermes_cli/proxy/server.py` transmet le corps
-     VERBATIM et ne retire pas un `content` en tableau. Un refus préventif
-     interdit un geste qui marche.
-     Mais le refus protégeait une chose réelle : `attacherFichier()` appelle
-     `ensureSession()`, donc joindre ouvrait une session Cowork dans le dos.
-     Les deux doivent tenir ensemble — l'image passe, ET aucune session ne
-     s'ouvre. Voir PASSE-DESIGN-CHAT-NON-BLOQUANT.md §4. */
-  win.eval('setMode2("pur")');
+  /* ══ JOINDRE : UN SEUL CHEMIN, DANS LES DEUX MODES ═════════════════════════
+     Ce bloc éprouvait deux chemins de pièce jointe. En Discussion les octets
+     restaient dans la page et partaient en contenu multimodal vers
+     /proxy/chat ; en Cowork ils passaient par le gateway. Deux chemins, deux
+     façons d'échouer — et un fichier non-image simplement refusé d'un côté.
+
+     Le mode pur a disparu le 2026-08-12. Il y a toujours une session à
+     nourrir, donc `attacherFichier()` fait le travail dans les deux modes.
+     Ce qu'on garde de l'ancien bloc, c'est sa leçon la plus chère :
+     `image.attach_bytes`, JAMAIS `image.attach` — depuis un navigateur, la
+     seconde répond « 4016 image not found », et elle l'a fait pendant des
+     semaines sans que rien ne le dise. */
+  win.eval('setMode2("plan")');
   await wait(60);
   const avantColle = FakeWS.sent.length;
+  /* Le faux ne repond pas tout seul : c'est VOULU, c'est ce qui permet de
+     regarder la trame avant d'y repondre. On repond donc a la main, et on
+     repond comme le vrai — un `ref_text`, pas un booleen. */
+  const repondus = new Set();
+  const repondreAux = async (depuis) => {
+    for (let tour = 0; tour < 4; tour++){
+      await wait(60);
+      FakeWS.sent.slice(depuis).forEach((brut) => {
+        let m; try { m = JSON.parse(brut.trim()); } catch (e){ return; }
+        if (!m || repondus.has(m.id)) return;
+        repondus.add(m.id);
+        if (m.method === "session.create"){
+          FakeWS.last.push({ jsonrpc: "2.0", id: m.id,
+            result: { session_id: "live_1", info: { cwd: "C:/p" } } });
+        } else if (m.method === "image.attach_bytes"){
+          FakeWS.last.push({ jsonrpc: "2.0", id: m.id,
+            result: { attached: true, ref_text: "@image:colle.png" } });
+        } else if (m.method === "file.attach"){
+          FakeWS.last.push({ jsonrpc: "2.0", id: m.id,
+            result: { attached: true, name: "notes.txt", ref_text: "@file:notes.txt" } });
+        }
+      });
+    }
+  };
   win.eval(`(function(){
     const bin = atob("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==");
     const a = new Uint8Array(bin.length);
@@ -3052,74 +3260,41 @@ async function main(){
     const f = new File([a], "colle.png", { type: "image/png" });
     return surFichiers([f]);
   })()`);
-  await wait(250);
+  await repondreAux(avantColle);
   const jointeDisc = JSON.parse(win.eval("JSON.stringify(jointes)"));
-  check("en Discussion, une image collée est acceptée",
+  check("en Plan, une image collée est acceptée",
     jointeDisc.length === 1 && jointeDisc[0].etat === "prete",
     JSON.stringify(jointeDisc.map((j) => j.etat)));
-  check("...elle garde ses OCTETS, elle n'a pas de référence de session",
-    jointeDisc.length === 1 && /^data:image\/png;base64,/.test(jointeDisc[0].dataUrl)
-    && !jointeDisc[0].ref);
-  // ⚠ Ce que le refus protégeait de vrai : pas de session ouverte dans le dos.
-  check("...et AUCUNE session Cowork ne s'ouvre dans le dos",
-    FakeWS.sent.length === avantColle,
-    (FakeWS.sent.length - avantColle) + " trame(s) envoyée(s)");
-  // Un fichier non-image, lui, n'a aucun chemin en Discussion : on le dit.
+  /* ⚠ LA METHODE APPELEE, PAS SEULEMENT LE CHEMIN EMPRUNTE. Le faux Hermès
+     acceptait n'importe quel appel RPC, donc « la pièce est jointe » passait
+     au vert sur une pièce refusée par le vrai. C'est la leçon la plus chère du
+     projet : un faux qui ne ment pas comme le vrai ne prouve rien. */
+  {
+    const trames = FakeWS.sent.slice(avantColle)
+      .map((t) => { try { return JSON.parse(t); } catch (e){ return {}; } });
+    check("...par image.attach_bytes — jamais image.attach, qui répond 4016",
+      trames.some((t) => t.method === "image.attach_bytes")
+      && !trames.some((t) => t.method === "image.attach"),
+      JSON.stringify(trames.map((t) => t.method)));
+    check("...et les octets partent dans l'appel, pas un chemin local",
+      trames.some((t) => t.params && /^data:image\//.test(
+        String(t.params.content_base64 || ""))));
+  }
+  /* Un fichier NON-IMAGE passe maintenant lui aussi. C'était le refus le plus
+     coûteux du mode pur : « le modèle n'ouvre pas de fichier ». Il y a une
+     session, donc il y a un chemin — et lire n'est pas modifier, le mode Plan
+     n'a aucune raison de s'y opposer. */
+  win.eval("jointes.length = 0; dessineJointes();");
+  const avantTxt = FakeWS.sent.length;
   win.eval(`surFichiers([new File(["texte"], "notes.txt", { type: "text/plain" })])`);
-  await wait(150);
-  check("...un fichier non-image est refusé, en disant quoi faire",
-    JSON.parse(win.eval("JSON.stringify(jointes)")).length === 1
-    && /ne peut pas être lu en Discussion/.test(
-        win.document.getElementById("snack").textContent),
-    win.document.getElementById("snack").textContent.trim());
-
-  // ⚠ ET L'IMAGE PART VRAIMENT — en contenu multimodal OpenAI, la forme que
-  //    le fournisseur attend, puisque le proxy ne la retouche pas.
-  fetched.length = 0;
-  let corpsEnvoye = null;
-  const vraiFetch = win.fetch;
-  win.fetch = (url, opts) => {
-    if (String(url).indexOf("/proxy/chat") >= 0 && opts && opts.body){
-      try { corpsEnvoye = JSON.parse(opts.body); } catch (e){ corpsEnvoye = null; }
-    }
-    return vraiFetch(url, opts);
-  };
-  win.document.getElementById("reply").value = "Que vois-tu ?";
-  win.document.getElementById("composer").dispatchEvent(new win.Event("submit"));
-  await wait(200);
-  win.fetch = vraiFetch;
-  const dernier = corpsEnvoye && corpsEnvoye.messages
-    ? corpsEnvoye.messages[corpsEnvoye.messages.length - 1] : null;
-  check("l'image part dans le message, en contenu multimodal",
-    !!dernier && Array.isArray(dernier.content)
-    && dernier.content.some((p) => p.type === "image_url"
-        && /^data:image\//.test((p.image_url || {}).url || "")),
-    JSON.stringify(dernier && dernier.content).slice(0, 90));
-  check("...avec le texte de la personne à côté, pas à la place",
-    !!dernier && Array.isArray(dernier.content)
-    && dernier.content.some((p) => p.type === "text" && /Que vois-tu/.test(p.text)));
-  check("...et les pièces sont vidées après l'envoi",
-    JSON.parse(win.eval("JSON.stringify(jointes)")).length === 0);
-  // Sans image, la forme reste SIMPLE : une chaîne, pas un tableau à une part.
-  win.document.getElementById("reply").value = "Juste du texte";
-  corpsEnvoye = null;
-  win.fetch = (url, opts) => {
-    if (String(url).indexOf("/proxy/chat") >= 0 && opts && opts.body){
-      try { corpsEnvoye = JSON.parse(opts.body); } catch (e){ corpsEnvoye = null; }
-    }
-    return vraiFetch(url, opts);
-  };
-  win.document.getElementById("composer").dispatchEvent(new win.Event("submit"));
-  await wait(200);
-  win.fetch = vraiFetch;
-  const simple = corpsEnvoye && corpsEnvoye.messages
-    ? corpsEnvoye.messages[corpsEnvoye.messages.length - 1] : null;
-  check("un message sans image reste une simple chaîne",
-    !!simple && typeof simple.content === "string",
-    typeof (simple && simple.content));
-
-  win.eval('setMode2("cowork")');
-  await wait(40);
+  await repondreAux(avantTxt);
+  {
+    const j = JSON.parse(win.eval("JSON.stringify(jointes)"));
+    check("...et un fichier non-image n'est PLUS refusé en Plan",
+      j.length === 1 && j[0].etat === "prete",
+      JSON.stringify(j.map((x) => x.etat)));
+  }
+  win.eval("jointes.length = 0; dessineJointes();");
 
   /* ══ Le rendu markdown ════════════════════════════════════════════════════
      Il n'avait AUCUNE vérification, et il en portait quatre défauts. Ils

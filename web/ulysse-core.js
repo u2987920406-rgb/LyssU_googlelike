@@ -220,23 +220,13 @@ const REST = {
   // skills, tools}. Les cles internes de `totals` varient selon la version :
   // on les affiche telles quelles plutot que d'en supposer une.
   usage: (days) => api("/api/analytics/usage?days=" + (days || 30)),
-  // Chat pur, relaye par serve.py vers le proxy Hermes (cle injectee la-bas).
-  // LOI-DU-CERVEAU.md : on n'impose pas de modele. Deux cas :
-  //   · PROXY_MODEL rempli (override utilisateur) -> on l'envoie.
-  //   · sinon -> on laisse le modele herite de la session vivante Hermes
-  //     (conv.info.model, lu par l'app et passe ici). Si toujours vide, on
-  //     envoie un corps SANS model : le proxy repond 400 « Model parameter is
-  //     required », et l'app affiche un message honnete (pas un modele choisi
-  //     par Ulysse).
-  pureChat: (messages, proxyModel) => {
-    // Priorite : override explicite (CFG.PROXY_MODEL) > heritage (proxyModel
-    // = conv.info.model) > rien. LOI-DU-CERVEAU.md : Ulysse n'impose rien.
-    const model = (CFG.PROXY_MODEL && typeof CFG.PROXY_MODEL === "string" && CFG.PROXY_MODEL)
-      || (typeof proxyModel === "string" && proxyModel) || "";
-    const body = { messages: messages, max_tokens: CFG.PROXY_MAX_TOKENS };
-    if (model) body.model = model;
-    return api("/proxy/chat", { method: "POST", body: body });
-  }
+  /* `pureChat` — l'appel a /proxy/chat — a ete retire le 2026-08-12 avec le
+     mode pur. C'etait le seul endroit du produit qui parlait au modele SANS
+     passer par l'agent : pas de session, pas d'outils, pas de lieu de travail.
+     Il servait un mode qui, faute de pouvoir lire ou ecrire un fichier, ne
+     servait a rien. Voir PASSE-DESIGN-UN-SEUL-FIL.md §6.
+     serve.py garde sa route /proxy/chat : elle est utile pour sonder le proxy
+     a la main, et la retirer serait une autre decision que celle-ci. */
 };
 
 /* ═══ 2. Couche WebSocket — JSON-RPC delimite par newline ═════════════════
@@ -443,7 +433,11 @@ function findTool(toolId){
    saisie bloquee pour de bon, sans erreur ni explication. */
 const TURN_SILENCE_MS = 180000;
 let turnWatchdog = null;
-const coreHooks = { onChange: () => {}, onSystem: () => {}, onChanged: () => {} };
+/* `refusDeMode(payload)` rend la PHRASE du refus, ou "" pour laisser passer.
+   Elle est branchee par ulysse-app.js, qui seul connait le mode : le noyau
+   parle le protocole, il ne connait pas les ecrans. */
+const coreHooks = { onChange: () => {}, onSystem: () => {}, onChanged: () => {},
+                    refusDeMode: () => "" };
 
 function armTurnWatchdog(){
   clearTimeout(turnWatchdog);
@@ -547,6 +541,19 @@ link.onEvent((type, params) => {
                        t0: Date.now(), ms: 0, path: chemin,
                        result: pl.inline_diff || pl.result || "" });
       }
+      /* ⚠ LE PLAN ARRIVE PAR ICI, ET PAR NULLE PART AILLEURS.
+         Hermes n'emet AUCUN evenement de plan — les 60 `_emit(...)` du serveur
+         ont ete releves, il n'y en a pas. Mais l'outil `todo`
+         (tools/todo_tool.py) tient une liste ordonnee, une par session, et
+         CHAQUE APPEL RENVOIE LA LISTE COMPLETE : {id, content, status}.
+         C'est un signal lisible, pas une devinette — et on ne devine JAMAIS
+         un plan dans le texte : compter des puces ferait apparaitre le bouton
+         sur une reponse qui enumere trois restaurants.
+         Voir PASSE-DESIGN-UN-SEUL-FIL.md §4. */
+      if (String(pl.name || "").toLowerCase() === "todo"){
+        const etapes = lireTodo(pl.inline_diff || pl.result || "");
+        if (etapes) currentAssistantTurn().plan = etapes;
+      }
       break;
     }
 
@@ -558,9 +565,29 @@ link.onEvent((type, params) => {
       conv.info = pl;
       break;
 
-    case "approval.request":
+    /* ⚠ LA PORTE QUI APPLIQUE LE MODE — ET QUI NE COUTE PAS UN TOKEN.
+       En mode Plan, ecrire et executer sont refuses ICI, avant meme
+       d'afficher la question. C'est un refus STRUCTUREL : la ligne de cadre
+       envoyee dans le tour dit a l'agent de ne rien modifier, mais si le
+       modele l'oublie, la porte tient quand meme. Une garantie qui repose sur
+       la bonne volonte du modele n'est pas une garantie.
+
+       Rien n'est envoye au moteur pour ca : `respondApproval("deny")` est un
+       appel local a la gateway, pas un tour de modele.
+       Voir PASSE-DESIGN-UN-SEUL-FIL.md §3. */
+    case "approval.request": {
+      const refus = coreHooks.refusDeMode && coreHooks.refusDeMode(pl);
+      if (refus){
+        conv.approval = null;
+        const t = newTurn("system", refus);
+        t.state = "done";
+        t.refusMode = true;
+        respondApproval("deny").catch(() => {});
+        break;
+      }
       conv.approval = pl;
       break;
+    }
 
     case "error": {
       const t = newTurn("error", pl.message || "erreur inconnue");
@@ -604,14 +631,18 @@ link.onState((s) => {
        coupé : le prochain message n'ouvrira rien du tout, il tombera sur
        l'erreur de `submitPrompt`. Deux messages qui se contredisent à une
        minute d'intervalle, et c'est le premier qu'on lit.
-       Il ne promet donc plus qu'une chose vraie : la session est perdue. Et il
-       dit l'issue la plus proche, la même que l'autre — la Discussion n'a pas
-       besoin de ce lien. Constaté le 2026-08-12, en éprouvant les chemins
-       dégradés. */
+       Il ne promet donc plus qu'une chose vraie : la session est perdue.
+
+       ⚠ ET IL NE RENVOIE PLUS VERS LA DISCUSSION. Il disait « ou passez en
+       Discussion : elle n'a pas besoin de ce lien » — c'etait vrai tant que
+       le mode pur existait. Il a ete retire le 2026-08-12 : les deux modes
+       passent par ce lien, et l'issue proposee etait devenue une impasse.
+       Le banc ne l'a pas vu — il verifie qu'un message dit QUOI FAIRE, pas
+       que ce qu'il dit soit encore vrai. Trouve en relisant. */
     if (conv.sessionId){
       coreHooks.onSystem("Lien interrompu : la session en cours est perdue. "
-        + "Relancez lancer_ulysse.bat pour reprendre en Cowork, ou passez en "
-        + "Discussion : elle n'a pas besoin de ce lien.");
+        + "Relancez lancer_ulysse.bat, puis renvoyez votre message — le fil "
+        + "reste affiche.");
     }
     conv.sessionId = null;
     conv.info = null;
@@ -658,15 +689,17 @@ async function submitPrompt(text, opts){
      rien. La page SAVAIT pourtant : `link.state` valait « closed », et la
      barre d'état l'affichait déjà.
      Constaté en éprouvant les chemins dégradés, le 2026-08-12.
-     Et le message dit l'issue la plus proche : la Discussion n'a pas besoin
-     de ce lien — c'est le proxy qui la sert. */
+
+     ⚠ L'ISSUE « passez en Discussion » A ETE RETIREE le meme jour, quand le
+     mode pur a disparu : les deux modes passent par ce lien. Une issue qui
+     n'ouvre plus est pire qu'une absence d'issue — on la prend, et on se
+     retrouve devant la meme porte. */
   if (link.state === "closed" || link.state === "denied"){
     newTurn("user", shown).state = "done";
     const err = newTurn("error",
       "Le lien avec l'agent est coupé" + (link.reason ? " (" + link.reason + ")" : "")
-      + " — Cowork en a besoin pour recevoir votre message. Relancez "
-      + "lancer_ulysse.bat, ou passez en Discussion : elle n'a pas besoin de "
-      + "ce lien.");
+      + " — votre message n'est pas parti. Relancez lancer_ulysse.bat, puis "
+      + "renvoyez-le : le fil reste affiché.");
     err.state = "error";
     conv.running = false;
     coreHooks.onChange();
@@ -711,6 +744,27 @@ async function interruptTurn(){
   catch (e){ coreHooks.onSystem("Interruption : " + e.message); }
   conv.running = false;
   coreHooks.onChange();
+}
+
+/* Lire la liste `todo` d'un resultat d'outil. Le contenu arrive en texte : on
+   y cherche le JSON, parce que le format exact du resultat n'est pas garanti
+   et qu'un jour il portera peut-etre une phrase autour.
+
+   ⚠ ON NE RETIENT QUE CE QUI A LA BONNE FORME. Un objet sans `content` ou
+   sans `status` n'est pas une etape — mieux vaut ne pas afficher de plan que
+   d'en afficher un faux, parce qu'on VALIDE ce plan-la en appuyant. */
+function lireTodo(brut){
+  const s = String(brut || "");
+  const d = s.indexOf("["), f = s.lastIndexOf("]");
+  if (d < 0 || f <= d) return null;
+  let liste;
+  try { liste = JSON.parse(s.slice(d, f + 1)); } catch (e){ return null; }
+  if (!Array.isArray(liste) || !liste.length) return null;
+  const etapes = liste
+    .filter((it) => it && typeof it === "object" && it.content)
+    .map((it) => ({ contenu: String(it.content),
+                    etat: String(it.status || "pending").toLowerCase() }));
+  return etapes.length ? etapes : null;
 }
 
 /* approval.respond — methods_prompt.py:949, params {session_id, choice, all?}.

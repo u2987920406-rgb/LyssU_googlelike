@@ -323,6 +323,29 @@ input{font:inherit;color:inherit;background:none;border:none;outline:none}
 .pop .sub{font-size:var(--font-size-xs);color:var(--muted);display:block}
 .pop-sep{height:1px;background:var(--outline-var);margin:6px 10px}
 
+/* ═══ Le mode, sous le composeur ═══════════════════════════════════════════
+   ⚠ IL DOIT SE LIRE, PAS S'OPÉRER. C'était un segment `Chat | Cowork` de
+   120 px qui proposait un choix à chaque coup d'œil, pour un réglage qu'on
+   change deux fois par heure. kuchu, 2026-08-12 : « il faut que ce soit
+   intégré de manière naturelle et fluide… quasi invisible ».
+   Ce n'est plus qu'un mot — l'endroit où l'on est — de la couleur des
+   mentions discrètes de la barre. Il ne se colore QUE pendant le build :
+   c'est le seul moment où l'on veut le savoir sans le demander. */
+.u-modewrap{position:relative;display:inline-flex}
+.u-modemention{font-size:var(--font-size-xs);color:var(--muted,#5F6368);
+  padding:4px 9px;border-radius:var(--radius-pill);font-weight:500;
+  transition:background .15s,color .15s}
+.u-modemention:hover{background:var(--hover-bg);color:var(--text,#1F1F1F)}
+#pDiscuter.build .u-modemention{background:var(--accent-container,#D3E3FD);
+  color:var(--accent,#0B57D0);font-weight:600}
+/* Le repli emprunte `.pop` : un deuxième mécanisme de repli dans le même
+   composeur serait un dialecte de plus à apprendre. Mais il garde son
+   apparence de segment — c'est bien un choix entre deux, pas une liste. */
+.u-modeseg.pop{min-width:0;padding:0;border:1px solid var(--outline);
+  overflow:hidden;bottom:auto;top:-46px}
+.u-modeseg.pop button{width:auto;font-size:14px;padding:7px 16px;
+  border-radius:0;gap:7px}
+
 /* ═══ Studio ═══ */
 .studio{position:relative;z-index:1;flex:1;display:flex;min-height:0;gap:var(--space-2);
   padding:0 var(--space-4) var(--space-2) 0}
@@ -1704,6 +1727,46 @@ svg.graph *{cursor:inherit}
   transition:background .15s,color .15s}
 .l-dl:hover{background:var(--accent-container,#D3E3FD);color:var(--accent,#0B57D0)}
 .l-dl.ok{color:var(--green,#188038)}
+
+/* ═══ Le plan proposé, et le bouton qui le valide ══════════════════════════
+   Même famille visuelle que l'encart des livrables — bordure pleine, liseré
+   d'accent — parce que c'est la même espèce : quelque chose que la réponse a
+   PRODUIT et sur quoi on va agir. Deux dessins différents pour deux encarts
+   qui se lisent pareil seraient un dialecte de plus.
+   Voir PASSE-DESIGN-UN-SEUL-FIL.md §4. */
+.m-plan{margin:14px 0 0;border:1px solid var(--surface-hi,#E9EEF6);
+  border-left:3px solid var(--accent,#0B57D0);border-radius:var(--radius-md);
+  background:var(--surface,#F0F4F9);overflow:hidden}
+.m-etape{display:flex;align-items:flex-start;gap:10px;padding:8px 14px;
+  font-size:13px;color:var(--text,#1F1F1F);line-height:1.5}
+.m-etape + .m-etape{border-top:1px solid rgba(127,127,127,.10)}
+/* Le numéro tient la place d'une puce : le plan est ORDONNÉ, et c'est l'ordre
+   qu'on valide autant que le contenu. */
+.m-n{flex:none;width:20px;height:20px;border-radius:50%;display:flex;
+  align-items:center;justify-content:center;font-size:11px;font-weight:700;
+  background:var(--accent-container,#D3E3FD);color:var(--accent,#0B57D0);
+  margin-top:1px}
+/* Une étape faite se barre. Elle reste lisible — on veut voir le chemin
+   parcouru, pas seulement ce qui reste. */
+.m-etape.completed{color:var(--muted,#5F6368)}
+.m-etape.completed span:last-child{text-decoration:line-through}
+.m-etape.completed .m-n{background:var(--green,#188038);color:#fff}
+.m-etape.in_progress .m-n{background:var(--accent,#0B57D0);color:#fff}
+.m-etape.cancelled{color:var(--muted,#5F6368);opacity:.6}
+.m-pied{padding:10px 14px;border-top:1px solid var(--surface-hi,#E9EEF6);
+  display:flex;justify-content:flex-end}
+/* LE seul bouton plein du fil. Il déclenche l'écriture sur le disque : il a le
+   droit de se voir, et il doit être le seul à ce niveau de contraste. */
+.m-bascule{padding:9px 18px;border-radius:var(--radius-pill);
+  background:var(--accent,#0B57D0);color:#fff;font-size:14px;font-weight:600;
+  transition:filter .15s}
+.m-bascule:hover{filter:brightness(1.08)}
+.m-bascule:disabled{opacity:.55}
+
+/* Le refus de mode : un geste qui n'a PAS eu lieu. En ambre, comme la coupe —
+   ce n'est pas une panne, c'est une limite, et elle a une sortie. */
+.msg.m-refus{border-left:3px solid var(--amber,#E37400);
+  background:rgba(227,116,0,.06);padding-left:11px;border-radius:8px}
 .u-md pre.u-md-c code{background:none;padding:0;border-radius:0;font-size:.88em;
   line-height:1.55;white-space:pre;display:block}
 .u-md blockquote{margin:0 0 var(--space-3);padding:.2em .9em;border-left:3px solid var(--accent,#7c5cff);

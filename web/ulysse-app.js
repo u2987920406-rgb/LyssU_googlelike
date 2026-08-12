@@ -242,12 +242,29 @@ const ROLES = [
 ];
 
 let activeRole = null;
-// Chat par défaut : c'est le visage nu, celui qui n'engage aucun outil. On
-// n'ouvre pas quelqu'un sur le mode où l'agent peut écrire et exécuter.
-let mode = "pur";             // pur (Chat) | cowork
-let pureBusy = false;         // le mode pur a sa propre occupation
+/* ═══ LE MODE N'EST PLUS UN MOTEUR, C'EST UNE PERMISSION ════════════════════
+   Il valait « pur » (le modèle nu, via /proxy/chat) ou « cowork » (l'agent).
+   C'était un détail de transport promu au rang de décision utilisateur — et il
+   emportait TOUT au passage : lire un fichier, en écrire un, lancer une
+   commande. D'où le constat de kuchu, le 2026-08-12 : *« si l'on ne peut pas
+   éditer des fichiers, créer des fichiers, les télécharger, il ne sert à rien,
+   strictement à rien. »* Nous étions en train de reconstruire Cowork en moins
+   bien.
+
+   Un seul moteur maintenant — Hermès, dans les deux positions. Ce qui change,
+   c'est ce que l'agent a le DROIT DE MODIFIER :
+     · "plan"  — discuter, lire, chercher, produire. Écrire et exécuter :
+                 refusés à la porte d'approbation (voir surApprobation).
+     · "build" — tout est autorisé. « Vérif » en est la fin, pas un troisième
+                 cran : c'est une phase, pas un choix.
+
+   ⚠ LE MODE NE TOUCHE NI AUX TOOLSETS NI AU SYSTEM PROMPT. Le préfixe pèse
+   15 067 tokens (mesuré) et il ne doit pas bouger d'un appel à l'autre, sinon
+   le cache saute à chaque bascule — c'est-à-dire à chaque fois qu'on l'utilise.
+   Le mode se dit dans le TOUR DE L'UTILISATEUR, après le préfixe.
+   Voir PASSE-DESIGN-UN-SEUL-FIL.md §2. */
+let mode = "plan";            // plan (Discussion/Plan) | build (Build → Vérif)
 let incognito = false;
-const pureHistory = [], pureTurns = [];
 
 /* Le repli présente les six avec les ENCOCHES de la maquette (`.opt` et
    `.tick`, le langage de ses questions à choix) : on ne dessine pas une
@@ -349,8 +366,11 @@ document.addEventListener("click", async (e) => {
 });
 
 function turnHTML(t){
-  const cls = t.role === "user" ? "you" : t.role === "assistant" ? "ulysse"
-    : t.role === "error" ? "u-err" : "u-sys";
+  // Le refus de mode est un tour système, mais il ne se lit pas comme une
+  // note : c'est un geste qui n'a PAS eu lieu, et ça doit se voir d'un coup
+  // d'œil quand on remonte le fil pour comprendre pourquoi rien n'a bougé.
+  const cls = (t.role === "user" ? "you" : t.role === "assistant" ? "ulysse"
+    : t.role === "error" ? "u-err" : "u-sys") + (t.refusMode ? " m-refus" : "");
   let h = '<div class="msg ' + cls + '">';
   if (t.role === "user" || t.role === "assistant"){
     h += '<div class="u-who">' + (t.role === "user"
@@ -477,12 +497,37 @@ function turnHTML(t){
         + "</div>";
     }
   }
-  if (t.coupe){
-    h += '<div class="u-coupe">' + svg("alerte", { size: 14 })
-      + "<span>Réponse coupée : la limite de " + esc(String(CFG.PROXY_MAX_TOKENS))
-      + " tokens a été atteinte. Elle se règle dans <code>ulysse-config.js</code>"
-      + " (<code>PROXY_MAX_TOKENS</code>).</span></div>";
+  /* ═══ LE PLAN, ET LE BOUTON QUI LE VALIDE ════════════════════════════════
+     « Une fois que le plan est établi et que tout paraît cohérent, Hermès de
+     lui-même propose un bouton sur lequel l'utilisateur appuierait, ce qui
+     validerait aussi que le plan soit bon. » — kuchu, 2026-08-12.
+
+     Appuyer vaut LES DEUX CHOSES : « ce plan me va » et « lance le codage ».
+     C'est juste — la validation d'un plan n'a pas d'existence séparée, elle
+     se prouve en passant à la suite. Et ce qu'on valide, ce sont les étapes
+     AFFICHÉES, pas une intention qu'il aurait fallu croire sur parole.
+
+     Le bouton n'apparaît que si RIEN n'est commencé. Une étape déjà en cours
+     ou faite veut dire qu'on n'est plus à valider — proposer de « lancer »
+     un travail entamé serait proposer de le recommencer. */
+  if (t.plan && t.plan.length){
+    const enCours = t.plan.some((e) => e.etat !== "pending" && e.etat !== "cancelled");
+    const aValider = !enCours && mode === "plan" && t.state !== "streaming";
+    h += '<div class="m-plan"><div class="l-titre">' + svg("noeuds", { size: 15 })
+      + "<span>Plan proposé — " + t.plan.length
+      + (t.plan.length > 1 ? " étapes" : " étape") + "</span></div>"
+      + t.plan.map((e, i) =>
+          '<div class="m-etape ' + esc(e.etat) + '"><span class="m-n">'
+          + (i + 1) + "</span><span>" + esc(e.contenu) + "</span></div>").join("")
+      + (aValider
+          ? '<div class="m-pied"><button class="m-bascule" type="button" '
+            + 'id="basculeBuild">Build and Vérif ›</button></div>'
+          : "")
+      + "</div>";
   }
+  /* L'avis de troncature `.u-coupe` a été retiré avec le mode pur : il citait
+     `PROXY_MAX_TOKENS`, un plafond que seul /proxy/chat appliquait. L'agent,
+     lui, ne coupe pas à 4000 tokens — il compacte son contexte et le dit. */
   return h + "</div>";
 }
 
@@ -492,7 +537,10 @@ function paintThread(){
   const scroller = host.closest(".thread") || host;
   const stick = scroller.scrollHeight - scroller.scrollTop - scroller.clientHeight < 90;
 
-  const turns = mode === "pur" ? pureTurns : conv.turns;
+  // UN SEUL FIL. Il y avait deux listes de tours — `pureTurns` et
+  // `conv.turns` — et changer de mode changeait de conversation sous les
+  // yeux. C'est fini : le mode ne déplace personne.
+  const turns = conv.turns;
   let h = "";
   // La ligne du fil sans mémoire. Elle est le troisième des trois signaux
   // faibles de la maquette (teinte du fond, pastille près du titre, cette
@@ -503,39 +551,51 @@ function paintThread(){
       + "et se ferme avec la fenêtre.</span></div>";
   }
   if (!turns.length){
-    h += '<div class="u-load">' + (mode === "pur"
-      ? "Discussion : le modèle répond, il n'agit pas. Aucun outil n'est actif."
-      : "Cowork : l'agent complet, outils actifs. La session s'ouvre au premier message.")
+    h += '<div class="u-load">' + (mode === "build"
+      ? "Build : l'agent écrit et exécute. La vérification suit le build."
+      : "Plan : on discute, on lit, on propose. Rien ne sera modifié sur le disque.")
       + "</div>";
   }
   h += turns.map(turnHTML).join("");
-  if (conv.status && conv.running && mode === "cowork"){
+  if (conv.status && conv.running){
     h += '<div class="u-load">' + esc(conv.status.text || "…") + "</div>";
   }
   // La demande d'accord se pose EN FIN DE FIL, là où l'agent s'est arrêté.
   // C'est ce qui le bloque : ça ne peut pas vivre seulement dans une cloche.
-  if (mode === "cowork") h += accordHTML();
+  h += accordHTML();
 
   host.innerHTML = h;
   host.querySelectorAll("[data-ch]").forEach((b) => {
     b.onclick = () => repondreAccord(b.dataset.ch);
   });
+  /* Le bouton bascule ET relance. Basculer sans rien dire laisserait la
+     personne devant un mode changé et un agent qui attend : elle devrait
+     retaper « vas-y ». Le message part donc avec, court et explicite. */
+  const bb = host.querySelector("#basculeBuild");
+  if (bb) bb.onclick = async () => {
+    bb.disabled = true;
+    setMode2("build");
+    await submitPrompt("Le plan est validé. Exécutez-le, puis vérifiez votre "
+      + "travail contre le plan." + ligneDeMode(), roleOpts());
+  };
   if (stick) scroller.scrollTop = scroller.scrollHeight;
+  majMention();
   paintHint();
 }
 
 function paintHint(){
-  const busy = mode === "pur" ? pureBusy : conv.running;
-  $("snd1").style.display = busy && mode === "cowork" ? "none" : "";
-  $("stopBtn").style.display = busy && mode === "cowork" ? "" : "none";
-  $("reply").disabled = busy && mode === "pur";
+  /* Une seule occupation, celle de la session. `pureBusy` doublait
+     `conv.running` et les deux pouvaient se contredire. Le champ ne se
+     verrouille plus : on peut écrire pendant que l'agent travaille — c'est
+     `stopBtn` qui prend la main, pas un champ mort. */
+  const busy = conv.running;
+  $("snd1").style.display = busy ? "none" : "";
+  $("stopBtn").style.display = busy ? "" : "none";
 
   const cadre = activeRole ? " · cadre « " + activeRole.name + " »" : "";
-  $("composerHint").textContent = mode === "cowork"
-    ? (conv.sessionId
-        ? "Session " + conv.sessionId + (conv.info && conv.info.model ? " · " + conv.info.model : "")
-        : "Aucune session — elle s'ouvrira au premier message") + cadre
-    : "Sans outils — le modèle répond, il n'agit pas." + cadre;
+  $("composerHint").textContent = (conv.sessionId
+    ? "Session " + conv.sessionId + (conv.info && conv.info.model ? " · " + conv.info.model : "")
+    : "Aucune session — elle s'ouvrira au premier message") + cadre;
 
   // Les classes que toute la mise en scène attend. Sans `incog`,
   // `.privchip{display:none}` gagne et #privchip était rempli à chaque
@@ -668,16 +728,19 @@ function majEtats(){
   const p = $("pDiscuter");
   if (!p) return;
   p.classList.toggle("accueil", accueil);
-  p.classList.toggle("cowork", mode === "cowork");
+  // La classe reste `cowork` : c'est elle que la feuille et les 15 aperçus
+  // connaissent, et elle veut toujours dire « l'agent est en jeu ». Il l'est
+  // désormais dans les deux modes.
+  p.classList.toggle("cowork", true);
+  p.classList.toggle("build", mode === "build");
   p.classList.toggle("incog", incognito);
   p.classList.toggle("hs", reseauHS());
 }
 
-/* Une brique ne répond plus. Le lien WebSocket est le seul signal qui compte
-   en Cowork : sans lui, l'agent ne peut rien recevoir. En Chat, il ne sert à
-   rien — le proxy suffit — donc son absence n'est pas une panne. */
+/* Une brique ne répond plus. Le lien WebSocket est le seul signal qui compte,
+   dans LES DEUX modes maintenant : sans lui, l'agent ne reçoit rien. Il n'y a
+   plus de mode « le proxy suffit » où son absence serait sans conséquence. */
 function reseauHS(){
-  if (mode !== "cowork") return false;
   if (link.state === "denied" || link.state === "closed") return true;
   return !!(lastStatus && lastStatus.gateway_running === false);
 }
@@ -752,36 +815,23 @@ async function surFichiers(files){
         + " Passez par les Livrables.");
       continue;
     }
-    /* ⚠ EN DISCUSSION, UNE IMAGE NE PASSE PAS PAR LE GATEWAY. Il n'y a pas de
-       session à nourrir, et `attacherFichier()` en ouvrirait une — une session
-       Cowork dans le dos de la personne, pour une pièce qui n'y servirait pas.
-       On garde donc les octets ici, et ils partiront DANS le message.
-       Un fichier non-image, lui, n'a aucun chemin en Discussion : le modèle ne
-       peut pas l'ouvrir, et personne ne peut le lire pour lui. On le dit. */
-    if (mode === "pur" && !image){
-      snack("« " + f.name + " » ne peut pas être lu en Discussion — le modèle "
-        + "n'ouvre pas de fichier. Passez en Cowork, ou collez le texte.");
-      continue;
-    }
+    /* ⚠ UN SEUL CHEMIN POUR JOINDRE. Il y en avait deux : en Discussion les
+       octets restaient ici et partaient dans le message, en Cowork ils
+       passaient par le gateway. Deux chemins, deux façons d'échouer, et un
+       fichier non-image simplement refusé d'un côté.
+       Maintenant il y a toujours une session à nourrir : `attacherFichier()`
+       fait le travail, image ou pas, dans les deux modes. Joindre n'écrit
+       rien dans le projet — c'est une lecture — donc le mode Plan l'autorise
+       sans réserve. */
     const j = { name: f.name, ref: "", image: image, size: f.size, etat: "envoi",
                 dataUrl: "" };
     jointes.push(j);
     dessineJointes();
     try {
-      if (mode === "pur"){
-        j.dataUrl = await new Promise((res, rej) => {
-          const r = new FileReader();
-          r.onload = () => res(r.result);
-          r.onerror = () => rej(new Error("lecture de l'image impossible"));
-          r.readAsDataURL(f);
-        });
-        j.etat = "prete";
-      } else {
-        const res = await attacherFichier(f);
-        j.ref = res.ref;
-        j.name = res.name || j.name;
-        j.etat = "prete";
-      }
+      const res = await attacherFichier(f);
+      j.ref = res.ref;
+      j.name = res.name || j.name;
+      j.etat = "prete";
     } catch (e){
       j.etat = "echec";
       snack("« " + f.name + " » n'a pas pu être joint : " + e.message);
@@ -920,22 +970,66 @@ function viderJointes(){
   dessineJointes();
 }
 
-/* ═══ La bascule Cowork / Discussion, sous le composeur ══════════════════
+/* ═══ La bascule Plan / Build, sous le composeur ═════════════════════════
    Les deux écrans portent la même, et elles disent la même chose : c'est un
-   seul réglage, montré à deux endroits, pas deux réglages à accorder. */
+   seul réglage, montré à deux endroits, pas deux réglages à accorder.
+
+   ⚠ « QUASI INVISIBLE », demandé par kuchu le 2026-08-12. On change de mode
+   deux fois par heure au plus ; ce qui doit rester sous la main, c'est le
+   champ de saisie. Le mode se LIT, il ne s'opère pas. Il ne se montre qu'aux
+   trois moments où il compte : quand l'agent propose de basculer, quand un
+   refus tombe, et pendant Build → Vérif.
+   Voir PASSE-DESIGN-UN-SEUL-FIL.md §5. */
+
+const MODES = { plan: "Plan", build: "Build" };
 
 function setMode2(m){
+  if (!MODES[m]) return;
   mode = m;
   document.querySelectorAll(".u-modeseg button").forEach((b) => {
     b.classList.toggle("on", b.dataset.mode === m);
   });
-  const note = mode === "cowork"
-    ? "l'agent complet — il peut lire, écrire et exécuter, en vous demandant votre accord"
-    : "le modèle seul — il répond, il n'agit pas et ne touche à rien";
+  /* La phase. « Vérif » n'est pas un cran — c'est la fin du build, décidée
+     par kuchu : elle s'affiche, elle ne se choisit pas. */
+  const mention = $("modeMention");
+  if (mention) mention.textContent = mode === "build" ? phaseBuild() : "Plan";
+  const note = mode === "build"
+    ? "l'agent écrit et exécute, puis vérifie son travail contre le plan"
+    : "on discute, on lit, on propose — rien ne sera modifié sur le disque";
   if ($("modenote1")) $("modenote1").textContent = note;
   majInvite();
   majEtats();
   paintThread();
+}
+
+/* Où en est le build. « Vérif » n'est pas un cran du sélecteur — c'est la fin
+   du build, et elle s'affiche seule.
+
+   ⚠ ON NE L'INVENTE PAS. Le seul fait qui dise honnêtement « le travail est
+   fait, il reste à le contrôler », c'est un plan dont TOUTES les étapes sont
+   terminées. Tant qu'il n'y a pas de plan, ou qu'une étape reste ouverte, on
+   dit « Build » : une phase inventée serait pire qu'une phase absente. */
+function phaseBuild(){
+  const p = dernierPlan();
+  const fini = p && p.length
+    && p.every((e) => e.etat === "completed" || e.etat === "cancelled");
+  return fini ? "Vérif" : "Build";
+}
+
+/* Le plan le plus récent du fil. C'est celui qui vaut : l'outil `todo` renvoie
+   la liste ENTIÈRE à chaque appel, donc le dernier écrase les précédents. */
+function dernierPlan(){
+  for (let i = conv.turns.length - 1; i >= 0; i--){
+    if (conv.turns[i].plan) return conv.turns[i].plan;
+  }
+  return null;
+}
+
+/* La mention suit la phase sans qu'on ait à la rappeler partout : paintThread
+   passe ici, et c'est le seul endroit où le fil change. */
+function majMention(){
+  const m = $("modeMention");
+  if (m) m.textContent = mode === "build" ? phaseBuild() : "Plan";
 }
 
 /* À l'accueil on demande, ensuite on répond : ce n'est pas la même invite, et
@@ -944,7 +1038,7 @@ function setMode2(m){
 function majInvite(){
   if (!$("reply")) return;
   $("reply").placeholder = accueil ? "Dites ce que vous aimeriez faire."
-    : mode === "cowork" ? "Répondre…" : "Écrivez votre message… (sans outils)";
+    : mode === "build" ? "Répondre…" : "Répondre, ou demander un plan…";
 }
 
 /* Le cadre de rôle, commun aux deux composeurs. */
@@ -1004,117 +1098,36 @@ async function onSend(ev){
   if (!text) return;
   input.value = "";
 
-  if (mode === "pur"){
-    // En Chat il n'y a pas de session à ouvrir : le tour part et s'affiche.
-    // Attendre quoi que ce soit serait une attente inventée.
-    quitterAccueil();
-    // Les images prêtes partent DANS le message, en contenu multimodal. Rien
-    // à annoncer : ce qui part, part. C'est le modèle qui décidera s'il voit,
-    // et `sendPure` dira la vérité s'il ne voit pas.
-    await sendPure(text, text, jointes.filter((j) => j.image && j.dataUrl));
-    viderJointes();
-    return;
-  }
-  // Le premier message de Cowork ouvre la session : c'est la seule attente
-  // qui soit vraie, et elle a son compteur.
+  // Le premier message ouvre la session : c'est la seule attente qui soit
+  // vraie, et elle a son compteur.
   if (accueil) attendreOuverture();
-  // Le cadre de rôle part vers le moteur, mais le fil affiche ce que la
-  // personne a RÉELLEMENT écrit : lui relire une consigne qu'elle n'a pas
-  // rédigée brouille la lecture de son propre fil.
-  await submitPrompt(text + refsJointes(), roleOpts());
+  /* Le cadre de rôle part vers le moteur, mais le fil affiche ce que la
+     personne a RÉELLEMENT écrit : lui relire une consigne qu'elle n'a pas
+     rédigée brouille la lecture de son propre fil. `ligneDeMode()` suit la
+     même règle — elle part, elle ne s'affiche pas. */
+  await submitPrompt(text + refsJointes() + ligneDeMode(), roleOpts());
   viderJointes();
 }
 
-/* Le chat pur passe par /proxy/chat sur NOTRE origine : serve.py relaie vers
-   le proxy Hermès et y pose la clé. La page n'en détient aucune. */
-async function sendPure(displayText, sendText, images){
-  const push = (role, txt, state) => {
-    const t = { key: Date.now() + Math.random(), role: role, text: txt, tools: [],
-                reasoning: "", state: state || "done" };
-    pureTurns.push(t);
-    return t;
-  };
-  push("user", displayText);
-  /* Le contenu multimodal d'OpenAI : une chaîne quand il n'y a que du texte,
-     un TABLEAU de parties dès qu'une image s'y joint. Le proxy transmet le
-     corps verbatim, donc la forme est celle que le fournisseur attend.
-     On n'envoie le tableau QUE s'il y a une image : un tableau à une seule
-     partie texte marcherait, mais il ferait payer la forme compliquée à tous
-     les messages, et il rendrait `pureHistory` illisible à la relecture. */
-  const parties = (images || []).filter((j) => j.dataUrl);
-  pureHistory.push({
-    role: "user",
-    content: parties.length
-      ? [{ type: "text", text: sendText || displayText }].concat(
-          parties.map((j) => ({ type: "image_url", image_url: { url: j.dataUrl } })))
-      : (sendText || displayText)
-  });
-  const pending = push("assistant", "", "streaming");
-  pureBusy = true;
-  paintThread();
+/* La ligne de cadre : ce qui dit a lagent ou lon en est.
 
-  const drop = () => { const i = pureTurns.indexOf(pending); if (i >= 0) pureTurns.splice(i, 1); };
+   ⚠ ELLE PART DANS LE TOUR DE LUTILISATEUR, JAMAIS DANS LE SYSTEM PROMPT.
+   Le prefixe pese 15 067 tokens (mesure le 2026-08-12) et le cache ne tient
+   que sil ne bouge pas dun appel a lautre. Lecrire dans le system prompt
+   serait plus simple et invaliderait le cache A CHAQUE BASCULE — la
+   simplicite y serait payee en argent. Un tour utilisateur vient APRES le
+   prefixe : il ne casse rien. Cout mesurable : une quinzaine de tokens.
 
-  try {
-    // LOI-DU-CERVEAU.md : modele herite, jamais choisi par Ulysse.
-    // Override explicite (PROXY_MODEL rempli) > modele de la session Hermes
-    // vivante (conv.info.model) > rien (le proxy repondra 400, message honnete).
-    const modeleDiscussion = CFG.PROXY_MODEL
-      || (conv && conv.info && conv.info.model) || "";
-    const data = await REST.pureChat(pureHistory, modeleDiscussion);
-    drop();
-    const choix = (data && data.choices && data.choices[0]) || null;
-    const content = choix && choix.message ? contentToText(choix.message.content) : "";
-    /* ⚠ LE MODÈLE DIT QUAND IL A ÉTÉ COUPÉ, ET PERSONNE N'ÉCOUTAIT.
-       `finish_reason` n'avait pas UNE occurrence dans tout le produit. Or
-       `PROXY_MAX_TOKENS` vaut 800 : toute réponse un peu longue est tronquée,
-       et la bulle s'arrêtait au milieu d'une phrase sans que rien ne le dise.
-       Un écran qui montre un texte coupé comme un texte complet ment — et
-       c'est le seul défaut de cette famille qu'on puisse réparer sans rien
-       décider. Voir PASSE-DESIGN-CHAT-NON-BLOQUANT.md §2.
-       Les fournisseurs n'écrivent pas tous le même mot : OpenAI dit
-       « length », d'autres « max_tokens ». On accepte les deux, et rien
-       d'autre — « stop » est une fin normale. */
-    const raison = String((choix && choix.finish_reason) || "").toLowerCase();
-    const coupe = raison === "length" || raison === "max_tokens";
-    if (content && content.trim()){
-      push("assistant", content.trim()).coupe = coupe;
-      pureHistory.push({ role: "assistant", content: content.trim() });
-    } else {
-      push("system", "(réponse reçue sans texte — réessayez.)");
-      pureHistory.pop();
-    }
-  } catch (e){
-    drop();
-    pureHistory.pop();
-    /* ⚠ L'IMAGE QUI N'EST PAS VUE. En Cowork, Hermès la fait DÉCRIRE par un
-       autre modèle quand le modèle courant n'a pas la vision
-       (`agent/image_routing.py`). En Discussion il n'y a pas d'agent : ce
-       filet n'existe pas, et le fournisseur refuse le message.
-       On ne l'a pas interdit d'avance — un refus préventif interdit un geste
-       qui marche. On dit donc la vérité APRÈS, et on dit quoi faire.
-       Ce cas passe en premier : sans lui, un 400 dû à l'image tomberait dans
-       le message générique et accuserait le proxy à tort. */
-    if (parties.length && (e.status === 400 || e.status === 415
-                           || e.status === 422 || e.status === 404)){
-      push("system", "Ce modèle n'a pas accepté l'image — en Discussion il n'y "
-        + "a pas d'agent pour la décrire à sa place. Le texte n'est pas parti. "
-        + "Passez en Cowork : Hermès la fera décrire si le modèle ne voit pas.");
-    } else if (e.status === 403){
-      push("system", "Le modèle gratuit est saturé. Réessayez dans quelques secondes. "
-        + "Si le problème persiste, le modèle par défaut se règle dans votre "
-        + "installation d'Hermès (Ulysse n'en choisit aucun).");
-    } else if (e.status === 502){
-      push("error", "Le proxy Hermès ne répond pas. Lancez-le : "
-        + "hermes proxy start --provider nous --port 8645");
-    } else {
-      push("error", "Discussion : " + e.message);
-    }
-  } finally {
-    pureBusy = false;
-    paintThread();
-    $("reply").focus();
-  }
+   Elle ne suffit pas, et elle na pas a suffire : la porte dapprobation
+   applique le mode meme si le modele oublie la consigne. Une garantie qui
+   repose sur la bonne volonte du modele nest pas une garantie.
+   Voir PASSE-DESIGN-UN-SEUL-FIL.md §2 et §3. */
+function ligneDeMode(){
+  return mode === "build"
+    ? "\n\n[Mode Build : vous pouvez écrire et exécuter. Vérifiez ensuite votre"
+      + " travail contre le plan.]"
+    : "\n\n[Mode Plan : ne modifiez rien sur le disque. Lisez, cherchez,"
+      + " proposez. Posez le plan avec l'outil todo.]";
 }
 
 /* --- L'Établi : les fichiers, à côté du fil ------------------------------ */
@@ -1235,7 +1248,35 @@ let studioVue = "both", jrnOuvert = false;
 const etapesOuvertes = new Set();
 
 /* Les étapes = les outils appelés, dans l'ordre. */
+/* ⚠ QUAND IL Y A UN PLAN, C'EST LUI QU'ON SUIT — pas la trace des outils.
+   « Lorsqu'un plan est lancé, on peut suivre le plan car il apparaît dans
+   Plan, on voit le graph node. » — kuchu, 2026-08-12.
+
+   Les deux sont légitimes, mais ils ne disent pas la même chose : le plan dit
+   CE QU'ON A DÉCIDÉ DE FAIRE, la liste d'outils dit CE QUI S'EST PASSÉ. Quand
+   l'agent a posé un plan avec `todo`, c'est celui-là qu'on veut voir avancer —
+   les vingt lectures de fichiers qu'il a fallu pour l'étape 2 sont du bruit à
+   cette échelle. Sans plan, on retombe sur la trace : mieux vaut le journal
+   que rien.
+
+   La famille (donc la couleur) vient de l'ÉTAT, pas du nom : une étape de plan
+   n'est ni une lecture ni une écriture, c'est une intention. */
 function etapesReelles(){
+  const plan = dernierPlan();
+  if (plan && plan.length){
+    return plan.map((e, i) => ({
+      n: i + 1,
+      t: e.contenu,
+      d: e.etat === "completed" ? "terminée"
+        : e.etat === "in_progress" ? "en cours"
+        : e.etat === "cancelled" ? "abandonnée" : "à faire",
+      result: "",
+      ms: null,
+      pct: e.etat === "completed" ? 100 : e.etat === "in_progress" ? 50 : 0,
+      team: e.etat === "completed" ? "lire"
+        : e.etat === "in_progress" ? "executer" : null
+    }));
+  }
   const out = [];
   conv.turns.forEach((t) => (t.tools || []).forEach((x) => {
     out.push({
@@ -1696,7 +1737,7 @@ function drawLivListe(){
     // « Poser sur l'Établi » n'est pas un appel réseau : l'Établi lit le
     // dossier, on l'ouvre donc sur le parent du fichier et on montre sa fiche.
     etabliPath = livCache.path || "";
-    setMode2("cowork");
+    setMode2("build");
     setMode("atelier");
     nav("Discuter");
     showFile(p, p.split(/[\\/]/).pop());
@@ -1788,15 +1829,13 @@ function geluleLieu(){
   const enCours = (conv.info && conv.info.cwd) || null;
   const prochain = CFG.SESSION_CWD || null;
 
-  /* ⚠ EN MODE CHAT, IL N'Y A PAS DE LIEU — et « en attente » serait un
-     mensonge. Le mode Chat n'ouvre AUCUNE session Hermès : le modèle répond
-     et n'agit pas. `conv.info.cwd` ne viendra donc jamais, et la gélule
-     annoncerait indéfiniment un dossier à venir.
-
-     Signalé par kuchu le 2026-08-09, capture à l'appui. Elle disparaît :
-     un lieu de travail n'a de sens que là où quelque chose travaille — et
-     la ligne sous le champ dit déjà « sans outils ». */
-  if (mode !== "cowork") return "";
+  /* Le garde « pas de lieu en mode Chat » a été retiré avec le mode pur.
+     Il existait parce que le Chat n'ouvrait aucune session : `conv.info.cwd`
+     ne venait jamais et la gélule annonçait indéfiniment un dossier à venir
+     (signalé par kuchu le 2026-08-09, capture à l'appui).
+     Les deux modes ouvrent maintenant une session, donc le lieu est réel dans
+     les deux — et il compte AUTANT en Plan : c'est le dossier qu'on lit pour
+     bâtir le plan. */
 
   // Tant que la session n'est pas ouverte, on ignore où elle ira.
   if (!enCours){
@@ -4767,6 +4806,39 @@ coreHooks.onSystem = (text) => {
   paintThread();
 };
 
+/* ═══ CE QUI MODIFIE, ET CE QUI SE CONTENTE DE LIRE ══════════════════════════
+   La liste des outils d'ÉCRITURE, telle qu'Hermès les nomme. Elle décide seule
+   de ce que le mode Plan refuse.
+
+   ⚠ ON NOMME CE QU'ON REFUSE, JAMAIS CE QU'ON AUTORISE. Une liste blanche
+   laisserait passer tout outil ajouté demain par Hermès — et un outil inconnu
+   qui écrit dans un mode qui promet de ne rien toucher, c'est la promesse
+   rompue en silence. Ici, un outil inconnu n'est pas refusé : il demande
+   l'accord, comme avant. C'est le comportement d'origine, pas une régression.
+
+   `terminal` et `execute_code` y sont : on ne peut pas savoir ce qu'une
+   commande va faire, et « lancer les tests » et « rm -rf » ont la même forme
+   vue d'ici. En Plan on ne lance rien. */
+const OUTILS_QUI_MODIFIENT = {
+  write_file: 1, patch: 1, edit_file: 1, str_replace: 1, create_file: 1,
+  delete_file: 1, move_file: 1, terminal: 1, process: 1, execute_code: 1,
+  shell: 1, bash: 1
+};
+
+/* La porte, côté écran. Rend la phrase du refus, ou "" pour laisser passer. */
+coreHooks.refusDeMode = (pl) => {
+  if (mode !== "plan") return "";
+  const outil = String((pl && (pl.tool || pl.name)) || "").toLowerCase();
+  if (!OUTILS_QUI_MODIFIENT[outil]) return "";
+  /* ⚠ LE REFUS DIT SA CAUSE ET LA SORTIE. Un refus qui s'arrête à « non » est
+     un mur poli : la personne voit l'agent s'interrompre sans savoir que le
+     mode en est la raison, ni que la sortie tient en un clic. */
+  const quoi = accordQuoi(pl);
+  return "Refusé : nous sommes en Plan, où rien n'est modifié sur le disque. "
+    + "L'agent a demandé « " + quoi + " ». Passez en Build pour l'autoriser — "
+    + "le mode se change sous le champ de saisie.";
+};
+
 function boot(){
   initRailHover();
   drawRail();
@@ -4847,9 +4919,24 @@ function boot(){
     };
   };
 
+  /* La mention ouvre les deux positions ; choisir referme. Le repli suit le
+     langage de `#cadrePop` — `.pop.on` — parce qu'un deuxième mécanisme de
+     repli dans le même composeur serait un dialecte de plus à apprendre. */
   document.querySelectorAll(".u-modeseg button").forEach((b) => {
-    b.onclick = () => setMode2(b.dataset.mode);
+    b.onclick = (e) => {
+      e.stopPropagation();
+      setMode2(b.dataset.mode);
+      const p = document.querySelector(".u-modeseg");
+      if (p) p.classList.remove("on");
+    };
   });
+  if ($("modeMention")){
+    $("modeMention").onclick = (e) => {
+      e.stopPropagation();
+      const p = document.querySelector(".u-modeseg");
+      if (p) p.classList.toggle("on");
+    };
+  }
   setMode2(mode);
 
   // Le « + » des deux composeurs ouvre le même sélecteur de fichiers.

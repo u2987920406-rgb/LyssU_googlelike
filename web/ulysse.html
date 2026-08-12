@@ -1087,13 +1087,20 @@
         </form>
         <!-- La même bascule qu'à l'entrée, au même endroit : sous le champ. -->
         <div class="u-sousbarre">
-          <!-- Chat d'abord, et Chat par défaut : c'est le visage nu, celui
-               qui n'engage aucun outil. Les valeurs `data-mode` ne changent
-               pas — seuls l'ordre et les mots bougent. -->
-          <div class="seg u-modeseg" data-seg="1">
-            <button data-mode="pur" class="on">Chat</button>
-            <button data-mode="cowork">Cowork</button>
-          </div>
+          <!-- ⚠ « QUASI INVISIBLE », demandé par kuchu le 2026-08-12. C'était
+               un segment de 120 px qui proposait un CHOIX à chaque coup d'œil,
+               pour un réglage qu'on change deux fois par heure. Ce n'est plus
+               qu'un mot — l'endroit où l'on est — qui ouvre les deux positions
+               quand on le touche. Ce qui reste sous la main, c'est le champ.
+               Les valeurs `data-mode` valent maintenant plan | build. -->
+          <span class="u-modewrap">
+            <button class="u-modemention" id="modeMention"
+                    aria-haspopup="true">Plan</button>
+            <div class="seg u-modeseg pop" data-seg="1">
+              <button data-mode="plan" class="on">Plan</button>
+              <button data-mode="build">Build</button>
+            </div>
+          </span>
           <!-- Les six cadres se replient derrière une gélule. Choisir un cadre
                est un geste avancé : on le fait rarement, et jamais avant
                d'avoir écrit sa première phrase. Elle reste GRISE dans les deux
