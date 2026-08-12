@@ -2880,6 +2880,43 @@ function planifChaine(mode, v){
   return String((v && v.expr) || "").trim();
 }
 
+/* ⚠ LA TRADUCTION INVERSE, POUR MODIFIER. Rouvrir une automatisation demande
+   de relire l'horaire d'Hermès et de retrouver le choix qui l'a produit. Deux
+   pièges, et ce sont les mêmes que partout ici :
+
+   · `schedule` est un OBJET (`{kind, expr|minutes|run_at}`) ;
+   · toutes les formes d'Hermès ne rentrent PAS dans nos quatre cases. Une
+     tâche « une fois, le 1er janvier » n'est ni quotidienne ni périodique.
+
+   Ce qu'on ne sait pas représenter part donc en forme libre, avec la chaîne
+   telle quelle — jamais rangé de force dans une case voisine. Deviner ici,
+   c'est rouvrir « chaque jour à 9 h » sur une tâche qui tournait toutes les
+   dix minutes, et la casser en enregistrant. */
+function planifDepuis(job){
+  const p2 = (x) => String(Number(x) || 0).padStart(2, "0");
+  const s = job && job.schedule;
+  /* Pas de travail = on en POSE un : le défaut est le cas courant, « chaque
+     jour à 9 h ». Rendu « forme libre » ici, le formulaire de création
+     s'ouvrait sur un champ vide où il fallait connaître la syntaxe cron —
+     exactement ce que ce formulaire existe pour éviter. */
+  if (!job) return { mode: "quotidien", heure: "09:00" };
+  if (!s) return { mode: "expression", expr: "" };
+  if (typeof s === "string") return { mode: "expression", expr: s };
+  if (s.kind === "interval"){
+    const n = Math.max(1, Number(s.minutes) || 1);
+    return (n >= 60 && n % 60 === 0)
+      ? { mode: "heures", n: n / 60 } : { mode: "minutes", n: n };
+  }
+  if (s.kind === "cron"){
+    const m = String(s.expr || "").trim().match(/^(\d{1,2}) (\d{1,2}) \* \* \*$/);
+    if (m) return { mode: "quotidien", heure: p2(m[2]) + ":" + p2(m[1]) };
+    return { mode: "expression", expr: s.expr || "" };
+  }
+  // « once » : une date. Hermès la relit telle quelle en forme libre.
+  if (s.kind === "once") return { mode: "expression", expr: s.run_at || s.display || "" };
+  return { mode: "expression", expr: s.display || s.expr || "" };
+}
+
 /* Ce que la chaîne VEUT DIRE, en français. Sert de relecture avant l'envoi :
    c'est la dernière chance de voir qu'on a écrit 9 h du soir pour 9 h du
    matin. Elle décrit la chaîne, pas le choix — sinon elle décrirait
@@ -2912,6 +2949,9 @@ async function drawAutos(){
   try {
     const d = await REST.cronJobs();
     const jobs = Array.isArray(d) ? d : ((d && (d.jobs || d.items)) || []);
+    // Gardés pour le câblage : « Modifier » doit rouvrir le travail RÉEL,
+    // avec son horaire tel qu'Hermès le stocke, pas ce qu'on relirait du DOM.
+    autoJobs = jobs;
     corps += '<div class="seth">Tâches planifiées<span class="l"></span>'
       + '<button class="btn-pick" id="autoNouv">' + svg("plus", { size: 16 })
       + " Nouvelle</button></div>"
@@ -2949,6 +2989,11 @@ async function drawAutos(){
           + '<span class="sub">Sans attendre la prochaine échéance</span></span>'
           + '<span class="sv"><button class="btn-pick" data-fire="' + esc(id) + '">'
           + "Déclencher</button></span></div>"
+          + '<div class="srow"><span class="sk">Modifier'
+          + '<span class="sub">Le texte, l\'horaire, la destination. Ce qu\'on '
+          + "ne touche pas reste tel quel.</span></span>"
+          + '<span class="sv"><button class="btn-pick" data-edit="' + esc(id) + '">'
+          + "Modifier</button></span></div>"
           /* Poser une automatisation sans pouvoir la retirer serait un piège :
              elle tourne toute seule. Le retrait demande donc une confirmation,
              comme tout ce qui ne se rattrape pas — « rien ne disparaît d'un
@@ -3035,13 +3080,22 @@ async function drawAutos(){
 
 /* Le formulaire. Il vit dans `#autoForm`, replié tant qu'on ne le demande pas :
    l'écran sert d'abord à REGARDER ce qui tourne. */
-let autoCibles = null;
+let autoCibles = null, autoJobs = [];
 
-async function ouvrirFormAuto(){
+/* ⚠ UN SEUL FORMULAIRE POUR LES DEUX GESTES. Poser et modifier demandent
+   exactement les mêmes champs ; en écrire deux, c'est se donner deux endroits
+   à corriger et un jour où l'un dit autre chose que l'autre. C'est la leçon des
+   dix aperçus de la feuille de style, appliquée ici avant qu'elle ne coûte.
+   `job` absent = on pose ; `job` présent = on modifie celui-là. */
+async function ouvrirFormAuto(job){
   const hote = $("autoForm");
   if (!hote) return;
-  if (hote.dataset.on === "1"){ hote.dataset.on = ""; hote.innerHTML = ""; return; }
+  // Rouvrir le MÊME travail referme ; en ouvrir un autre bascule dessus.
+  if (hote.dataset.on === "1" && hote.dataset.cible === String((job && job.id) || "")){
+    hote.dataset.on = ""; hote.dataset.cible = ""; hote.innerHTML = ""; return;
+  }
   hote.dataset.on = "1";
+  hote.dataset.cible = String((job && job.id) || "");
   hote.innerHTML = '<div class="u-load">Un instant…</div>';
 
   // Les cibles viennent du backend. Une liste écrite ici serait fausse le jour
@@ -3053,26 +3107,39 @@ async function ouvrirFormAuto(){
   const cibles = autoCibles.length ? autoCibles
     : [{ id: "local", name: "Local (save only)", home_target_set: true }];
 
+  const pre = planifDepuis(job);
   hote.innerHTML = '<div class="acard open"><div class="abody"><div class="in">'
     + '<div class="u-lecture">' + svg("alerte", { size: 14 })
-    + "Ce que vous posez ici tournera <b>sans vous</b>, à l'heure dite. "
-    + "L'agent fera ce que dit le texte, seul.</div>"
+    + (job
+        ? "Vous modifiez une automatisation qui <b>tourne</b>. Le changement "
+          + "vaut dès l'enregistrement, pour les passages à venir."
+        : "Ce que vous posez ici tournera <b>sans vous</b>, à l'heure dite. "
+          + "L'agent fera ce que dit le texte, seul.") + "</div>"
     + '<div class="srow"><span class="sk">Nom<span class="sub">Pour la '
     + "reconnaître dans la liste.</span></span>"
-    + '<span class="sv"><input id="afNom" placeholder="Veille du matin"></span></div>'
+    + '<span class="sv"><input id="afNom" placeholder="Veille du matin" value="'
+    + esc((job && job.name) || "") + '"></span></div>'
     + '<div class="srow"><span class="sk">Ce qu\'il faut faire'
     + '<span class="sub">Écrivez-le comme à quelqu\'un qui ne sait rien du '
     + "contexte : personne ne sera là pour préciser.</span></span>"
     + '<span class="sv"><textarea id="afQuoi" rows="3" '
-    + 'placeholder="Résume les nouveautés de la veille et écris-les dans notes.md"></textarea>'
+    + 'placeholder="Résume les nouveautés de la veille et écris-les dans notes.md">'
+    + esc((job && job.prompt) || "") + "</textarea>"
     + "</span></div>"
     + '<div class="srow"><span class="sk">Quand</span><span class="sv">'
     + '<select id="afMode">'
-    + '<option value="quotidien">Chaque jour, à une heure</option>'
-    + '<option value="heures">Toutes les N heures</option>'
-    + '<option value="minutes">Toutes les N minutes</option>'
-    + '<option value="unefois">Une seule fois, dans…</option>'
-    + '<option value="expression">Expression cron</option>'
+    + [["quotidien", "Chaque jour, à une heure"],
+       ["heures", "Toutes les N heures"],
+       ["minutes", "Toutes les N minutes"],
+       ["unefois", "Une seule fois, dans…"],
+       /* « Forme libre » et non « Expression cron » : ce champ passe la chaîne
+          telle quelle, et Hermès y accepte aussi une date ou « every 2h ». Le
+          nommer « cron » ferait croire qu'une date y est refusée — et c'est
+          justement là que retombe une tâche « une seule fois, le 1er janvier »
+          qu'on vient rouvrir. */
+       ["expression", "Forme libre (cron, date…)"]]
+      .map((o) => '<option value="' + o[0] + '"'
+        + (pre.mode === o[0] ? " selected" : "") + ">" + o[1] + "</option>").join("")
     + "</select></span></div>"
     + '<div class="srow"><span class="sk" id="afQuandLbl">Heure</span>'
     + '<span class="sv" id="afQuandVal"></span></div>'
@@ -3081,7 +3148,8 @@ async function ouvrirFormAuto(){
     + "</span></span>"
     + '<span class="sv"><select id="afOu">'
     + cibles.map((c) => '<option value="' + esc(c.id) + '"'
-        + (c.home_target_set === false ? " disabled" : "") + ">" + esc(c.name)
+        + (c.home_target_set === false ? " disabled" : "")
+        + ((job && job.deliver === c.id) ? " selected" : "") + ">" + esc(c.name)
         + (c.home_target_set === false ? " — à brancher d'abord" : "")
         + "</option>").join("")
     + "</select></span></div>"
@@ -3089,23 +3157,32 @@ async function ouvrirFormAuto(){
        traduit sans afficher sa traduction apprend à ne pas la vérifier. */
     + '<div class="u-note" id="afApercu"><i></i></div>'
     + '<div class="srow"><span class="sk"></span><span class="sv">'
-    + '<button class="btn-pick u-fort" id="afPoser">Poser l\'automatisation</button>'
+    + '<button class="btn-pick u-fort" id="afPoser">'
+    + (job ? "Enregistrer les changements" : "Poser l'automatisation") + "</button>"
     + "</span></div>"
     + "</div></div></div>";
 
+  // `premier` ne sert qu'au premier dessin : ensuite, changer de mode doit
+  // repartir des valeurs par défaut, pas rejouer indéfiniment celles du
+  // travail rouvert.
+  let premier = true;
   const majQuand = () => {
     const mode = $("afMode").value;
+    const dep = premier ? pre : {};
+    premier = false;
     const lbl = $("afQuandLbl"), val = $("afQuandVal");
     if (mode === "quotidien"){
       lbl.textContent = "Heure";
-      val.innerHTML = '<input id="afHeure" type="time" value="09:00">';
+      val.innerHTML = '<input id="afHeure" type="time" value="'
+        + esc(dep.heure || "09:00") + '">';
     } else if (mode === "expression"){
-      lbl.textContent = "Expression";
-      val.innerHTML = '<input id="afExpr" placeholder="0 9 * * *">';
+      lbl.textContent = "Forme d'Hermès";
+      val.innerHTML = '<input id="afExpr" placeholder="0 9 * * *" value="'
+        + esc(dep.expr || "") + '">';
     } else {
       lbl.textContent = mode === "unefois" ? "Dans" : "Toutes les";
       val.innerHTML = '<input id="afN" type="number" min="1" value="'
-        + (mode === "minutes" ? "30" : "2") + '" style="max-width:90px">'
+        + esc(String(dep.n || (mode === "minutes" ? 30 : 2))) + '" style="max-width:90px">'
         + (mode === "unefois"
             ? ' <select id="afUnite"><option value="m">minutes</option>'
               + '<option value="h">heures</option></select>'
@@ -3139,19 +3216,24 @@ async function ouvrirFormAuto(){
     if (!quand) return snack("Dites quand elle doit tourner.");
     const b = $("afPoser");
     b.disabled = true;
+    const champs = {
+      name: $("afNom").value.trim() || shorten(quoi, 40),
+      prompt: quoi,
+      schedule: quand,
+      deliver: $("afOu").value || "local"
+    };
     try {
-      await REST.creerCron({
-        name: $("afNom").value.trim() || shorten(quoi, 40),
-        prompt: quoi,
-        schedule: quand,
-        deliver: $("afOu").value || "local"
-      });
-      snack("Automatisation posée.");
-      hote.dataset.on = "";
+      /* Les MÊMES champs des deux côtés. `PUT` prend `{updates}` — ce qu'on
+         n'envoie pas reste tel quel — et `schedule` en chaîne brute, qu'Hermès
+         reparse comme à la création (cron/jobs.py:1838). */
+      if (job) await REST.modifierCron(job.id, champs);
+      else await REST.creerCron(champs);
+      snack(job ? "Automatisation modifiée." : "Automatisation posée.");
+      hote.dataset.on = ""; hote.dataset.cible = "";
       drawAutos();
     } catch (e){
       // Le message d'Hermès tel quel : c'est lui qui sait pourquoi il refuse.
-      snack("Non posée : " + e.message);
+      snack((job ? "Non modifiée : " : "Non posée : ") + e.message);
       b.disabled = false;
     }
   };
@@ -3160,7 +3242,17 @@ async function ouvrirFormAuto(){
 function wireAutos(){
   const host = $("autos");
   const nouv = $("autoNouv");
-  if (nouv) nouv.onclick = ouvrirFormAuto;
+  if (nouv) nouv.onclick = () => ouvrirFormAuto(null);
+  host.querySelectorAll("[data-edit]").forEach((b) => {
+    b.onclick = (e) => {
+      e.stopPropagation();
+      const j = autoJobs.find((x) => String(x.id || x.job_id || x.name) === b.dataset.edit);
+      // Sans le travail réel, on n'ouvre RIEN : un formulaire préchargé au
+      // hasard ferait enregistrer un horaire que personne n'a choisi.
+      if (!j) return snack("Cette automatisation n'est plus dans la liste.");
+      ouvrirFormAuto(j);
+    };
+  });
   host.querySelectorAll("[data-del]").forEach((b) => {
     b.onclick = async (e) => {
       e.stopPropagation();
@@ -3186,7 +3278,8 @@ function wireAutos(){
   host.querySelectorAll("[data-open]").forEach((el) => {
     el.onclick = (e) => {
       if (e.target.closest("[data-tog]") || e.target.closest("[data-fire]")
-          || e.target.closest("[data-wh]") || e.target.closest("[data-cmd]")) return;
+          || e.target.closest("[data-wh]") || e.target.closest("[data-cmd]")
+          || e.target.closest("[data-edit]") || e.target.closest("[data-del]")) return;
       // Les tâches portent un index nu (« 0 »), les webhooks un id complet
       // (« wh0 ») : deux listes dans le même panneau ne peuvent pas se
       // partager une numérotation.

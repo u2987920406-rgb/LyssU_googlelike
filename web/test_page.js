@@ -2636,6 +2636,68 @@ async function main(){
       bNouv.click();
       await wait(80);
     }
+
+    /* ── Rouvrir pour MODIFIER ────────────────────────────────────────────
+       ⚠ LA TRADUCTION INVERSE PEUT MENTIR EN SILENCE. Rouvrir demande de
+       relire l'horaire d'Hermès et de retrouver le choix qui l'a produit. Se
+       tromper ici ne casse rien à l'écran : ça rouvre « chaque jour à 9 h »
+       sur une tâche qui tournait toutes les dix minutes — et l'enregistrer la
+       casse. On vérifie donc l'aller-retour, forme par forme. */
+    const dep = (s) => win.eval("planifDepuis(" + JSON.stringify({ id: "x", schedule: s }) + ")");
+    const ar = (s) => { const d = dep(s); return win.eval("planifChaine("
+      + JSON.stringify(d.mode) + ", " + JSON.stringify(d) + ")"); };
+    check("Automatisations · rouvrir « 30 9 * * * » redonne le choix « chaque jour, 09:30 »",
+      dep({ kind: "cron", expr: "30 9 * * *" }).mode === "quotidien"
+      && dep({ kind: "cron", expr: "30 9 * * *" }).heure === "09:30",
+      JSON.stringify(dep({ kind: "cron", expr: "30 9 * * *" })));
+    check("Automatisations · un intervalle de 360 min redevient « toutes les 6 heures »",
+      dep({ kind: "interval", minutes: 360 }).mode === "heures"
+      && dep({ kind: "interval", minutes: 360 }).n === 6,
+      JSON.stringify(dep({ kind: "interval", minutes: 360 })));
+    check("Automatisations · 90 min ne devient PAS « 1 heure et demie » perdue en route",
+      dep({ kind: "interval", minutes: 90 }).mode === "minutes"
+      && dep({ kind: "interval", minutes: 90 }).n === 90,
+      JSON.stringify(dep({ kind: "interval", minutes: 90 })));
+    /* Ce qu'on ne sait pas représenter part en forme libre, avec la chaîne
+       telle quelle — jamais rangé de force dans une case voisine. */
+    check("Automatisations · un cron hebdomadaire tombe en forme libre, pas en quotidien",
+      dep({ kind: "cron", expr: "0 9 * * 1" }).mode === "expression"
+      && dep({ kind: "cron", expr: "0 9 * * 1" }).expr === "0 9 * * 1",
+      JSON.stringify(dep({ kind: "cron", expr: "0 9 * * 1" })));
+    check("Automatisations · une date « une seule fois » garde sa date",
+      dep({ kind: "once", run_at: "2030-01-01T09:00:00+02:00" }).expr
+        === "2030-01-01T09:00:00+02:00",
+      JSON.stringify(dep({ kind: "once", run_at: "2030-01-01T09:00:00+02:00" })));
+    // L'aller-retour complet : relire puis renvoyer doit rendre la MÊME chose.
+    check("Automatisations · relire puis renvoyer ne change pas l'horaire",
+      ar({ kind: "cron", expr: "30 9 * * *" }) === "30 9 * * *"
+      && ar({ kind: "interval", minutes: 360 }) === "every 6h"
+      && ar({ kind: "interval", minutes: 90 }) === "every 90m"
+      && ar({ kind: "cron", expr: "0 9 * * 1" }) === "0 9 * * 1",
+      [ar({ kind: "cron", expr: "30 9 * * *" }), ar({ kind: "interval", minutes: 360 }),
+       ar({ kind: "interval", minutes: 90 }), ar({ kind: "cron", expr: "0 9 * * 1" })].join(" · "));
+
+    // Et le geste, à l'écran : « Modifier » rouvre le formulaire REMPLI.
+    const bEdit = win.document.querySelector('#autos [data-edit]');
+    check("Automatisations · chaque tâche porte un bouton « Modifier »", !!bEdit);
+    if (bEdit){
+      bEdit.click();
+      await wait(250);
+      check("Automatisations · il rouvre le formulaire avec le nom et le texte de la tâche",
+        (win.document.getElementById("afNom") || {}).value === "Veille du lundi"
+        && /Résume/.test((win.document.getElementById("afQuoi") || {}).value || ""),
+        (win.document.getElementById("afNom") || {}).value);
+      check("Automatisations · et il dit qu'on modifie une tâche qui TOURNE",
+        /tourne/.test(win.document.getElementById("autoForm").textContent)
+        && /Enregistrer/.test(win.document.getElementById("autoForm").textContent));
+      check("Automatisations · l'horaire hebdomadaire revient en forme libre, intact",
+        (win.document.getElementById("afExpr") || {}).value === "0 9 * * 1",
+        (win.document.getElementById("afExpr") || {}).value);
+      bEdit.click();
+      await wait(80);
+      check("Automatisations · recliquer « Modifier » referme",
+        !win.document.getElementById("afNom"));
+    }
   }
 
   // ── Vestiaire : les groupes de provenance ──

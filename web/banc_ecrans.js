@@ -388,9 +388,57 @@ async function main(){
             texte("#autos").indexOf("[object Object]") >= 0
               ? "l'ecran dit « [object Object] »" : "");
 
+          /* ── La modifier, depuis l'ecran, et verifier chez Hermes ──────
+             `PUT` prend `{updates}` : ce qu'on n'envoie pas doit rester tel
+             quel. On change donc l'horaire ET le texte, et on verifie que
+             l'horaire NEUF est arrive parse — pas la chaine brute rangee
+             telle quelle, ce qui casserait le declenchement sans rien dire. */
+          const bEdit = doc.querySelector('[data-edit="' + creee.id + '"]');
+          check("la carte porte un bouton « Modifier »", !!bEdit);
+          if (bEdit){
+            bEdit.click();
+            await attendre(() => !!doc.querySelector("#afQuoi"), 15000);
+            check("il rouvre le formulaire rempli avec la tache reelle",
+              (doc.querySelector("#afNom") || {}).value === nomAuto,
+              (doc.querySelector("#afNom") || {}).value);
+            /* L'horaire pose etait « 0 4 1 1 * » — un cron que nos quatre cases
+               ne savent pas representer. Il doit revenir EN FORME LIBRE, intact,
+               plutot que range de force dans « chaque jour ». */
+            check("l'horaire non representable revient en forme libre, intact",
+              (doc.querySelector("#afExpr") || {}).value === "0 4 1 1 *",
+              (doc.querySelector("#afExpr") || {}).value
+                || "mode : " + (doc.querySelector("#afMode") || {}).value);
+
+            doc.querySelector("#afQuoi").value = "Ne rien faire, version modifiee.";
+            const sel2 = doc.querySelector("#afMode");
+            sel2.value = "heures";
+            sel2.dispatchEvent(new win.Event("change", { bubbles: true }));
+            await dodo(300);
+            doc.querySelector("#afN").value = "6";
+            doc.querySelector("#afPoser").click();
+
+            const modifiee = await attendre(async () => {
+              const j = taches(await rest("cronJobs()")).find((x) => x.id === creee.id);
+              return !!(j && j.schedule && j.schedule.kind === "interval");
+            }, 25000);
+            check("modifier depuis l'ecran change VRAIMENT la tache chez Hermes", modifiee);
+
+            const apres = taches(await rest("cronJobs()")).find((x) => x.id === creee.id);
+            check("Hermes a REPARSE l'horaire, il ne l'a pas garde en texte",
+              !!apres && apres.schedule.kind === "interval" && apres.schedule.minutes === 360,
+              JSON.stringify(apres && apres.schedule));
+            check("le texte modifie est arrive lui aussi",
+              !!apres && /version modifiee/.test(apres.prompt || ""),
+              (apres && apres.prompt) || "");
+            check("et c'est bien la MEME tache, pas une seconde posee a cote",
+              taches(await rest("cronJobs()")).filter((j) => j.name === nomAuto).length === 1,
+              taches(await rest("cronJobs()")).filter((j) => j.name === nomAuto).length + "");
+          }
+
           /* Le retrait, par l'ecran, avec sa confirmation en deux temps :
              une automatisation tourne toute seule, la retirer ne se rattrape
              pas. Un seul clic ne doit RIEN faire. */
+          await aller("Automatisations", 1500);
           const bSup = doc.querySelector('[data-del="' + creee.id + '"]');
           check("le bouton « Retirer » est la, sur la carte de la tache", !!bSup);
           if (bSup){

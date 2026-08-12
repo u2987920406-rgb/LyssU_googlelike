@@ -205,6 +205,26 @@ const REST = {
      `DELETE` existe (cron.py:120) et rend `{ok:true}` — verifie en direct. */
   supprimerCron: (id) =>
     api("/api/cron/jobs/" + encodeURIComponent(id), { method: "DELETE" }),
+  /* ── Modifier une automatisation ──────────────────────────────────────
+     `PUT /api/cron/jobs/{id}` (cron.py:100). Le corps est `{updates: {...}}`
+     — un dictionnaire de champs a changer, pas le travail entier : ce qu'on
+     n'envoie pas reste tel quel.
+
+     `schedule` s'y envoie en CHAINE BRUTE : `update_job` la reparse avec le
+     meme `parse_schedule` que la creation (cron/jobs.py:1838). La traduction
+     de l'ecran sert donc aux deux, sans seconde version.
+     Seul `id` est refuse (`_IMMUTABLE_JOB_FIELDS`, jobs.py:378) : c'est un
+     composant de chemin sur le disque.
+
+     ⚠ L'ENVELOPPE `{updates}` N'EST PAS UNE FORMALITE. Envoyer les champs a
+     nu — `body: updates` — ne rend PAS d'erreur : le serveur repond 200 et ne
+     change rien. L'ecran dirait « enregistre », l'automatisation continuerait
+     a l'ancien horaire, et personne ne le saurait avant qu'elle se declenche
+     au mauvais moment. Verifie en posant la mutation : `banc_ecrans.js` vire
+     au rouge sur trois lignes, et aucune ne vient d'un message d'erreur. */
+  modifierCron: (id, updates) =>
+    api("/api/cron/jobs/" + encodeURIComponent(id),
+        { method: "PUT", body: { updates: updates } }),
   /* Ou livrer. On ne code PAS la liste en dur : le backend la derive des
      plateformes configurees, et rend `home_target_set:false` pour celles
      qu'il faut encore brancher — pour que l'ecran le DISE au lieu de les
