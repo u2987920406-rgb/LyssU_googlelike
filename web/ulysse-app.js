@@ -366,6 +366,9 @@ document.addEventListener("click", async (e) => {
 });
 
 function turnHTML(t){
+  // La trace d'un accord donné : elle n'a ni bulle ni auteur, c'est un fait du
+  // fil. Voir `accordDonneHTML` — elle se range où la décision a eu lieu.
+  if (t.accord) return accordDonneHTML(t.accord);
   // Le refus de mode est un tour système, mais il ne se lit pas comme une
   // note : c'est un geste qui n'a PAS eu lieu, et ça doit se voir d'un coup
   // d'œil quand on remonte le fil pour comprendre pourquoi rien n'a bougé.
@@ -2008,7 +2011,7 @@ function majLieu(){
         majLieu();
         return snack("Le prochain fil s’ouvrira dans le même dossier que celui-ci.");
       }
-      if (q === "nouveau"){ resetSession(); accordRepondu = null; majLieu(); }
+      if (q === "nouveau"){ resetSession(); majLieu(); }
     };
   });
 
@@ -2778,7 +2781,7 @@ async function drawProjets(){
         const filOuvert = !!(conv.info && conv.info.cwd);
         CFG.SESSION_CWD = chemin;
         // Rien à garder : on repart propre, comme avant.
-        if (!filOuvert){ resetSession(); accordRepondu = null; }
+        if (!filOuvert){ resetSession(); }
         nav("Discuter");
         majLieu();
         snack(filOuvert
@@ -4451,7 +4454,6 @@ const PORTEE = {
 /* La demande résolue, gardée pour l'état d'après : `.ask.done` conserve le
    choix retenu, comme la maquette le prévoit. On ne l'efface qu'à la demande
    suivante ou à la remise à zéro du fil. */
-let accordRepondu = null;
 
 function accordQuoi(pl){
   const outil = pl.tool || pl.name || "";
@@ -4491,24 +4493,34 @@ function accordHTML(){
       + "</div></div>";
   }
 
-  if (accordRepondu){
-    const k = accordRepondu.choix;
-    if (k === "deny"){
-      return '<div class="u-accord"><div class="ask done">'
-        + '<button class="opt pick" style="background:#FCE8E6;color:#B3261E">'
-        + '<span class="tick" style="border-color:#B3261E;background:#B3261E;color:#fff">'
-        + svg("fermer", { size: 14 }) + "</span>"
-        + '<span class="tx">Refusé — ' + esc(accordRepondu.quoi)
-        + " n'a pas eu lieu.</span></button></div></div>";
-    }
-    const p = PORTEE[k] || PORTEE.once;
-    return '<div class="u-accord"><div class="ask done">'
-      + '<button class="opt pick"><span class="tick">' + svg("coche", { size: 14 })
-      + "</span>" + '<span class="tx">' + esc(p[0])
-      + '<span class="sub">' + esc(accordRepondu.quoi) + "</span></span></button>"
-      + "</div></div>";
-  }
   return "";
+}
+
+/* ⚠ LA TRACE D'UNE DÉCISION SE RANGE OÙ LA DÉCISION A EU LIEU.
+   Elle vivait dans un `accordRepondu` global, peint EN FIN DE FIL — donc
+   redessiné sous chaque tour suivant, indéfiniment. Vu le 2026-08-12 en
+   jouant « Autoriser pour cette conversation » : au tour d'après, qui n'avait
+   rien demandé, la carte verte réapparaissait dessous, comme si l'on venait
+   d'accorder quelque chose.
+   C'est la leçon de l'encart des livrables, à l'envers : ce qui APPARTIENT à
+   un tour se range dans ce tour. Elle entre donc dans `conv.turns`, une fois,
+   à sa place, et elle n'en bouge plus. */
+function accordDonneHTML(a){
+  if (!a) return "";
+  if (a.choix === "deny"){
+    return '<div class="u-accord"><div class="ask done">'
+      + '<button class="opt pick" style="background:#FCE8E6;color:#B3261E">'
+      + '<span class="tick" style="border-color:#B3261E;background:#B3261E;color:#fff">'
+      + svg("fermer", { size: 14 }) + "</span>"
+      + '<span class="tx">Refusé — ' + esc(a.quoi)
+      + " n'a pas eu lieu.</span></button></div></div>";
+  }
+  const p = PORTEE[a.choix] || PORTEE.once;
+  return '<div class="u-accord"><div class="ask done">'
+    + '<button class="opt pick"><span class="tick">' + svg("coche", { size: 14 })
+    + "</span>" + '<span class="tx">' + esc(p[0])
+    + '<span class="sub">' + esc(a.quoi) + "</span></span></button>"
+    + "</div></div>";
 }
 
 /* Répondre depuis le fil. Le protocole ne porte AUCUN identifiant de demande :
@@ -4517,14 +4529,19 @@ function accordHTML(){
 function repondreAccord(choix){
   const pl = conv.approval;
   if (!pl) return;
-  accordRepondu = { choix: choix, quoi: accordQuoi(pl) };
+  // La trace entre dans le fil, à sa place, une fois. Voir `accordDonneHTML`.
+  const trace = newTurn("system", "");
+  trace.accord = { choix: choix, quoi: accordQuoi(pl) };
+  trace.state = "done";
   conv.approval = null;
   if (approvalNid !== null){ Notifs.drop(approvalNid); approvalNid = null; }
   paintThread();
   respondApproval(choix).catch((e) => {
     // Le serveur a refusé : on remet la demande, sinon l'agent reste bloqué
-    // devant une interface qui prétend avoir répondu.
-    accordRepondu = null;
+    // devant une interface qui prétend avoir répondu. La trace repart avec —
+    // elle affirmerait une décision qui n'a pas été transmise.
+    const i = conv.turns.indexOf(trace);
+    if (i >= 0) conv.turns.splice(i, 1);
     conv.approval = pl;
     paintThread();
     snack("Non transmis : " + e.message);
@@ -4537,7 +4554,6 @@ function onApproval(pl){
   if (!pl){ return; }
   const quoi = accordQuoi(pl);
   const choices = Array.isArray(pl.choices) && pl.choices.length ? pl.choices : ["once", "deny"];
-  accordRepondu = null;
   approvalNid = Notifs.push({
     kind: "decision",
     titre: "Votre accord est demandé",
@@ -4568,7 +4584,13 @@ Notifs.onAnswer = (n, oui) => {
   if (n.kind !== "decision") return null;
   const choix = oui ? "once" : "deny";
   const pl = conv.approval;
-  accordRepondu = pl ? { choix: choix, quoi: accordQuoi(pl) } : null;
+  // Repondre depuis la cloche laisse la MEME trace, au meme endroit : le fil.
+  // Sans ca, la decision prise dans le panneau n'existait nulle part apres coup.
+  if (pl){
+    const trace = newTurn("system", "");
+    trace.accord = { choix: choix, quoi: accordQuoi(pl) };
+    trace.state = "done";
+  }
   approvalNid = null;
   conv.approval = null;
   return respondApproval(choix).then(() => { paintThread(); });
@@ -5145,7 +5167,7 @@ function boot(){
                       : "Fil normal : il sera retrouvable dans les Travaux.");
     };
     $("mNew").onclick = () => {
-      p.classList.remove("on"); resetSession(); accordRepondu = null; paintThread();
+      p.classList.remove("on"); resetSession(); paintThread();
     };
   };
 

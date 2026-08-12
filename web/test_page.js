@@ -1160,8 +1160,20 @@ async function main(){
     payload: { command: "rm -rf build", reason: "effacer un dossier",
                choices: ["once", "session", "always", "deny"] } } });
   await wait(90);
-  check("une nouvelle demande efface l'état précédent",
-    !win.document.querySelector("#thread .u-accord .ask.done"));
+  /* ⚠ CE GARDE EXIGEAIT L'EFFACEMENT DE L'HISTOIRE. Il verifiait qu'une
+     nouvelle demande FAISAIT DISPARAITRE la decision precedente — ce n'etait
+     pas une regle, c'etait le symptome d'un `accordRepondu` global peint en fin
+     de fil : un seul emplacement, donc la trace suivante ecrasait la
+     precedente, et entre-temps elle se redessinait sous CHAQUE tour.
+     Vu le 2026-08-12 en jouant « Autoriser pour cette conversation » : au tour
+     d'apres, qui n'avait rien demande, la carte verte reapparaissait dessous.
+     Un fil est un journal. Ce qu'on a decide reste ou on l'a decide, et la
+     nouvelle question se pose EN DESSOUS. */
+  check("la décision précédente RESTE — un fil est un journal",
+    win.document.querySelectorAll("#thread .u-accord .ask.done").length === 1,
+    win.document.querySelectorAll("#thread .u-accord .ask.done").length + " trace(s)");
+  check("...et la nouvelle question se pose en dessous, pas à sa place",
+    !!win.document.querySelector("#thread .u-accord .ask:not(.done)"));
   FakeWS.sent.length = 0;
   win.document.querySelector('#thread .opt[data-ch="always"]').click();
   await wait(60);
@@ -1171,6 +1183,25 @@ async function main(){
     r2 && r2.params.choice === "always", JSON.stringify(r2 && r2.params));
   check("le fil retient « toujours »",
     /Autoriser toujours/.test(win.document.getElementById("thread").textContent));
+  /* ⚠ ET ELLE NE SUIT PAS LE FIL VERS LE BAS. Peinte en fin de fil depuis un
+     global, la trace se redessinait sous CHAQUE tour suivant : au tour d'apres,
+     qui n'avait rien demande, la carte verte reapparaissait dessous, comme si
+     l'on venait d'accorder quelque chose. Vu en jouant, pas au banc — le banc
+     ne regardait jamais ce qui se passe APRES la decision. */
+  {
+    const avant = win.document.querySelectorAll("#thread .u-accord .ask.done").length;
+    win.eval('var _t = newTurn("assistant"); _t.text = "un tour qui ne demande rien";'
+             + ' _t.state = "done"; paintThread();');
+    await wait(40);
+    const apres = win.document.querySelectorAll("#thread .u-accord .ask.done").length;
+    check("...et elle ne se redessine pas sous le tour suivant",
+      apres === avant, avant + " → " + apres + " trace(s)");
+    check("...elle est restée AU-DESSUS du tour qui a suivi",
+      [...win.document.querySelectorAll("#thread > *")]
+        .findIndex((e) => e.querySelector && e.querySelector(".ask.done"))
+      < [...win.document.querySelectorAll("#thread > *")]
+        .findIndex((e) => /ne demande rien/.test(e.textContent)));
+  }
   FakeWS.last.push({ jsonrpc: "2.0", id: r2.id, result: { resolved: 1 } });
   await wait(50);
 
