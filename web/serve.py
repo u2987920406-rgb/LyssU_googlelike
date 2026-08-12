@@ -213,9 +213,25 @@ def set_config_value(text, key, value):
 
 
 def read_config_text():
+    """Le fichier TEL QU'IL EST, fins de ligne comprises.
+
+    ⚠ `newline=""` N'EST PAS UN DETAIL. Sans lui, Python lit en « newlines
+    universelles » : tout CRLF devient LF en memoire, et l'ecriture d'a cote
+    retraduit ensuite chaque LF en CRLF sur Windows. Poser puis retirer un
+    override de modele — un aller-retour qui ne change RIEN — reecrivait donc
+    les fins de ligne du fichier ENTIER. `git diff` restait vide (git les
+    normalise), mais `git status` le disait modifie a chaque fois, et il
+    fallait un `git checkout --` pour retrouver un arbre propre.
+    Vu le 2026-08-12, apres chaque passage de `banc_ecrans.js`.
+
+    Avec `newline=""` des deux cotes, un fichier en CRLF reste en CRLF, un
+    fichier en LF reste en LF, et l'aller-retour est identique OCTET POUR
+    OCTET — ce que le banc verifie maintenant, plutot que de se contenter de
+    l'indentation.
+    """
     if not os.path.exists(CONFIG_FILE):
         return ""
-    with open(CONFIG_FILE, "r", encoding="utf-8", errors="replace") as fh:
+    with open(CONFIG_FILE, "r", encoding="utf-8", errors="replace", newline="") as fh:
         return fh.read()
 
 
@@ -1317,7 +1333,9 @@ class Handler(http.server.SimpleHTTPRequestHandler):
 
         nouveau = set_config_value(texte, cle, valeur)
         try:
-            with open(CONFIG_FILE, "w", encoding="utf-8") as fh:
+            # `newline=""` : on ecrit les fins de ligne telles qu'elles ont ete
+            # lues, sans les retraduire. Voir `read_config_text`.
+            with open(CONFIG_FILE, "w", encoding="utf-8", newline="") as fh:
                 fh.write(nouveau)
         except OSError as exc:
             self.json_error(500, "Ecriture impossible (%s)." % exc)

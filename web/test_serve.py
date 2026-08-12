@@ -955,6 +955,28 @@ def main():
     check("une cle absente laisse le texte intact",
           serve.set_config_value(src, "INCONNUE", "x") == src)
 
+    # ⚠ LES FINS DE LIGNE NE SONT PAS A NOUS. `set_config_value` travaille sur
+    # du texte : il ne doit toucher NI celles de la ligne changee, NI celles
+    # des autres. C'est la moitie du probleme ; l'autre moitie est dans les
+    # `open()` (`newline=""` des deux cotes), sans quoi Python retraduit tout
+    # le fichier sur Windows — `git status` disait ulysse-config.js modifie
+    # apres chaque passage du banc, pour un aller-retour qui ne change rien.
+    crlf = ('window.ULYSSE_CONFIG = {\r\n'
+            '  PROXY_MODEL: "avant",\r\n'
+            '  AUTRE: "x",\r\n'
+            '};\r\n')
+    sortie = serve.set_config_value(crlf, "PROXY_MODEL", "apres")
+    check("set_config_value garde les fins de ligne CRLF telles quelles",
+          sortie == crlf.replace('"avant"', '"apres"'),
+          repr(sortie[:70]))
+    check("et il n'introduit pas de CR dans un fichier en LF",
+          "\r" not in serve.set_config_value(src, "PROXY_MODEL", "apres"))
+    # Un aller-retour complet doit rendre le texte de depart, a l'octet pres.
+    aller = serve.set_config_value(crlf, "PROXY_MODEL", "essai")
+    retour = serve.set_config_value(aller, "PROXY_MODEL", "avant")
+    check("poser puis remettre une valeur rend le texte IDENTIQUE",
+          retour == crlf, repr(retour[:70]))
+
     # --- bilan ---------------------------------------------------------
     passed = sum(1 for _, ok, _ in results if ok)
     total = len(results)

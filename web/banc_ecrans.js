@@ -330,27 +330,34 @@ async function main(){
     try { await rest("setLocalModel(" + JSON.stringify(cleOverride) + ", "
       + JSON.stringify(overrideAvant) + ")"); } catch (e){}
   });
+  const servi = async () => (await fetch("http://127.0.0.1:8080/ulysse-config.js")).text();
   try {
+    /* ⚠ « REMIS COMME AVANT » VEUT DIRE OCTET POUR OCTET, et c'est la seule
+       formulation qui tienne. Ecrit d'abord « la valeur ne contient plus
+       essai-banc », puis « la cle n'est pas desindentee », cette verification
+       a laisse passer DEUX defauts l'un apres l'autre : l'indentation mangee
+       par `^\s*`, puis les fins de ligne retraduites par Python en mode
+       texte. Chaque fois, l'aller-retour changeait le fichier et il fallait
+       un `git checkout --` pour retrouver un arbre propre.
+       On compare donc le fichier ENTIER, avant et apres. Une comparaison
+       partielle ne mesure que les defauts auxquels on a deja pense. */
+    const brut0 = await servi();
     await rest("setLocalModel(" + JSON.stringify(cleOverride) + ", \"essai-banc\")");
-    const brut = await (await fetch("http://127.0.0.1:8080/ulysse-config.js")).text();
+    const brut = await servi();
     check("poser un override local l'ecrit vraiment dans ulysse-config.js",
       brut.indexOf("essai-banc") >= 0);
+    check("et il ne change QUE cette ligne",
+      brut.split("\n").length === brut0.split("\n").length,
+      brut0.split("\n").length + " → " + brut.split("\n").length + " lignes");
     await rest("setLocalModel(" + JSON.stringify(cleOverride) + ", "
       + JSON.stringify(overrideAvant) + ")");
-    const brut2 = await (await fetch("http://127.0.0.1:8080/ulysse-config.js")).text();
+    const brut2 = await servi();
     check("le remettre comme avant ne laisse aucune trace du banc",
       brut2.indexOf("essai-banc") < 0,
       "valeur restauree : " + JSON.stringify(overrideAvant));
-    /* ⚠ « REMIS COMME AVANT » VEUT DIRE OCTET POUR OCTET. C'est ce banc qui a
-       trouve le defaut : un aller-retour cense ne rien changer laissait un
-       `git diff` non vide, parce que la ligne revenait DESINDENTEE
-       (`_VALUE_RE` commence par `^\s*` et mangeait l'indentation). Sur un
-       fichier suivi par git, chaque changement de modele depuis Reglages y
-       laissait une ligne de bruit. Corrige dans `set_config_value` ; verifie
-       ici de bout en bout, et non plus seulement en unite. */
-    const ligne = brut2.split(/\r?\n/).find((l) => l.indexOf(cleOverride + ":") >= 0) || "";
-    check("l'aller-retour ne desindente pas la cle dans ulysse-config.js",
-      /^\s\s+/.test(ligne), JSON.stringify(ligne.slice(0, 46)));
+    check("l'aller-retour rend le fichier IDENTIQUE, octet pour octet",
+      brut2 === brut0,
+      brut2 === brut0 ? "" : "il a change : " + premiereDifference(brut0, brut2));
   } catch (e){
     check("poser puis remettre un override local", false, e.message);
   }
@@ -744,6 +751,23 @@ async function main(){
    celui d'un garde qu'on aurait ajoute ici. */
 function ecrireVers(E, chemin, contenu){
   return E("REST.ecrireMemoire(" + JSON.stringify(chemin) + ", " + JSON.stringify(contenu) + ")");
+}
+
+/* Dire OU deux textes divergent, et avec quoi. Un « ils different » tout seul
+   fait ouvrir le fichier a la main ; et la difference qui nous a occupes ici
+   etait un `\r` — precisement ce qu'on ne voit pas en le regardant. On rend
+   donc les caracteres invisibles lisibles. */
+function premiereDifference(a, b){
+  const n = Math.min(a.length, b.length);
+  let i = 0;
+  while (i < n && a[i] === b[i]) i++;
+  if (i === n && a.length === b.length) return "nulle part";
+  const lisible = (s) => JSON.stringify(s).slice(1, -1);
+  const ligne = a.slice(0, i).split("\n").length;
+  return "ligne " + ligne + ", caractere " + i
+    + " — avant « " + lisible(a.slice(i, i + 24))
+    + " » · apres « " + lisible(b.slice(i, i + 24)) + " »"
+    + (a.length !== b.length ? " · longueurs " + a.length + " vs " + b.length : "");
 }
 
 /* Un WAV de silence, fabrique ici. Pas un fichier d'exemple telecharge : le
