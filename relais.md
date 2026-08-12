@@ -1,369 +1,224 @@
-# Relais — 2026-08-11 (21), les deux passes sont faites
+# Relais — 2026-08-12 (22), les livrables ont quitté le fil
 
-> ## ⚠ LU EN PREMIER : le banc était vert, le produit était cassé
+> ## ⚠ LU EN PREMIER : le banc ne voit pas ce qui compte
 >
-> Après les 409 vérifications au vert, l'app a été lancée **pour de vrai** et
-> pilotée dans Chrome. **Joindre une image échouait**, avec
-> `4016 image not found` — et pas seulement le collage : **le « + » aussi, et
-> depuis toujours.**
+> Cette session a produit **cinq corrections utiles**. Le banc (484
+> vérifications) en a trouvé **zéro**. Toutes sont sorties du produit lancé
+> pour de vrai et piloté dans Chrome :
 >
-> `attacherFichier` appelait **`image.attach`**, qui veut un `path` que le
-> gateway voit sur son propre disque et **ne regarde jamais `data_url`**. Un
-> navigateur ne peut pas en fournir. La bonne porte est
-> **`image.attach_bytes`** (`methods_prompt.py:453`), dont la docstring décrit
-> notre cas mot pour mot : *« a web dashboard running on a DIFFERENT machine
-> than the gateway can't hand us a local path »*.
+> | trouvé en… | quoi |
+> |---|---|
+> | lançant l'app | `image.attach` → `4016`, cassé **depuis toujours** |
+> | lisant une réponse | le ⤓ noyé au milieu du texte, jamais vu |
+> | relisant mon code | ` ```bash ` accepté comme fichier |
+> | relisant mon code | la Map qui gonflait d'une copie par peinture |
+> | kuchu, en s'en servant | le CSV déroulé dans le fil « prend de la place pour rien » |
 >
-> **Le faux Hermès acceptait n'importe quel appel RPC**, donc « la pièce est
-> jointe » passait au vert sur une pièce refusée. C'est la sixième fois : *un
-> faux qui ne ment pas comme le vrai ne prouve rien.* Trois vérifications
-> neuves gardent maintenant **la méthode appelée**, pas seulement le chemin
-> emprunté. **412 / 412.**
->
-> Corrigé et **revérifié en direct** : image collée → pièce jointe prête →
-> l'agent répond « 42 » à l'image qu'on lui colle. Bout-en-bout.
+> Le banc trouve les **régressions**. Il ne trouve pas ce qui est **inutile,
+> noyé, ou encombrant**. Ne lui demandez pas de vous dire si le produit est
+> bon — il ne sait dire que s'il est *le même qu'hier*.
 
-> **Les deux fonctions arrivées avant leur dessin sont rentrées dans le rang.**
-> Le collage (relais 20 §1) et les fichiers (§2) sont appliqués. Le troisième
-> point — `ulysse-artifact.js` sous garde-fou — a ouvert bien plus grand que
-> prévu : **le fichier n'était pas hors du champ des vérifications, il était
-> hors de la page qu'elles testaient.**
->
-> `node test_page.js` : **409 / 409** (382 avant, dont 15 au rouge à l'arrivée).
+> **`node test_page.js` : 484 / 484.** Huit mutations posées sur les gardes
+> neufs, huit mordues.
 
 ---
 
 ## 0. Ce qui vous attend au premier geste
 
 ```
-cd web && node test_page.js
+cd web && node test_page.js          # 484/484
+python resync_apercus.py             # après TOUTE retouche de ulysse.css
 ```
 
-**Il passe.** Mais il ne passait pas ce matin, et ce n'était ni le test ni
-l'app qui avait tort — c'était **l'outil de réparation**. Lisez le §1 avant
-de toucher à quoi que ce soit d'autre : c'est la seule chose de ce relais qui
-puisse vous surprendre demain.
+Puis, et ce n'est pas facultatif :
 
-> **Avant de mesurer dans le vrai produit** : fermez la fenêtre « Ulysse-Serve »
-> ouverte, puis relancez `lancer_ulysse.bat`. `serve.py` refuse de démarrer sur
-> un port pris et le dit — c'est comme ça que j'ai vérifié que je sondais
-> l'ancien serveur, pas le neuf.
+```
+lancer_ulysse.bat                    # http://127.0.0.1:8080/ulysse.html
+```
+
+> **Deux pièges en vérifiant dans le navigateur**, tous deux rencontrés
+> aujourd'hui :
+>
+> 1. **Naviguer vers l'URL courante, hash compris, ne recharge rien.** J'ai
+>    failli diagnostiquer un défaut de cache dans `serve.py` — qui envoie
+>    pourtant `Cache-Control: no-store`. Utilisez `location.reload()`.
+> 2. **Au démarrage la page est sur l'accueil, pas sur le fil.** `#thread` est
+>    vide et `paintThread()` n'y peint rien : **ce n'est pas une panne.** Il
+>    faut envoyer un vrai message.
+>
+> Et avant de mesurer : fermez la fenêtre « Ulysse-Serve » ouverte, puis
+> relancez le `.bat`. `serve.py` refuse un port pris et le dit.
 
 ---
 
-## 1. ⚠ Le garde qui répare mentait, et c'est lui qu'il fallait croire le moins
+## 1. ⚠ Le contenu d'un fichier ne se déroule plus dans le fil
 
-À l'arrivée, quinze vérifications au rouge : *« la feuille n'y est plus
-reconnaissable »*. Et `python resync_apercus.py --voir` répondait **« 15 à
-jour »**.
+C'est le changement du jour, et il vient de kuchu :
 
-**Aucun des deux ne parlait de la même chose.**
+> *« Les fichiers CSV et tout autre fichier ne doivent pas être développés
+> dans le chat. Ça prend de la place pour rien, et ce n'est pas là qu'il faut
+> les développer. »*
 
-| | ce qu'il lisait | ce qu'il en disait |
+Un CSV de 300 lignes déroulé dans la conversation **enterre la réponse qui
+l'explique**, et il ne s'y lit pas mieux : le fil est étroit, sans gouttière.
+
+**Le bloc sort du fil et entre dans un encart, à la fin du tour.** Il n'en
+reste que le **type en pastille** et le **nom**. On clique la ligne, le volet
+s'ouvre, on voit le détail. Le ⤓ emporte sans passer par là.
+
+### Ce qui ne bouge pas
+
+Un ` ```bash ` d'exemple, un ` ```texte ` avec une URL : **ils restent où ils
+sont.** Rien ne les accueille de l'autre côté — les retirer les ferait
+disparaître sans contrepartie.
+
+**La règle d'entrée** : une **langue de fichier** (`csv`, `json`, `md`, `py`,
+`html`, `svg`, `sql`, `yaml`…) **ou un nom donné par l'agent**, ET au moins
+deux lignes non vides. Une URL seule n'est pas un fichier.
+
+> On préfère **oublier un livrable** que d'en inventer trois. Une liste qui
+> contient du bruit cesse d'être lue — c'est exactement ce qui venait
+> d'arriver au ⤓.
+
+### ⚠ Une seule découpe, et c'est le point
+
+`decouperLivrables(src)` → `{texte, livrables}` produit **le texte du fil ET
+la liste de l'encart**. Deux fonctions séparées finiraient par diverger, et
+alors un bloc disparaîtrait du fil **sans arriver dans l'encart** : perdu,
+sans un mot. `livrablesDuTexte()` n'est plus qu'une enveloppe.
+
+---
+
+## 2. L'encart : ce qu'il est, et pourquoi il porte un liseré
+
+Le constat qui l'a fait naître : *« j'ai regardé la fin de la discussion, il
+n'y avait rien. Par contre, en plein milieu, il y avait plein de fichiers que
+je pouvais cliquer. »*
+
+On lit une réponse **en entier**, puis on veut ce qu'elle a produit. À ce
+moment-là on est **en bas**.
+
+> **Ce qu'on emporte ne se range pas dans la phrase qui en parle. Ça se range
+> là où on arrive quand on a fini de lire.**
+
+C'est **le seul bloc du fil à porter une bordure pleine**, un liseré d'accent
+et un fond distinct. Il doit se repérer **en faisant défiler sans lire**,
+parce que c'est comme ça qu'on le cherchera. Mesuré dans la page :
+`2.67px rgb(11, 87, 208)`.
+
+### Les deux espèces ont le MÊME geste
+
+| espèce | Ouvrir | Emporter |
 |---|---|---|
-| `test_page.js` | les **octets du disque** | 15 divergences — **exact** |
-| `resync_apercus.py` | du texte **normalisé** par Python (`\r\n` → `\n`) | « 15 à jour » |
+| écrit sur le **disque** (`write_file`, `patch`) | le volet, lu par `REST` | ⤓ |
+| écrit dans la **réponse** (un bloc) | le volet, contenu **en mémoire** | ⤓ |
 
-`ulysse.css` était revenu en **CRLF** par un `git checkout` (`core.autocrlf=true`
-était la seule règle en vigueur), pendant que les quinze aperçus portaient une
-copie en **LF**. Le test avait raison sur toute la ligne.
+Que les octets soient sur le disque ou dans la réponse **ne regarde pas la
+personne qui clique**. `ouvrirTexteEnMemoire(nom, texte)`
+(`ulysse-artifact.js`) ouvre le volet sur ce qui n'est nulle part : en
+Discussion, le modèle ne peut **rien** écrire sur le disque.
 
-**Et la réparation promise n'existait pas** : `resync` écrit avec
-`newline=""`, donc en LF — exactement ce que le test refusait. Il aurait
-annoncé « RÉPARÉ » quinze fois sans rien changer au verdict.
+> **La passe disait le contraire, et elle avait tort.** J'avais écrit qu'un
+> bloc « n'a rien à ouvrir ». C'était vrai *tant que son contenu restait
+> lisible dans le fil*. Il n'y est plus — il faut donc bien un endroit pour le
+> regarder, sinon on télécharge à l'aveugle.
 
-> **Le garde qui répare doit mesurer comme le garde qui alerte**, sinon l'un
-> des deux ment — et c'est toujours celui qui rassure.
+### Le ⤓ inline a disparu
 
-**Trois choses ont été faites, dans cet ordre :**
-
-1. `ulysse.css` remis en LF — **zéro caractère de style modifié** ;
-2. `resync_apercus.py` lit maintenant en `newline=""`. Remis en CRLF pour
-   l'essai, il répond « 15 perdus » au lieu de « 15 à jour » : il ne répare
-   toujours pas ce cas, mais **il ne le couvre plus** ;
-3. **`.gitattributes` (nouveau, à la racine)** — `* text=auto eol=lf`, plus
-   `*.bat eol=crlf` et les binaires. C'est la cause, pas le symptôme : sans
-   lui, le prochain `checkout` de `ulysse.css` remet quinze lignes au rouge
-   pour un fichier dont pas une règle n'a bougé.
-   `lancer_ulysse.bat`, qui était en LF sur le disque, est repassé en CRLF.
+L'encart **remplace** le bouton au coin du bloc, il ne s'y ajoute pas : sinon
+le même fichier porterait deux boutons. **La ligne d'outil garde son
+« Ouvrir › »** — elle dit *ce que l'agent a fait et quand*, c'est un journal ;
+l'encart est un **bilan**. Deux moments de lecture différents.
 
 ---
 
-## 2. Le collage est une pièce jointe (passe §1 et §2 — faits)
+## 3. Deux défauts trouvés en me relisant, pas en testant
 
-`collerCapture()` fabrique un `File` et appelle **`surFichiers()`**, le chemin
-du « + ». De là `image.attach`, et c'est le gateway qui matérialise l'image
-dans l'espace de la session.
+Ils étaient **dans le code livré la nuit même**, et les 479 vérifications
+d'alors les laissaient passer.
 
-**Ont disparu** : la route `/ulysse/capture`, `sauver_capture()`, la liste
-`captures[]`, `dessineCaptures()`, `refsCaptures()`, le marqueur
-`[capture: …]`, et les imports `base64` / `datetime` de `serve.py` qui ne
-servaient plus qu'à eux.
+**① ` ```bash ` entrait dans l'encart.** La condition lisait *« le nom deviné
+n'est pas `extrait.txt`, donc c'est un fichier »*. Or `bash` donne
+`extrait.sh`. `nomDeBloc` renvoie maintenant `explicite: true|false` :
+**la déclaration du nom se lit, elle ne se déduit plus de sa valeur.**
 
-**Une décision que la passe n'avait pas tranchée** : en **Discussion**, coller
-ne joint plus rien et le dit. Joindre aurait ouvert une session Cowork dans le
-dos de la personne (`attacherFichier` → `ensureSession`) pour une pièce que le
-proxy n'envoie pas. Un test l'exige.
+**② La clé d'un bloc se comptait au lieu de se déduire.**
+`"b" + (blocsLivrables.size + 1)` donnait une clé neuve **à chaque peinture du
+fil** — et le fil est repeint à chaque frappe. La Map gardait une copie du
+fichier par peinture. C'est `t.key + ":" + rang` maintenant ; `turnSeq` est
+monotone et ne se réutilise jamais, même en changeant de conversation.
+Vérifié dans la page : dix repeintures, **une** entrée.
 
-### ⛔ Le §3 de cette passe ne doit PAS être appliqué tel qu'il est écrit
-
-La question laissée en réserve — *« Hermès dit-il si le modèle courant voit
-les images ? »* — a été posée **au code source**. Réponse : **oui**
-(`supports_vision`, `/api/model/info`, `web_server.py:6225`).
-
-**Et c'est justement pour ça que la pastille serait fausse.**
-
-`agent/image_routing.py:461` tranche à chaque tour. En `auto` — le défaut —
-si le modèle ne voit pas, le mode est `"text"` et
-`tui_gateway/server.py:6733` fait **décrire l'image par `vision_analyze` puis
-préfixe la description au message**. L'image passe dans les deux cas.
-
-> Ce que la passe prenait pour le contournement manuel d'Hermès est **le
-> comportement par défaut du produit**. Écrire « ce modèle ne voit pas les
-> images » ferait renoncer à un geste qui marche — le mal exact que le §4
-> redoutait, atteint par l'autre bout : non pas en devinant, mais en croyant
-> savoir.
-
-**`.u-jointe.aveugle` n'existe pas.** Ce n'est plus une prudence faute de
-réponse, c'est la conclusion d'une réponse. Le §4 de la passe est réécrit avec
-les lignes.
+> Une valeur par défaut qui sert aussi de **signal** (« si c'est `extrait.txt`,
+> c'est que rien n'a été déclaré ») est un piège : le jour où le défaut change,
+> le signal ment sans bruit.
 
 ---
 
-## 3. Un fichier, un écran (passe §1 à §4 — faits)
+## 4. Éprouvé en vrai, le 2026-08-12
 
-**Le volet est le seul visualiseur.** `showFile()` — l'Établi, les Livrables —
-tient en une ligne et ouvre le volet. La modale ne s'ouvre plus.
+Demande réelle en Discussion : un CSV nommé **et** un ` ```bash ` d'exemple.
 
-Le volet a récupéré **tout** ce que la modale savait et qu'il ignorait :
-l'image, la taille, le refus au-delà de la limite, le téléchargement. Il garde
-la source et la copie. Chaque manque est vérifié séparément — sinon on aurait
-juste déplacé le trou.
+- le CSV **a quitté le fil** — `Normandie` introuvable dans `#thread` ;
+- le ` ```bash ` **y est resté** — `read_csv` toujours présent ;
+- l'encart : pastille `CSV`, « dans cette réponse · 6 lignes », liseré ;
+- « Ouvrir » a ouvert le volet, **accents intacts** (`Février`,
+  `Île-de-France`), fil d'Ariane « dans cette réponse » ;
+- le ⤓ du volet armé sur `ventes-2026.csv` ;
+- **aucune erreur en console.**
 
-**La carte désigne un chemin.** `ARTIFACT_RE` accepte n'importe lequel ; aucune
-route n'a été écrite, `REST.readFile` sait déjà lire. `/ulysse/artifact`,
-`sauver_artifact()` et `web/artifacts/` ont disparu.
-
-**Les trois défauts** :
-
-- **le volet ne défilait pas** — `<aside class="u-art-panel">` n'a pas reçu de
-  règles : il a été **retiré**. `.u-art-viewer` était déjà la colonne flex ;
-  le volet *est* l'aside. Plus `min-height:0` sur le corps, sans quoi un
-  enfant flex ne devient jamais plus petit que son contenu ;
-- **l'icône creuse** — plus aucun nom hors registre ;
-- **le garde-fou** — c'est le §4 ci-dessous.
-
-**Deux ajouts que la passe permettait sans les nommer :**
-
-- la carte dit **la taille**, lue une fois par chemin et gardée — une
-  repeinture du fil ne la redemande pas ;
-- **`f-carte.absent`** : cette lecture dit aussi quand le fichier n'est **pas
-  là**. La carte le dit **avant** le clic et ne s'ouvre pas. Une carte qui
-  promet un fichier absent est un bouton mort.
-
-**Non fait, exprès** : le §5 (la carte déduite de l'outil). La vérification
-qu'il demande n'a pas été faite ; dans le doute on garde ce qui marche.
-
----
-
-## 4. ⚠ Le fichier n'était pas hors du champ. Il était hors de la page.
-
-Le relais 20 disait : *« `test_page.js` ne contient pas une fois
-`ulysse-artifact.js` »*. C'était vrai, et **très en dessous de la vérité**.
-
-`test_page.js` inline les scripts dans la page pour les faire tourner. La liste
-était **écrite à la main** :
-
-```js
-const SCRIPTS = ["ulysse-config.js", "ulysse-icons.js", "ulysse-view.js",
-                 "ulysse-core.js", "ulysse-app.js"];
-```
-
-**Les 382 vérifications tournaient donc contre une page amputée.** Pas
-seulement le balayage des icônes : *tout*. Les fonctions du fichier n'existaient
-pas dans le DOM testé.
-
-La boucle vérifiait pourtant que chaque fichier de la liste était bien chargé
-par la page. **Elle ne vérifiait jamais l'inverse.** C'est par cette asymétrie
-que le fichier est entré — et c'est elle qui est refermée : la liste est
-maintenant **lue dans `ulysse.html`**, dans son ordre. Comme pour les aperçus,
-un fichier de plus entre tout seul.
-
-### Deux pièges trouvés en refermant, et ils mordent
-
-**a. `String.replace` interprète le remplacement.** `$&`, `` $` ``, `$'`, `$1`
-y sont des **motifs**. Un fichier qui en contient un — fût-ce dans un
-commentaire, et c'est arrivé avec `` $` `` dans une phrase — est inliné
-**corrompu**, lève une `SyntaxError`, et plus rien n'y est défini. L'erreur ne
-nomme jamais le fichier d'origine : j'ai cherché ailleurs pendant un moment.
-Les deux inlinings (scripts et feuille) passent maintenant par une **fonction**
-de remplacement, qui rend sa valeur telle quelle.
-
-**b. Le balayage statique des icônes ne voit que `svg("un nom")` littéral.**
-L'icône de la carte dépend de l'extension, donc elle sort d'une fonction :
-**invisible au garde-fou**. Vérifié en remettant le défaut d'origine — il
-repassait au vert. Une vérification **sur le rendu** a été ajoutée : six
-extensions, aucun `d="undefined"`. Elle attrape n'importe quel nom inconnu,
-quelle que soit la façon dont il est choisi.
-
-### Le faux Hermès mentait sur les fichiers
-
-`/api/files/read` rendait **le même fichier pour n'importe quel chemin**. Un
-fichier absent s'affichait donc comme un fichier présent, et `f-carte.absent`
-était intestable. Il y a maintenant un faux disque **indexé par chemin**, qui
-lève **404 « File not found »** comme le vrai (`web_server.py:2385`).
-
-> C'est la cinquième fois ici. *Un faux qui ne ment pas comme le vrai ne
-> prouve rien.*
-
-### Les garde-fous ont été mis à l'épreuve
-
-Cinq défauts remis un par un dans le code, test relancé à chaque fois :
-
-| défaut remis | verdict |
-|---|---|
-| l'icône inconnue revient | attrapé |
-| l'inlining redevient une chaîne | attrapé |
-| le volet retrouve son `<aside>` sans règle | attrapé |
-| la carte se referme sur `/artifacts/` | attrapé |
-| le faux disque redevient constant | attrapé |
-
-**Le premier passait au vert avant la vérification sur le rendu.** C'est pour
-ça qu'elle existe.
-
----
-
-## 4 bis. Ce que la vraie exécution a appris, et que le banc ne pouvait pas dire
-
-Lancé, piloté dans Chrome, contre le vrai gateway et le vrai modèle.
-
-**Ce qui a été prouvé** : zéro erreur console · le volet s'ouvre depuis
-l'Établi **et** depuis une carte, la modale jamais · il **défile** (7993 px de
-contenu dans 741 px, la fin est atteinte) · source, copie, téléchargement ·
-l'agent pose lui-même une carte **sur un chemin du projet** et elle s'ouvre ·
-la conversation, l'Établi et le fichier tiennent à l'écran **en même temps**.
-
-**Ce qui était cassé** — voir le bandeau en tête. Trois corrections :
-
-1. **`image.attach_bytes` au lieu de `image.attach`** (`ulysse-core.js`) ;
-2. **le plafond des images est 25 Mo, pas 32** — `_ATTACH_BYTES_MAX_BYTES`
-   (`server.py:10350`). Refuser à 32 Mo, c'était promettre un envoi que le
-   gateway allait rejeter en 4018 ;
-3. **le nom affiché est celui d'origine.** `image.attach_bytes` rend le nom
-   qu'il a écrit — `upload_20260811_194446_1.png`, constaté. La personne a
-   choisi `photo-vacances.png` et ne reconnaîtrait pas le sien.
-
-**Une image ne rend PAS de référence, et c'est correct.** Elle ne se lit pas,
-elle se regarde : elle est mise en file sur la session et part au tour suivant.
-`refsJointes()` écarte les pièces sans `ref` — rien n'est ajouté au message, et
-la bulle ne porte plus aucun marqueur.
-
-### Le §3 du collage confirmé par la machine, pas seulement par la source
-
-En demandant à l'agent ce qu'il voyait sur l'image, sa **réflexion** dit :
-
-> *« I already have the description. »*
-
-Le modèle n'a pas reçu de pixels : il a reçu **la description faite par
-Hermès**, exactement le chemin `"text"` de `image_input_mode: auto`. Il a
-répondu juste. **Une pastille « ce modèle ne voit pas les images » aurait été
-un mensonge**, et elle aurait fait renoncer à un geste qui marche. La réserve
-du §4 est donc close deux fois : par la source, puis par l'usage.
-
-### ⚠ Trouvé en chemin, PAS corrigé : `mdRender` abîme les documents longs
-
-Le volet rend maintenant des documents entiers, et ça rend visibles trois
-défauts du rendu markdown qui **existaient déjà** dans les bulles :
-
-- **les citations `>` ne sont pas rendues** — le chevron s'affiche en clair ;
-- **un retour à la ligne simple coupe la phrase**, alors qu'en markdown il
-  joint le paragraphe. Nos fichiers sont coupés à 78 colonnes : chaque
-  paragraphe arrive en escalier ;
-- **`**gras**` à cheval sur deux lignes reste littéral**, astérisques compris.
-
-Je n'y ai pas touché : ça change l'apparence de **tous** les messages, donc
-c'est une décision de design, pas une correction de passe. Mais le volet
-l'expose bien plus qu'avant — à trancher avant de montrer ça à quelqu'un.
-
----
-
-## 4 ter. Le §5 est fait — le lien vient de ce que l'agent A FAIT
-
-Trouvé par kuchu en deux gestes. *« Montre-moi le contrat d'interface »* :
-l'agent appelle `read_file`, récite le fichier dans le fil, et **rien ne
-permet de l'ouvrir**. *« Il aurait dû me proposer le lien, c'était plus
-simple. »*
-
-La balise `[artifact: …]` ne pouvait pas y répondre : **elle dépend de ce que
-l'agent pense à écrire, et il n'y pense pas.** C'était le §5, laissé ouvert
-faute de vérification. Elle est faite :
-
-| ce qu'Hermès envoie | verdict |
-|---|---|
-| `tool.complete.args` — le **dict complet** | **toujours envoyé** (`server.py:5423`) |
-| `tool.start.args_text` — le JSON | seulement en mode verbeux |
-| `tool.start.context` — l'aperçu | **tronqué à 80 caractères** |
-
-Et la clé est `path`, pour `read_file` / `write_file` / `patch` — **la table
-d'Hermès lui-même** (`agent/display.py:443`), pas une supposition. Ulysse
-recevait tout ça depuis le début et **le jetait** : `ulysse-core.js` ne lisait
-jamais `pl.args`.
-
-**Ce n'est PAS une carte de plus.** La ligne d'outil nomme déjà le fichier ;
-une carte à côté serait un second signe pour la même chose. **C'est la ligne
-qui s'ouvre** — elle porte « Ouvrir › » au survol, et le clic ouvre le volet.
-Le `▸ résultat` garde son geste : la délégation ignore les clics dans un
-`<details>`.
-
-Deux garde-fous qui comptent : **la liste des outils est fermée** (`path` ne
-veut pas dire la même chose partout — vérifié, un `browser_navigate` avec un
-`path` ne devient pas un lien), et **un chemin relatif est résolu sur
-`conv.info.cwd`**, sinon `/api/files/read` ne saurait pas le trouver.
-
-Vérifié en direct contre le vrai agent : `search_files` et `terminal` restent
-inertes, `read_file` s'ouvre, avec le chemin absolu complet. **418 / 418.**
+Non éprouvé : le ⤓ n'a pas été déclenché (il écrit dans les Téléchargements de
+kuchu), et l'encart n'a **pas** été vu avec un fichier écrit sur le disque en
+**Cowork** — seulement avec un bloc de réponse en Chat.
 
 ---
 
 ## 5. Ce qui reste, et à qui
 
-**À Cowork** :
+**À vous, tout de suite** :
 
-- **`apercu-fichiers.html` est dépassé.** Il reproduit fidèlement des défauts
-  qui n'existent plus, et sa colonne « actuel » montre l'état d'avant. Il ne
-  ment pas sur ce qu'il montre — il ment sur le mot « actuel ». À reprendre ou
-  à retirer. Les deux passes portent un bandeau qui le dit.
-- Les **classes `f-`** et les `id` du volet sont entrés dans
-  `CONTRAT-INTERFACE.md`.
+- **Trois fichiers d'essai traînent** à la racine et dans `web/` :
+  `personas-ulysse.csv`, `web/personas-ulysse.csv`, `web/personas-csv.html`.
+  Ce sont des sous-produits de mes essais — non commités, à supprimer quand
+  vous voulez.
+- **`_retire-2026-08-11/`** : vos 12 captures et 2 fichiers d'essai.
+  **Déplacés, pas supprimés.** Rien ne les utilise.
+- **Le chemin dégradé n'a jamais été essayé en vrai** : fermez la fenêtre du
+  dashboard Hermès pendant qu'Ulysse tourne, et regardez ce que dit l'app.
+  Les messages existent et sont testés au banc — ils n'ont pas été vus.
 
-**À vous** :
+**Décisions, pas du code.** Chacune est bloquée sur un choix que le produit ne
+peut pas faire seul, et il le dit à l'écran plutôt que de faire semblant :
+`POST /api/skills/toggle` · les 4 sous-modes de permission · l'écriture du
+fichier de profil · la création de projet / de coffre · la passe Plan
+§1 bis/ter/quater.
 
-- **`_retire-2026-08-11/`** à la racine : `web/captures/` (12 images) et
-  `web/artifacts/` (2 fichiers d'essai) en sont sortis. **Déplacés, pas
-  supprimés** — les captures sont les vôtres. Rien ne les utilise ;
-  `rm -rf "_retire-2026-08-11"` quand vous voulez.
-- **`#sFile` / `#fileBody` / `#fClose`** restent dans `ulysse.html`, **ouverts
-  par personne**. Ils sont au contrat et n'en partent qu'avec son accord. Les
-  retirer est une décision à prendre là-bas, pas au détour d'une passe.
+**À Cowork** : `l-livrables`, `l-titre`, `l-item`, `l-type`, `l-nom`, `l-ou`,
+`l-actes`, `l-ouvrir`, `l-dl` sont à porter au `CONTRAT-INTERFACE.md`.
+`apercu-fichiers.html` a été refait et n'est plus dépassé.
 
 ---
 
 ## Les pièges tiennent
 
-`ulysse-view.js` déclare `esc`, `NW`, `NH`, `RX`, `NEUTRE` **et `titre`** au
-niveau global — **et `ulysse-artifact.js` ajoute `ARTIFACT_RE`** · `#morePop`
-et `#tmain` sont reconstruits en `innerHTML`, donc **sortir, réécrire,
-réinstaller** · pour réinstaller `#tecran`, **chercher dans `#tmain`, jamais
-avec `getElementById`** · `.panel` porte `z-index:1` · **l'écriture passe par
+`ulysse-view.js` déclare `esc`, `NW`, `NH`, `RX`, `NEUTRE`, `titre`
+**et maintenant `LANGUES_FICHIER`** au niveau global — **et
+`ulysse-artifact.js` ajoute `ARTIFACT_RE`** · `#morePop` et `#tmain` sont
+reconstruits en `innerHTML`, donc **sortir, réécrire, réinstaller** · pour
+réinstaller `#tecran`, **chercher dans `#tmain`, jamais avec
+`getElementById`** · `.panel` porte `z-index:1` · **l'écriture passe par
 `serve.py`** · `#pTerminal .term.u-plein` a besoin de `.term` dans le
 sélecteur · **`Échap` EST le bouton de sortie du plein écran** · toute
-correction de `ulysse.css` s'inscrit dans `ECARTS-MAQUETTE.md` · **« ranger »,
-jamais « créer »** · **le lieu vient de `conv.info`** · **« Travailler ici » ne
-ferme pas le fil** · **`nav()` ouvre les coulisses** · **`drawBell()` compare
-`data-nav`, jamais le libellé** · **Ulysse ne choisit jamais le cerveau**
-(`LOI-DU-CERVEAU.md`) · **une image collée est une image jointe** · **un
-fichier se montre dans un seul écran** : le volet, jamais la modale ·
-**Hermès décrit les images que le modèle ne voit pas — ne dites pas qu'il ne
-les voit pas** · **le garde qui répare doit mesurer comme le garde qui
-alerte** · et **un `$` suivi de `` ` ``, `&`, `'` ou d'un chiffre est un motif
-dans un remplacement `String.replace`**.
+correction de `ulysse.css` s'inscrit dans `ECARTS-MAQUETTE.md` **et se suit
+d'un `resync_apercus.py`** · **« ranger », jamais « créer »** · **le lieu vient
+de `conv.info`** · **« Travailler ici » ne ferme pas le fil** · **`nav()` ouvre
+les coulisses** · **`drawBell()` compare `data-nav`, jamais le libellé** ·
+**Ulysse ne choisit jamais le cerveau** (`LOI-DU-CERVEAU.md`) · **une image
+collée est une image jointe**, et c'est **`image.attach_bytes`**, jamais
+`image.attach` · **un fichier se montre dans un seul écran** : le volet,
+jamais la modale · **Hermès décrit les images que le modèle ne voit pas — ne
+dites pas qu'il ne les voit pas** · **le garde qui répare doit mesurer comme
+le garde qui alerte** · **un test qui désigne par la position accuse le
+voisin** · **une valeur par défaut ne sert pas de signal** · et **un `$` suivi
+de `` ` ``, `&`, `'` ou d'un chiffre est un motif dans un remplacement
+`String.replace`**.
