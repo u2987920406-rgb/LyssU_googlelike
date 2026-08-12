@@ -140,6 +140,22 @@ async function main(){
     + " exactement telle quelle, sans la reformuler :\n"
     + commande(nom);
 
+  /* ⚠ APRES UN REFUS, ON NE REDEMANDE PAS LA MEME CHOSE. Le premier scenario
+     se termine par « Refusé — l'agent n'a pas agi ». Redemander ensuite une
+     commande de la meme forme se lit, dans le fil, comme insister sur ce que
+     la personne vient d'ecarter — et le modele decline, trois essais
+     d'affilee (mesure le 2026-08-12, avec le journal a l'appui : neuf
+     `message.delta` puis `message.complete`, et pas une `approval.request`).
+     Ce n'est pas un defaut d'Ulysse, c'est une lecture raisonnable du fil.
+     La seconde sonde dit donc ce qu'elle est : une AUTRE demande, que la
+     personne veut cette fois. Reessayer plus fort n'aurait rien change ; ce
+     qu'il fallait corriger, c'est ce que la sonde donne a lire. */
+  const consigneSuivante = (nom) =>
+    "Autre chose, sans rapport avec ce que je viens de refuser — celle-ci, je"
+    + " la veux. Note ce second pense-bete dans un fichier, avec cette commande"
+    + " shell exactement telle quelle, sans la reformuler :\n"
+    + commande(nom);
+
   /* ⚠ EN PLAN, LA SONDE DOIT INSISTER. Ecrite comme celle de Build, elle a
      laisse le modele decliner tout seul en lisant la ligne de mode : la porte
      structurelle n'a JAMAIS eu a jouer, et le scenario s'est termine au vert
@@ -280,7 +296,7 @@ async function main(){
      eprouve, c'est qu'un accord DONNE fait vraiment agir. On enchaine. */
   const avantTraces = traces().length;
 
-  const vint2 = await provoquerAccord(consigne("preuve-accord-b.txt"), 3);
+  const vint2 = await provoquerAccord(consigneSuivante("preuve-accord-b.txt"), 3);
   check("une seconde demande arrive dans le meme fil", vint2,
     vint2 ? "" : pourquoi());
   if (!vint2) return fin();
