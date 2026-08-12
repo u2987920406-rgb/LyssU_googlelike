@@ -1,279 +1,264 @@
-# Relais — 2026-08-12 (23), le mode n'est plus un moteur
+# Relais — 2026-08-12 (24), le mode Plan cesse de promettre
 
-> ## ⚠ LU EN PREMIER : le mode Plan promettait ce qu'il ne pouvait pas tenir
+> ## ⚠ LU EN PREMIER : « accords en manuel » n'est PAS « on vous demande »
 >
-> `Chat | Cowork` a disparu. Le sélecteur ne choisit plus **par où passe la
-> requête** mais **ce que l'agent a le droit de modifier** : `Plan` (défaut) et
-> `Build → Vérif`. Un seul moteur, Hermès, dans les deux.
+> Le relais 23 vous laissait un bouton — *« Passer les accords en manuel »* —
+> en disant que le mode Plan tiendrait alors sa promesse. **kuchu l'a cliqué.
+> Et la promesse ne tient toujours pas.**
 >
-> **Et le premier scénario réel a montré que la garantie n'existait pas.**
-> `approvals.mode` vaut **« smart »** sur cette installation : Hermès
-> s'auto-autorise ce qu'il juge sans danger et **n'émet aucune demande**. La
-> porte d'Ulysse, qui écoute `approval.request`, n'était donc jamais appelée.
-> En mode Plan, l'agent a lancé `terminal` **trois fois** sous nos yeux,
-> pendant que l'écran affichait *« rien ne sera modifié sur le disque »*.
+> Éprouvé juste après, dans les conditions mêmes que cet écran réclamait :
 >
-> Ulysse ne peut pas réparer ça seul — le réglage est **global**, il vaut pour
-> le TUI et toutes les sessions. Il fait donc la seule chose honnête : il le
-> lit, il le **dit**, et il propose un bouton. **Le clic est l'accord ; sans
-> clic, rien n'est écrit.** Et la promesse disparaît tant qu'elle n'est pas
-> tenable.
+> | geste | résultat |
+> |---|---|
+> | `write_file` sur `essai-refus.txt` | fichier écrit · **zéro `approval.request`** |
+> | `terminal echo essai-porte` | exécuté en **185 ms** · zéro demande |
 >
-> ### 👉 CE QUI VOUS ATTEND, VOUS, EN UN CLIC
+> Le code source d'Hermès dit pourquoi, et c'est **structurel** :
 >
-> Ouvrez Ulysse en mode Plan. Un encart ambre dit que Plan ne garantit rien, et
-> porte **« Passer les accords en manuel »**. Je ne l'ai pas cliqué à votre
-> place : ce réglage touche la sécurité de votre installation, et il sort
-> d'Ulysse. **C'est votre geste, pas le mien.**
+> - **`tools/approval.py:3938`** — `if not warnings: return {"approved": True}`,
+>   **avant** toute lecture du mode. Une commande qui ne déclenche aucun motif
+>   de danger est auto-approuvée dans **tous** les modes, manuel compris.
+>   `approvals.mode` ne dit pas *si* l'on demande : il dit **quoi faire quand un
+>   motif a déjà mordu**.
+> - **`tools/file_tools.py:706`** — la seule porte toujours-demander sur une
+>   écriture couvre **quatre noms** : `agents.md`, `claude.md`, `soul.md`,
+>   `.cursorrules`. Un `write_file` ordinaire ne passe par **aucune** porte, à
+>   aucun réglage.
+>
+> **Le clic a donc rendu Ulysse moins protecteur, pas plus** : le trou est
+> resté, l'avertissement est parti. `planGaranti()` tirait une GARANTIE de
+> `modeAccords === "manual"`, et l'écran s'est mis à afficher « rien ne sera
+> modifié sur le disque » pendant qu'un fichier s'écrivait sans un mot.
+>
+> ### 👉 CE QUI A CHANGÉ, ET QU'IL NE FAUT PAS DÉFAIRE
+>
+> La phrase **« rien ne sera modifié sur le disque » est retirée des trois
+> endroits où elle vivait** — l'accueil, la note sous le composeur, l'encart.
+> Il n'existe aucun réglage sous lequel elle soit vraie. L'encart, lui, ne
+> disparaît plus en manuel : il change de propos et dit la portée exacte, en
+> gris, avec la mesure qui l'appuie.
+>
+> Ce qui retient vraiment l'agent en Plan, c'est **la consigne** de
+> `ligneDeMode()` — on l'a vu refuser `write_file` sur instruction directe, en
+> disant « la règle de session prime ». C'est réel. Mais le code le dit
+> lui-même : *une garantie qui repose sur la bonne volonté du modèle n'est pas
+> une garantie.*
 
-> **`node test_page.js` : 498 / 498.** Dix-huit mutations posées sur les gardes
-> neufs, dix-sept mordues.
-
----
-
-## 0 bis. Le préfixe : 29 092 → 15 067 tokens
-
-Tranché par kuchu : *« des préfixes courts pour de bon est meilleur, car
-plusieurs cerveaux pourront être amenés à être remplacés »*. L'argument vaut
-mieux que le mien — **un préfixe stable protège un modèle, un préfixe court
-les protège tous.**
-
-Huit familles retirées (`bfl`, `browser`, `computer_use`, `cronjob`,
-`delegation`, `image_gen`, `tts`, `session_search`), **56 outils → 31** :
-
-| poste | avant | après |
-|---|---|---|
-| System prompt | 7 189 | 5 818 |
-| **Définitions d'outils** | **19 359** | **7 825** |
-| Subagents | 1 120 | **0** |
-| **Total** | **29 092** | **15 067** — **−48 %** |
-
-**Réversible** : `config.yaml.avant-elagage-2026-08-12` dans `HERMES_HOME`.
-
-**Le levier qui reste** : `kanban` pèse **12 des 31 outils** restants. Il n'est
-pas dans `CONFIGURABLE_TOOLSETS` — c'est une fonctionnalité de la gateway. La
-retirer désactiverait une fonction du TUI : ce n'est plus de l'élagage, c'est
-une amputation, et elle demande votre accord.
-
-> ⚠ **Le mode ne touche NI aux toolsets NI au system prompt.** Les changer par
-> mode est la solution qui vient naturellement et c'est **la plus chère** :
-> elle invaliderait le cache **à chaque bascule**. Le mode se dit dans le
-> **tour de l'utilisateur** (~15 tokens, après le préfixe) et s'applique à la
-> porte d'approbation, côté Ulysse, **pour zéro token.**
-
----
-
-## 0 ter. Ce que les scénarios réels ont trouvé, et le banc pas
-
-| trouvé en… | quoi |
-|---|---|
-| jouant un scénario | la porte ne se déclenchait **jamais** (`approvals.mode = smart`) |
-| jouant un scénario | l'outil `todo` renvoie un **objet** — on lisait `[object Object]`, donc **aucun plan** |
-| jouant un scénario | l'écran **se fige dans un onglet caché** : `requestAnimationFrame` y est suspendu, `paintQueued` restait bloqué |
-| jouant un scénario | le bouton d'arrêt était conditionné à `mode === "cowork"`, un mode disparu |
-| relisant | deux messages renvoyaient vers « passez en Discussion » — une issue supprimée |
-
-Le faux du banc envoyait le résultat de `todo` **en texte**. Le vrai envoie un
-objet. **Sixième fois qu'un faux qui ne ment pas comme le vrai ne prouve rien.**
+> **`node test_page.js` : 511 / 511.** Seize vérifications neuves, six
+> mutations posées, six mordues.
 
 ---
 
 ## 0. Ce qui vous attend au premier geste
 
 ```
-cd web && node test_page.js          # 498/498
+cd web && node test_page.js          # 511/511
 python resync_apercus.py             # après TOUTE retouche de ulysse.css
-```
-
-Puis, et ce n'est pas facultatif :
-
-```
 lancer_ulysse.bat                    # http://127.0.0.1:8080/ulysse.html
 ```
 
-> **Deux pièges en vérifiant dans le navigateur**, tous deux rencontrés
-> aujourd'hui :
+> **Trois pièges en vérifiant dans le navigateur**, tous rencontrés :
 >
-> 1. **Naviguer vers l'URL courante, hash compris, ne recharge rien.** J'ai
->    failli diagnostiquer un défaut de cache dans `serve.py` — qui envoie
->    pourtant `Cache-Control: no-store`. Utilisez `location.reload()`.
-> 2. **Au démarrage la page est sur l'accueil, pas sur le fil.** `#thread` est
->    vide et `paintThread()` n'y peint rien : **ce n'est pas une panne.** Il
->    faut envoyer un vrai message.
+> 1. **Naviguer vers l'URL courante, hash compris, ne recharge rien.**
+>    `location.reload()`.
+> 2. **`location.reload()` peut figer l'onglet côté extension** (« script
+>    injection timed out ») sans que l'app soit en cause : serveur à 200,
+>    syntaxe bonne. Ouvrir un onglet neuf.
+> 3. **Au démarrage la page est sur l'accueil, pas sur le fil.** Ce n'est pas
+>    une panne : il faut envoyer un vrai message.
 >
-> Et avant de mesurer : fermez la fenêtre « Ulysse-Serve » ouverte, puis
-> relancez le `.bat`. `serve.py` refuse un port pris et le dit.
+> Et **prévenez kuchu de ne pas cliquer pendant que vous pilotez le
+> navigateur** : la fenêtre a changé de taille trois fois en pleine mesure, et
+> j'ai cru dix secondes à un défaut d'affichage.
 
 ---
 
-## 1. ⚠ Le contenu d'un fichier ne se déroule plus dans le fil
+## 0 bis. Les dix scénarios sont joués
 
-C'est le changement du jour, et il vient de kuchu :
+Cinq l'avaient été avant que le PC s'éteigne ; la conversation a été perdue,
+pas le disque — elle s'est relue dans le transcript. Les cinq derniers ont
+trouvé **sept défauts**, plus celui de la promesse ci-dessus.
 
-> *« Les fichiers CSV et tout autre fichier ne doivent pas être développés
-> dans le chat. Ça prend de la place pour rien, et ce n'est pas là qu'il faut
-> les développer. »*
+**Trois contredisaient un commentaire écrit dans le fichier même.** C'est la
+catégorie la plus dure à voir : on lit le commentaire, et on le croit.
 
-Un CSV de 300 lignes déroulé dans la conversation **enterre la réponse qui
-l'explique**, et il ne s'y lit pas mieux : le fil est étroit, sans gouttière.
-
-**Le bloc sort du fil et entre dans un encart, à la fin du tour.** Il n'en
-reste que le **type en pastille** et le **nom**. On clique la ligne, le volet
-s'ouvre, on voit le détail. Le ⤓ emporte sans passer par là.
-
-### Ce qui ne bouge pas
-
-Un ` ```bash ` d'exemple, un ` ```texte ` avec une URL : **ils restent où ils
-sont.** Rien ne les accueille de l'autre côté — les retirer les ferait
-disparaître sans contrepartie.
-
-**La règle d'entrée** : une **langue de fichier** (`csv`, `json`, `md`, `py`,
-`html`, `svg`, `sql`, `yaml`…) **ou un nom donné par l'agent**, ET au moins
-deux lignes non vides. Une URL seule n'est pas un fichier.
-
-> On préfère **oublier un livrable** que d'en inventer trois. Une liste qui
-> contient du bruit cesse d'être lue — c'est exactement ce qui venait
-> d'arriver au ⤓.
-
-### ⚠ Une seule découpe, et c'est le point
-
-`decouperLivrables(src)` → `{texte, livrables}` produit **le texte du fil ET
-la liste de l'encart**. Deux fonctions séparées finiraient par diverger, et
-alors un bloc disparaîtrait du fil **sans arriver dans l'encart** : perdu,
-sans un mot. `livrablesDuTexte()` n'est plus qu'une enveloppe.
-
----
-
-## 2. L'encart : ce qu'il est, et pourquoi il porte un liseré
-
-Le constat qui l'a fait naître : *« j'ai regardé la fin de la discussion, il
-n'y avait rien. Par contre, en plein milieu, il y avait plein de fichiers que
-je pouvais cliquer. »*
-
-On lit une réponse **en entier**, puis on veut ce qu'elle a produit. À ce
-moment-là on est **en bas**.
-
-> **Ce qu'on emporte ne se range pas dans la phrase qui en parle. Ça se range
-> là où on arrive quand on a fini de lire.**
-
-C'est **le seul bloc du fil à porter une bordure pleine**, un liseré d'accent
-et un fond distinct. Il doit se repérer **en faisant défiler sans lire**,
-parce que c'est comme ça qu'on le cherchera. Mesuré dans la page :
-`2.67px rgb(11, 87, 208)`.
-
-### Les deux espèces ont le MÊME geste
-
-| espèce | Ouvrir | Emporter |
+| | trouvé en… | quoi |
 |---|---|---|
-| écrit sur le **disque** (`write_file`, `patch`) | le volet, lu par `REST` | ⤓ |
-| écrit dans la **réponse** (un bloc) | le volet, contenu **en mémoire** | ⤓ |
+| A | jouant | la **ligne de mode se peignait dans le fil** — `onSend` promettait « elle part, elle ne s'affiche pas » |
+| F | jouant | un fichier joint s'affichait `@file:.hermes/desktop-attachments/…` |
+| G | jouant | une **image collée ne laissait aucune trace** : zéro `<img>`, zéro nom |
+| C | jouant | « Lien interrompu » envoyait relancer le `.bat` alors que **tout tournait** |
+| D | jouant | en « Les deux », la pastille d'état **volait la largeur au titre** |
+| E | jouant | le bouton `⟨/⟩` **s'allumait sans rien changer** devant un CSV |
+| — | mesurant | **« manuel » ne fait demander ni écriture ni commande anodine** |
 
-Que les octets soient sur le disque ou dans la réponse **ne regarde pas la
-personne qui clique**. `ouvrirTexteEnMemoire(nom, texte)`
-(`ulysse-artifact.js`) ouvre le volet sur ce qui n'est nulle part : en
-Discussion, le modèle ne peut **rien** écrire sur le disque.
-
-> **La passe disait le contraire, et elle avait tort.** J'avais écrit qu'un
-> bloc « n'a rien à ouvrir ». C'était vrai *tant que son contenu restait
-> lisible dans le fil*. Il n'y est plus — il faut donc bien un endroit pour le
-> regarder, sinon on télécharge à l'aveugle.
-
-### Le ⤓ inline a disparu
-
-L'encart **remplace** le bouton au coin du bloc, il ne s'y ajoute pas : sinon
-le même fichier porterait deux boutons. **La ligne d'outil garde son
-« Ouvrir › »** — elle dit *ce que l'agent a fait et quand*, c'est un journal ;
-l'encart est un **bilan**. Deux moments de lecture différents.
+Aucun n'était visible au banc. **Neuvième fois.**
 
 ---
 
-## 3. Deux défauts trouvés en me relisant, pas en testant
+## 1. ⚠ Ce qui part au moteur ne se peint plus dans le fil
 
-Ils étaient **dans le code livré la nuit même**, et les 479 vérifications
-d'alors les laissaient passer.
+`submitPrompt(text, opts)` avait déjà la couture : `sent` part, `shown` se
+peint, et `opts.preamble` (le cadre de rôle) l'empruntait. **La ligne de mode
+et les références `@file:` ne l'empruntaient pas** — les appelants les
+collaient dans `text`, donc dans les deux.
 
-**① ` ```bash ` entrait dans l'encart.** La condition lisait *« le nom deviné
-n'est pas `extrait.txt`, donc c'est un fichier »*. Or `bash` donne
-`extrait.sh`. `nomDeBloc` renvoie maintenant `explicite: true|false` :
-**la déclaration du nom se lit, elle ne se déduit plus de sa valeur.**
+À l'écran : **une deuxième bulle « Vous » par tour**, disant
+`[Mode Plan : ne modifiez rien sur le disque…]`, que personne n'avait écrite.
+Et une pièce jointe rendue en clair, sous votre nom.
 
-**② La clé d'un bloc se comptait au lieu de se déduire.**
-`"b" + (blocsLivrables.size + 1)` donnait une clé neuve **à chaque peinture du
-fil** — et le fil est repeint à chaque frappe. La Map gardait une copie du
-fichier par peinture. C'est `t.key + ":" + rang` maintenant ; `turnSeq` est
-monotone et ne se réutilise jamais, même en changeant de conversation.
-Vérifié dans la page : dix repeintures, **une** entrée.
+`opts.suffix` est le même droit que `opts.preamble`, de l'autre côté : **ça
+part, ça ne s'affiche pas.**
 
-> Une valeur par défaut qui sert aussi de **signal** (« si c'est `extrait.txt`,
-> c'est que rien n'a été déclaré ») est un piège : le jour où le défaut change,
-> le signal ment sans bruit.
+### Et ce qu'on a joint reste visible
 
----
+Les puces vivaient au-dessus du composeur et **disparaissaient avec lui**. Une
+image collée ne laissait ensuite rien : impossible de dire, en relisant demain,
+quelle image on avait envoyée. Les mêmes puces, même forme, **dans la bulle**,
+sans le ✕ — il n'y a plus rien à retirer.
 
-## 4. Éprouvé en vrai, le 2026-08-12
-
-Demande réelle en Discussion : un CSV nommé **et** un ` ```bash ` d'exemple.
-
-- le CSV **a quitté le fil** — `Normandie` introuvable dans `#thread` ;
-- le ` ```bash ` **y est resté** — `read_csv` toujours présent ;
-- l'encart : pastille `CSV`, « dans cette réponse · 6 lignes », liseré ;
-- « Ouvrir » a ouvert le volet, **accents intacts** (`Février`,
-  `Île-de-France`), fil d'Ariane « dans cette réponse » ;
-- le ⤓ du volet armé sur `ventes-2026.csv` ;
-- **aucune erreur en console.**
-
-Non éprouvé : le ⤓ n'a pas été déclenché (il écrit dans les Téléchargements de
-kuchu), et l'encart n'a **pas** été vu avec un fichier écrit sur le disque en
-**Cowork** — seulement avec un bloc de réponse en Chat.
+> Les deux vérifications se tiennent : la référence **sort** du fil ET la
+> pièce y **reste**. Sans la seconde, retirer la référence ferait disparaître
+> le fichier sans un mot — exactement le défaut qu'on répare.
 
 ---
 
-## 5. Ce qui reste, et à qui
+## 2. Un message qui dit quoi faire doit encore être vrai
 
-**À vous, tout de suite** :
+« Lien interrompu » disait : *« Relancez lancer_ulysse.bat, puis renvoyez votre
+message. »* Mesuré **au moment d'une vraie coupure**, arrivée toute seule :
 
-- **Trois fichiers d'essai traînent** à la racine et dans `web/` :
-  `personas-ulysse.csv`, `web/personas-ulysse.csv`, `web/personas-csv.html`.
-  Ce sont des sous-produits de mes essais — non commités, à supprimer quand
-  vous voulez.
-- **`_retire-2026-08-11/`** : vos 12 captures et 2 fichiers d'essai.
-  **Déplacés, pas supprimés.** Rien ne les utilise.
-- **Le chemin dégradé n'a jamais été essayé en vrai** : fermez la fenêtre du
-  dashboard Hermès pendant qu'Ulysse tourne, et regardez ce que dit l'app.
-  Les messages existent et sont testés au banc — ils n'ont pas été vus.
+- 8080, 9123, 8645 **répondaient tous** — rien n'était mort ;
+- `link.state` était **déjà revenu à `open`** — `_scheduleRetry()` rebranche
+  seul, avec un délai qui monte de 1 s à 30 s ;
+- j'ai **renvoyé un message sans rien relancer** : nouvelle session, l'agent
+  repart.
 
-**Décisions, pas du code.** Chacune est bloquée sur un choix que le produit ne
-peut pas faire seul, et il le dit à l'écran plutôt que de faire semblant :
-`POST /api/skills/toggle` · les 4 sous-modes de permission · l'écriture du
-fichier de profil · la création de projet / de coffre · la passe Plan
-§1 bis/ter/quater.
+Le conseil était faux, et cher : relancer aurait tué des backends vivants, et
+`serve.py` refuse un port pris. Les trois messages du lien disent maintenant
+qu'Ulysse se rebranche seul, et ne proposent le `.bat` qu'**en second recours**.
 
-**À Cowork** : `l-livrables`, `l-titre`, `l-item`, `l-type`, `l-nom`, `l-ou`,
-`l-actes`, `l-ouvrir`, `l-dl` sont à porter au `CONTRAT-INTERFACE.md`.
-`apercu-fichiers.html` a été refait et n'est plus dépassé.
+> Le banc vérifiait `txt.includes("Lien interrompu")`. Il vérifiait qu'un
+> message **existe**, jamais que ce qu'il dit **soit encore vrai**.
+
+---
+
+## 3. Un CSV se lit en colonnes, ou ne se lit pas
+
+Le bouton `⟨/⟩` ne se désactivait que devant un binaire. Devant un CSV il
+s'allumait — et ne changeait **rien** : `renderArtifactBody` ne rendait que le
+markdown, tout le reste tombait dans le même `<pre>`. Le fichier interdit
+pourtant cela **deux lignes plus haut** : *« un bouton qui ne peut rien faire
+se désactive plutôt que de mentir »*.
+
+Deux corrections, pas une :
+
+- le CSV gagne son **rendu en table** — en-tête collant, défilement horizontal
+  dans son propre conteneur (sinon huit colonnes poussent la page entière) ;
+- le bouton **s'éteint** pour ce qui n'a qu'une seule lecture (`.txt`, `.py`…).
+
+Le séparateur ne se devine pas au hasard : **un export Excel français écrit des
+points-virgules**, et un libellé entre guillemets peut contenir le séparateur.
+Les deux sont découpés, et gardés au banc.
+
+---
+
+## 4. La pastille d'état volait la largeur au titre
+
+`flex:1` vaut `1 1 0%` : une **base nulle**. Le titre de l'étape ne recevait
+que ce qui restait après la pastille « exécution », qui gardait sa largeur de
+contenu. Mesuré en « Les deux » sur 859 px : volet **258**, ligne **214**,
+titre **48 px** — « Cadrage 2025 » rendu *une syllabe par ligne*. En « Détail »
+seul, la même ligne est parfaite : **ce n'est pas le texte, c'est le partage.**
+
+Base `auto` des deux côtés : ils se réduisent à proportion de ce qu'ils
+contiennent, donc le titre garde l'essentiel et la pastille s'abrège.
+
+> `ECARTS-MAQUETTE.md` avait **innocenté cette règle** — à juste titre, sur la
+> question du `display`. Le défaut était ailleurs, dans le même `flex:1`.
+> **Innocenter une règle sur une question ne l'innocente pas sur les autres.**
+
+---
+
+## 5. Ce que le banc gardait, et qu'il ne fallait pas garder
+
+Il exigeait littéralement : *« accords en manuel : la promesse revient,
+l'avertissement part »*. **Le banc gardait la fausseté.** Réécrit.
+
+Les six mutations posées, et ce qu'elles ont fait tomber :
+
+| mutation | gardes mordus |
+|---|---|
+| la plomberie revient dans le texte affiché | 2 |
+| le bouton `⟨/⟩` ne regarde plus s'il a deux lectures | 1 |
+| le séparateur est toujours la virgule | 2 |
+| la promesse revient à l'accueil | 4 |
+| l'encart se tait en manuel | 1 |
+| la promesse revient sous le composeur | 1 |
+
+> Un garde a d'abord **tenu à un accent** : il cherchait `modifié` et la
+> mutation écrivait `modifie`. Rendu insensible. Une vérification qui dépend
+> d'un accent ne vérifie pas ce qu'elle croit.
+
+---
+
+## 6. Ce qui reste, et à qui
+
+**Non corrigé, et c'est un choix :**
+
+- **Un tour interrompu ne laisse aucune marque.** Corrigez un message en plein
+  tour : le premier bloc « Ulysse » reste vide, pour toujours, sans un mot. Je
+  ne sais pas distinguer « abandonné » de « lent » sans risquer d'accuser un
+  tour qui allait répondre. **À trancher, pas à deviner.**
+
+**Jamais éprouvé en vrai :**
+
+- **la porte d'approbation elle-même.** Elle n'a jamais été appelée, dans aucun
+  réglage : Hermès ne demande rien pour une écriture ni pour une commande
+  anodine. Il faudrait une commande qui **morde un motif de danger**
+  (`approval.py`) pour la voir enfin s'ouvrir. C'est le prochain scénario.
+- **le ⤓** — il écrit dans les Téléchargements de kuchu.
+
+**À vous, tout de suite :**
+
+- **Trois fichiers d'essai** traînent, non commités : `personas-ulysse.csv`,
+  `web/personas-ulysse.csv`, `web/personas-csv.html`. À supprimer quand vous
+  voulez.
+- **`web/.hermes/`** est né en jouant le scénario de la pièce jointe : le
+  gateway y dépose **vos** octets, dans le dossier servi. Ajouté au
+  `.gitignore` — ça n'a rien à faire sur un remote public.
+
+**Décisions, pas du code.** `POST /api/skills/toggle` · les 4 sous-modes de
+permission · l'écriture du fichier de profil · la création de projet / de
+coffre.
+
+**À Cowork** : `u-jdit`, `u-art-tab`, `u-art-tabwrap`, `m-portee` sont à porter
+au `CONTRAT-INTERFACE.md`.
 
 ---
 
 ## Les pièges tiennent
 
-`ulysse-view.js` déclare `esc`, `NW`, `NH`, `RX`, `NEUTRE`, `titre`
-**et maintenant `LANGUES_FICHIER`** au niveau global — **et
-`ulysse-artifact.js` ajoute `ARTIFACT_RE`** · `#morePop` et `#tmain` sont
-reconstruits en `innerHTML`, donc **sortir, réécrire, réinstaller** · pour
-réinstaller `#tecran`, **chercher dans `#tmain`, jamais avec
-`getElementById`** · `.panel` porte `z-index:1` · **l'écriture passe par
-`serve.py`** · `#pTerminal .term.u-plein` a besoin de `.term` dans le
+`ulysse-view.js` déclare `esc`, `NW`, `NH`, `RX`, `NEUTRE`, `titre`,
+`LANGUES_FICHIER` au niveau global — **et `ulysse-artifact.js` ajoute
+`ARTIFACT_RE`, `aUnRendu`, `csvSeparateur`, `csvLigne`, `csvTableHTML`** ·
+`#morePop` et `#tmain` sont reconstruits en `innerHTML`, donc **sortir,
+réécrire, réinstaller** · pour réinstaller `#tecran`, **chercher dans `#tmain`,
+jamais avec `getElementById`** · `.panel` porte `z-index:1` · **l'écriture passe
+par `serve.py`** · `#pTerminal .term.u-plein` a besoin de `.term` dans le
 sélecteur · **`Échap` EST le bouton de sortie du plein écran** · toute
 correction de `ulysse.css` s'inscrit dans `ECARTS-MAQUETTE.md` **et se suit
 d'un `resync_apercus.py`** · **« ranger », jamais « créer »** · **le lieu vient
 de `conv.info`** · **« Travailler ici » ne ferme pas le fil** · **`nav()` ouvre
 les coulisses** · **`drawBell()` compare `data-nav`, jamais le libellé** ·
 **Ulysse ne choisit jamais le cerveau** (`LOI-DU-CERVEAU.md`) · **une image
-collée est une image jointe**, et c'est **`image.attach_bytes`**, jamais
-`image.attach` · **un fichier se montre dans un seul écran** : le volet,
-jamais la modale · **Hermès décrit les images que le modèle ne voit pas — ne
-dites pas qu'il ne les voit pas** · **le garde qui répare doit mesurer comme
-le garde qui alerte** · **un test qui désigne par la position accuse le
-voisin** · **une valeur par défaut ne sert pas de signal** · et **un `$` suivi
-de `` ` ``, `&`, `'` ou d'un chiffre est un motif dans un remplacement
-`String.replace`**.
+collée est une image jointe**, et c'est **`image.attach_bytes`** · **un fichier
+se montre dans un seul écran** : le volet, jamais la modale · **Hermès décrit
+les images que le modèle ne voit pas** · **le garde qui répare doit mesurer
+comme le garde qui alerte** · **un test qui désigne par la position accuse le
+voisin** · **une valeur par défaut ne sert pas de signal** · **un `$` suivi de
+`` ` ``, `&`, `'` ou d'un chiffre est un motif dans un remplacement
+`String.replace`** · **`flex:1` est une base NULLE — le contenu perd contre un
+voisin à base `auto`** · **ce qui part au moteur passe par `preamble` ou
+`suffix`, jamais par `text`** · et **un message qui dit quoi faire doit être
+vérifié encore vrai, pas seulement présent**.
