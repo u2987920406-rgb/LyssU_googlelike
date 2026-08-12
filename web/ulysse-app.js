@@ -5011,10 +5011,17 @@ coreHooks.refusDeMode = (pl) => {
   /* ⚠ LE REFUS DIT SA CAUSE ET LA SORTIE. Un refus qui s'arrête à « non » est
      un mur poli : la personne voit l'agent s'interrompre sans savoir que le
      mode en est la raison, ni que la sortie tient en un clic. */
+  /* ⚠ QUATRIÈME ENDROIT OÙ LA PROMESSE VIVAIT, trouvé le 2026-08-12 en relisant
+     ce fichier pour planifier la suite. Il disait « nous sommes en Plan, où
+     rien n'est modifié sur le disque » — la même affirmation que celle retirée
+     de l'accueil, de la note et de l'encart, à un temps de verbe près, ce qui
+     lui a permis de passer sous le garde.
+     Ce qui est vrai ici, et qui suffit : Ulysse REFUSE ce qu'on lui soumet.
+     Il ne prétend plus que rien ne peut passer. */
   const quoi = accordQuoi(pl);
-  return "Refusé : nous sommes en Plan, où rien n'est modifié sur le disque. "
-    + "L'agent a demandé « " + quoi + " ». Passez en Build pour l'autoriser — "
-    + "le mode se change sous le champ de saisie.";
+  return "Refusé : nous sommes en Plan, où Ulysse refuse ce qui modifierait "
+    + "le disque. L'agent a demandé « " + quoi + " ». Passez en Build pour "
+    + "l'autoriser — le mode se change sous le champ de saisie.";
 };
 
 function boot(){

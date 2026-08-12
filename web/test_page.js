@@ -1439,7 +1439,7 @@ async function main(){
      TROIS endroits : l'accueil, la note sous le composeur, et l'encart. */
   win.eval('modeAccords = "manual"; conv.turns.length = 0; setMode2("plan"); paintThread();');
   check("...et la promesse n'est nulle part ailleurs sur l'écran",
-    !/[Rr]ien ne sera modifi/.test(win.document.getElementById("pDiscuter").textContent),
+    !/[Rr]ien n(?:e sera|'est) modifi/.test(win.document.getElementById("pDiscuter").textContent),
     win.document.getElementById("modenote1")
       ? win.document.getElementById("modenote1").textContent : "");
 
@@ -1489,6 +1489,17 @@ async function main(){
     !!refus && /Plan/.test(refus.textContent)
     && /Build/.test(refus.textContent)
     && /write_file/.test(refus.textContent),
+    refus ? refus.textContent.trim().slice(0, 90) : "");
+  /* ⚠ QUATRIEME ENDROIT OU LA PROMESSE VIVAIT. Ce refus disait « nous sommes
+     en Plan, ou rien n'est modifie sur le disque » — la meme affirmation que
+     celle retiree de l'accueil, de la note et de l'encart, a un TEMPS DE VERBE
+     pres, ce qui lui a permis de passer sous le garde ecrit le matin meme.
+     Trouve en relisant le fichier, pas en le testant.
+     Ulysse refuse ce qu'on lui SOUMET ; il ne peut pas jurer que rien ne
+     passe — Hermes ne soumet ni une ecriture ordinaire ni une commande sans
+     motif de danger (approval.py:3938, file_tools.py:706). */
+  check("...sans jurer que rien ne peut être modifié — il ne le peut pas",
+    !!refus && !/[Rr]ien n(?:e sera|'est) modifi/.test(refus.textContent),
     refus ? refus.textContent.trim().slice(0, 90) : "");
   // Lire n'est pas modifier : le mode Plan n'a aucune raison de s'y opposer.
   win.eval("conv.approval = null;");
