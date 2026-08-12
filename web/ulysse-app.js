@@ -551,9 +551,16 @@ function paintThread(){
       + "et se ferme avec la fenêtre.</span></div>";
   }
   if (!turns.length){
+    /* ⚠ « Rien ne sera modifié sur le disque » N'EST PAS TOUJOURS VRAI.
+       Cette phrase s'affichait sans condition, alors qu'elle dépend d'un
+       réglage d'Hermès qu'Ulysse ne contrôle pas (voir
+       `avertissementAccordsHTML`). Une promesse affichée à l'accueil, là où
+       l'on décide de faire confiance, doit être vraie ou ne pas être. */
     h += '<div class="u-load">' + (mode === "build"
       ? "Build : l'agent écrit et exécute. La vérification suit le build."
-      : "Plan : on discute, on lit, on propose. Rien ne sera modifié sur le disque.")
+      : planGaranti()
+        ? "Plan : on discute, on lit, on propose. Rien ne sera modifié sur le disque."
+        : "Plan : on discute, on lit, on propose.")
       + "</div>";
   }
   h += turns.map(turnHTML).join("");
@@ -563,6 +570,9 @@ function paintThread(){
   // La demande d'accord se pose EN FIN DE FIL, là où l'agent s'est arrêté.
   // C'est ce qui le bloque : ça ne peut pas vivre seulement dans une cloche.
   h += accordHTML();
+  // Et l'avertissement des accords vient APRÈS tout le reste : c'est la
+  // dernière chose qu'on lit avant de retaper, donc celle qu'on n'ignore pas.
+  h += avertissementAccordsHTML();
 
   host.innerHTML = h;
   host.querySelectorAll("[data-ch]").forEach((b) => {
@@ -571,6 +581,24 @@ function paintThread(){
   /* Le bouton bascule ET relance. Basculer sans rien dire laisserait la
      personne devant un mode changé et un agent qui attend : elle devrait
      retaper « vas-y ». Le message part donc avec, court et explicite. */
+  /* Le clic EST l'accord — et il est explicite, parce que ce réglage sort
+     d'Ulysse : il vaut pour le terminal d'Hermès et toutes les sessions.
+     Ulysse ne l'écrit jamais de lui-même. */
+  const am = host.querySelector("#accordsManuel");
+  if (am) am.onclick = async () => {
+    am.disabled = true;
+    try {
+      await link.rpc("config.set", { key: "approval_mode", value: "manual" }, 20000);
+      await lireModeAccords();
+      snack(planGaranti()
+        ? "Accords en manuel — le mode Plan tient maintenant sa promesse."
+        : "Le réglage n'a pas pris : les accords restent en « "
+          + (modeAccords || "inconnu") + " ».");
+    } catch (e){
+      am.disabled = false;
+      snack("Le réglage des accords n'a pas pu être écrit : " + pannePhrase(e));
+    }
+  };
   const bb = host.querySelector("#basculeBuild");
   if (bb) bb.onclick = async () => {
     bb.disabled = true;
@@ -995,7 +1023,9 @@ function setMode2(m){
   if (mention) mention.textContent = mode === "build" ? phaseBuild() : "Plan";
   const note = mode === "build"
     ? "l'agent écrit et exécute, puis vérifie son travail contre le plan"
-    : "on discute, on lit, on propose — rien ne sera modifié sur le disque";
+    : planGaranti()
+      ? "on discute, on lit, on propose — rien ne sera modifié sur le disque"
+      : "on discute, on lit, on propose";
   if ($("modenote1")) $("modenote1").textContent = note;
   majInvite();
   majEtats();
@@ -4781,13 +4811,37 @@ coreHooks.onChange = () => {
 
   if (paintQueued) return;
   paintQueued = true;
-  requestAnimationFrame(() => {
+  /* ⚠ `requestAnimationFrame` NE SE DÉCLENCHE PAS DANS UN ONGLET CACHÉ.
+     Chrome le suspend — c'est voulu, ça économise la batterie. Mais ici
+     `paintQueued` restait alors bloqué à `true`, et TOUT changement d'état
+     suivant repartait aussitôt par le `return` ci-dessus. Pendant qu'on
+     regarde ailleurs, l'agent travaille et l'écran ne bouge plus : le bouton
+     d'arrêt reste caché alors que le tour tourne, la flèche d'envoi reste
+     offerte alors qu'il n'y a rien à envoyer.
+
+     Constaté le 2026-08-12 en jouant un scénario réel : `conv.running` valait
+     `true` et `#stopBtn` était masqué. Un `paintHint()` à la main remettait
+     tout d'aplomb — la donnée était juste, seule la peinture manquait.
+
+     On garde le rAF quand l'onglet est visible (un repaint par image, ce que
+     les centaines de deltas exigent), et on retombe sur un timer sinon. */
+  const peindre = () => {
     paintQueued = false;
     if (current === "Discuter") paintThread();
     if (current === "Plan") drawPlan();
     paintHint();
-  });
+  };
+  if (typeof document !== "undefined" && document.hidden) setTimeout(peindre, 60);
+  else requestAnimationFrame(peindre);
 };
+
+/* Et au retour sur l'onglet, on repeint une fois : entre le dernier timer et
+   le premier rAF, l'état a pu bouger. */
+if (typeof document !== "undefined"){
+  document.addEventListener("visibilitychange", () => {
+    if (!document.hidden) coreHooks.onChange();
+  });
+}
 /* Le backend dit ce qui a change : on ne rafraichit que le panneau concerne,
    et seulement s'il est a l'ecran. Redessiner un panneau qu'on ne regarde pas
    coute une requete pour rien. */
@@ -4825,6 +4879,49 @@ const OUTILS_QUI_MODIFIENT = {
   shell: 1, bash: 1
 };
 
+/* ═══ ⚠ CE QUI REND LA PORTE INOPÉRANTE, ET QU'IL FAUT DIRE ═════════════════
+   Trouvé le 2026-08-12 en jouant un scénario réel, PAS au banc : en mode Plan,
+   l'agent a lancé `terminal` trois fois et rien ne l'a arrêté.
+
+   La porte ci-dessous ne se déclenche que sur `approval.request`. Or
+   `approvals.mode` valait **« smart »** sur l'installation de kuchu : Hermès
+   s'auto-autorise ce qu'il juge sans danger et **n'émet aucune demande**. La
+   porte n'a donc jamais été appelée — et le mode Plan promettait « rien ne
+   sera modifié sur le disque » sans pouvoir le tenir.
+
+   Une promesse qu'on ne tient pas est pire qu'une absence de promesse : elle
+   fait baisser la garde. Ulysse ne peut pas réparer ça tout seul — le réglage
+   est GLOBAL, il vaut pour le TUI et toutes les sessions. Alors Ulysse fait la
+   seule chose honnête : il regarde, il le DIT, et il propose de le changer.
+   Le clic est l'accord ; sans clic, rien n'est écrit.
+   Voir PASSE-DESIGN-UN-SEUL-FIL.md §3. */
+let modeAccords = null;          // "manual" | "smart" | "off" | null (inconnu)
+
+async function lireModeAccords(){
+  try {
+    const r = await link.rpc("config.get", { key: "approval_mode" }, 15000);
+    modeAccords = (r && r.value) || null;
+  } catch (e){ modeAccords = null; }
+  paintThread();
+}
+
+/* Le mode Plan ne garantit rien tant que les accords ne sont pas en manuel. */
+function planGaranti(){ return modeAccords === "manual"; }
+
+function avertissementAccordsHTML(){
+  if (mode !== "plan" || modeAccords === null || planGaranti()) return "";
+  return '<div class="msg u-sys m-refus"><div class="u-md">'
+    + "<strong>Le mode Plan ne peut rien garantir pour l'instant.</strong> "
+    + "Les accords d'Hermès sont réglés sur « " + esc(modeAccords) + " » : "
+    + "l'agent s'autorise lui-même ce qu'il juge sans danger, et Ulysse n'est "
+    + "jamais consulté. Il peut donc écrire et exécuter, même ici."
+    + '<div class="m-pied"><button class="m-bascule" type="button" '
+    + 'id="accordsManuel">Passer les accords en manuel</button></div>'
+    + "<div class=\"u-meta\">Ce réglage est global : il vaut aussi pour le "
+    + "terminal d'Hermès et les autres sessions.</div>"
+    + "</div></div>";
+}
+
 /* La porte, côté écran. Rend la phrase du refus, ou "" pour laisser passer. */
 coreHooks.refusDeMode = (pl) => {
   if (mode !== "plan") return "";
@@ -4840,6 +4937,11 @@ coreHooks.refusDeMode = (pl) => {
 };
 
 function boot(){
+  /* On lit le mode d'accords d'Hermès dès le départ — c'est lui qui décide si
+     le mode Plan garantit quelque chose ou se contente de le dire. Sans
+     réponse, `modeAccords` reste nul et on n'affirme rien : on ne remplace pas
+     une promesse fausse par une accusation fausse. */
+  link.ready().then(lireModeAccords).catch(() => {});
   initRailHover();
   drawRail();
   drawRoles();

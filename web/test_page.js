@@ -1319,6 +1319,61 @@ async function main(){
   // Que la ligne parte VRAIMENT est verifie plus haut, sur une session vivante
   // (« le mode voyage avec le message »). Ici le lien est deja coupe par les
   // essais precedents : on n'y eprouve que la phrase elle-meme.
+  /* ⚠ UN ONGLET CACHÉ NE REÇOIT PAS DE `requestAnimationFrame`. Le repaint y
+     etait suspendu ET `paintQueued` restait bloque a `true` : tout changement
+     d'etat suivant repartait par le `return`. Pendant qu'on regarde ailleurs,
+     l'agent travaille et l'ecran ne bouge plus — le bouton d'arret reste
+     cache alors que le tour tourne.
+     Constate le 2026-08-12 en jouant un scenario reel, jamais au banc. */
+  {
+    const appSrc = fs.readFileSync(path.join(DIR, "ulysse-app.js"), "utf8");
+    check("un onglet caché continue de se repeindre — rAF y est suspendu",
+      /document\.hidden[\s\S]{0,80}setTimeout/.test(appSrc)
+      && /visibilitychange/.test(appSrc),
+      /document\.hidden/.test(appSrc) ? "" : "aucun repli hors rAF");
+  }
+  /* Et le bouton d'arret suit l'etat, pas le mode : il etait conditionne a
+     `mode === "cowork"`, donc invisible dans un mode ou l'on pouvait pourtant
+     lancer un tour. */
+  win.eval("conv.running = true; paintHint();");
+  check("...et le bouton d'arrêt apparaît dès qu'un tour tourne",
+    win.document.getElementById("stopBtn").style.display !== "none"
+    && win.document.getElementById("snd1").style.display === "none",
+    "stop=" + win.document.getElementById("stopBtn").style.display
+    + " envoi=" + win.document.getElementById("snd1").style.display);
+  win.eval("conv.running = false; paintHint();");
+
+  /* ══ UNE PROMESSE QU'ON NE TIENT PAS EST PIRE QU'AUCUNE PROMESSE ═══════════
+     La porte ne se declenche que sur `approval.request`. Or `approvals.mode`
+     valait « smart » chez kuchu : Hermes s'auto-autorise et n'emet AUCUNE
+     demande. Le mode Plan annoncait « rien ne sera modifie sur le disque »
+     sans pouvoir le tenir — l'agent a lance `terminal` trois fois sous nos
+     yeux. Trouve en jouant un scenario reel, jamais au banc.
+     Ulysse ne peut pas reparer seul (le reglage est GLOBAL, il vaut pour le
+     TUI). Alors il regarde, il le DIT, et il propose. Le clic est l'accord. */
+  win.eval('conv.turns.length = 0; modeAccords = "smart"; setMode2("plan"); paintThread();');
+  check("accords en « smart » : Ulysse dit que Plan ne garantit rien",
+    !!win.document.getElementById("accordsManuel")
+    && /s'autorise lui-même/.test(win.document.getElementById("thread").textContent),
+    win.document.getElementById("accordsManuel") ? "" : "aucun avertissement");
+  /* ⚠ ET LA PROMESSE ELLE-MEME DISPARAIT. Le garder tout en affichant
+     l'avertissement, ce serait dire une chose et son contraire sur le meme
+     ecran — et c'est la version affirmative qu'on retiendrait. */
+  check("...et la phrase « rien ne sera modifié » n'est PLUS affichée",
+    !/Rien ne sera modifié/.test(win.document.getElementById("thread").textContent),
+    win.document.getElementById("thread").textContent.slice(0, 70));
+  win.eval('modeAccords = "manual"; paintThread();');
+  check("accords en « manuel » : la promesse revient, l'avertissement part",
+    !win.document.getElementById("accordsManuel")
+    && /Rien ne sera modifié/.test(win.document.getElementById("thread").textContent));
+  /* Tant qu'on n'a pas pu lire le reglage, on n'affirme RIEN — ni la
+     promesse, ni l'accusation. On ne remplace pas un mensonge par un autre. */
+  win.eval('modeAccords = null; paintThread();');
+  check("...et tant qu'on ignore le réglage, on n'affirme ni l'un ni l'autre",
+    !win.document.getElementById("accordsManuel")
+    && !/Rien ne sera modifié/.test(win.document.getElementById("thread").textContent));
+  win.eval('modeAccords = "manual"; paintThread();');
+
   check("la ligne de mode tient en une ligne courte — le préfixe pèse déjà 15 067 tokens",
     /\[Mode Plan/.test(win.eval("ligneDeMode()"))
     && win.eval("ligneDeMode()").length < 200,
@@ -1392,10 +1447,15 @@ async function main(){
      Hermes n'emet AUCUN evenement de plan — les 60 `_emit(...)` du serveur ont
      ete releves. Mais l'outil `todo` renvoie la liste complete a chaque appel,
      et c'est un signal lisible : {id, content, status}. */
+  /* ⚠ LE VRAI HERMES RENVOIE UN OBJET, PAS DU JSON EN TEXTE. Ce harnais
+     envoyait `JSON.stringify(items)` : le produit lisait « [object Object] »
+     contre le vrai serveur et n'affichait AUCUN plan, pendant que le banc
+     restait vert. Trouve en jouant un scenario reel le 2026-08-12.
+     Un faux qui ne parle pas comme le vrai n'eprouve rien — sixieme fois. */
   const envoieTodo = (items) => {
     evenement("tool.start", { tool_id: "T1", name: "todo" });
     evenement("tool.complete", { tool_id: "T1", name: "todo",
-                                 result: JSON.stringify(items) });
+                                 result: { todos: items } });
   };
   win.eval('conv.turns.length = 0; conv.running = true;');
   envoieTodo([{ id: "1", content: "Retirer le chemin pur", status: "pending" },

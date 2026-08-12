@@ -529,17 +529,24 @@ link.onEvent((type, params) => {
     case "tool.complete": {
       const chemin = cheminDeLOutil(pl.name, pl.args);
       const tool = findTool(pl.tool_id);
+      /* ⚠ UN RESULTAT PEUT ETRE UN OBJET, et « ▸ resultat » affichait alors
+         « [object Object] » — un depliant qui ne deplie rien. Vu le
+         2026-08-12 sur l'outil `todo`, contre le vrai Hermes. On rend l'objet
+         lisible plutot que de le laisser se degrader en une seule ligne. */
+      const brutRes = pl.inline_diff || pl.result;
+      const texteRes = brutRes && typeof brutRes === "object"
+        ? JSON.stringify(brutRes, null, 2) : brutRes;
       if (tool){
         tool.state = "done";
         tool.ms = Date.now() - tool.t0;
-        tool.result = pl.inline_diff || pl.result || tool.result || "";
+        tool.result = texteRes || tool.result || "";
         tool.path = chemin;
         if (pl.name) tool.name = pl.name;
       } else {
         const t = currentAssistantTurn();
         t.tools.push({ id: pl.tool_id, name: pl.name || "outil", context: "", state: "done",
                        t0: Date.now(), ms: 0, path: chemin,
-                       result: pl.inline_diff || pl.result || "" });
+                       result: texteRes || "" });
       }
       /* ⚠ LE PLAN ARRIVE PAR ICI, ET PAR NULLE PART AILLEURS.
          Hermes n'emet AUCUN evenement de plan — les 60 `_emit(...)` du serveur
@@ -551,7 +558,9 @@ link.onEvent((type, params) => {
          sur une reponse qui enumere trois restaurants.
          Voir PASSE-DESIGN-UN-SEUL-FIL.md §4. */
       if (String(pl.name || "").toLowerCase() === "todo"){
-        const etapes = lireTodo(pl.inline_diff || pl.result || "");
+        // On lit le BRUT, pas le texte : l'objet porte la structure, la chaine
+        // ne porte que son apparence.
+        const etapes = lireTodo(brutRes || pl.result || "");
         if (etapes) currentAssistantTurn().plan = etapes;
       }
       break;
@@ -754,11 +763,24 @@ async function interruptTurn(){
    sans `status` n'est pas une etape — mieux vaut ne pas afficher de plan que
    d'en afficher un faux, parce qu'on VALIDE ce plan-la en appuyant. */
 function lireTodo(brut){
-  const s = String(brut || "");
-  const d = s.indexOf("["), f = s.lastIndexOf("]");
-  if (d < 0 || f <= d) return null;
-  let liste;
-  try { liste = JSON.parse(s.slice(d, f + 1)); } catch (e){ return null; }
+  /* ⚠ LE RESULTAT N'EST PAS UNE CHAINE. Ecrite en supposant du texte, cette
+     fonction faisait `String(brut)` sur un OBJET et lisait « [object Object] »
+     — donc aucun plan, jamais. Trouve le 2026-08-12 en jouant un scenario
+     reel contre le vrai Hermes : l'agent avait bien appele `todo`, et l'encart
+     restait vide. Le banc ne pouvait pas le voir, son faux envoyait du JSON en
+     texte. Un faux qui ne parle pas comme le vrai n'eprouve rien. */
+  let liste = null;
+  if (Array.isArray(brut)) liste = brut;
+  else if (brut && typeof brut === "object"){
+    for (const k of ["todos", "items", "list", "result", "value"]){
+      if (Array.isArray(brut[k])){ liste = brut[k]; break; }
+    }
+  } else {
+    const s = String(brut || "");
+    const d = s.indexOf("["), f = s.lastIndexOf("]");
+    if (d < 0 || f <= d) return null;
+    try { liste = JSON.parse(s.slice(d, f + 1)); } catch (e){ return null; }
+  }
   if (!Array.isArray(liste) || !liste.length) return null;
   const etapes = liste
     .filter((it) => it && typeof it === "object" && it.content)
