@@ -377,6 +377,18 @@ function turnHTML(t){
       ? "Vous" + (t.preamble ? " · cadre « " + esc(t.preamble) + " »" : "")
       : "Ulysse") + "</div>";
   }
+  /* ⚠ CE QU'ON A JOINT DOIT RESTER VISIBLE APRÈS L'ENVOI. Les puces vivaient
+     au-dessus du composeur et disparaissaient avec lui : une image collée ne
+     laissait ensuite AUCUNE trace dans le fil (mesuré : zéro <img>, zéro nom),
+     et un `.txt` n'y laissait que sa plomberie, « @file:.hermes/… ».
+     Mêmes puces, même forme qu'avant l'envoi — sans le ✕, il n'y a plus rien
+     à retirer. Elles viennent AVANT le texte : on a joint, puis on a écrit. */
+  if (t.role === "user" && t.jointes && t.jointes.length){
+    h += '<div class="u-jointes u-jdit">' + t.jointes.map((j) =>
+      '<span class="u-jointe">' + svg("fichier", { size: 15 }) + esc(j.name)
+      + '<span class="o">' + esc(j.size ? fmtBytes(j.size) : "joint") + "</span>"
+      + "</span>").join("") + "</div>";
+  }
   // Les outils AVANT le texte : c'est l'ordre réel d'exécution.
   /* ⚠ LA LIGNE D'OUTIL EST LE LIEN VERS LE FICHIER. Quand `x.path` est là —
      l'agent a lu ou écrit ce fichier, cf. `cheminDeLOutil` — la ligne s'ouvre
@@ -604,7 +616,8 @@ function paintThread(){
     bb.disabled = true;
     setMode2("build");
     await submitPrompt("Le plan est validé. Exécutez-le, puis vérifiez votre "
-      + "travail contre le plan." + ligneDeMode(), roleOpts());
+      + "travail contre le plan.",
+      Object.assign({}, roleOpts(), { suffix: ligneDeMode() }));
   };
   if (stick) scroller.scrollTop = scroller.scrollHeight;
   majMention();
@@ -1134,8 +1147,20 @@ async function onSend(ev){
   /* Le cadre de rôle part vers le moteur, mais le fil affiche ce que la
      personne a RÉELLEMENT écrit : lui relire une consigne qu'elle n'a pas
      rédigée brouille la lecture de son propre fil. `ligneDeMode()` suit la
-     même règle — elle part, elle ne s'affiche pas. */
-  await submitPrompt(text + refsJointes() + ligneDeMode(), roleOpts());
+     même règle — elle part, elle ne s'affiche pas.
+
+     ⚠ CE COMMENTAIRE ÉTAIT FAUX PENDANT UN JOUR. Les deux étaient collés dans
+     `text`, donc dans le texte AFFICHÉ : chaque tour montrait une deuxième
+     bulle « [Mode Plan : …] », et un fichier joint s'écrivait en clair
+     « @file:.hermes/desktop-attachments/note-releve.txt ». Vu en jouant un
+     scénario, pas au banc. Ils passent maintenant par `suffix`, qui a le même
+     contrat que `preamble` : ça part, ça ne s'affiche pas.
+     Ce qu'on a joint se voit — en puces, dans la bulle, comme avant l'envoi. */
+  const puces = jointes.map((j) => ({ name: j.name, image: !!j.image, size: j.size }));
+  await submitPrompt(text, Object.assign({}, roleOpts(), {
+    suffix: refsJointes() + ligneDeMode(),
+    jointes: puces
+  }));
   viderJointes();
 }
 

@@ -518,7 +518,19 @@ svg.graph{width:100%;height:auto;max-height:100%}
 .exp-t{flex:1;min-width:0;display:flex;align-items:center;gap:12px;
   padding:0;background:none;text-align:left}
 .exp-h .n{color:var(--muted);font-size:var(--font-size-sm);flex:none;width:14px}
-.exp-h .t{font-weight:500;flex:1;min-width:0;overflow-wrap:anywhere}
+/* ⚠ LA PASTILLE D'ÉTAT VOLAIT LA LARGEUR AU TITRE. `flex:1` vaut `1 1 0%` :
+   le titre partait d'une base NULLE et ne recevait que le reste, pendant que
+   « exécution » gardait sa largeur de contenu. Mesuré en « Les deux » sur une
+   fenêtre de 859 px : volet 258, ligne 214, titre 48 px — et avec
+   `overflow-wrap:anywhere`, « Cadrage 2025 » se rendait « Cadra / ge / 2025 »,
+   une syllabe par ligne. En « Détail » seul, la même ligne est parfaite : ce
+   n'est pas le texte, c'est le partage.
+   Base `auto` des deux côtés : ils se réduisent alors à proportion de ce
+   qu'ils contiennent, donc le titre — qui est le contenu — garde l'essentiel,
+   et la pastille s'abrège au lieu de servir la première. */
+.exp-h .t{font-weight:500;flex:1 1 auto;min-width:0;overflow-wrap:anywhere}
+.exp-t .chip{flex:0 1 auto;min-width:0;max-width:40%;overflow:hidden;
+  text-overflow:ellipsis;white-space:nowrap}
 .exp-h .chev{color:var(--muted);flex:none;width:32px;height:32px;
   display:grid;place-items:center;border-radius:var(--radius-pill);
   transition:transform .24s cubic-bezier(.2,0,0,1),background .14s ease}
@@ -1893,6 +1905,20 @@ svg.graph *{cursor:inherit}
   border-radius:10px;padding:14px}
 /* reutilise .u-md pour le rendu markdown (tableaux, listes, gras) */
 .u-art-body .u-md{padding:0}
+/* Un CSV se lit en colonnes ou ne se lit pas. Le tableau defile TOUT SEUL en
+   largeur : sans ce conteneur, huit colonnes poussent le volet et c'est la
+   page entiere qui part de travers. L'en-tete tient au haut du volet — on
+   perd la colonne des yeux au bout de vingt lignes, sinon. */
+.u-art-tabwrap{overflow-x:auto;border:1px solid var(--outline-var,#E1E3E1);
+  border-radius:10px}
+.u-art-tab{border-collapse:collapse;width:100%;font-size:13px;
+  font-variant-numeric:tabular-nums}
+.u-art-tab th,.u-art-tab td{text-align:left;padding:8px 12px;white-space:nowrap;
+  border-bottom:1px solid var(--outline-var,#E1E3E1)}
+.u-art-tab th{position:sticky;top:0;background:var(--surface,#F0F4F9);
+  font-weight:500;color:var(--text,#1F1F1F)}
+.u-art-tab tr:last-child td{border-bottom:none}
+.u-art-tab tbody tr:hover{background:var(--hover-bg,#F5F5F5)}
 @media (max-width:860px){
   #app.artifact-split .u-art-viewer{width:62vw}
 }

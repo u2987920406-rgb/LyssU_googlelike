@@ -648,10 +648,20 @@ link.onState((s) => {
        passent par ce lien, et l'issue proposee etait devenue une impasse.
        Le banc ne l'a pas vu — il verifie qu'un message dit QUOI FAIRE, pas
        que ce qu'il dit soit encore vrai. Trouve en relisant. */
+    /* ⚠ ET IL ENVOYAIT RELANCER LE .BAT POUR RIEN. Il disait « Relancez
+       lancer_ulysse.bat, puis renvoyez votre message ». Mesure du 2026-08-12,
+       au moment meme d'une coupure vue en jouant un scenario : les trois
+       backends repondaient (8080, 9123, 8645), `link.state` etait DEJA revenu
+       a « open » — `_scheduleRetry()` reconnecte tout seul — et le message
+       suivant est parti sans rien relancer. Le conseil etait donc faux, et
+       cher : relancer le .bat tue des backends vivants et `serve.py` refuse
+       un port pris.
+       Ce qui reste vrai, et c'est tout ce qu'on dit : la session est perdue,
+       et Ulysse se rebranche seul. */
     if (conv.sessionId){
       coreHooks.onSystem("Lien interrompu : la session en cours est perdue. "
-        + "Relancez lancer_ulysse.bat, puis renvoyez votre message — le fil "
-        + "reste affiche.");
+        + "Ulysse se rebranche tout seul — renvoyez votre message, il ouvrira "
+        + "une nouvelle session. Le fil reste affiche.");
     }
     conv.sessionId = null;
     conv.info = null;
@@ -686,10 +696,21 @@ async function ensureSession(extra){
 /* prompt.submit — methods_prompt.py:67, params {session_id, text}.
    La reponse peut n'arriver qu'a la fin du tour : on ne bloque pas dessus,
    l'affichage vit des evenements. */
+/* ⚠ DEUX TEXTES, ET UN SEUL SE LIT. `sent` part au moteur, `shown` se peint
+   dans le fil. Le preambule de role connaissait deja cette couture ; la ligne
+   de mode et les references « @file: » ne la connaissaient pas — les
+   appelants les collaient DANS `text`, donc dans les deux. Resultat mesure en
+   jouant un scenario le 2026-08-12 : chaque tour affichait une deuxieme bulle
+   « Vous » disant « [Mode Plan : ...] », que personne n'avait ecrite, et un
+   fichier joint apparaissait en clair « @file:.hermes/desktop-attachments/… ».
+   `opts.suffix` est le meme droit que `opts.preamble`, de l'autre cote : ca
+   part, ca ne s'affiche pas. C'est ce que le commentaire de `onSend`
+   promettait deja — il promettait a faux. */
 async function submitPrompt(text, opts){
   opts = opts || {};
   const shown = text;
-  const sent = opts.preamble ? opts.preamble + "\n\n" + text : text;
+  const sent = (opts.preamble ? opts.preamble + "\n\n" : "") + text
+             + (opts.suffix || "");
 
   /* ⚠ ON NE FAIT PAS ATTENDRE POUR UNE RÉPONSE QU'ON CONNAÎT DÉJÀ.
      Le lien coupé, `ensureSession` appelait quand même `link.ready()`, qui
@@ -704,11 +725,14 @@ async function submitPrompt(text, opts){
      n'ouvre plus est pire qu'une absence d'issue — on la prend, et on se
      retrouve devant la meme porte. */
   if (link.state === "closed" || link.state === "denied"){
-    newTurn("user", shown).state = "done";
+    const mort = newTurn("user", shown);
+    if (opts.jointes && opts.jointes.length) mort.jointes = opts.jointes;
+    mort.state = "done";
     const err = newTurn("error",
       "Le lien avec l'agent est coupé" + (link.reason ? " (" + link.reason + ")" : "")
-      + " — votre message n'est pas parti. Relancez lancer_ulysse.bat, puis "
-      + "renvoyez-le : le fil reste affiché.");
+      + " — votre message n'est pas parti. Ulysse réessaie de se rebrancher : "
+      + "renvoyez-le dans un instant. S'il ne revient pas, relancez "
+      + "lancer_ulysse.bat. Le fil reste affiché.");
     err.state = "error";
     conv.running = false;
     coreHooks.onChange();
@@ -717,6 +741,11 @@ async function submitPrompt(text, opts){
 
   const t = newTurn("user", shown);
   if (opts.preambleLabel) t.preamble = opts.preambleLabel;
+  /* Ce qu'on a joint se voit dans SA bulle, en puces — comme avant l'envoi.
+     Une image collee ne laissait AUCUNE trace dans le fil (mesure : zero
+     <img>, zero nom) : on ne pouvait plus dire, en relisant, quelle image on
+     avait envoyee. */
+  if (opts.jointes && opts.jointes.length) t.jointes = opts.jointes;
   t.state = "done";
   conv.running = true;
   conv.status = { kind: "", text: "connexion a l'agent…" };
@@ -735,8 +764,9 @@ async function submitPrompt(text, opts){
            un message qui semble parti et qui ne l'est pas : il faut le dire
            franchement, et dire quoi faire. */
         coreHooks.onSystem("Votre message n'est pas parti : le lien avec "
-          + "l'agent s'est coupé en route. Relancez lancer_ulysse.bat, puis "
-          + "renvoyez-le. (" + e.message + ")");
+          + "l'agent s'est coupé en route. Ulysse se rebranche seul — "
+          + "renvoyez-le dans un instant ; s'il ne revient pas, relancez "
+          + "lancer_ulysse.bat. (" + e.message + ")");
         coreHooks.onChange();
       });
   } catch (e){

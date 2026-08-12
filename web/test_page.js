@@ -121,7 +121,15 @@ const DISQUE_LU = {
     mime: "image/png",
     b64: "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg=="
   },
-  "D:/faux-home/tableau.csv": { mime: "text/csv", texte: "a,b\n1,2\n" }
+  /* Un CSV comme il en sort vraiment d'un tableur francais : point-virgule,
+     accents, et un libelle qui CONTIENT le separateur, entre guillemets. Le
+     faux d'avant (« a,b\n1,2 ») passait avec n'importe quel decoupage — donc
+     il ne prouvait rien du decoupage. */
+  "D:/faux-home/tableau.csv": { mime: "text/csv",
+    texte: 'date;libelle;montant\n'
+      + '2025-02-03;"Achat regle Carrefour, Ile-de-France";-52,30\n'
+      + '2025-02-14;Restaurant "Le Depart";-38,50\n'
+      + '2025-02-25;Electricite reglee;-79,90\n' }
 };
 
 function lireDuFauxDisque(chemin){
@@ -830,6 +838,15 @@ async function main(){
     check("le mode voyage avec le message, dans la trame envoyée",
       !!submit && /\[Mode Build/.test(String(submit.params.text)),
       submit ? String(submit.params.text).slice(-58) : "aucun prompt.submit");
+    /* ⚠ ET IL NE SE LIT PAS DANS LE FIL. `onSend` promettait « elle part, elle
+       ne s'affiche pas » — et la collait dans `text`, donc dans les deux. Le
+       fil montrait une deuxieme bulle « Vous » par tour, disant « [Mode Plan :
+       ne modifiez rien sur le disque… ] », que personne n'avait ecrite.
+       Le banc ne pouvait pas le voir : il regardait la TRAME, jamais l'ECRAN.
+       Trouve en jouant un scenario le 2026-08-12 — huitieme fois. */
+    check("...et il ne se lit PAS dans le fil : ça part, ça ne s'affiche pas",
+      !/\[Mode (Plan|Build)/.test(win.document.getElementById("thread").textContent),
+      win.document.getElementById("thread").textContent.slice(0, 90));
   }
 
   /* ── OÙ CE FIL TRAVAILLE ────────────────────────────────────────────────
@@ -1211,6 +1228,24 @@ async function main(){
     env ? env.params.text : "aucun prompt.submit");
   check("la puce disparait une fois envoyee",
     !win.document.querySelector("#jointes1 .u-jointe"));
+  /* ⚠ LA REFERENCE PART, MAIS ELLE NE SE LIT PAS. Le fil affichait la bulle
+     « @file:.hermes/desktop-attachments/note-releve.txt » — de la plomberie
+     rendue en clair, sous le nom de la personne. Et une image COLLEE, dont la
+     reference est consommee de la meme facon, ne laissait rien du tout : zero
+     <img>, zero nom, aucune trace de ce qu'on avait envoye.
+     Ces deux verifications se tiennent : la reference sort du fil ET la piece
+     y reste, en puce. Sans la seconde, retirer la reference ferait disparaitre
+     le fichier sans un mot — exactement le defaut qu'on repare. */
+  {
+    const fil = win.document.getElementById("thread");
+    check("...mais la reference ne se lit pas dans le fil",
+      !/@file:/.test(fil.textContent), fil.textContent.slice(-90));
+    check("...et ce qu'on a joint reste visible, en puce, dans la bulle",
+      !!fil.querySelector(".msg.you .u-jointe")
+      && /note\.txt/.test(fil.querySelector(".msg.you .u-jointes").textContent),
+      fil.querySelector(".msg.you .u-jointes")
+        ? fil.querySelector(".msg.you .u-jointes").textContent : "aucune puce");
+  }
 
 
   console.log("\n--- La coupure du lien ---");
@@ -1218,6 +1253,14 @@ async function main(){
   await wait(60);
   txt = win.document.getElementById("thread").textContent;
   check("la coupure est annoncée à l'utilisateur", txt.includes("Lien interrompu"));
+  /* ⚠ ET ELLE N'ENVOIE PLUS RELANCER LE .BAT POUR RIEN. Mesure du 2026-08-12,
+     pendant une vraie coupure : les trois backends repondaient, `link.state`
+     etait deja revenu a « open » — `_scheduleRetry()` rebranche seul — et le
+     message suivant est parti sans rien relancer. Le banc ne verifiait que la
+     PRESENCE du message, jamais que son conseil soit encore vrai. */
+  check("...et elle dit qu'Ulysse se rebranche seul, pas de relancer le .bat",
+    /rebranche tout seul/.test(txt) && !/Lien interrompu[^]{0,120}lancer_ulysse/.test(txt),
+    txt.slice(txt.indexOf("Lien interrompu"), txt.indexOf("Lien interrompu") + 150));
   check("l'identifiant de session mort est abandonné (C3)",
     win.eval("conv.sessionId") === null, String(win.eval("conv.sessionId")));
   // `hs` est la cinquieme classe d'etat : c'est elle qui marquera le kebab.
@@ -3079,6 +3122,42 @@ async function main(){
     !!corpsF.querySelector(".u-art-raw"));
   win.document.getElementById("artVSource").click();
   await wait(40);
+
+  /* ⚠ UN BOUTON QUI S'ALLUME SANS AGIR. ⟨/⟩ ne se desactivait que devant un
+     binaire : devant un CSV il s'allumait et ne changeait RIEN, parce que le
+     rendu n'existait que pour le markdown — tout le reste tombait dans le
+     meme <pre>. Le fichier interdit pourtant cela en toutes lettres : « un
+     bouton qui ne peut rien faire se desactive plutot que de mentir ».
+     Et un CSV en texte brut n'est pas lu : c'est une soupe de virgules. Or
+     c'est ICI qu'un fichier se developpe, plus dans le fil. */
+  win.eval('showFile("D:/faux-home/tableau.csv", "tableau.csv")');
+  await wait(150);
+  check("un CSV se lit en colonnes, pas en soupe de virgules",
+    !!corpsF.querySelector("table.u-art-tab")
+    && corpsF.querySelectorAll("table.u-art-tab tbody tr").length === 3,
+    corpsF.innerHTML.slice(0, 70));
+  check("...le point-virgule d'un export français découpe, lui aussi",
+    corpsF.querySelectorAll("table.u-art-tab thead th").length === 3,
+    [...corpsF.querySelectorAll("thead th")].map((x) => x.textContent).join("|"));
+  check("...et un séparateur ENFERMÉ dans un libellé ne coupe rien",
+    /Achat regle Carrefour, Ile-de-France/
+      .test(corpsF.querySelector("tbody tr td:nth-child(2)").textContent),
+    corpsF.querySelector("tbody tr td:nth-child(2)").textContent);
+  check("...le bouton ⟨/⟩ est vivant quand il a deux lectures à offrir",
+    !win.document.getElementById("artVSource").disabled);
+  win.document.getElementById("artVSource").click();
+  await wait(40);
+  check("...et il rend bien la source, pas le même tableau",
+    !!corpsF.querySelector(".u-art-raw") && !corpsF.querySelector("table.u-art-tab"));
+  win.document.getElementById("artVSource").click();
+  await wait(40);
+  /* Un .txt n'a qu'une seule facon d'etre lu : le bouton doit s'eteindre,
+     sinon il repromet la bascule qui n'a jamais eu lieu. */
+  win.eval('ouvrirTexteEnMemoire("releve.txt", "deux lignes\\nde texte brut")');
+  await wait(60);
+  check("...et il s'éteint pour un .txt, qui n'a qu'une seule lecture",
+    win.document.getElementById("artVSource").disabled,
+    "disabled=" + win.document.getElementById("artVSource").disabled);
 
   win.eval('showFile("D:/faux-home/logo.png", "logo.png")');
   await wait(150);

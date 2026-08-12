@@ -68,6 +68,81 @@ function iconeDe(nom){
   return /\.(md|markdown|mdown|txt|csv)$/i.test(nom) ? "doc" : "fichier";
 }
 
+/* ═══ CE QUI A DEUX FAÇONS DE SE REGARDER ═════════════════════════════════
+   Le bouton ⟨/⟩ bascule « source / rendu ». Il ne se désactivait que pour un
+   fichier binaire — donc devant un CSV il s'allumait, et ne changeait RIEN :
+   `renderArtifactBody` ne rendait que le markdown, tout le reste tombait dans
+   le même `<pre>`. Un bouton qui s'allume sans agir est exactement ce que ce
+   fichier interdit deux lignes plus bas : « un bouton qui ne peut rien faire
+   se désactive plutôt que de mentir ». Constaté en ouvrant un CSV produit par
+   l'agent, le 2026-08-12.
+
+   Deux corrections, pas une : le CSV gagne son rendu (c'est un tableau, et
+   c'est illisible autrement — « ce n'est pas dans le chat qu'il faut les
+   développer », kuchu), et le bouton s'éteint pour tout ce qui n'a qu'une
+   seule façon d'être lu. */
+function aUnRendu(nom){
+  return /\.(md|markdown|mdown|csv|tsv)$/i.test(nom || "");
+}
+
+/* Le séparateur ne se devine pas au hasard : un export Excel français écrit
+   des points-virgules, et lire « a;b;c » comme UNE colonne rendrait un
+   tableau d'une seule cellule — pire que le texte brut. On prend celui qui
+   découpe le plus régulièrement la première ligne. */
+function csvSeparateur(src, nom){
+  if (/\.tsv$/i.test(nom || "")) return "\t";
+  const tete = src.split(/\r?\n/, 1)[0] || "";
+  let best = ",", bestN = -1;
+  [",", ";", "\t", "|"].forEach((s) => {
+    const n = csvLigne(tete, s).length;
+    if (n > bestN){ bestN = n; best = s; }
+  });
+  return best;
+}
+
+/* Une ligne CSV, guillemets compris : « a,"b,c",d » fait TROIS champs, et
+   « "il dit ""oui""" » en fait un. Un split() naïf coupe dans le libellé. */
+function csvLigne(ligne, sep){
+  const out = [];
+  let champ = "", dansQuote = false;
+  for (let i = 0; i < ligne.length; i++){
+    const c = ligne[i];
+    if (dansQuote){
+      if (c === '"'){
+        if (ligne[i + 1] === '"'){ champ += '"'; i++; }
+        else dansQuote = false;
+      } else champ += c;
+    } else if (c === '"'){ dansQuote = true; }
+    else if (c === sep){ out.push(champ); champ = ""; }
+    else champ += c;
+  }
+  out.push(champ);
+  return out;
+}
+
+/* On rend TOUT le fichier — le volet dont le métier est de lire ne cache pas
+   la fin (même règle que le markdown, plus bas). Une ligne dont le nombre de
+   champs ne colle pas à l'en-tête n'est pas jetée : elle se voit telle
+   quelle, sinon le tableau mentirait par omission. */
+function csvTableHTML(src, nom){
+  const sep = csvSeparateur(src, nom);
+  const lignes = src.replace(/\r\n/g, "\n").split("\n")
+    .filter((l, i, tab) => l.length || i < tab.length - 1);
+  if (!lignes.length) return '<div class="u-art-empty">Fichier vide.</div>';
+  const tete = csvLigne(lignes[0], sep);
+  let h = '<div class="u-art-tabwrap"><table class="u-art-tab"><thead><tr>'
+    + tete.map((c) => "<th>" + esc(c) + "</th>").join("") + "</tr></thead><tbody>";
+  for (let i = 1; i < lignes.length; i++){
+    if (!lignes[i].length) continue;
+    const cs = csvLigne(lignes[i], sep);
+    h += "<tr>" + cs.map((c) => "<td>" + esc(c) + "</td>").join("")
+      + (cs.length < tete.length
+          ? '<td colspan="' + (tete.length - cs.length) + '"></td>' : "")
+      + "</tr>";
+  }
+  return h + "</tbody></table></div>";
+}
+
 /* La carte : une icone, le nom, OU IL EST, et une seule action.
    Pas de sous-titre « genere · artefact » : il etait vrai de toutes les
    cartes, donc il n'en distinguait aucune. Une ligne qui ne varie jamais
@@ -230,7 +305,8 @@ function renderArtifactBody(){
   // Un bouton qui ne peut rien faire se desactive plutot que de mentir : on
   // ne montre pas la source d'une image, on ne copie pas du binaire.
   const texteDispo = f.texte !== null && f.texte !== undefined;
-  if (btnSrc) btnSrc.disabled = !texteDispo;
+  // Deux façons de lire, ou le bouton n'a rien à basculer : voir `aUnRendu`.
+  if (btnSrc) btnSrc.disabled = !texteDispo || !aUnRendu(f.nom);
   if (btnCopy) btnCopy.disabled = !texteDispo;
   if (dl){
     if (f.dataUrl){ dl.href = f.dataUrl; dl.download = f.nom; dl.removeAttribute("aria-disabled"); }
@@ -263,8 +339,10 @@ function renderArtifactBody(){
      fin. La limite honnete existe deja et refuse a voix haute :
      PREVIEW_MAX_BYTES (2 Mo), traite plus haut. Entre les deux il n'y avait
      aucune raison de couper — mesure : 2 Mo de markdown se rendent en 282 ms. */
-  } else if (modeSource || !/\.(md|markdown|mdown)$/i.test(f.nom)){
+  } else if (modeSource || !aUnRendu(f.nom)){
     body.innerHTML = '<pre class="u-art-raw">' + esc(f.texte) + '</pre>';
+  } else if (/\.(csv|tsv)$/i.test(f.nom)){
+    body.innerHTML = csvTableHTML(f.texte, f.nom);
   } else {
     body.innerHTML = '<div class="u-md">' + mdRender(f.texte) + '</div>';
   }

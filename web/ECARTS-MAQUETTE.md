@@ -85,6 +85,17 @@ correction.
   **Une règle suspecte n'est pas une règle fautive.**
 - **`.dette .tx`** n'a que `flex:1` — c'est un enfant flex, tout va bien.
 
+> ⚠ **`.exp-h .t` était bien fautif, mais pas pour la raison examinée ici.**
+> Ce registre l'avait innocenté sur la question du `display`, et il avait
+> raison sur ce point. Le défaut était ailleurs, dans le même `flex:1` : c'est
+> `1 1 0%`, donc une **base nulle**. Le titre de l'étape ne recevait que ce
+> qui restait après la pastille d'état, qui gardait sa largeur de contenu.
+> Mesuré le 2026-08-12 en « Les deux » sur 859 px : volet 258, ligne 214,
+> titre **48 px** — « Cadrage 2025 » se rendait une syllabe par ligne. En
+> « Détail » seul, la même ligne est parfaite. Corrigé en base `auto` des deux
+> côtés. **Innocenter une règle sur une question ne l'innocente pas sur les
+> autres.**
+
 ---
 
 ## Si vous ajoutez un écart

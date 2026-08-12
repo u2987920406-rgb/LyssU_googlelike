@@ -44,6 +44,13 @@ web/node_modules/
 # Un fichier né d'une redirection ratée (« 2>'ERR »).
 'ERR
 
+# Ce que le gateway matérialise quand on joint un fichier depuis le navigateur.
+# `file.attach` écrit les octets ici, dans le dossier de travail de la session
+# — donc dans web/ quand Ulysse y tourne. Ce sont VOS fichiers, déposés au
+# passage : ils n'ont rien à faire dans l'historique, et encore moins sur un
+# remote public. Apparu en jouant le scénario de la pièce jointe, 2026-08-12.
+.hermes/
+
 # Marqueurs et caches.
 __pycache__/
 *.pyc
