@@ -1,32 +1,87 @@
-# Relais — 2026-08-12 (22), les livrables ont quitté le fil
+# Relais — 2026-08-12 (23), le mode n'est plus un moteur
 
-> ## ⚠ LU EN PREMIER : le banc ne voit pas ce qui compte
+> ## ⚠ LU EN PREMIER : le mode Plan promettait ce qu'il ne pouvait pas tenir
 >
-> Cette session a produit **cinq corrections utiles**. Le banc (484
-> vérifications) en a trouvé **zéro**. Toutes sont sorties du produit lancé
-> pour de vrai et piloté dans Chrome :
+> `Chat | Cowork` a disparu. Le sélecteur ne choisit plus **par où passe la
+> requête** mais **ce que l'agent a le droit de modifier** : `Plan` (défaut) et
+> `Build → Vérif`. Un seul moteur, Hermès, dans les deux.
 >
-> | trouvé en… | quoi |
-> |---|---|
-> | lançant l'app | `image.attach` → `4016`, cassé **depuis toujours** |
-> | lisant une réponse | le ⤓ noyé au milieu du texte, jamais vu |
-> | relisant mon code | ` ```bash ` accepté comme fichier |
-> | relisant mon code | la Map qui gonflait d'une copie par peinture |
-> | kuchu, en s'en servant | le CSV déroulé dans le fil « prend de la place pour rien » |
+> **Et le premier scénario réel a montré que la garantie n'existait pas.**
+> `approvals.mode` vaut **« smart »** sur cette installation : Hermès
+> s'auto-autorise ce qu'il juge sans danger et **n'émet aucune demande**. La
+> porte d'Ulysse, qui écoute `approval.request`, n'était donc jamais appelée.
+> En mode Plan, l'agent a lancé `terminal` **trois fois** sous nos yeux,
+> pendant que l'écran affichait *« rien ne sera modifié sur le disque »*.
 >
-> Le banc trouve les **régressions**. Il ne trouve pas ce qui est **inutile,
-> noyé, ou encombrant**. Ne lui demandez pas de vous dire si le produit est
-> bon — il ne sait dire que s'il est *le même qu'hier*.
+> Ulysse ne peut pas réparer ça seul — le réglage est **global**, il vaut pour
+> le TUI et toutes les sessions. Il fait donc la seule chose honnête : il le
+> lit, il le **dit**, et il propose un bouton. **Le clic est l'accord ; sans
+> clic, rien n'est écrit.** Et la promesse disparaît tant qu'elle n'est pas
+> tenable.
+>
+> ### 👉 CE QUI VOUS ATTEND, VOUS, EN UN CLIC
+>
+> Ouvrez Ulysse en mode Plan. Un encart ambre dit que Plan ne garantit rien, et
+> porte **« Passer les accords en manuel »**. Je ne l'ai pas cliqué à votre
+> place : ce réglage touche la sécurité de votre installation, et il sort
+> d'Ulysse. **C'est votre geste, pas le mien.**
 
-> **`node test_page.js` : 484 / 484.** Huit mutations posées sur les gardes
-> neufs, huit mordues.
+> **`node test_page.js` : 498 / 498.** Dix-huit mutations posées sur les gardes
+> neufs, dix-sept mordues.
+
+---
+
+## 0 bis. Le préfixe : 29 092 → 15 067 tokens
+
+Tranché par kuchu : *« des préfixes courts pour de bon est meilleur, car
+plusieurs cerveaux pourront être amenés à être remplacés »*. L'argument vaut
+mieux que le mien — **un préfixe stable protège un modèle, un préfixe court
+les protège tous.**
+
+Huit familles retirées (`bfl`, `browser`, `computer_use`, `cronjob`,
+`delegation`, `image_gen`, `tts`, `session_search`), **56 outils → 31** :
+
+| poste | avant | après |
+|---|---|---|
+| System prompt | 7 189 | 5 818 |
+| **Définitions d'outils** | **19 359** | **7 825** |
+| Subagents | 1 120 | **0** |
+| **Total** | **29 092** | **15 067** — **−48 %** |
+
+**Réversible** : `config.yaml.avant-elagage-2026-08-12` dans `HERMES_HOME`.
+
+**Le levier qui reste** : `kanban` pèse **12 des 31 outils** restants. Il n'est
+pas dans `CONFIGURABLE_TOOLSETS` — c'est une fonctionnalité de la gateway. La
+retirer désactiverait une fonction du TUI : ce n'est plus de l'élagage, c'est
+une amputation, et elle demande votre accord.
+
+> ⚠ **Le mode ne touche NI aux toolsets NI au system prompt.** Les changer par
+> mode est la solution qui vient naturellement et c'est **la plus chère** :
+> elle invaliderait le cache **à chaque bascule**. Le mode se dit dans le
+> **tour de l'utilisateur** (~15 tokens, après le préfixe) et s'applique à la
+> porte d'approbation, côté Ulysse, **pour zéro token.**
+
+---
+
+## 0 ter. Ce que les scénarios réels ont trouvé, et le banc pas
+
+| trouvé en… | quoi |
+|---|---|
+| jouant un scénario | la porte ne se déclenchait **jamais** (`approvals.mode = smart`) |
+| jouant un scénario | l'outil `todo` renvoie un **objet** — on lisait `[object Object]`, donc **aucun plan** |
+| jouant un scénario | l'écran **se fige dans un onglet caché** : `requestAnimationFrame` y est suspendu, `paintQueued` restait bloqué |
+| jouant un scénario | le bouton d'arrêt était conditionné à `mode === "cowork"`, un mode disparu |
+| relisant | deux messages renvoyaient vers « passez en Discussion » — une issue supprimée |
+
+Le faux du banc envoyait le résultat de `todo` **en texte**. Le vrai envoie un
+objet. **Sixième fois qu'un faux qui ne ment pas comme le vrai ne prouve rien.**
 
 ---
 
 ## 0. Ce qui vous attend au premier geste
 
 ```
-cd web && node test_page.js          # 484/484
+cd web && node test_page.js          # 498/498
 python resync_apercus.py             # après TOUTE retouche de ulysse.css
 ```
 
