@@ -3010,6 +3010,42 @@ async function drawAutos(){
     corps += '<div class="u-todo">Tâches planifiées illisibles : ' + esc(pannePhrase(e)) + "</div>";
   }
 
+  // --- Modèles tout prêts (AUTO-2, /api/cron/blueprints) ----------------
+  // Quatorze automatisations déjà écrites, côté Hermès. Elles répondent à la
+  // question qui bloque devant une page blanche : « on met quoi, dedans ? »
+  //
+  // ⚠ REPLIÉS PAR DÉFAUT. Cet écran sert d'abord à REGARDER ce qui tourne :
+  // quatorze cartes posées devant les tâches réelles retourneraient le sens de
+  // l'écran, et personne n'a besoin de la galerie deux fois par jour.
+  try {
+    const d = await REST.cronModeles();
+    autoModeles = (d && d.blueprints) || [];
+    corps += '<div class="seth">Modèles tout prêts<span class="l"></span>'
+      + '<button class="btn-pick" id="autoVoirModeles">' + svg("eclair", { size: 16 })
+      + " Voir les " + autoModeles.length + " modèles</button></div>"
+      + '<div id="bpForm"></div>'
+      + '<div id="autoGalerie" style="display:none">'
+      + (autoModeles.length
+          ? '<div class="u-note"><i></i>Ces modèles viennent d\'Hermès, en anglais — '
+            + "titre et texte compris. Ils sont montrés tels qu'ils partiront : "
+            + "traduire l'étiquette sans traduire la consigne ferait croire à une "
+            + "automatisation française qui parlerait anglais. « Modifier » "
+            + "réécrit le texte une fois posée.</div>"
+          : '<div class="u-load">Hermès ne propose aucun modèle.</div>')
+      + autoModeles.map((m) => '<div class="acard"><div class="ahead bph">'
+          + '<div class="amain"><div class="an">' + esc(m.title || m.key) + "</div>"
+          + '<div class="aq">' + esc(m.description || "") + "</div>"
+          + '<div class="ameta"><span class="chip b">' + esc(m.scheduleHuman || "—")
+          + "</span>" + (m.category ? '<span class="chip">' + esc(m.category) + "</span>" : "")
+          + "</div></div>"
+          + '<span class="sv"><button class="btn-pick" data-bp="' + esc(m.key) + '">'
+          + "Utiliser</button></span></div></div>").join("")
+      + "</div>";
+  } catch (e){
+    corps += '<div class="seth">Modèles tout prêts<span class="l"></span></div>'
+      + '<div class="u-todo">Modèles illisibles : ' + esc(pannePhrase(e)) + "</div>";
+  }
+
   // --- Webhooks ---------------------------------------------------------
   // La LISTE vient du DASHBOARD (/api/webhooks). Le gateway :8644 n'expose
   // pas de GET /webhooks : il n'y route que POST /webhooks/{nom}.
@@ -3080,7 +3116,89 @@ async function drawAutos(){
 
 /* Le formulaire. Il vit dans `#autoForm`, replié tant qu'on ne le demande pas :
    l'écran sert d'abord à REGARDER ce qui tourne. */
-let autoCibles = null, autoJobs = [];
+let autoCibles = null, autoJobs = [], autoModeles = [];
+
+/* ⚠ LE FORMULAIRE EST DESSINÉ D'APRÈS `fields`, PAS D'APRÈS UNE LISTE ÉCRITE
+   ICI. Chaque modèle décrit ses propres champs — nom, type, étiquette, défaut,
+   options. Recopier ces quatorze formulaires dans Ulysse ferait quatorze
+   endroits à corriger et un jour où l'un d'eux propose une option qu'Hermès a
+   retirée. Ici, un modèle ajouté là-bas apparaît ici sans qu'on y touche.
+
+   Les quatre types vus sur la vraie réponse : `time`, `enum`, `text`,
+   `weekdays`. Un cinquième qu'on ne connaîtrait pas retombe sur un champ
+   texte — il vaut mieux un champ un peu nu qu'un modèle qui disparaît. */
+function champModele(f){
+  const id = "bpf-" + f.name;
+  const val = f.default === undefined || f.default === null ? "" : String(f.default);
+  if (f.type === "time")
+    return '<input id="' + id + '" type="time" value="' + esc(val) + '">';
+  if ((f.type === "enum" || f.type === "weekdays") && (f.options || []).length)
+    return '<select id="' + id + '">' + f.options.map((o) =>
+      '<option value="' + esc(String(o)) + '"'
+      + (String(o) === val ? " selected" : "") + ">" + esc(String(o))
+      + "</option>").join("") + "</select>";
+  return '<input id="' + id + '" value="' + esc(val) + '">';
+}
+
+/* Poser un modèle. Même hôte repliable que le formulaire libre, même règle :
+   rouvrir le même referme, en ouvrir un autre bascule dessus. */
+function ouvrirFormModele(bp){
+  const hote = $("bpForm");
+  if (!hote || !bp) return;
+  if (hote.dataset.on === "1" && hote.dataset.cible === String(bp.key)){
+    hote.dataset.on = ""; hote.dataset.cible = ""; hote.innerHTML = ""; return;
+  }
+  hote.dataset.on = "1";
+  hote.dataset.cible = String(bp.key);
+
+  const champs = bp.fields || [];
+  hote.innerHTML = '<div class="acard open"><div class="abody"><div class="in">'
+    + '<div class="u-lecture">' + svg("alerte", { size: 14 })
+    + "Ce modèle tournera <b>sans vous</b>, à l'heure dite. Hermès écrit lui-même "
+    + "son nom et sa consigne, <b>en anglais</b> — « Modifier » les réécrit une "
+    + "fois posée.</div>"
+    + '<div class="srow"><span class="sk">' + esc(bp.title || bp.key)
+    + '<span class="sub">' + esc(bp.description || "") + "</span></span></div>"
+    + champs.map((f) => '<div class="srow"><span class="sk">' + esc(f.label || f.name)
+        + (f.help ? '<span class="sub">' + esc(f.help) + "</span>" : "")
+        + "</span>"
+        + '<span class="sv">' + champModele(f) + "</span></div>").join("")
+    /* On montre le GABARIT, pas une traduction que nous ferions. Recalculer
+       « daily at 08:00 » ici demanderait de rejouer `_resolve_schedule`
+       (blueprint_catalog.py:603) dans le navigateur — donc d'en tenir une
+       seconde version, qui se tromperait le jour où l'une des deux bouge. */
+    + '<div class="u-note" id="bpApercu"><i></i>Hermès remplira <code>'
+    + esc(bp.schedule || "—") + "</code> avec vos réponses"
+    + (bp.scheduleHuman ? " — par défaut, " + esc(bp.scheduleHuman) : "") + ".</div>"
+    + '<div class="srow"><span class="sk"></span><span class="sv">'
+    + '<button class="btn-pick u-fort" id="bpPoser">Poser ce modèle</button>'
+    + "</span></div></div></div></div>";
+
+  $("bpPoser").onclick = async () => {
+    /* ⚠ EXACTEMENT LES CHAMPS DÉCRITS, PAS UN DE PLUS. Hermès refuse en 422
+       tout nom de champ qu'il ne connaît pas — et il a raison : un champ
+       inventé ici passerait pour un réglage pris en compte alors qu'il ne
+       serait jamais lu. On boucle donc sur `fields`, jamais sur le DOM. */
+    const valeurs = {};
+    champs.forEach((f) => {
+      const el = $("bpf-" + f.name);
+      if (el) valeurs[f.name] = el.value;
+    });
+    const b = $("bpPoser");
+    b.disabled = true;
+    try {
+      await REST.poserModele(bp.key, valeurs);
+      snack("« " + (bp.title || bp.key) + " » posée.");
+      hote.dataset.on = ""; hote.dataset.cible = "";
+      drawAutos();
+    } catch (e){
+      // Le motif d'Hermès mot pour mot : lui seul sait quel champ ne va pas,
+      // et il le dit en clair (« invalid time 'midi' — use HH:MM (24h) »).
+      snack("Non posée : " + e.message);
+      b.disabled = false;
+    }
+  };
+}
 
 /* ⚠ UN SEUL FORMULAIRE POUR LES DEUX GESTES. Poser et modifier demandent
    exactement les mêmes champs ; en écrire deux, c'est se donner deux endroits
@@ -3243,6 +3361,29 @@ function wireAutos(){
   const host = $("autos");
   const nouv = $("autoNouv");
   if (nouv) nouv.onclick = () => ouvrirFormAuto(null);
+  const voir = $("autoVoirModeles");
+  if (voir) voir.onclick = () => {
+    const g = $("autoGalerie");
+    if (!g) return;
+    const ouvert = g.style.display !== "none";
+    g.style.display = ouvert ? "none" : "";
+    // Refermer la galerie referme le formulaire qu'elle avait ouvert : le
+    // laisser derrière ferait un formulaire orphelin, sans sa carte.
+    if (ouvert){
+      const f = $("bpForm");
+      if (f){ f.dataset.on = ""; f.dataset.cible = ""; f.innerHTML = ""; }
+    }
+  };
+  host.querySelectorAll("[data-bp]").forEach((b) => {
+    b.onclick = (e) => {
+      e.stopPropagation();
+      const m = autoModeles.find((x) => String(x.key) === b.dataset.bp);
+      // Sans le modèle réel, on n'ouvre RIEN : un formulaire dessiné au hasard
+      // enverrait des champs qu'Hermès refuserait, ou pire, accepterait.
+      if (!m) return snack("Ce modèle n'est plus proposé par Hermès.");
+      ouvrirFormModele(m);
+    };
+  });
   host.querySelectorAll("[data-edit]").forEach((b) => {
     b.onclick = (e) => {
       e.stopPropagation();

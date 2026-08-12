@@ -230,6 +230,35 @@ const REST = {
      qu'il faut encore brancher — pour que l'ecran le DISE au lieu de les
      cacher (cron.py:74). Ici : « local » et « telegram ». */
   cronCibles: () => api("/api/cron/delivery-targets"),
+  /* ── Les modeles tout prets (« blueprints ») ───────────────────────────
+     `GET /api/cron/blueprints` (cron.py:184) rend `{blueprints:[...]}`. Quatorze
+     modeles, chacun avec son formulaire DECRIT PAR LE BACKEND : `fields[]`
+     porte le nom, le type (`time`, `enum`, `text`, `weekdays`), l'etiquette,
+     la valeur par defaut et les options. L'ecran dessine ce qu'on lui decrit ;
+     il ne connait aucun modele par avance, donc il n'en rate aucun le jour ou
+     Hermes en ajoute.
+
+     ⚠ LA CLE S'APPELLE `key`, PAS `id`. Verifie sur la vraie reponse. La
+     confondre ne casse rien a l'affichage — le titre vient d'ailleurs — et
+     fait juste poser `undefined` au moment d'instancier.
+
+     ⚠ LES OPTIONS DE `deliver` SONT REECRITES PAR LE BACKEND a partir des
+     plateformes reellement branchees (cron.py:199). Les recopier ici
+     proposerait un jour Telegram a quelqu'un qui ne l'a pas. */
+  cronModeles: () => api("/api/cron/blueprints"),
+  /* `POST /api/cron/blueprints/instantiate` (cron.py:218) : `{blueprint, values}`.
+     Hermes remplit le gabarit d'horaire et le texte, puis cree la tache.
+
+     ⚠ IL REFUSE LES NOMS DE CHAMPS QU'IL NE CONNAIT PAS (422, `unknown slot`) —
+     volontairement : un `tiem=07:15` mal tape ne doit pas creer en silence une
+     tache a l'heure par defaut. L'ecran n'envoie donc QUE les champs decrits
+     par `fields`, jamais un de plus.
+     Un 422 porte son motif en clair dans `detail` (« invalid time 'x' — use
+     HH:MM ») : c'est ce texte qu'on montre, mot pour mot. */
+  poserModele: (cle, valeurs) => api("/api/cron/blueprints/instantiate", {
+    method: "POST",
+    body: { blueprint: cle, values: valeurs || {} }
+  }),
   pauseCron: (id) => api("/api/cron/jobs/" + encodeURIComponent(id) + "/pause", { method: "POST" }),
   resumeCron: (id) => api("/api/cron/jobs/" + encodeURIComponent(id) + "/resume", { method: "POST" }),
   triggerCron: (id) => api("/api/cron/jobs/" + encodeURIComponent(id) + "/trigger", { method: "POST" }),

@@ -276,9 +276,13 @@ async function main(){
   /* ══════════════════════════════════════════════════════════════════════
      6 + 20. AUTOMATISATIONS — la liste, et l'ecran
      Pause/reprise/declenchement ne sont joues QUE s'il existe une tache, et
-     l'etat de la tache est remis comme il etait. On ne cree pas de cron :
-     l'API n'en propose pas, et en fabriquer un par un autre chemin serait
-     laisser derriere soi quelque chose qui se declenche tout seul.
+     l'etat de la tache est remis comme il etait.
+
+     ⚠ CE BANC CREE DE VRAIES TACHES QUI SE DECLENCHENT TOUTES SEULES. C'est
+     le prix a payer pour eprouver le chemin reel — mais chacune est posee a
+     une heure qui ne peut pas tomber pendant l'essai, livree en « local »
+     (donc sans message sortant meme si elle survivait), et retiree avant la
+     fin. `aDefaire` la reprend si le banc meurt en route.
      ═══════════════════════════════════════════════════════════════════════ */
   titre("6/20. Automatisations (cron)");
   let jobs = null;
@@ -456,6 +460,113 @@ async function main(){
             check("le second clic la retire vraiment de chez Hermes", partie);
           }
         }
+      }
+    }
+
+    /* ── Les modeles tout prets, poses depuis l'ecran ────────────────────
+       Le formulaire n'est pas ecrit dans Ulysse : il est DECRIT par Hermes
+       (`fields[]`). On verifie donc que ce qui est dessine vient bien de la
+       vraie reponse — et surtout que ce qui repart est accepte : Hermes
+       refuse en 422 tout nom de champ qu'il ne connait pas.
+
+       ⚠ CE QU'ON POSE ICI PEUT SE DECLENCHER. « morning-brief » tourne
+       chaque jour a l'heure dite ; on choisit 04:03 (le banc tourne a l'heure
+       ronde) et surtout on livre en « local » — sauvegarde seule, aucun
+       message sortant. Meme si le banc mourait avant le retrait, personne ne
+       recevrait rien.
+
+       ⚠ ON RETROUVE LA TACHE PAR SON ID, PAS PAR SON NOM. Hermes nomme la
+       tache d'apres le TITRE DU MODELE (« Morning briefing », blueprint_
+       catalog.py:fill_blueprint) : deux instanciations portent le meme nom, et
+       kuchu pourrait en avoir une. On diffe donc les identifiants avant/apres. */
+    await aller("Automatisations", 1200);
+    const bVoir = doc.querySelector("#autoVoirModeles");
+    check("l'ecran propose les modeles d'Hermes", !!bVoir,
+      bVoir ? bVoir.textContent.trim() : "bouton absent");
+    if (bVoir){
+      const gal = doc.querySelector("#autoGalerie");
+      check("la galerie est repliee tant qu'on ne la demande pas",
+        !!gal && gal.style.display === "none");
+      bVoir.click();
+      await dodo(300);
+      check("elle s'ouvre sur les VRAIS modeles d'Hermes",
+        !!gal && gal.style.display !== "none"
+        && /Morning briefing/.test(gal.textContent),
+        (gal ? gal.textContent : "").slice(0, 60).replace(/\s+/g, " "));
+
+      const bUse = doc.querySelector('[data-bp="morning-brief"]');
+      check("« Utiliser » est propose sur la carte du modele", !!bUse);
+      if (bUse){
+        bUse.click();
+        await attendre(() => !!doc.querySelector("#bpf-time"), 15000);
+        const cT = doc.querySelector("#bpf-time");
+        const cD = doc.querySelector("#bpf-deliver");
+        check("le formulaire est dessine d'apres ce que le backend DECRIT",
+          !!cT && cT.type === "time" && !!cD && cD.tagName === "SELECT",
+          cT ? cT.type + " / " + (cD && cD.tagName) : "champs absents");
+        /* Les options de livraison viennent des plateformes reellement
+           branchees (cron.py:199) : si « local » manquait, ce banc enverrait
+           un vrai message a kuchu. On le verifie AVANT de cliquer. */
+        const aLocal = cD && Array.from(cD.options).some((o) => o.value === "local");
+        check("« local » est bien propose : le banc peut poser sans rien envoyer",
+          !!aLocal, cD ? Array.from(cD.options).map((o) => o.value).join(", ") : "");
+        if (cT && aLocal){
+          const avantIds = taches(await rest("cronJobs()")).map((j) => String(j.id));
+          cT.value = "04:03";
+          cD.value = "local";
+          doc.querySelector("#bpPoser").click();
+
+          const posee = await attendre(async () => {
+            const l = taches(await rest("cronJobs()"));
+            return l.some((j) => avantIds.indexOf(String(j.id)) < 0);
+          }, 25000);
+          check("poser un modele depuis l'ecran cree VRAIMENT la tache", posee);
+
+          const neuve = taches(await rest("cronJobs()"))
+            .find((j) => avantIds.indexOf(String(j.id)) < 0);
+          if (neuve){
+            aDefaire.push(async () => {
+              try { await rest("supprimerCron(" + JSON.stringify(String(neuve.id)) + ")"); }
+              catch (e){}
+            });
+            check("Hermes a rempli le gabarit avec l'heure choisie",
+              (neuve.schedule && neuve.schedule.kind) === "cron"
+              && neuve.schedule.expr === "3 4 * * *",
+              JSON.stringify(neuve.schedule));
+            check("il a ecrit lui-meme la consigne : elle n'est pas vide",
+              !!(neuve.prompt || "").trim(),
+              (neuve.prompt || "").slice(0, 50).replace(/\s+/g, " "));
+            check("et elle est livree en LOCAL : rien ne part vers personne",
+              neuve.deliver === "local", String(neuve.deliver));
+            await rest("supprimerCron(" + JSON.stringify(String(neuve.id)) + ")");
+            const nettoye = await attendre(async () => {
+              const l = taches(await rest("cronJobs()"));
+              return !l.some((j) => String(j.id) === String(neuve.id));
+            }, 20000);
+            check("le banc reprend ce qu'il a pose : rien ne reste derriere", nettoye);
+          }
+        }
+
+        /* Le refus, joue pour de vrai : une heure qu'Hermes n'accepte pas.
+           C'est le seul moyen de savoir si l'ecran MONTRE le motif ou l'avale. */
+        let motif = "";
+        try {
+          await rest("poserModele(\"morning-brief\", "
+            + JSON.stringify({ time: "midi", deliver: "local" }) + ")");
+        } catch (e){ motif = e.message; }
+        check("un champ invalide est refuse par Hermes, avec son motif en clair",
+          /422/.test(motif) && /HH:MM/.test(motif), motif || "aucun refus");
+        /* Et le refus qui compte le plus : un nom de champ invente. Hermes le
+           rejette expres, pour qu'un reglage mal nomme ne passe pas pour pris
+           en compte. C'est ce qui justifie de ne JAMAIS envoyer autre chose
+           que les champs decrits. */
+        let motif2 = "";
+        try {
+          await rest("poserModele(\"morning-brief\", "
+            + JSON.stringify({ tiem: "07:15", deliver: "local" }) + ")");
+        } catch (e){ motif2 = e.message; }
+        check("un nom de champ invente est REFUSE, pas applique en silence",
+          /422/.test(motif2) && /unknown slot/.test(motif2), motif2 || "aucun refus");
       }
     }
   }

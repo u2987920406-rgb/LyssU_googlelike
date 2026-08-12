@@ -1006,6 +1006,13 @@ svg.graph *{cursor:inherit}
 .ahead .chev{color:var(--muted);flex:none;display:grid;place-items:center;margin-top:2px;
   transition:transform .24s cubic-bezier(.2,0,0,1)}
 .acard.open .ahead .chev{transform:rotate(180deg)}
+/* Les cartes de MODÈLE (galerie des blueprints). Elles ne se déplient pas :
+   il n'y a rien dessous. La main en forme de doigt qu'`.ahead` pose partout
+   promettrait un pli qui n'existe pas — c'est le même genre de petit mensonge
+   qu'un chevron sans corps. Le bouton, lui, se range à droite. */
+.ahead.bph{cursor:default}
+.ahead.bph .amain{flex:1;min-width:0}
+.ahead.bph .sv{flex:none;align-self:center}
 .abody{max-height:0;overflow:hidden;transition:max-height .34s cubic-bezier(.2,0,0,1)}
 .acard.open .abody{max-height:620px}
 .abody .in{padding:4px 20px 20px 20px;border-top:1px solid var(--outline-var);margin-top:2px}

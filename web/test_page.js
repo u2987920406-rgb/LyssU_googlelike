@@ -112,7 +112,66 @@ const FIXTURES = {
       { id: "local", name: "Local (save only)", home_target_set: true, home_env_var: null },
       { id: "telegram", name: "Telegram", home_target_set: true,
         home_env_var: "TELEGRAM_HOME_CHANNEL" },
-      { id: "slack", name: "Slack", home_target_set: false, home_env_var: "SLACK_HOME_CHANNEL" }] }
+      { id: "slack", name: "Slack", home_target_set: false, home_env_var: "SLACK_HOME_CHANNEL" }] },
+  /* Les modèles tout prêts, RECOPIÉS DE LA VRAIE RÉPONSE (2026-08-12, quatorze
+     entrées ; on en garde trois, choisies pour couvrir les quatre types de
+     champ : `time`, `enum`, `text`, `weekdays`).
+
+     ⚠ LA CLÉ S'APPELLE `key`. Écrire `id` ici — le réflexe, puisque toutes les
+     autres listes du backend en ont un — laisserait la page marcher contre ce
+     faux et poser `blueprint: undefined` contre le vrai. C'est exactement la
+     forme de mensonge qui nous a déjà coûté onze fois.
+
+     ⚠ ET LES TITRES SONT EN ANGLAIS, comme chez Hermès. Les traduire ici
+     ferait passer au vert une page qui promet du français et livre autre
+     chose. */
+  "/api/cron/blueprints": { blueprints: [
+      { key: "morning-brief", title: "Morning briefing", category: "daily",
+        description: "A short daily briefing: today's calendar, weather, and anything urgent waiting on you.",
+        tags: ["daily", "briefing"],
+        fields: [
+          { name: "time", type: "time", label: "What time?", default: "08:00",
+            options: [], optional: false, strict: true, help: "24h local time, e.g. 08:00" },
+          { name: "deliver", type: "enum", label: "Where to deliver?", default: "origin",
+            options: ["origin", "local", "telegram"], optional: false, strict: false,
+            help: "origin = the chat you set this up from" }],
+        schedule: "{minute} {hour} * * *", scheduleHuman: "daily at 08:00",
+        command: "/blueprint morning-brief time=08:00 deliver=origin",
+        appUrl: "hermes://blueprint/morning-brief?time=08%3A00&deliver=origin" },
+      { key: "important-mail", title: "Important-mail monitor", category: "email",
+        description: "Watches your inbox and pings you only for mail that matters.",
+        tags: ["email"],
+        fields: [
+          { name: "interval_min", type: "enum", label: "How often?", default: "30",
+            options: ["15", "30", "60"], optional: false, strict: true, help: "" },
+          { name: "criteria", type: "text", label: "Only notify me if the mail…",
+            default: "needs a reply today, is from my manager or family, or mentions a deadline",
+            options: [], optional: false, strict: true, help: "" },
+          { name: "deliver", type: "enum", label: "Where to deliver?", default: "origin",
+            options: ["origin", "local", "telegram"], optional: false, strict: false, help: "" }],
+        schedule: "*/{interval_min} * * * *", scheduleHuman: "every 30 minutes",
+        command: "/blueprint important-mail", appUrl: "hermes://blueprint/important-mail" },
+      { key: "custom-reminder", title: "Custom reminder", category: "general",
+        description: "Any reminder you want, on the days you choose.",
+        tags: ["reminder"],
+        fields: [
+          { name: "what", type: "text", label: "Remind you about what?",
+            default: "", options: [], optional: false, strict: true, help: "" },
+          { name: "time", type: "time", label: "What time?", default: "14:00",
+            options: [], optional: false, strict: true, help: "" },
+          { name: "recurrence", type: "weekdays", label: "Repeat on", default: "everyday",
+            options: ["everyday", "weekdays", "weekends"], optional: false, strict: true, help: "" },
+          { name: "deliver", type: "enum", label: "Where to deliver?", default: "origin",
+            options: ["origin", "local", "telegram"], optional: false, strict: false, help: "" }],
+        schedule: "{minute} {hour} * * {dow}", scheduleHuman: "everyday at 14:00",
+        command: "/blueprint custom-reminder", appUrl: "hermes://blueprint/custom-reminder" }] },
+  // La tâche telle qu'Hermès la rend une fois le modèle instancié : son nom
+  // est le TITRE DU MODÈLE, en anglais. C'est ce qui justifie de le dire dans
+  // l'écran plutôt que de laisser croire à une automatisation française.
+  "/api/cron/blueprints/instantiate": {
+    id: "job_bp", name: "Custom reminder", prompt: "Remind them about…",
+    schedule: { kind: "cron", expr: "0 14 * * *", display: "0 14 * * *" },
+    schedule_display: "0 14 * * *", enabled: true, state: "scheduled" }
 };
 
 const fetched = [];
@@ -121,6 +180,9 @@ const fetched = [];
 // la change pour éprouver la troncature ; le défaut est « stop », une fin
 // normale, comme chez le vrai.
 const PROXY_FIN = { texte: "Réponse sans outils.", raison: "stop" };
+
+// Quand ce n'est pas null, `instantiate` refuse avec ce motif (422).
+let BP_REFUS = null;
 
 /* Les fichiers de mémoire, tels qu'un disque les rendrait. Le vrai
    `/api/fs/read-text` renvoie le texte ET sa taille ; l'écran d'écriture s'en
@@ -175,8 +237,21 @@ function lireDuFauxDisque(chemin){
 function fakeFetch(url, opts){
   const p = String(url).replace(/^https?:\/\/[^/]+/, "");
   const bare = p.split("?")[0];
-  fetched.push({ path: p, method: (opts && opts.method) || "GET" });
+  // Le CORPS est gardé, pas seulement le chemin : ce qui part vers Hermès est
+  // la moitié du contrat, et un test qui ne regarde que l'URL laisse passer
+  // une requête bien adressée qui envoie n'importe quoi.
+  fetched.push({ path: p, method: (opts && opts.method) || "GET",
+                 corps: opts && opts.body ? JSON.parse(opts.body) : null });
   let body = FIXTURES[bare];
+
+  /* Le faux doit pouvoir REFUSER comme le vrai. `instantiate` rend un 422 avec
+     son motif en clair quand un champ ne va pas (« invalid time 'midi' — use
+     HH:MM (24h) ») ; sans ce refus jouable, on ne saurait pas si l'écran le
+     montre ou l'avale. */
+  if (bare === "/api/cron/blueprints/instantiate" && BP_REFUS){
+    return Promise.resolve({ ok: false, status: 422,
+      text: () => Promise.resolve(JSON.stringify({ detail: BP_REFUS })) });
+  }
 
   if (body === undefined && bare === "/api/files/read"){
     const chemin = decodeURIComponent(p.split("path=")[1] || "");
@@ -2697,6 +2772,104 @@ async function main(){
       await wait(80);
       check("Automatisations · recliquer « Modifier » referme",
         !win.document.getElementById("afNom"));
+    }
+
+    /* ── Les modèles tout prêts ───────────────────────────────────────────
+       ⚠ LE FORMULAIRE N'EST PAS ÉCRIT ICI, IL EST DÉCRIT LÀ-BAS. Chaque
+       modèle porte ses champs, leurs types et leurs options. Ce qu'on vérifie
+       n'est donc pas « le bon formulaire est dessiné » mais « le formulaire
+       dessiné est CELUI QUE LE BACKEND DÉCRIT » — et surtout que rien de plus
+       ne part : Hermès refuse en 422 un nom de champ inconnu, exprès, pour
+       qu'un `tiem=07:15` mal tapé ne pose pas une tâche à l'heure par
+       défaut. */
+    const voir = win.document.getElementById("autoVoirModeles");
+    check("Modèles · l'écran propose de voir les modèles, et dit combien",
+      !!voir && /3 modèles/.test(voir.textContent), voir && voir.textContent.trim());
+    const gal = win.document.getElementById("autoGalerie");
+    check("Modèles · la galerie est REPLIÉE au départ : l'écran sert d'abord à regarder",
+      !!gal && gal.style.display === "none", gal && gal.style.display);
+    if (voir && gal){
+      voir.click();
+      await wait(120);
+      check("Modèles · elle s'ouvre", gal.style.display !== "none");
+      check("Modèles · les trois titres d'Hermès sont là, tels quels",
+        /Morning briefing/.test(gal.textContent)
+        && /Important-mail monitor/.test(gal.textContent)
+        && /Custom reminder/.test(gal.textContent));
+      check("Modèles · chacun montre l'horaire qu'il tiendra",
+        /daily at 08:00/.test(gal.textContent) && /every 30 minutes/.test(gal.textContent));
+      // L'honnêteté du produit : ces textes sont anglais, et ils le restent.
+      check("Modèles · l'écran DIT qu'ils viennent d'Hermès, en anglais",
+        /en anglais/i.test(gal.textContent));
+
+      const bUse = gal.querySelector('[data-bp="custom-reminder"]');
+      check("Modèles · chaque carte porte un bouton « Utiliser »", !!bUse);
+      if (bUse){
+        bUse.click();
+        await wait(150);
+        const f = win.document.getElementById("bpForm");
+        check("Modèles · le formulaire du modèle s'ouvre",
+          !!f && /Custom reminder/.test(f.textContent));
+        check("Modèles · il dit que ça tournera SANS vous, et en anglais",
+          /sans vous/i.test(f.textContent) && /anglais/i.test(f.textContent));
+        // Les quatre champs décrits, avec leurs types et leurs défauts.
+        const cw = win.document.getElementById("bpf-what");
+        const ct = win.document.getElementById("bpf-time");
+        const cr = win.document.getElementById("bpf-recurrence");
+        const cd = win.document.getElementById("bpf-deliver");
+        check("Modèles · les QUATRE champs décrits sont dessinés, aucun oublié",
+          !!cw && !!ct && !!cr && !!cd,
+          [!!cw, !!ct, !!cr, !!cd].join(","));
+        check("Modèles · un champ « time » devient un vrai sélecteur d'heure, à son défaut",
+          ct && ct.type === "time" && ct.value === "14:00",
+          ct && ct.type + " / " + ct.value);
+        check("Modèles · un champ à options devient une liste, avec EXACTEMENT ses options",
+          cr && cr.tagName === "SELECT"
+          && Array.from(cr.options).map((o) => o.value).join(",") === "everyday,weekdays,weekends",
+          cr && Array.from(cr.options).map((o) => o.value).join(","));
+        check("Modèles · et son défaut est celui qu'Hermès annonce",
+          cr && cr.value === "everyday", cr && cr.value);
+        check("Modèles · un champ libre reste un champ libre, vide s'il l'est",
+          cw && cw.tagName === "INPUT" && cw.value === "", cw && cw.value);
+        /* Le gabarit est MONTRÉ TEL QUEL. Le recalculer en français ici
+           demanderait de rejouer `_resolve_schedule` dans le navigateur —
+           donc d'en tenir une seconde version, qui mentirait un jour. */
+        check("Modèles · le gabarit d'horaire est montré verbatim, pas retraduit",
+          /\{minute\} \{hour\} \* \* \{dow\}/.test(f.textContent),
+          f.textContent.slice(0, 40));
+
+        cw.value = "Arroser les plantes";
+        ct.value = "07:30";
+        cr.value = "weekends";
+        cd.value = "local";
+        win.document.getElementById("bpPoser").click();
+        await wait(200);
+        const env = fetched.filter(
+          (x) => x.path === "/api/cron/blueprints/instantiate").pop();
+        check("Modèles · poser envoie bien la CLÉ du modèle (`key`, pas `id`)",
+          !!env && env.corps && env.corps.blueprint === "custom-reminder",
+          env && JSON.stringify(env.corps && env.corps.blueprint));
+        check("Modèles · il envoie les valeurs saisies, pas les défauts",
+          !!env && env.corps.values.what === "Arroser les plantes"
+          && env.corps.values.time === "07:30"
+          && env.corps.values.recurrence === "weekends",
+          env && JSON.stringify(env.corps.values));
+        check("Modèles · et EXACTEMENT les champs décrits, pas un de plus",
+          !!env && Object.keys(env.corps.values).sort().join(",")
+            === "deliver,recurrence,time,what",
+          env && Object.keys(env.corps.values).sort().join(","));
+
+        // Le refus d'Hermès, montré mot pour mot.
+        BP_REFUS = "invalid time 'midi' — use HH:MM (24h)";
+        gal.querySelector('[data-bp="morning-brief"]').click();
+        await wait(150);
+        win.document.getElementById("bpPoser").click();
+        await wait(200);
+        check("Modèles · un refus d'Hermès est montré MOT POUR MOT, pas avalé",
+          /use HH:MM/.test(win.document.body.textContent),
+          win.document.body.textContent.indexOf("invalid time") >= 0 ? "" : "message absent");
+        BP_REFUS = null;
+      }
     }
   }
 
