@@ -477,7 +477,7 @@ class HermesLink {
 const link = new HermesLink();
 
 /* ═══ 3. Modele de conversation — alimente UNIQUEMENT par les evenements ══
-   Aucune donnee fictive : ce que le Plan et les Travaux affichent vient du
+   Aucune donnee fictive : ce que le Plan et l'Historique affichent vient du
    flux, ou n'est pas affiche. C'est la regle STU-1 de endpoints-ulysse.md.
    ─────────────────────────────────────────────────────────────────────── */
 
@@ -487,6 +487,9 @@ const conv = {
   info: null,        // dernier session.info
   status: null,      // derniere status.update
   running: false,
+  lastEventAt: null, // horodatage du dernier evenement du gateway reçu pendant
+                      // ce tour — sert a mesurer un silence, jamais a montrer
+                      // un chrono brut (voir armTurnWatchdog).
   approval: null,
   turns: [],
   /* ⚠ VRAIE, MAIS PAS ENTIÈRE. `resumeSession` reconstruit le texte des tours
@@ -554,7 +557,8 @@ const coreHooks = { onChange: () => {}, onSystem: () => {}, onChanged: () => {},
 
 function armTurnWatchdog(){
   clearTimeout(turnWatchdog);
-  if (!conv.running) return;
+  if (!conv.running){ conv.lastEventAt = null; return; }
+  conv.lastEventAt = Date.now();
   turnWatchdog = setTimeout(() => {
     if (!conv.running) return;
     conv.running = false;
@@ -940,6 +944,26 @@ async function submitPrompt(text, opts){
   coreHooks.onChange();
 }
 
+/* Relancer SANS interrompre — `session.steer` (tui_gateway/methods_session.py),
+   sonde en reel le 20/08/2026 : le texte se glisse dans le prochain resultat
+   d'outil, `conv.running` ne bouge pas, aucun nouveau tour n'est force cote
+   Hermes. La croix (`interruptTurn`) reste le SEUL geste qui coupe le tour —
+   celui-ci n'agit que tant qu'un tour tourne deja.
+   ⚠ C'EST UN SIGNAL AU MIEUX, PAS UN ORDRE. La sonde a montre que le modele
+   ne l'acquitte pas forcement dans sa reponse : le texte arrive comme un
+   RESULTAT D'OUTIL, pas comme un message direct — l'agent peut le lire comme
+   du contexte plutot que comme une instruction a satisfaire tout de suite. */
+async function steerTurn(text){
+  if (!conv.sessionId || !conv.running) return false;
+  try {
+    const r = await link.rpc("session.steer", { session_id: conv.sessionId, text: text }, 15000);
+    return !!(r && (r.status === "queued" || r.status === "steered"));
+  } catch (e){
+    coreHooks.onSystem("La relance n'est pas partie : " + e.message);
+    return false;
+  }
+}
+
 async function interruptTurn(){
   if (!conv.sessionId) return;
   try { await link.rpc("session.interrupt", { session_id: conv.sessionId }, 15000); }
@@ -996,7 +1020,7 @@ function respondApproval(choice, all){
 
    ⚠ LA MÉMOIRE RÉELLE TIENT. LE FIL, LUI, ÉTAIT MUET. Éprouvé le 2026-08-12 en
    fermant l'onglet pour de vrai (pas juste la coupure du lien), en rouvrant, et
-   en reprenant via Travaux : demander à l'agent de rappeler un secret donné
+   en reprenant depuis l'historique (alors « Travaux ») : demander à l'agent de rappeler un secret donné
    AVANT la fermeture a fonctionné — le contexte serveur est intact. Mais le
    fil affichait l'ACCUEIL par-dessus trois bulles vides : `contentToText(m.content)`
    lisait un champ `content` qui n'existe PAS dans la réponse réelle
@@ -1182,7 +1206,7 @@ const PREVIEW_MAX_BYTES = 2 * 1024 * 1024;
 
 if (typeof module === "object" && module.exports){
   module.exports = { CFG, api, REST, HermesLink, link, conv, studioLog,
-                     ensureSession, submitPrompt, interruptTurn, respondApproval,
+                     ensureSession, submitPrompt, interruptTurn, steerTurn, respondApproval,
                      resumeSession, resetSession, coreHooks, newTurn,
                      contentToText, shorten, fmtBytes, fmtWhen, fmtDur,
                      decodeDataUrlText, PREVIEW_MAX_BYTES, ApiError };

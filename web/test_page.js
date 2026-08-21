@@ -704,16 +704,18 @@ async function main(){
   console.log("\n--- Le menu ---");
   const railBtns = win.document.querySelectorAll("#railItems .rail-btn");
   check("le menu se construit", railBtns.length > 0, railBtns.length + " boutons");
-  // 4 destinations de niveau 2 + la porte des coulisses
-  check("les coulisses sont fermées au départ (4 + la porte)",
-    railBtns.length === 5, railBtns.length + " boutons");
+  // 3 destinations de niveau 2 + la porte des coulisses. « Travaux » en
+  // comptait une quatrième jusqu'au 2026-08-21 — elle vit maintenant dans un
+  // volet accroché à Discuter, pas dans le rail (PITCH-DISCUTER-VIVANT.html).
+  check("les coulisses sont fermées au départ (3 + la porte)",
+    railBtns.length === 4, railBtns.length + " boutons");
   check("chaque bouton du menu porte une icône",
     Array.from(railBtns).every((b) => b.querySelector("svg")));
 
   win.toggleCoulisses({ stopPropagation(){} });
   const opened = win.document.querySelectorAll("#railItems .rail-btn");
   check("les coulisses s'ouvrent sur les 6 autres destinations",
-    opened.length === 11, opened.length + " boutons");
+    opened.length === 10, opened.length + " boutons");
 
   /* ── ON NE PEUT PLUS ÊTRE QUELQUE PART SANS QUE LE MENU LE DISE ─────────
      `nav()` allumait le panneau et redessinait le rail, mais n'ouvrait
@@ -911,7 +913,7 @@ async function main(){
   await wait(40);
 
   console.log("\n--- Chaque panneau s'affiche vraiment ---");
-  const PANES = ["Discuter", "Plan", "Travaux", "Livrables", "Projets",
+  const PANES = ["Discuter", "Plan", "Livrables", "Projets",
                  "Automatisations", "Vestiaire", "Reglages", "Terminal", "Reperes"];
   for (const id of PANES){
     win.nav(id);
@@ -936,11 +938,18 @@ async function main(){
     win.document.getElementById("pDiscuter").classList.contains("on"));
 
   console.log("\n--- Les données réelles arrivent à l'écran ---");
-  win.nav("Travaux");
+  // L'Historique n'est plus une destination du rail — c'est un volet
+  // accroché à Discuter (`setMode("historique")`, PITCH-DISCUTER-VIVANT.html).
+  win.nav("Discuter");
+  win.eval('setMode("historique")');
   await wait(80);
-  let txt = win.document.getElementById("works").textContent;
+  check("le volet Historique s'ouvre à côté du fil, pas ailleurs",
+    win.document.getElementById("work").classList.contains("historique")
+    && win.document.getElementById("pDiscuter").classList.contains("on"));
+  let txt = win.document.getElementById("histoList").textContent;
   check("les sessions s'affichent avec leur titre", txt.includes("Site vitrine"), txt.slice(0, 100));
   check("celle qui tourne est signalée", /en cours/i.test(txt));
+  win.eval('setMode("chat")');
 
   win.nav("Livrables");
   await wait(80);
@@ -1535,79 +1544,119 @@ async function main(){
   }
 
 
-  console.log("\n--- Le tour qu'on coupe en corrigeant ---");
-  /* Vu en jouant un scenario le 2026-08-12 : on corrige sa demande pendant que
-     l'agent travaille, il repart sur la correction, et le premier bloc
-     « Ulysse » reste vide POUR TOUJOURS. En relisant le fil, on voit Ulysse ne
-     rien repondre sans savoir que c'est nous qui l'avons coupe.
-     Trancher par kuchu : marquer TOUT DE SUITE, pas a la fermeture du tour. */
+  console.log("\n--- Le statut vivant : les paliers de silence ---");
+  /* Avant : `.u-load` montrait `conv.status.text` fige, sans le moindre signe
+     de vie — aucun moyen de distinguer un agent bloque d'un agent qui
+     travaille encore en silence (kuchu, capture a l'appui, 2026-08-20).
+     Trois paliers de TEXTE, jamais un chronometre brut (voir `texteVivant`,
+     ulysse-app.js). Verifie ici en pilotant `conv.lastEventAt` a la main —
+     la seule facon d'eprouver un silence sans attendre 60 vraies secondes. */
+  {
+    check("0-20 s : le texte réel du statut, inchangé",
+      win.eval('texteVivant("l\'agent travaille…", 0)') === "l'agent travaille…");
+    check("20-60 s : « Toujours en cours… »",
+      win.eval('texteVivant("l\'agent travaille…", 25000)') === "Toujours en cours…");
+    check("60 s+ : « Silence inhabituel… », jamais un compte de secondes",
+      win.eval('texteVivant("l\'agent travaille…", 65000)')
+      === "Silence inhabituel — ça devrait arriver bientôt");
+
+    win.eval('conv.turns.length = 0; conv.approval = null;');
+    win.eval('newTurn("user", "x").state = "done"; newTurn("assistant");');
+    win.eval('conv.running = true; conv.status = { kind: "", text: "l\'agent travaille…" };'
+      + " conv.lastEventAt = Date.now(); paintThread();");
+    const uLoad = () => win.document.getElementById("uLoad");
+    check("le statut vivant porte ses points animés dès le départ",
+      !!uLoad() && !!uLoad().querySelector(".u-dots"));
+    check("...et aucune relance offerte tant que le silence est court",
+      !uLoad().querySelector(".u-relance"));
+
+    /* On recule l'horloge plutôt que d'attendre : `armVivant` (ulysse-app.js)
+       relit `conv.lastEventAt` à chaque tic, peu importe QUAND il a réellement
+       été posé. */
+    win.eval("conv.lastEventAt = Date.now() - 65000;");
+    await wait(4200);   // un tic de armVivant (4 s) doit avoir eu lieu
+    check("passé le silence long, le texte bascule SEUL, sans repeinture complète",
+      !!uLoad() && uLoad().querySelector(".u-loadtxt").textContent
+        === "Silence inhabituel — ça devrait arriver bientôt",
+      uLoad() ? uLoad().querySelector(".u-loadtxt").textContent : "aucun #uLoad");
+    check("...et la relance apparaît, avec ses raccourcis",
+      !!uLoad() && !!uLoad().querySelector(".u-relance")
+      && uLoad().querySelectorAll(".u-sugg").length === 2);
+
+    const sugg = uLoad().querySelector('[data-sugg="Tout va bien ?"]');
+    sugg.click();
+    check("un raccourci PRÉ-REMPLIT le champ, il n'envoie rien tout seul",
+      win.document.getElementById("reply").value === "Tout va bien ?"
+      && win.eval("conv.turns.length") === 2,
+      "champ : " + JSON.stringify(win.document.getElementById("reply").value));
+
+    /* Le silence revient à zéro (une vraie réponse arrive) : la relance doit
+       disparaître, pas rester affichée sur un statut qui n'a plus lieu d'être. */
+    win.eval("conv.lastEventAt = Date.now();");
+    await wait(4200);
+    check("un silence qui reprend fait disparaître la relance",
+      !!uLoad() && !uLoad().querySelector(".u-relance"));
+
+    win.document.getElementById("reply").value = "";
+    win.eval('conv.turns.length = 0; conv.running = false; paintThread();');
+  }
+
+  console.log("\n--- Le composeur, pendant qu'un tour tourne : relancer, plus interrompre ---");
+  /* ⚠ CE BLOC TESTAIT L'ANCIEN COMPORTEMENT — RETOURNÉ, PAS SUPPRIMÉ.
+     Jusqu'au 2026-08-21, taper une correction pendant qu'un tour tournait
+     COUPAIT ce tour (`submitPrompt` marquait le bloc vide `.interrompu`).
+     kuchu, capture à l'appui (les captures « pourquoi tu ne réponds pas » du
+     20/08) : aucun moyen de distinguer un agent bloqué d'un agent qui
+     travaille encore, et taper pour le savoir cassait le travail en cours.
+     Décidé avec lui : la croix (`interruptTurn`, `#stopBtn`) reste le SEUL
+     geste qui interrompt ; le composeur, pendant qu'un tour tourne, RELANCE
+     sans rien couper — `session.steer` (sondée en réel le 20/08 : le texte
+     se glisse dans le tour, `conv.running` ne bouge pas). Voir
+     PITCH-DISCUTER-VIVANT.html et `onSend`/`steerTurn` (ulysse-app.js /
+     ulysse-core.js). */
   {
     win.eval('conv.turns.length = 0; conv.approval = null; conv.running = false;');
+    win.eval('conv.sessionId = conv.sessionId || "live_1";');
     win.eval('newTurn("user", "Un plan pour 2026").state = "done"; newTurn("assistant");');
     win.eval("conv.running = true; paintThread();");
+    const avantTours = win.eval("conv.turns.length");
+    const avantEnvoye = FakeWS.sent.length;
     win.document.getElementById("reply").value = "Attends, c'est 2025";
     win.document.getElementById("composer").dispatchEvent(new win.Event("submit"));
-    await wait(80);
-    const fil = win.document.getElementById("thread");
-    check("un tour coupé en plein vol est marqué tout de suite, pas au bout de 3 min",
-      /Interrompu par votre correction/.test(fil.textContent),
-      fil.textContent.replace(/\s+/g, " ").slice(0, 90));
-    /* ⚠ DEUX DEFAUTS VUS A L'ECRAN, JAMAIS AU BANC, LE JOUR MEME OU CETTE NOTE
-       EST NEE. Le banc verifiait que le TEXTE est la ; il ne regardait ni son
-       habit ni ce qui l'entoure.
-       ① La note portait `.u-coupe` — une classe deja prise par l'avis de
-          troncature au plafond de tokens, retire mais dont la regle survivait
-          en orpheline. Elle s'habillait donc en ambre a lisere et heritait
-          d'un sens qui n'etait pas le sien.
-       ② Le tour reste `streaming` (le gateway n'annonce jamais sa fin), donc
-          le curseur clignotait JUSTE SOUS la note : « j'ecris » au-dessus de
-          « je me suis arrete ». */
-    check("...sous son propre nom, pas sous celui de l'avis de troncature",
-      !!fil.querySelector(".u-interrompu") && !fil.querySelector(".u-coupe"),
-      fil.querySelector(".u-coupe") ? "porte encore .u-coupe" : "");
-    check("...et le curseur cesse de clignoter : on n'écrit plus et on ne l'a plus",
-      !fil.querySelector('.msg.ulysse .u-md[data-caret="1"]'),
-      fil.querySelector('[data-caret="1"]') ? "un curseur clignote encore" : "");
-    /* ⚠ CE GARDE A TUE MA PROPRE PRECAUTION, ET C'ETAIT LE BON RESULTAT.
-       Marquer tot semblait risquer d'accuser un tour LENT qui allait repondre.
-       J'avais donc ecrit un mecanisme pour LEVER la marque a la premiere
-       reponse. Ce garde, ecrit pour le prouver, est tombe du premier coup :
-       `currentAssistantTurn()` s'ARRETE au premier tour utilisateur en
-       remontant, donc une reponse tardive entre dans un tour NEUF et le bloc
-       marque reste vide quoi qu'il arrive.
-       La marque est exacte par construction ; la precaution etait du code mort
-       qui pretendait le contraire. C'est cette propriete-la qu'on garde. */
-    const marques = () =>
-      win.eval('conv.turns.filter(function(t){return t.interrompu}).length');
-    check("...et un seul tour porte la marque, celui qui est resté vide",
-      marques() === 1, marques() + " tour(s) marqué(s)");
-    const avant = win.eval("conv.turns.length");
-    ws.push({ jsonrpc: "2.0", method: "event", params: {
-      type: "message.delta", session_id: "live_1",
-      payload: { text: "réponse tardive du tour coupé" } } });
     await wait(60);
-    check("...une réponse tardive entre dans un tour NEUF, jamais dans le bloc marqué",
-      win.eval("conv.turns.length") === avant + 1
-      && win.eval("conv.turns[conv.turns.length-1].text")
-           .indexOf("réponse tardive") >= 0
-      && !win.eval("conv.turns[conv.turns.length-1].interrompu"),
-      "tours : " + avant + " → " + win.eval("conv.turns.length"));
-    check("...donc la marque tient : le bloc coupé ne recevra plus rien",
-      marques() === 1
-      && /Interrompu par votre correction/
-           .test(win.document.getElementById("thread").textContent),
-      marques() + " tour(s) marqué(s)");
-    /* Un tour qui a DEJA produit n'est pas « interrompu » : il est incomplet,
-       ce qui n'est pas la meme chose et ne se dit pas pareil. */
-    win.eval('conv.turns.length = 0; conv.running = false;');
-    win.eval('newTurn("user", "x").state = "done";');
-    win.eval('var _a = newTurn("assistant"); _a.text = "j\'ai deja ecrit ceci";');
-    win.eval("conv.running = true;");
-    win.document.getElementById("reply").value = "autre chose";
-    win.document.getElementById("composer").dispatchEvent(new win.Event("submit"));
-    await wait(80);
-    check("...et un tour qui avait déjà produit n'est PAS accusé",
-      win.eval('conv.turns.filter(function(t){return t.interrompu}).length') === 0);
+
+    // Seulement ce que CE geste a envoyé — `FakeWS.sent` accumule depuis le
+    // début de la suite, et de vrais `prompt.submit` l'ont déjà rempli.
+    const sent = FakeWS.sent.slice(avantEnvoye).map((s) => JSON.parse(s.trim()));
+    const steer = sent.find((m) => m.method === "session.steer");
+    check("taper pendant qu'un tour tourne appelle session.steer, pas prompt.submit",
+      !!steer && steer.params.text === "Attends, c'est 2025"
+      && steer.params.session_id === win.eval("conv.sessionId"),
+      steer ? JSON.stringify(steer.params) : JSON.stringify(sent.map((m) => m.method)));
+    check("...et PAS prompt.submit — un seul geste, un seul sens",
+      !sent.some((m) => m.method === "prompt.submit"));
+
+    FakeWS.last.push({ jsonrpc: "2.0", id: steer && steer.id,
+      result: { status: "queued", text: "Attends, c'est 2025" } });
+    await wait(60);
+
+    const fil = win.document.getElementById("thread");
+    check("le tour tourne toujours : rien n'est marqué « Interrompu »",
+      !/Interrompu par votre correction/.test(fil.textContent)
+      && !fil.querySelector(".u-interrompu"),
+      fil.textContent.replace(/\s+/g, " ").slice(0, 90));
+    check("le curseur continue de clignoter : on n'a rien coupé",
+      !!fil.querySelector('.msg.ulysse .u-md[data-caret="1"]'),
+      fil.querySelector('[data-caret="1"]') ? "" : "aucun curseur actif");
+    check("aucun tour n'a été ajouté rien que pour la relance",
+      win.eval("conv.turns.length") === avantTours,
+      avantTours + " → " + win.eval("conv.turns.length"));
+    check("conv.running n'a pas bougé",
+      win.eval("conv.running") === true);
+    check("une confirmation discrète le dit",
+      /Relance envoyée/.test(win.document.getElementById("snack").textContent),
+      win.document.getElementById("snack").textContent);
+
     win.eval('conv.turns.length = 0; conv.running = false; paintThread();');
   }
 
@@ -1701,7 +1750,8 @@ async function main(){
   console.log("\n--- La reprise d'une session, après une vraie pause ---");
   /* ⚠ CE CHEMIN N'AVAIT JAMAIS ETE TESTE, ET LA MEMOIRE REELLE MASQUAIT LE
      DEFAUT DE L'ECRAN. Eprouve le 2026-08-12 en fermant l'onglet POUR DE VRAI
-     (pas juste couper le WebSocket), en le rouvrant, en reprenant via Travaux :
+     (pas juste couper le WebSocket), en le rouvrant, en reprenant depuis
+     l'historique (alors « Travaux ») :
      demander a l'agent de rappeler un secret donne AVANT la fermeture a marche
      — le contexte cote Hermes est intact, la memoire tient. Mais le FIL,
      lui, affichait l'accueil au-dessus de trois bulles vides.
@@ -1745,7 +1795,7 @@ async function main(){
   }
   /* ⚠ ET « CONVERSATION REPRISE » S'AFFICHAIT SUR UN ÉCRAN VIDE. `#thread`
      portait bien les quatre tours — la fonction ci-dessus les reconstruit
-     correctement. Mais `reprendre()`, le chemin RÉEL depuis Travaux, ne passe
+     correctement. Mais `reprendre()`, le chemin RÉEL depuis l'historique, ne passe
      ni par `attendreOuverture()` ni par `quitterAccueil()` : `accueil` restait
      `true`, posé une fois au chargement, et `#pDiscuter.accueil` recouvre le
      fil en CSS quel que soit ce que `paintThread()` a peint dessous.
@@ -2139,6 +2189,60 @@ async function main(){
     !!win.document.querySelector("#thread .m-etape.completed")
     && !!win.document.querySelector("#thread .m-etape.in_progress"));
 
+  /* ══ LE PLAN, QUAND SES ÉTAPES SONT DES OPTIONS ═════════════════════════
+     Le todo ({id, content, status}) ne dit nulle part « ceci est une
+     alternative » — décidé avec kuchu le 2026-08-21 : le texte qui COMMENCE
+     par « Option » l'est. Voir `estOption`/`choisirOptionPlan`,
+     PITCH-DISCUTER-VIVANT.html. */
+  console.log("\n--- Le plan, quand ses étapes sont des options ---");
+  win.eval('conv.turns.length = 0; conv.approval = null; conv.sessionId = "live_1";');
+  envoieTodo([
+    { id: "1", content: "Confirmer le sujet", status: "pending" },
+    { id: "2", content: "Option reprise A : finir le chantier 1", status: "pending" },
+    { id: "3", content: "Option reprise B : cadrer autre chose", status: "pending" }
+  ]);
+  win.eval('conv.turns.forEach(function(t){ t.state = "done"; }); conv.running = false; paintThread();');
+
+  const mOpts = () => Array.from(win.document.querySelectorAll("#thread .m-opt"));
+  check("une étape « Confirmer le sujet » reste une étape, pas une option",
+    win.document.querySelectorAll("#thread .m-etape").length === 1
+    && /Confirmer le sujet/.test(win.document.querySelector("#thread .m-etape").textContent));
+  check("les deux « Option … » deviennent choisissables, patron .opt/.tick réutilisé",
+    mOpts().length === 2 && mOpts().every((b) => !!b.querySelector(".tick")),
+    mOpts().length + " option(s)");
+  check("...et un plan avec des options n'offre PAS « Build and Vérif »",
+    !win.document.getElementById("basculeBuild"));
+
+  const avantEnvoyeOpt = FakeWS.sent.length;
+  mOpts()[1].click();                    // « Option reprise B »
+  await wait(60);
+
+  const sentApresOpt = FakeWS.sent.slice(avantEnvoyeOpt).map((s) => JSON.parse(s.trim()));
+  const envoiOpt = sentApresOpt.find((m) => m.method === "prompt.submit");
+  check("choisir une option l'envoie comme prochain message, mot pour mot",
+    !!envoiOpt && envoiOpt.params.text.indexOf("Option reprise B : cadrer autre chose") === 0,
+    envoiOpt ? envoiOpt.params.text.slice(0, 60) : JSON.stringify(sentApresOpt.map((m) => m.method)));
+  check("...une bulle « Vous » porte ce choix dans le fil, comme un message normal",
+    win.document.querySelectorAll("#thread .msg.you").length > 0
+    && /Option reprise B/.test(win.document.getElementById("thread").textContent));
+
+  const optsApres = mOpts();
+  check("l'option choisie se fige, cochée en vert",
+    optsApres[1].classList.contains("pick") && !!optsApres[1].querySelector(".tick svg"),
+    optsApres[1].className);
+  check("l'autre reste lisible mais s'efface et ne répond plus",
+    optsApres[0].classList.contains("m-ecartee") && optsApres[0].disabled,
+    optsApres[0].className + " · disabled=" + optsApres[0].disabled);
+  check("...et aucune des deux ne peut plus être recliquée",
+    optsApres.every((b) => b.disabled));
+
+  const avantEnvoyeOpt2 = FakeWS.sent.length;
+  optsApres[0].click();
+  await wait(40);
+  check("un second clic, sur l'écartée, ne renvoie rien — le choix est fait",
+    FakeWS.sent.length === avantEnvoyeOpt2);
+  win.eval('conv.turns.length = 0; conv.running = false; paintThread();');
+
   /* « Verif » n'est pas un cran du selecteur : c'est la fin du build, decidee
      par kuchu. Elle s'affiche quand TOUTES les etapes sont terminees — on ne
      l'invente pas, une phase inventee serait pire qu'une phase absente. */
@@ -2286,28 +2390,64 @@ async function main(){
   console.log("\n--- Les cinq passes de design ---");
 
   // ── Listes : les actions de ligne, les rangs, le fil d'Ariane ──
-  win.eval('nav("Travaux")');
+  // « Travaux » a fusionné dans un volet accroché à Discuter le 2026-08-21
+  // (PITCH-DISCUTER-VIVANT.html) — la donnée et ses actions n'ont pas changé,
+  // seul l'endroit d'où on les regarde a bougé.
+  win.eval('nav("Discuter"); setMode("historique")');
   await wait(120);
-  const w0 = win.document.getElementById("works");
-  check("Listes · une ligne de Travaux a ses actions",
-    w0.querySelectorAll(".row .acts [data-a]").length >= 3,
-    w0.querySelectorAll(".row .acts [data-a]").length + " action(s)");
+  const w0 = win.document.getElementById("histoList");
   check("Listes · la ligne a deux niveaux, pas trois meta de même poids",
     !!w0.querySelector(".row .u-l2 .t") && !!w0.querySelector(".row .u-l2 .s"));
   check("Listes · la date est à part, en largeur fixe",
     !!w0.querySelector(".row .u-quand"));
   check("Listes · les rangs existent (épinglées · récentes · archivées)",
     !!w0.querySelector(".u-rang"));
+  /* ⚠ CINQ ICÔNES ÉCRASAIENT LE TITRE SUR LES 340PX DU VOLET — vu à l'écran,
+     jamais au banc (jsdom ne met rien en page). kuchu, 2026-08-21 : « les
+     icônes sont mal intégrées et cachent une partie du menu ». Remplacées
+     par un kebab (⋯) qui ouvre un `.pop` — le patron déjà utilisé par le
+     composeur, dont la fermeture au clic ailleurs est déjà éprouvée
+     (« Un clic ailleurs referme les fenêtres volantes »). */
+  check("Listes · une ligne cliquable a l'air cliquable",
+    win.getComputedStyle(w0.querySelector(".row")).cursor === "pointer",
+    win.getComputedStyle(w0.querySelector(".row")).cursor);
+  const premiereLigne = w0.querySelector(".row");
+  check("...et son ⋯ range les actions au lieu de les étaler",
+    !!premiereLigne.querySelector(".m-kebab")
+    && premiereLigne.querySelectorAll(".m-kpop [data-a]").length >= 3,
+    premiereLigne.querySelectorAll(".m-kpop [data-a]").length + " action(s)");
+  premiereLigne.querySelector(".m-kebab").click();
+  check("...un clic sur le ⋯ ouvre SON menu",
+    premiereLigne.querySelector(".m-kpop").classList.contains("on"));
   // Épingler passe par PATCH — l'endpoint existe (sessions.py:661).
   fetched.length = 0;
-  w0.querySelector('.acts [data-a="epingler"]').click();
+  premiereLigne.querySelector('.m-kpop [data-a="epingler"]').click();
   await wait(80);
   check("Listes · épingler appelle bien PATCH /api/sessions/{id}",
     fetched.some((f) => f.method === "PATCH" && /^\/api\/sessions\//.test(f.path)),
     JSON.stringify(fetched));
-  check("Listes · « Rafraîchir » n'est plus un bouton plein",
-    !win.document.getElementById("travRefresh").classList.contains("ghost-btn"));
-  check("Listes · Travaux a gagné son filtre", !!win.document.getElementById("travQ"));
+  check("...et choisir une action referme le menu",
+    !win.document.querySelector("#histoList .m-kpop.on"));
+  // Même patron que l'Établi : relire et fermer vivent dans `.ctl`, pas un
+  // bouton plein dans une barre de titre qui n'existe plus.
+  check("Listes · l'historique a de quoi se relire, comme l'Établi",
+    !!win.document.getElementById("histoRefresh"),
+    win.document.getElementById("ctlHisto")
+      ? win.document.getElementById("ctlHisto").innerHTML.slice(0, 60) : "pas de .ctl");
+  check("Listes · l'historique a gagné son filtre", !!win.document.getElementById("histoQ"));
+
+  /* ⚠ « ON NE PEUT PAS QUITTER LE MENU » — kuchu, 2026-08-21. Aucune porte de
+     sortie sauf sa croix ou le rouvrir : le seul volet de l'appli sans clic-
+     ailleurs-referme. */
+  win.eval('setMode("historique")');
+  await wait(40);
+  check("un clic DANS le volet (une ligne) ne le ferme pas",
+    win.document.getElementById("work").classList.contains("historique"));
+  win.document.getElementById("thread").click();
+  await wait(40);
+  check("...mais un clic AILLEURS le referme, comme les autres fenêtres volantes",
+    !win.document.getElementById("work").classList.contains("historique"));
+  win.eval('setMode("chat")');
 
   win.eval('nav("Livrables")');
   await wait(150);
@@ -2475,7 +2615,7 @@ async function main(){
   check("Archiver · on demande avant, et on dit les trois choses",
     /revient quand vous voulez/.test(vueArch.textContent)
     && /dossier n’est pas touché/.test(vueArch.textContent)
-    && /restent dans Travaux/.test(vueArch.textContent),
+    && /restent dans l'historique/.test(vueArch.textContent),
     vueArch.textContent.slice(0, 70));
   check("Archiver · ...et on promet « sans limite de temps », pas trente jours",
     /sans limite de temps/i.test(vueArch.textContent.replace(/\s+/g, " "))

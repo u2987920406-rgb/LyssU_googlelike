@@ -676,9 +676,9 @@ async function main(){
     aDefaire.push(async () => { try { await rest("deleteSession(" + JSON.stringify(String(sidIncog)) + ")"); } catch (e){} });
     const liste = await rest("sessions(100, \"recent\")");
     const dedans = ((liste && liste.sessions) || []).some((s) => String(s.id) === String(sidIncog));
-    /* L'ecran des Reglages promet : « Le fil ne sera pas retrouve dans les
-       Travaux ». On le MESURE au lieu de le croire. */
-    check("la promesse « pas retrouve dans les Travaux » tient dans /api/sessions",
+    /* L'ecran des Reglages promet : « Le fil ne sera pas retrouve dans
+       l'historique ». On le MESURE au lieu de le croire. */
+    check("la promesse « pas retrouve dans l'historique » tient dans /api/sessions",
       !dedans, dedans ? "il Y EST — la phrase des Reglages promet plus que le backend ne tient"
                       : "absent de la liste");
     E("resetSession();");
@@ -735,9 +735,9 @@ async function main(){
     try {
       await patch({ title: "Essai banc — renomme" });
       const s = await relire();
-      check("renommer une session depuis Travaux prend vraiment effet",
+      check("renommer une session depuis l'historique prend vraiment effet",
         !!s && s.title === "Essai banc — renomme", s ? s.title : "session introuvable");
-    } catch (e){ check("renommer une session depuis Travaux prend vraiment effet", false, e.message); }
+    } catch (e){ check("renommer une session depuis l'historique prend vraiment effet", false, e.message); }
     try {
       await patch({ title: titreAvant });
       check("et le titre d'origine revient",

@@ -1,0 +1,352 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<title>Pitch — Discuter vivant</title>
+<style>
+  :root{
+    --bg:#FFFFFF;--surface:#F8F9FA;--surface-hi:#F1F3F4;--sidebar:#FAFBFC;
+    --text:#1F1F1F;--muted:#5F6368;--faint:#9AA0A6;--outline:#DADCE0;
+    --green:#188038;--amber:#E37400;--grey:#C4C7C5;--violet:#9B72CB;
+    --accent:#4285F4;--accent-container:#E8F0FE;--on-accent-container:#1A3A7A;
+    --radius-card:14px;--elev-1:0 1px 3px rgba(0,0,0,.12);
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--text);
+    font:15px/1.55 -apple-system,"Segoe UI",Roboto,Arial,sans-serif;
+    max-width:920px;margin:0 auto;padding:40px 28px 120px}
+  h1{font-size:26px;margin:0 0 6px}
+  h2{font-size:19px;margin:52px 0 4px;padding-top:18px;border-top:1px solid var(--outline)}
+  h2 .num{color:var(--faint);font-weight:400;margin-right:8px}
+  h3{font-size:15.5px;margin:26px 0 8px;color:var(--text)}
+  p{margin:8px 0}
+  .sub{color:var(--muted);font-size:14px}
+  .banniere{background:#FFF4E5;border:1px solid #F5C88A;border-radius:12px;
+    padding:14px 18px;font-size:14px;color:#7A4A00;margin-bottom:30px}
+  .banniere b{color:#5C3800}
+  .provisoire{border-bottom:2px dotted var(--amber);cursor:help}
+  .constat{background:var(--surface);border-radius:var(--radius-card);
+    padding:18px 20px;margin:14px 0}
+  .constat .cause{color:var(--muted);font-size:13.5px;margin-top:6px}
+  .parcours{list-style:none;margin:12px 0;padding:0;counter-reset:pas}
+  .parcours li{counter-increment:pas;padding:9px 0 9px 40px;position:relative;
+    border-bottom:1px solid var(--outline);font-size:14.5px}
+  .parcours li:last-child{border-bottom:none}
+  .parcours li::before{content:counter(pas);position:absolute;left:0;top:8px;
+    width:24px;height:24px;border-radius:50%;background:var(--surface-hi);
+    color:var(--muted);font-size:12px;display:flex;align-items:center;justify-content:center}
+  .parcours li b{color:var(--text)}
+  .tag{display:inline-block;font-size:11.5px;padding:1px 8px;border-radius:20px;
+    margin-left:8px;font-weight:600;letter-spacing:.2px}
+  .tag.existe{background:#E6F4EA;color:var(--green)}
+  .tag.forme{background:#FEF3E0;color:var(--amber)}
+  .tag.ecrire{background:#FCE8E6;color:#C5221F}
+  table{border-collapse:collapse;width:100%;margin:14px 0;font-size:13.5px}
+  td,th{text-align:left;padding:8px 10px;border-bottom:1px solid var(--outline);vertical-align:top}
+  th{color:var(--muted);font-weight:500;font-size:12.5px}
+  code{background:var(--surface-hi);padding:1px 6px;border-radius:5px;font-size:13px}
+
+  /* ── maquettes schématiques ── */
+  .mock{border:1px solid var(--outline);border-radius:12px;background:var(--bg);
+    display:flex;overflow:hidden;margin:16px 0;font-size:12.5px;box-shadow:var(--elev-1)}
+  .mock .rail{width:64px;flex:none;background:var(--sidebar);border-right:1px solid var(--outline);
+    display:flex;flex-direction:column;align-items:center;gap:14px;padding:16px 0}
+  .mock .rail .ic{width:34px;height:34px;border-radius:10px;display:flex;align-items:center;
+    justify-content:center;color:var(--muted);font-size:15px}
+  .mock .rail .ic.on{background:var(--accent-container);color:var(--accent)}
+  .mock .body{flex:1;min-width:0;padding:16px 18px;background:var(--surface)}
+  .legende{font-size:12.5px;color:var(--muted);margin:6px 0 0;padding-left:2px;
+    border-left:3px solid var(--accent);padding-left:10px}
+  .volet-mock{position:absolute;background:var(--sidebar);border:1px solid var(--outline);
+    border-radius:12px;box-shadow:0 8px 24px rgba(0,0,0,.14);width:240px;padding:10px}
+  .volet-mock .vh{font-size:12px;color:var(--muted);padding:4px 8px 10px;
+    border-bottom:1px solid var(--outline);display:flex;justify-content:space-between}
+  .volet-mock .row{padding:8px;border-radius:8px;font-size:12.5px}
+  .volet-mock .row:hover{background:var(--surface-hi)}
+  .volet-mock .row .t{display:block}
+  .volet-mock .row .s{display:block;color:var(--faint);font-size:11px;margin-top:2px}
+  .mock-rel{position:relative}
+
+  .opt-mock{display:flex;align-items:center;gap:10px;background:var(--bg);
+    border:1px solid var(--outline);border-radius:10px;padding:9px 12px;margin:6px 0;font-size:13px}
+  .opt-mock:hover{background:var(--surface-hi);box-shadow:var(--elev-1)}
+  .opt-mock .tick{width:18px;height:18px;flex:none;border-radius:50%;border:2px solid var(--outline)}
+  .opt-mock.pick{background:var(--accent-container)}
+  .opt-mock.pick .tick{border-color:var(--accent);background:var(--accent)}
+  .opt-mock.pick .tick::after{content:"✓";color:#fff;font-size:11px;display:block;text-align:center;line-height:15px}
+
+  .load-mock{display:inline-flex;align-items:center;gap:8px;background:var(--surface-hi);
+    border-radius:20px;padding:6px 14px;font-size:13px;color:var(--muted)}
+  .dots span{width:5px;height:5px;border-radius:50%;background:var(--faint);display:inline-block;margin:0 1px}
+
+  .etat-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin:14px 0}
+  .etat-box{border:1px dashed var(--outline);border-radius:10px;padding:12px}
+  .etat-box .k{font-size:11px;text-transform:uppercase;letter-spacing:.4px;color:var(--faint);margin-bottom:6px}
+
+  .pari{background:#FCE8E6;border-radius:12px;padding:16px 20px;margin:14px 0}
+  .horssujet{background:var(--surface);border-radius:12px;padding:14px 20px;margin:14px 0;font-size:14px}
+  .horssujet li{margin:4px 0}
+  footer{margin-top:60px;padding-top:20px;border-top:1px solid var(--outline);
+    color:var(--faint);font-size:13px}
+</style>
+</head>
+<body>
+
+<div class="banniere">
+  <b>Ceci est une proposition à corriger, pas une spécification.</b>
+  Tout ce qui porte un <span class="provisoire" title="nom provisoire">souligné pointillé</span>
+  est un nom de travail — à changer sans hésiter. Ce document cadre le problème
+  et la forme ; il ne décide pas du détail d'implémentation.
+</div>
+
+<h1>Discuter vivant</h1>
+<p class="sub">Trois évolutions du fil de conversation d'Ulysse, cadrées avec kuchu le 20/08/2026 —
+retrouver une discussion, savoir si l'agent est encore là, choisir sans retaper.</p>
+
+<h2><span class="num">1</span>Le constat</h2>
+
+<div class="constat">
+  <b>Historique.</b> Retrouver une conversation passée fait perdre du temps, parce que
+  rien dans l'interface ne dit que c'est dans <code>Travaux</code> qu'il faut chercher.
+  À défaut, on redemande à l'agent — qui doit fouiller le disque à l'aveugle pour deviner
+  de quoi on parlait. <span class="cause">Cause : la donnée existe et est bonne (titres
+  générés automatiquement, recherche déjà câblée), mais elle vit derrière une porte du
+  rail qui ne se lit pas comme « mes discussions ».</span>
+</div>
+
+<div class="constat">
+  <b>Indicateur d'état.</b> Impossible de distinguer un agent bloqué d'un agent qui
+  travaille encore en silence — d'où la confiance qui casse, et un « pourquoi tu ne
+  réponds pas » tapé alors que le tour tournait encore.
+  <span class="cause">Cause : le statut du tour est un texte figé, sans le moindre
+  signe de vie, pendant tout le temps qu'il peut durer.</span>
+</div>
+
+<div class="constat">
+  <b>Choix parmi plusieurs propositions.</b> Choisir une option oblige à la retaper en
+  texte libre — plus lent, et l'agent peut mal comprendre ce qu'on veut dire.
+  <span class="cause">Cause : la carte qui affiche des propositions ne sait qu'annoncer,
+  jamais recueillir un choix.</span>
+</div>
+
+<h2><span class="num">2</span>Le parcours</h2>
+
+<h3>Historique</h3>
+<ul class="parcours">
+  <li>On est dans <b>Discuter</b>, au milieu d'un fil ou juste arrivé.</li>
+  <li>On veut retrouver une conversation passée — sans quitter là où on est.</li>
+  <li>On ouvre le volet depuis l'icône Discuter.</li>
+  <li>On parcourt ou on filtre.</li>
+  <li>On clique sur celle qu'on cherche → elle s'ouvre, le volet se referme.</li>
+</ul>
+
+<h3>Indicateur d'état</h3>
+<ul class="parcours">
+  <li>On envoie un message, le tour démarre — statut vivant dès le départ.</li>
+  <li>Le silence se prolonge → le texte évolue par paliers, jamais un chronomètre brut.</li>
+  <li>Passé un certain silence, on peut <b>relancer sans interrompre</b> — texte libre,
+    envoyé via le composeur (qui ne fait plus qu'un seul geste pendant un tour : relancer.
+    Interrompre a son geste à lui, la croix).</li>
+  <li>Ça se résout par une réponse qui arrive, ou par le mur des 3 minutes déjà géré
+    aujourd'hui.</li>
+</ul>
+
+<h3>Choix parmi plusieurs propositions</h3>
+<ul class="parcours">
+  <li>L'agent propose un plan où certaines lignes sont des options, pas des étapes.</li>
+  <li>On survole une option → effet visuel.</li>
+  <li>On clique/coche celle qu'on veut → elle se marque, les autres restent visibles
+    mais non choisies.</li>
+  <li>Le choix part comme la suite de la conversation.</li>
+</ul>
+
+<h2><span class="num">3</span>La structure</h2>
+
+<table>
+  <tr><th>Surface</th><th>Verbe</th><th>Ce qui change</th></tr>
+  <tr><td><b>Discuter</b></td><td>converser</td><td>inchangé</td></tr>
+  <tr><td><b>Volet <span class="provisoire">Historique</span></b>, accroché à Discuter</td>
+    <td>retrouver</td><td>nouveau — remplace Travaux</td></tr>
+  <tr><td><b>Travaux</b> (rail)</td><td>—</td><td>disparaît comme destination indépendante</td></tr>
+  <tr><td><b>Statut de tour</b> (<code>.u-load</code>)</td><td>informer</td>
+    <td>reste passif, devient vivant et évolutif</td></tr>
+  <tr><td><b>Composeur</b></td><td>écrire → relancer pendant un tour</td>
+    <td>change de sens pendant un tour : relance au lieu d'interrompre</td></tr>
+  <tr><td><b>Croix / stop</b></td><td>interrompre</td><td>inchangé — reste le seul geste qui coupe le tour</td></tr>
+  <tr><td><b>Carte Plan</b> (<code>.m-plan</code>)</td><td>informer + choisir</td>
+    <td>une ligne peut être une étape de travail <i>ou</i> une option à choisir</td></tr>
+</table>
+
+<p class="sub">Aucune nouvelle destination de rail n'apparaît. Les trois évolutions vivent
+dans des surfaces qui existent déjà ou qui se rattachent directement à Discuter.</p>
+
+<h2><span class="num">4</span>Les écrans</h2>
+
+<h3>Le volet Historique — état vide, puis rempli</h3>
+<div class="mock mock-rel" style="height:230px">
+  <div class="rail">
+    <div class="ic on">💬</div>
+    <div class="ic">◇</div>
+    <div class="ic">▤</div>
+  </div>
+  <div class="body">Fil de la conversation en cours…</div>
+  <div class="volet-mock" style="top:14px;left:78px">
+    <div class="vh"><span>Historique</span><span>⌕</span></div>
+    <div class="row"><span class="t">Création app patrimoine claude-code</span>
+      <span class="s">aujourd'hui 21:37</span></div>
+    <div class="row"><span class="t">Résumé de veille IA/tech</span>
+      <span class="s">aujourd'hui 21:02</span></div>
+    <div class="row"><span class="t">Webhook resume-lundi</span>
+      <span class="s">hier 20:01</span></div>
+  </div>
+</div>
+<p class="legende">Le volet s'ouvre <i>à côté</i> du fil actif, sur le même principe que
+l'Établi (<code>.etabli</code>) déjà présent dans Discuter — il ne pousse rien, il se pose.
+Titres et recherche viennent tels quels de ce que <code>Travaux</code> fait déjà.</p>
+
+<div class="etat-grid">
+  <div class="etat-box"><div class="k">Vide</div>« Votre première conversation apparaîtra ici »
+    — message déjà écrit pour Travaux, réutilisé tel quel.</div>
+  <div class="etat-box"><div class="k">En chargement</div>Lignes en attente, le temps que
+    <code>REST.sessions()</code> réponde.</div>
+  <div class="etat-box"><div class="k">Rempli</div>Groupé épinglées / récentes / archivées,
+    comme aujourd'hui.</div>
+  <div class="etat-box"><div class="k">En erreur</div>Message d'échec réseau + réessayer.</div>
+</div>
+
+<h3>L'indicateur d'état — silence qui s'allonge</h3>
+<p><span class="load-mock"><span class="dots"><span></span><span></span><span></span></span>
+L'agent travaille…</span></p>
+<p style="margin-top:14px"><span class="load-mock"><span class="dots"><span></span><span></span><span></span></span>
+Toujours en cours…</span></p>
+<p style="margin-top:14px"><span class="load-mock"><span class="dots"><span></span><span></span><span></span></span>
+Silence inhabituel — ça devrait arriver bientôt</span></p>
+<p class="legende">Trois paliers de texte, jamais un chiffre de secondes. Le mécanisme
+d'intervalle et de progression qui ne ment jamais sur ce qu'il attend existe déjà pour
+l'ouverture de session (<code>compteur()</code>, <code>ulysse-app.js:728</code>) — même
+esprit, adapté ici sans chiffre brut puisqu'un tour n'a pas de fin connue à l'avance.</p>
+
+<h3>La relance, dans le composeur</h3>
+<div class="mock" style="height:auto;padding:0">
+  <div class="body" style="width:100%">
+    <div style="display:flex;gap:8px;margin-bottom:8px">
+      <span class="opt-mock" style="margin:0">Tout va bien ?</span>
+      <span class="opt-mock" style="margin:0">Toujours là ?</span>
+    </div>
+    <div style="background:var(--bg);border:1px solid var(--outline);border-radius:24px;
+      padding:10px 16px;color:var(--faint)">Répondre, ou demander un plan…</div>
+  </div>
+</div>
+<p class="legende">Les suggestions sont des raccourcis, pas un remplacement du texte libre —
+elles pré-remplissent le champ. Le geste d'envoi devient une relance
+(<code>session.steer</code>) tant qu'un tour tourne ; la croix reste le seul geste qui
+interrompt vraiment.</p>
+
+<h3>La carte Plan — étape de travail vs. option à choisir</h3>
+<div class="mock" style="height:auto;padding:0">
+  <div class="body" style="width:100%">
+    <div style="font-size:12px;color:var(--muted);margin-bottom:8px">Plan proposé — 4 étapes</div>
+    <div style="font-size:13px;padding:6px 0;color:var(--muted)">① Confirmer le sujet — <i>étape, informative</i></div>
+    <div class="opt-mock">② Option reprise A <span style="flex:1"></span><span class="tick"></span></div>
+    <div class="opt-mock pick">③ Option reprise B <span style="flex:1"></span><span class="tick"></span></div>
+    <div class="opt-mock">④ Option reprise C <span style="flex:1"></span><span class="tick"></span></div>
+  </div>
+</div>
+<p class="legende">Une seule carte, deux natures de ligne. Les lignes « option » reprennent
+le patron déjà écrit pour les accords d'outil — <code>.ask</code> / <code>.opt</code> /
+<code>.tick</code> / <code>.pick</code> (<code>ulysse.css:257-275</code>) — hover, coche,
+état figé une fois choisi. Les lignes « étape » gardent le rendu actuel
+(<code>.m-etape</code>, états <code>completed</code>/<code>in_progress</code>/<code>cancelled</code>).</p>
+
+<div class="etat-grid">
+  <div class="etat-box"><div class="k">Proposé</div>Options survolables, rien choisi encore.</div>
+  <div class="etat-box"><div class="k">Résolu</div>Une option cochée en vert, les autres grisées —
+    comme <code>accordDonneHTML</code> une fois répondu.</div>
+  <div class="etat-box"><div class="k">En erreur</div>L'envoi du choix échoue → on peut réessayer.</div>
+  <div class="etat-box"><div class="k">(pas d'état vide)</div>La carte n'existe que si l'agent
+    émet des options.</div>
+</div>
+
+<h2><span class="num">5</span>Le coût</h2>
+
+<table>
+  <tr><th>Chantier</th><th>Existe déjà</th><th>Change de forme</th><th>À écrire</th></tr>
+  <tr>
+    <td>Historique</td>
+    <td><span class="tag existe">existe</span> <code>REST.sessions</code>,
+      <code>drawWorksListe</code>, recherche <code>#travQ</code>, titres auto-générés
+      par Hermès (<code>title_generator</code>, activé)</td>
+    <td><span class="tag forme">forme</span> passe de panneau plein écran à volet
+      accroché à Discuter ; <code>Travaux</code> sort de <code>PANELS</code></td>
+    <td><span class="tag ecrire">à écrire</span> le dépli/repli du volet, son CSS,
+      le raccord de l'ancre <code>#Travaux</code> existante</td>
+  </tr>
+  <tr>
+    <td>Indicateur d'état</td>
+    <td><span class="tag existe">existe</span> <code>TURN_SILENCE_MS</code> (watchdog 3 min),
+      <code>conv.status.text</code>, RPC <code>session.steer</code> côté Hermès
+      (jamais appelée depuis Ulysse), croix/stop déjà câblés</td>
+    <td><span class="tag forme">forme</span> <code>.u-load</code> devient animé et
+      évolutif ; le composeur change de sens pendant un tour (relance au lieu d'interrompre)</td>
+    <td><span class="tag ecrire">à écrire</span> l'appel <code>session.steer</code> depuis
+      Ulysse, les paliers de texte, les suggestions rapides, le CSS d'animation</td>
+  </tr>
+  <tr>
+    <td>Choix parmi propositions</td>
+    <td><span class="tag existe">existe</span> le patron visuel <code>.ask</code>/<code>.opt</code>/
+      <code>.tick</code> (déjà utilisé par <code>.u-accord</code>)</td>
+    <td><span class="tag forme">forme</span> <code>.m-etape</code> gagne un second type
+      (« étape » vs « option »)</td>
+    <td><span class="tag ecrire">à écrire</span> le rendu des lignes-option et surtout : comment
+      le choix repart vers Hermès (voir pari risqué, ci-dessous)</td>
+  </tr>
+</table>
+
+<h2><span class="num">6</span>L'appétit et le hors-sujet</h2>
+
+<div class="horssujet">
+  <b>Hors-sujet, explicitement :</b>
+  <ul>
+    <li>Recherche plein texte dans le <i>contenu</i> des messages — seuls les titres restent cherchables.</li>
+    <li>Résumé automatique de session.</li>
+    <li>Un « browser in-app » générique pour des fichiers hors de <code>web/</code>
+      (chantier distinct, déjà repéré ailleurs).</li>
+    <li>Changer le rendu des vraies listes de tâches séquentielles — seules les lignes
+      « option » gagnent une interaction.</li>
+    <li>Figer des seuils de temps précis pour les paliers de silence — à régler à l'usage.</li>
+  </ul>
+</div>
+
+<h2><span class="num">7</span>Le pari risqué</h2>
+
+<div class="pari">
+  <b>Par quoi on commence : vérifier que <code>session.steer</code> fait vraiment ce que
+  son commentaire promet.</b>
+  <p>C'est la RPC la moins éprouvée des trois chantiers — jamais appelée depuis Ulysse.
+  Si elle ne se comporte pas comme documenté (le texte atterrit sur le prochain résultat
+  d'outil, sans interrompre, sans nouveau tour), tout le design de la relance s'effondre
+  et il faudrait revenir à une interruption classique. Une sonde jetable — un appel brut
+  à <code>session.steer</code> pendant un tour en cours, à observer — lève le doute avant
+  d'écrire l'UI autour.</p>
+  <p>Second point à vérifier, moins bloquant : que l'envoi du texte de l'option choisie
+  comme prochain message suffit à Hermès pour comprendre un choix — pas de RPC dédiée
+  équivalente à <code>approval.respond</code> pour ce cas.</p>
+</div>
+
+<h2><span class="num">8</span>Ce qui reste ouvert</h2>
+<ul>
+  <li>Le nom définitif du volet (<span class="provisoire">Historique</span> est provisoire).</li>
+  <li>Les seuils de temps exacts des paliers de silence.</li>
+  <li>Le contenu précis des suggestions de relance, au-delà des deux exemples donnés.</li>
+  <li>Comment l'ancre d'URL <code>#Travaux</code> (des liens existants) doit se comporter
+    une fois la destination retirée du rail.</li>
+</ul>
+
+<footer>
+  Pitch — cadre le problème et la forme, ne décide pas du « comment ». Ne remplace pas les
+  mesures : ce que <code>session.steer</code> fait réellement se vérifie en l'appelant, pas
+  en le lisant.
+</footer>
+
+</body>
+</html>

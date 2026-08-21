@@ -110,10 +110,11 @@ const I={
  /* destinations */
  bulle:{fillable:'M4 6a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2h-6l-5 4v-4H6a2 2 0 0 1-2-2z',
    nm:'Discuter',
-   r:"La destination du fil en cours. Pleine quand on y est, en contour sinon — la même règle pour les dix entrées du menu."},
+   r:"La destination du fil en cours. Pleine quand on y est, en contour sinon — la même règle pour les neuf entrées du menu."},
  eclair:{fillable:'M13 2 4 14h7l-1 8 9-12h-7z',
-   nm:'Travaux',
-   r:"Les conversations déjà menées. L'éclair dit le travail fait, pas la vitesse."},
+   nm:'Historique',
+   r:"Les conversations déjà menées. L'éclair dit le travail fait, pas la vitesse. "
+     + "Ouvre un volet à côté du fil, plus une destination du rail."},
  doc:{fillable:'M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z',
    nm:'Livrables',
    r:"Ce qui a été produit et qu'on peut emporter. Un livrable est un fichier qu'on montre à quelqu'un d'autre."},

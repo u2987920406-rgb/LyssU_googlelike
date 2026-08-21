@@ -15,7 +15,7 @@
  * la mise en page pour de vrai puisque c'est le vrai HTML et la vraie feuille.
  *
  *     node photo_ecran.js                 l'ecran Automatisations
- *     node photo_ecran.js Travaux         un autre ecran
+ *     node photo_ecran.js Livrables       un autre ecran
  *     node photo_ecran.js --liste         les ecrans possibles
  *
  * La photo est ecrite dans `../photos-ulysse/` — HORS du dossier servi. Ce

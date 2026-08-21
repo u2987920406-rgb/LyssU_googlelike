@@ -30,7 +30,13 @@ const PANELS = [
   // est du contrat. Seul le libellé change.
   { n: 2, id: "Plan",      lbl: "Ce que fait l'agent", ico: "noeuds",
     tint: "rgba(155,114,203,.12)" },
-  { n: 2, id: "Travaux",   lbl: "Travaux",   ico: "eclair",  tint: "rgba(52,168,83,.10)" },
+  /* « Travaux » a quitté cette liste le 2026-08-21 : c'était une donnée déjà
+     bonne (titres générés par Hermès, recherche déjà câblée) derrière une
+     destination à part que rien ne lisait comme « mes conversations
+     passées ». Elle vit maintenant dans un volet accroché à Discuter — voir
+     `setMode("historique")`, `drawHisto` — pas d'entrée de rail pour ça.
+     Un vieux lien `#Travaux` retombe sur `PANELS[0]` (Discuter), par le
+     filet déjà écrit dans `nav()`. */
   { n: 2, id: "Livrables", lbl: "Livrables", ico: "doc",     tint: "rgba(217,101,112,.10)" },
   /* Niveau 3 — la machine derrière. */
   { n: 3, id: "Projets",   lbl: "Projets",   ico: "dossier", tint: "rgba(66,133,244,.09)" },
@@ -46,7 +52,6 @@ let current = null, pinned = false, coulisses = false;
 const LIFE = {
   Discuter:        { onEnter: () => { paintThread(); paintBand(); } },
   Plan:            { onEnter: drawPlan },
-  Travaux:         { onEnter: drawWorks },
   Livrables:       { onEnter: drawLivrables },
   Projets:         { onEnter: drawProjets },
   Automatisations: { onEnter: drawAutos },
@@ -365,6 +370,28 @@ document.addEventListener("click", async (e) => {
   setTimeout(() => b.classList.remove("ok"), 1100);
 });
 
+/* Une étape dont le texte COMMENCE par « Option » (au mot près, insensible à
+   la casse) est une alternative à choisir, pas une tâche à suivre. Voir le
+   commentaire sur `t.plan` dans `turnHTML` pour pourquoi cette convention
+   existe. */
+function estOption(contenu){
+  return /^option\b/i.test(String(contenu || "").trim());
+}
+
+/* Choisir une option d'un plan repart comme LE PROCHAIN MESSAGE — exactement
+   ce qu'on aurait tapé à la main. Aucune RPC dédiée n'existe pour « voici mon
+   choix » (contrairement à l'accord d'outil, qui a `approval.respond`) : le
+   texte de l'option EST la réponse. */
+function choisirOptionPlan(cleTour, idx){
+  const t = conv.turns.find((x) => x.key === cleTour);
+  if (!t || !t.plan || (t.planChoixIdx !== undefined && t.planChoixIdx !== null)) return;
+  const e = t.plan[idx];
+  if (!e) return;
+  t.planChoixIdx = idx;
+  paintThread();
+  submitPrompt(e.contenu, Object.assign({}, roleOpts(), { suffix: ligneDeMode() }));
+}
+
 function turnHTML(t){
   // La trace d'un accord donné : elle n'a ni bulle ni auteur, c'est un fait du
   // fil. Voir `accordDonneHTML` — elle se range où la décision a eu lieu.
@@ -550,13 +577,33 @@ function turnHTML(t){
      un travail entamé serait proposer de le recommencer. */
   if (t.plan && t.plan.length){
     const enCours = t.plan.some((e) => e.etat !== "pending" && e.etat !== "cancelled");
-    const aValider = !enCours && mode === "plan" && t.state !== "streaming";
+    /* ⚠ UNE ÉTAPE ET UNE OPTION NE SE DISTINGUENT PAS DANS CE QU'HERMÈS ENVOIE.
+       Le todo (`tools/todo_tool.py`) ne porte que {id, content, status} — rien
+       n'y dit « ceci est une alternative, pas une tâche ». Décidé avec kuchu le
+       2026-08-21, faute d'un champ structuré : une étape dont le texte COMMENCE
+       par « Option » est choisissable. `ligneDeMode()` enseigne cette
+       convention à l'agent. Voir PITCH-DISCUTER-VIVANT.html. */
+    const aOptions = t.plan.some((e) => estOption(e.contenu));
+    const resolu = t.planChoixIdx !== undefined && t.planChoixIdx !== null;
+    const aValider = !enCours && !aOptions && mode === "plan" && t.state !== "streaming";
     h += '<div class="m-plan"><div class="l-titre">' + svg("noeuds", { size: 15 })
       + "<span>Plan proposé — " + t.plan.length
       + (t.plan.length > 1 ? " étapes" : " étape") + "</span></div>"
-      + t.plan.map((e, i) =>
-          '<div class="m-etape ' + esc(e.etat) + '"><span class="m-n">'
-          + (i + 1) + "</span><span>" + esc(e.contenu) + "</span></div>").join("")
+      + t.plan.map((e, i) => {
+          if (!estOption(e.contenu)){
+            return '<div class="m-etape ' + esc(e.etat) + '"><span class="m-n">'
+              + (i + 1) + "</span><span>" + esc(e.contenu) + "</span></div>";
+          }
+          const choisie = resolu && t.planChoixIdx === i;
+          const ecartee = resolu && !choisie;
+          // Même patron que `.u-accord` (survol, coche, état figé) — réutilisé
+          // tel quel, pas réinventé pour cette carte.
+          return '<button type="button" class="opt m-opt' + (choisie ? " pick" : "")
+            + (ecartee ? " m-ecartee" : "") + '" data-plan-turn="' + t.key
+            + '" data-plan-opt="' + i + '"' + (resolu ? " disabled" : "") + ">"
+            + '<span class="tick">' + (choisie ? svg("coche", { size: 14 }) : "") + "</span>"
+            + '<span class="tx">' + esc(e.contenu) + "</span></button>";
+        }).join("")
       + (aValider
           ? '<div class="m-pied"><button class="m-bascule" type="button" '
             + 'id="basculeBuild">Build and Vérif ›</button></div>'
@@ -567,6 +614,81 @@ function turnHTML(t){
      `PROXY_MAX_TOKENS`, un plafond que seul /proxy/chat appliquait. L'agent,
      lui, ne coupe pas à 4000 tokens — il compacte son contexte et le dit. */
   return h + "</div>";
+}
+
+/* ═══ Le statut vivant du tour en cours ════════════════════════════════════
+   Avant : `.u-load` montrait `conv.status.text` en texte fige, sans le
+   moindre signe de vie — kuchu, 2026-08-20, capture a l'appui : aucun moyen
+   de distinguer un agent bloque d'un agent qui travaille encore en silence.
+   `TURN_SILENCE_MS` (ulysse-core.js) protege deja contre le blocage reel,
+   mais rien n'etait visible AVANT ses 3 minutes — silence total, donc doute
+   total.
+
+   Trois paliers de TEXTE, jamais un chronometre en secondes : un compteur
+   qui ment sur ce qu'il attend est pire qu'une absence de compteur (meme
+   principe que `compteur()`, pour l'ouverture de session). Passe un certain
+   silence, une relance devient possible — `session.steer`, sondee en reel :
+   elle glisse le texte dans le tour sans l'interrompre. Les seuils sont a
+   l'usage, pas figes ; voir PITCH-DISCUTER-VIVANT.html. */
+const SILENCE_TOURNE_MS = 20000;
+const SILENCE_LONG_MS = 60000;
+
+function texteVivant(base, silenceMs){
+  if (silenceMs > SILENCE_LONG_MS) return "Silence inhabituel — ça devrait arriver bientôt";
+  if (silenceMs > SILENCE_TOURNE_MS) return "Toujours en cours…";
+  return base || "L'agent travaille…";
+}
+
+/* Des raccourcis, jamais un remplacement du texte libre : ils pré-remplissent
+   le champ, ils n'envoient rien tout seuls — kuchu a validé cette forme le
+   20/08/2026. */
+function relanceHTML(){
+  return '<div class="u-relance">'
+    + ["Tout va bien ?", "Toujours là ?"].map((s) =>
+        '<button type="button" class="u-sugg" data-sugg="' + esc(s) + '">' + esc(s) + "</button>")
+      .join("")
+    + "</div>";
+}
+
+/* ⚠ `.u-load` EST PARTAGEE PAR VINGT AUTRES ECRANS (Historique, Livrables,
+   Projets, Automatisations…) POUR UN SIMPLE "Chargement…". On garde son nom
+   — pour l'italique/la couleur deja en place — mais toute mise en page
+   nouvelle (les points, la ligne de relance) va sur `.u-vivant`, propre a
+   CETTE carte : styler `.u-load` lui-meme aurait deplace vingt ecrans qui
+   n'ont rien demande. */
+function uLoadHTML(){
+  const silence = conv.lastEventAt ? Date.now() - conv.lastEventAt : 0;
+  return '<div class="u-load u-vivant" id="uLoad">'
+    + '<span class="u-dots"><span></span><span></span><span></span></span>'
+    + '<span class="u-loadtxt">' + esc(texteVivant(conv.status.text, silence)) + "</span>"
+    + (silence > SILENCE_LONG_MS ? relanceHTML() : "")
+    + "</div>";
+}
+
+/* Le palier avance meme si AUCUN evenement n'arrive — c'est le silence
+   lui-meme qu'on montre. Une pleine repeinture (`paintThread`) a chaque tic
+   ferait sauter le defilement pour rien ; on met a jour `#uLoad` en place,
+   comme `compteur()` le fait deja pour l'ouverture de session. */
+let vivantT = null;
+function armVivant(){
+  clearInterval(vivantT);
+  if (!conv.running || !conv.status) return;
+  vivantT = setInterval(() => {
+    const el = $("uLoad");
+    if (!el || !conv.running || !conv.status){ clearInterval(vivantT); return; }
+    const silence = conv.lastEventAt ? Date.now() - conv.lastEventAt : 0;
+    const txt = el.querySelector(".u-loadtxt");
+    if (txt) txt.textContent = texteVivant(conv.status.text, silence);
+    const dejaSugg = el.querySelector(".u-relance");
+    if (silence > SILENCE_LONG_MS && !dejaSugg){
+      el.insertAdjacentHTML("beforeend", relanceHTML());
+      el.querySelectorAll("[data-sugg]").forEach((b) => {
+        b.onclick = () => { $("reply").value = b.dataset.sugg; $("reply").focus(); };
+      });
+    } else if (silence <= SILENCE_LONG_MS && dejaSugg){
+      dejaSugg.remove();
+    }
+  }, 4000);
 }
 
 function paintThread(){
@@ -585,7 +707,7 @@ function paintThread(){
   // ligne) ; `.privnote` l'attendait dans ulysse.css sans que rien ne l'écrive.
   if (incognito){
     h += '<div class="privnote">' + svg("incognito", { size: 16 })
-      + "<span>Fil sans mémoire — il ne sera pas retrouvé dans les Travaux, "
+      + "<span>Fil sans mémoire — il ne sera pas retrouvé dans l'historique, "
       + "et se ferme avec la fenêtre.</span></div>";
   }
   if (!turns.length){
@@ -606,7 +728,7 @@ function paintThread(){
   }
   h += turns.map(turnHTML).join("");
   if (conv.status && conv.running){
-    h += '<div class="u-load">' + esc(conv.status.text || "…") + "</div>";
+    h += uLoadHTML();
   }
   // La demande d'accord se pose EN FIN DE FIL, là où l'agent s'est arrêté.
   // C'est ce qui le bloque : ça ne peut pas vivre seulement dans une cloche.
@@ -626,6 +748,13 @@ function paintThread(){
   host.querySelectorAll("[data-ch]").forEach((b) => {
     b.onclick = () => repondreAccord(b.dataset.ch);
   });
+  host.querySelectorAll("[data-sugg]").forEach((b) => {
+    b.onclick = () => { $("reply").value = b.dataset.sugg; $("reply").focus(); };
+  });
+  host.querySelectorAll("[data-plan-opt]").forEach((b) => {
+    b.onclick = () => choisirOptionPlan(Number(b.dataset.planTurn), Number(b.dataset.planOpt));
+  });
+  armVivant();
   /* `#accordsManuel` ne se câble plus ici : le bouton a suivi son texte dans
      la bulle du « i ». Le laisser aurait fait un câblage qui ne trouve jamais
      son bouton — du code mort, c'est-à-dire une embuscade pour qui le lira. */
@@ -681,6 +810,14 @@ function paintHint(){
     lg.innerHTML = svg("atelier", { size: 16 })
       + "<span>Établi" + (k ? " · " + k : "") + "</span>";
     lg.title = "Rouvrir l'Établi";
+  }
+  // Même règle pour l'Historique : le nombre de conversations connues, pas
+  // seulement le mot.
+  const hl = $("histolette");
+  if (hl){
+    const k = histoCache.length;
+    hl.innerHTML = svg("eclair", { size: 16 })
+      + "<span>Historique" + (k ? " · " + k : "") + "</span>";
   }
 }
 
@@ -1157,6 +1294,20 @@ async function onSend(ev){
   const input = $("reply");
   const text = input.value.trim();
   if (!text) return;
+
+  /* ⚠ PENDANT QU'UN TOUR TOURNE, ENVOYER RELANCE — ÇA N'INTERROMPT PLUS.
+     Interrompre a son geste a lui, la croix (`interruptTurn`, deja cablee sur
+     `#stopBtn`). Avant ce changement, taper puis envoyer ici coupait le tour
+     en cours (Hermes route `prompt.submit` sur une session busy vers son
+     policy `display.busy_input_mode`, "interrupt" par defaut) — un seul
+     geste faisait deux choses differentes selon le hasard du moment. Decide
+     avec kuchu le 20/08/2026 : un verbe par controle. */
+  if (conv.running){
+    input.value = "";
+    const ok = await steerTurn(text);
+    snack(ok ? "Relance envoyée." : "La relance n'est pas partie.");
+    return;
+  }
   input.value = "";
 
   // Le premier message ouvre la session : c'est la seule attente qui soit
@@ -1189,27 +1340,43 @@ async function onSend(ev){
    que sil ne bouge pas dun appel a lautre. Lecrire dans le system prompt
    serait plus simple et invaliderait le cache A CHAQUE BASCULE — la
    simplicite y serait payee en argent. Un tour utilisateur vient APRES le
-   prefixe : il ne casse rien. Cout mesurable : une quinzaine de tokens.
+   prefixe : il ne casse rien. Cout mesurable : une quinzaine de tokens
+   (le fragment Build ; le fragment Plan a grossi le 2026-08-21, voir
+   ci-dessous — pas remesure).
 
    Elle ne suffit pas, et elle na pas a suffire : la porte dapprobation
    applique le mode meme si le modele oublie la consigne. Une garantie qui
    repose sur la bonne volonte du modele nest pas une garantie.
-   Voir PASSE-DESIGN-UN-SEUL-FIL.md §2 et §3. */
+   Voir PASSE-DESIGN-UN-SEUL-FIL.md §2 et §3.
+
+   ⚠ LA PHRASE SUR « Option » N'EST QUE DANS LE FRAGMENT PLAN. C'est le seul
+   endroit ou proposer de vraies alternatives a du sens ; l'ajouter aussi au
+   fragment Build aurait paye le cout sur CHAQUE tour, pas seulement ceux ou
+   la convention sert. `estOption`/`choisirOptionPlan` (ulysse-app.js) lisent
+   ce meme mot. */
 function ligneDeMode(){
   return mode === "build"
     ? "\n\n[Mode Build : vous pouvez écrire et exécuter. Vérifiez ensuite votre"
       + " travail contre le plan.]"
     : "\n\n[Mode Plan : ne modifiez rien sur le disque. Lisez, cherchez,"
-      + " proposez. Posez le plan avec l'outil todo.]";
+      + " proposez. Posez le plan avec l'outil todo — préfixez « Option » les"
+      + " étapes qui sont des alternatives, pas des tâches.]";
 }
 
 /* --- L'Établi : les fichiers, à côté du fil ------------------------------ */
 
 let etabliPath = null;
 
+/* Un seul volet à la fois à côté du fil — l'Établi (fichiers) et
+   l'Historique (conversations) se partagent la même place, `.work` ne fait
+   assez de large que pour l'un des deux sans écraser le fil. */
 function setMode(m){
-  $("work").classList.toggle("atelier", m === "atelier");
+  const w = $("work");
+  w.classList.remove("atelier", "historique");
+  if (m === "atelier") w.classList.add("atelier");
+  if (m === "historique") w.classList.add("historique");
   if (m === "atelier") drawEtabli();
+  if (m === "historique") drawHisto();
 }
 
 /* Ouvrir l'Établi SUR un dossier. C'est le retour du fil d'Ariane du volet :
@@ -1228,10 +1395,10 @@ function ouvrirEtabliSur(dossier){
 function wireCtlEtabli(){
   const host = $("ctlEtabli");
   if (!host) return;
-  /* ⚠ L'ÉTABLI ÉTAIT LE SEUL PANNEAU SANS BOUTON DE RELECTURE. Les Travaux,
-     les Livrables, les Projets et les Automatisations en ont un depuis
-     toujours (`travRefresh`, `livRefresh`, `projRefresh`, `autoRefresh`) ;
-     lui n'avait qu'une croix. Or c'est le panneau qui vieillit le PLUS VITE :
+  /* ⚠ L'ÉTABLI ÉTAIT LE SEUL PANNEAU SANS BOUTON DE RELECTURE. Les Livrables,
+     les Projets et les Automatisations en ont un depuis toujours
+     (`livRefresh`, `projRefresh`, `autoRefresh`) ; lui n'avait qu'une croix.
+     Or c'est le panneau qui vieillit le PLUS VITE :
      l'agent écrit des fichiers pendant qu'on le regarde.
      Signalé par l'usage le 2026-08-11 — kuchu ne voyait pas un fichier que
      je venais d'écrire, et rien à l'écran ne permettait de redemander. */
@@ -1241,6 +1408,18 @@ function wireCtlEtabli(){
     + 'title="Fermer l\'Établi">' + svg("fermer", { size: 18 }) + "</button>";
   $("etabliRefresh").onclick = () => drawEtabli();
   $("etabliClose").onclick = () => setMode("chat");
+}
+
+/* Même patron que `wireCtlEtabli` — relire, fermer. */
+function wireCtlHisto(){
+  const host = $("ctlHisto");
+  if (!host) return;
+  host.innerHTML = '<button id="histoRefresh" aria-label="Relire la liste" '
+    + 'title="Relire la liste">' + svg("relancer", { size: 17 }) + "</button>"
+    + '<button id="histoClose" aria-label="Fermer l\'historique" '
+    + 'title="Fermer l\'historique">' + svg("fermer", { size: 18 }) + "</button>";
+  $("histoRefresh").onclick = () => drawHisto();
+  $("histoClose").onclick = () => setMode("chat");
 }
 
 async function drawEtabli(){
@@ -1378,7 +1557,8 @@ function drawPlan(){
 
   if (!steps.length){
     /* ⚠ « RIEN ENCORE » MENT APRÈS UNE REPRISE. Éprouvé le 2026-08-12 : fermer
-       l'onglet en plein plan, le rouvrir, reprendre via Travaux — le FIL dit
+       l'onglet en plein plan, le rouvrir, reprendre depuis l'historique (alors
+       « Travaux ») — le FIL dit
        « Plan posé avec l'outil todo, 6 étapes » et les nomme. Cet écran, lui,
        disait « Rien encore », comme si l'agent n'avait touché aucun outil.
        Ce n'est pas un oubli qu'on peut réparer : `session.resume` ne rend
@@ -1391,7 +1571,7 @@ function drawPlan(){
     if (conv.resumed && conv.turns.length){
       H("steps", '<div class="empty" style="padding:36px 20px">'
         + '<div class="big">Le détail ne survit pas à une reprise.</div>'
-        + '<div class="u-vide-sub">Cette conversation a été reprise depuis Travaux : '
+        + '<div class="u-vide-sub">Cette conversation a été reprise : '
         + "Hermès ne renvoie pas la structure des outils déjà appelés, seulement "
         + "un résumé. Le fil, lui, garde ce que l'agent a répondu — c'est là qu'il "
         + "faut lire ce qui a été fait.</div></div>");
@@ -1623,34 +1803,41 @@ function cheminCourt(p){
   return parts.length > 2 ? "…/" + parts.slice(-2).join("/") : parts.join("/");
 }
 
-/* ═══ Travaux — les sessions, réelles ════════════════════════════════════
+/* ═══ Historique — les sessions, dans un volet sous Discuter ═════════════
    Trois rangs. Épingler et archiver ne sont pas des détails d'implémentation :
    c'est ce qui décide de la tenue de cette liste au bout de six mois. Sans
    eux, c'est un journal — on y retrouve ce qu'on vient de faire, jamais ce
    qu'on cherche. `PATCH /api/sessions/{id}` les tient (sessions.py:661).
 
    L'archivage n'est pas la suppression, et c'est tout l'intérêt : on range
-   sans avoir à décider si on jette. Le seul geste rouge reste « Supprimer ». */
+   sans avoir à décider si on jette. Le seul geste rouge reste « Supprimer ».
 
-let travQ = "", travArchivees = false, travCache = [];
+   ⚠ CE PANNEAU S'APPELAIT « Travaux », DESTINATION À PART DU RAIL. Une donnée
+   déjà bonne (titres générés par Hermès, recherche déjà câblée) derrière un
+   nom et une icône qui ne se lisaient pas comme « mes conversations passées »
+   — kuchu, 2026-08-20, après avoir vu l'agent fouiller le disque à l'aveugle
+   pour deviner de quoi on avait parlé faute de mieux. Fusionné dans un volet
+   accroché à Discuter, sur le principe de l'Établi : PITCH-DISCUTER-VIVANT.html. */
 
-function drawWorksListe(){
-  const q = travQ.toLowerCase().trim();
+let histoQ = "", histoArch = false, histoCache = [];
+
+function drawHistoListe(){
+  const q = histoQ.toLowerCase().trim();
   const filtre = (s) => !q || (s.title || s.preview || s.id || "").toLowerCase().includes(q)
     || (s.cwd || "").toLowerCase().includes(q);
-  const vus = travCache.filter(filtre);
+  const vus = histoCache.filter(filtre);
 
-  if (!travCache.length){
-    H("works", '<div class="empty"><div class="big">Rien encore.</div>'
+  if (!histoCache.length){
+    H("histoList", '<div class="empty"><div class="big">Rien encore.</div>'
       + '<div class="u-vide-sub">Votre première conversation apparaîtra ici — '
       + "elle s'ouvre depuis Discuter.</div></div>");
     return;
   }
   if (!vus.length){
-    H("works", '<div class="empty"><div class="big">Aucun résultat.</div>'
-      + '<div class="u-vide-sub">' + travCache.length + " conversation"
-      + (travCache.length > 1 ? "s" : "") + " ne correspond"
-      + (travCache.length > 1 ? "ent" : "") + " pas à « " + esc(travQ)
+    H("histoList", '<div class="empty"><div class="big">Aucun résultat.</div>'
+      + '<div class="u-vide-sub">' + histoCache.length + " conversation"
+      + (histoCache.length > 1 ? "s" : "") + " ne correspond"
+      + (histoCache.length > 1 ? "ent" : "") + " pas à « " + esc(histoQ)
       + " ». Videz le filtre pour tout revoir.</div></div>");
     return;
   }
@@ -1659,68 +1846,114 @@ function drawWorksListe(){
   const groupes = { epi: [], rec: [], arch: [] };
   vus.forEach((s) => groupes[rang(s)].push(s));
 
-  const ligneW = (s) => {
+  /* ⚠ CINQ ICÔNES EN PERMANENCE ÉCRASAIENT LE TITRE. `acts()` réserve sa
+     largeur même invisible (`.acts{opacity:0}`, pas `display:none`) — sur les
+     840px de Livrables ça ne se voit jamais, sur les 340px de ce volet le
+     titre tombait à zéro (mesuré à l'écran), et une fois sorties du flux en
+     `position:absolute` (premier correctif), les cinq boutons recouvraient
+     encore le titre — kuchu, capture à l'appui, 2026-08-21 : « les icônes
+     sont mal intégrées et cachent une partie du menu ». Un seul bouton
+     ⋯ (« points » — son propre glossaire dit déjà : « range les actions d'un
+     élément au lieu de les étaler ») ouvre un vrai petit menu, `.pop`, avec
+     ses labels en clair — pas cinq pictos à deviner dans 32px. */
+  const ligneHisto = (s) => {
     const col = s.is_active ? "var(--amber)" : "var(--green)";
     const bits = [];
     if (s.message_count !== undefined) bits.push(s.message_count + " message"
       + (s.message_count > 1 ? "s" : ""));
     bits.push(s.is_active ? "en cours" : "terminée");
     if (s.cwd) bits.push(cheminCourt(s.cwd));
+    const item = (a, ic, t, danger) => '<button data-a="' + a + '"'
+      + (danger ? ' class="dangerlink"' : "") + ">" + svg(ic, { size: 17 })
+      + "<span>" + esc(t) + "</span></button>";
     return '<div class="row" data-cle="' + esc(s.id) + '" data-resume="' + esc(s.id) + '"'
       + (s.cwd ? ' title="' + esc(s.cwd) + '"' : "") + ">"
       + '<span class="dot" style="background:' + col + '"></span>'
       + '<span class="u-l2"><span class="t">' + esc(s.title || s.preview || s.id) + "</span>"
       + '<span class="s">' + esc(bits.join(" · ")) + "</span></span>"
       + '<span class="u-quand">' + esc(fmtWhen(s.last_active || s.started_at)) + "</span>"
-      + acts([
-          { a: "reprendre", ic: "relancer", t: "Reprendre cette conversation" },
-          { a: s.pinned ? "desepingler" : "epingler", ic: "epingle",
-            t: s.pinned ? "Ne plus épingler" : "Épingler en tête" },
-          { a: s.archived ? "desarchiver" : "archiver", ic: "boite",
-            t: s.archived ? "Sortir des archives" : "Archiver — ranger sans jeter" },
-          { a: "lien", ic: "copier", t: "Copier le lien de cette conversation" },
-          { a: "supprimer", ic: "corbeille", danger: true, t: "Supprimer définitivement" }
-        ])
-      + "</div>";
+      + '<button type="button" class="m-kebab" data-kebab="' + esc(s.id)
+      + '" title="Actions" aria-label="Actions">' + svg("points", { size: 18 }) + "</button>"
+      + '<div class="pop m-kpop">'
+      + item("reprendre", "relancer", "Reprendre cette conversation")
+      + item(s.pinned ? "desepingler" : "epingler", "epingle",
+          s.pinned ? "Ne plus épingler" : "Épingler en tête")
+      + item(s.archived ? "desarchiver" : "archiver", "boite",
+          s.archived ? "Sortir des archives" : "Archiver — ranger sans jeter")
+      + item("lien", "copier", "Copier le lien de cette conversation")
+      + item("supprimer", "corbeille", "Supprimer définitivement", true)
+      + "</div></div>";
   };
 
   const bloc = (titre, arr, extra) => arr.length
     ? '<div class="u-rang">' + esc(titre) + " · " + arr.length
       + '<span class="l"></span>' + (extra || "") + "</div>"
-      + arr.map(ligneW).join("")
+      + arr.map(ligneHisto).join("")
     : "";
 
-  H("works",
+  H("histoList",
     bloc("Épinglées", groupes.epi)
     + bloc("Récentes", groupes.rec)
     + (groupes.arch.length
         ? '<div class="u-rang">Archivées · ' + groupes.arch.length + '<span class="l"></span>'
-          + '<button id="travArch">' + (travArchivees ? "replier" : "voir") + "</button></div>"
-          + (travArchivees ? groupes.arch.map(ligneW).join("") : "")
+          + '<button id="histoArchToggle">' + (histoArch ? "replier" : "voir") + "</button></div>"
+          + (histoArch ? groupes.arch.map(ligneHisto).join("") : "")
         : ""));
 
-  const arch = $("travArch");
-  if (arch) arch.onclick = () => { travArchivees = !travArchivees; drawWorksListe(); };
+  const arch = $("histoArchToggle");
+  if (arch) arch.onclick = () => { histoArch = !histoArch; drawHistoListe(); };
 
-  $("works").querySelectorAll("[data-resume]").forEach((r) => {
+  $("histoList").querySelectorAll("[data-resume]").forEach((r) => {
     r.onclick = () => reprendre(r);
   });
-  wireActs("works", async (a, ligne) => {
-    const id = ligne.dataset.cle;
-    const s = travCache.find((x) => x.id === id);
-    if (a === "reprendre") return reprendre(ligne);
-    if (a === "lien") return copier(location.origin + "/ulysse.html#Travaux", "Le lien");
-    if (a === "supprimer") return supprimerSession(id, s);
-    const champs = a === "epingler" ? { pinned: true }
-      : a === "desepingler" ? { pinned: false }
-      : a === "archiver" ? { archived: true } : { archived: false };
-    try {
-      await REST.patchSession(id, champs);
-      Object.assign(s, champs);
-      drawWorksListe();
-      snack(a === "epingler" ? "Épinglée." : a === "desepingler" ? "Plus épinglée."
-        : a === "archiver" ? "Archivée — elle n'est pas perdue." : "Sortie des archives.");
-    } catch (e){ snack("Refusé : " + e.message); }
+  // Le kebab ouvre SON pop, referme les autres — un seul à la fois, comme le
+  // kebab du composeur. Le clic ailleurs les referme tous : `document`
+  // porte déjà cette règle (« repris de la maquette »), rien à ajouter ici.
+  /* ⚠ ANCRÉ EN `position:absolute`, LE MENU SE FAISAIT COUPER PAR LE DÉFILEMENT
+     DE LA LISTE — mesuré : un menu de 261px, un conteneur haut de 319px,
+     `overflow-y:auto` sur `.etabli-body`. `position:fixed`, calculé au clic
+     depuis la position RÉELLE du bouton, échappe à ce découpage — la seule
+     façon de la mesurer est de le poser, mesurer sa hauteur, puis choisir
+     au-dessus ou en dessous selon la place qui reste sous la souris. */
+  $("histoList").querySelectorAll(".m-kebab").forEach((b) => {
+    b.onclick = (e) => {
+      e.stopPropagation();
+      const pop = b.nextElementSibling;
+      const rouvre = !pop.classList.contains("on");
+      document.querySelectorAll(".pop.on").forEach((p) => p.classList.remove("on"));
+      if (!rouvre) return;
+      pop.classList.add("on");
+      pop.style.visibility = "hidden";
+      const r = b.getBoundingClientRect();
+      const h = pop.offsetHeight;
+      const enHaut = r.bottom + 4 + h > window.innerHeight;
+      pop.style.top = (enHaut ? r.top - h - 4 : r.bottom + 4) + "px";
+      pop.style.right = (window.innerWidth - r.right) + "px";
+      pop.style.visibility = "";
+    };
+  });
+  $("histoList").querySelectorAll(".m-kpop [data-a]").forEach((b) => {
+    b.onclick = async (e) => {
+      e.stopPropagation();
+      const ligne = b.closest("[data-cle]");
+      b.closest(".pop").classList.remove("on");
+      const id = ligne.dataset.cle;
+      const s = histoCache.find((x) => x.id === id);
+      const a = b.dataset.a;
+      if (a === "reprendre") return reprendre(ligne);
+      if (a === "lien") return copier(location.origin + "/ulysse.html#Discuter", "Le lien");
+      if (a === "supprimer") return supprimerSession(id, s);
+      const champs = a === "epingler" ? { pinned: true }
+        : a === "desepingler" ? { pinned: false }
+        : a === "archiver" ? { archived: true } : { archived: false };
+      try {
+        await REST.patchSession(id, champs);
+        Object.assign(s, champs);
+        drawHistoListe();
+        snack(a === "epingler" ? "Épinglée." : a === "desepingler" ? "Plus épinglée."
+          : a === "archiver" ? "Archivée — elle n'est pas perdue." : "Sortie des archives.");
+      } catch (e){ snack("Refusé : " + e.message); }
+    };
   });
 }
 
@@ -1728,15 +1961,19 @@ function reprendre(ligne){
   ligne.style.opacity = ".5";
   return resumeSession(ligne.dataset.resume).then(() => {
     /* ⚠ L'ACCUEIL RESTAIT DEVANT LE FIL REPRIS. Éprouvé le 2026-08-12 en
-       fermant l'onglet pour de vrai, en le rouvrant, en reprenant via Travaux :
-       `#thread` contenait bien les quatre tours, texte complet — la mémoire
-       tenait. Mais `#pDiscuter` gardait sa classe `accueil`, posée UNE FOIS à
-       `true` au chargement et jamais retirée ailleurs qu'au premier envoi
-       (`quitterAccueil()`, appelée depuis `attendreOuverture()`). Reprendre une
-       session n'est PAS envoyer un premier message : ce chemin ne passait par
-       aucun des deux, et l'accueil recouvrait un fil pourtant peint en dessous.
-       « Conversation reprise » s'affichait — sur un écran vide. */
+       fermant l'onglet pour de vrai, en le rouvrant, en reprenant via
+       l'historique : `#thread` contenait bien les quatre tours, texte
+       complet — la mémoire tenait. Mais `#pDiscuter` gardait sa classe
+       `accueil`, posée UNE FOIS à `true` au chargement et jamais retirée
+       ailleurs qu'au premier envoi (`quitterAccueil()`, appelée depuis
+       `attendreOuverture()`). Reprendre une session n'est PAS envoyer un
+       premier message : ce chemin ne passait par aucun des deux, et
+       l'accueil recouvrait un fil pourtant peint en dessous. « Conversation
+       reprise » s'affichait — sur un écran vide. */
     quitterAccueil();
+    // Le volet se referme AU CHOIX : on est venu chercher une conversation,
+    // pas rester dans la liste une fois qu'on l'a trouvée.
+    setMode("chat");
     nav("Discuter");
     snack("Conversation reprise.");
   }).catch((e) => {
@@ -1752,20 +1989,20 @@ async function supprimerSession(id, s){
   const nom = (s && (s.title || s.preview)) || id;
   try {
     await REST.deleteSession(id);
-    travCache = travCache.filter((x) => x.id !== id);
-    drawWorksListe();
+    histoCache = histoCache.filter((x) => x.id !== id);
+    drawHistoListe();
     snack("« " + nom + " » supprimée. Cette action ne se défait pas.");
   } catch (e){ snack("Suppression refusée : " + e.message); }
 }
 
-async function drawWorks(){
-  H("works", '<div class="u-load">Chargement…</div>');
+async function drawHisto(){
+  H("histoList", '<div class="u-load">Chargement…</div>');
   try {
     const d = await REST.sessions(50, "recent");
-    travCache = (d && d.sessions) || [];
-    drawWorksListe();
+    histoCache = (d && d.sessions) || [];
+    drawHistoListe();
   } catch (e){
-    H("works", '<div class="u-todo">Lecture impossible : ' + esc(pannePhrase(e)) + "</div>");
+    H("histoList", '<div class="u-todo">Lecture impossible : ' + esc(pannePhrase(e)) + "</div>");
   }
 }
 
@@ -2562,7 +2799,7 @@ function feuilleArchiver(p){
     + ligneTrois("dossier", "Votre dossier n’est pas touché",
         (p.primary_path || "Le dossier") + " reste exactement comme il est. "
         + "Ulysse ne supprime aucun de vos fichiers.")
-    + ligneTrois("chat", "Les conversations restent dans Travaux",
+    + ligneTrois("chat", "Les conversations restent dans l'historique",
         "Elles perdent leur rattachement au projet, pas leur contenu.")
     + "</div>"
     + '<div class="j-acts">'
@@ -2582,7 +2819,7 @@ function feuilleSupprimer(p){
         + "Archiver se défait ; ceci, non.")
     + ligneTrois("dossier", "Votre dossier n’est toujours pas touché",
         (p.primary_path || "Le dossier") + " reste exactement comme il est.")
-    + ligneTrois("chat", "Les conversations restent dans Travaux",
+    + ligneTrois("chat", "Les conversations restent dans l'historique",
         "Elles ne sont rattachées à plus rien, c’est tout.")
     + "</div>"
     + '<div class="j-acts">'
@@ -2759,8 +2996,8 @@ async function drawProjets(){
       h += '<div class="j-home">' + svg("chat", { size: 17 })
         + "<span><b>" + n + " conversation" + (n > 1 ? "s" : "") + "</b> "
         + (n > 1 ? "n'appartiennent" : "n'appartient") + " à aucun dossier. "
-        + (n > 1 ? "Elles restent" : "Elle reste") + " dans Travaux.</span>"
-        + '<button class="quiet-link" data-voir="travaux">Les voir</button></div>';
+        + (n > 1 ? "Elles restent" : "Elle reste") + " dans l'historique.</span>"
+        + '<button class="quiet-link" data-voir="historique">Les voir</button></div>';
     });
 
     H("projets", h);
@@ -2808,7 +3045,7 @@ async function drawProjets(){
       };
     });
     $("projets").querySelectorAll("[data-voir]").forEach((b) => {
-      b.onclick = () => nav("Travaux");
+      b.onclick = () => { nav("Discuter"); setMode("historique"); };
     });
     $("projets").querySelectorAll("[data-ranger]").forEach((b) => {
       b.onclick = (ev) => { ev.stopPropagation(); ouvrirRanger(b.dataset.ranger); };
@@ -4077,7 +4314,7 @@ async function drawSet(){
           '<div class="seg" id="densSeg"><button data-d="epure">Épurée</button>'
           + '<button data-d="dense">Dense</button></div>')
       + ligne("Mode sans mémoire",
-          "Le fil ne sera pas retrouvé dans les Travaux, et se ferme avec la fenêtre.",
+          "Le fil ne sera pas retrouvé dans l'historique, et se ferme avec la fenêtre.",
           sw(incognito, "incog"))
       + titre("Où tourne Ulysse")
       + '<dl class="u-kv"><dt>Page servie par</dt><dd>' + esc(CFG.BASE) + "</dd>"
@@ -5439,7 +5676,7 @@ if (typeof document !== "undefined"){
    coute une requete pour rien. */
 coreHooks.onChanged = (quoi) => {
   if (quoi === "sessions"){
-    if (current === "Travaux") drawWorks();
+    if ($("work").classList.contains("historique")) drawHisto();
     if (current === "Projets") drawProjets();
   }
   if (quoi === "cron" && current === "Automatisations") drawAutos();
@@ -5675,11 +5912,16 @@ function boot(){
       + "</span><span>" + (incognito ? "Revenir au fil normal" : "Fil sans mémoire")
       + "<span class=\"sub\">" + (incognito
           ? "Le prochain fil sera retrouvable"
-          : "Ne sera pas retrouvé dans les Travaux") + "</span></span></button>"
+          : "Ne sera pas retrouvé dans l'historique") + "</span></span></button>"
       + '<button id="mEtabli"><span>' + svg("atelier", { size: 20 })
       + "</span><span>" + ($("work").classList.contains("atelier")
           ? "Fermer l'Établi" : "Ouvrir l'Établi")
       + "<span class=\"sub\">Les fichiers déjà sur la machine, à côté du fil</span>"
+      + "</span></button>"
+      + '<button id="mHisto"><span>' + svg("eclair", { size: 20 })
+      + "</span><span>" + ($("work").classList.contains("historique")
+          ? "Fermer l'historique" : "Ouvrir l'historique")
+      + "<span class=\"sub\">Les conversations passées, à côté du fil</span>"
       + "</span></button>"
       + '<button id="mNew"><span>' + svg("plus", { size: 20 })
       + "</span><span>Nouvelle conversation<span class=\"sub\">La session s'ouvrira au "
@@ -5691,12 +5933,16 @@ function boot(){
       p.classList.remove("on");
       setMode($("work").classList.contains("atelier") ? "chat" : "atelier");
     };
+    $("mHisto").onclick = () => {
+      p.classList.remove("on");
+      setMode($("work").classList.contains("historique") ? "chat" : "historique");
+    };
     $("mIncog").onclick = () => {
       incognito = !incognito;
       p.classList.remove("on");
       paintHint();
       snack(incognito ? "Fil sans mémoire : il ne sera pas conservé."
-                      : "Fil normal : il sera retrouvable dans les Travaux.");
+                      : "Fil normal : il sera retrouvable dans l'historique.");
     };
     $("mNew").onclick = () => {
       p.classList.remove("on"); resetSession(); paintThread();
@@ -5802,6 +6048,7 @@ function boot(){
   $("vq").addEventListener("input", () => { vFiltre = $("vq").value; drawVestiaire(); });
 
   wireCtlEtabli();
+  wireCtlHisto();
 
   // La gélule « Cadre » : le repli reçoit #roles, l'élément du contrat, par
   // déplacement — ni recréé ni renommé.
@@ -5822,16 +6069,19 @@ function boot(){
 
   // La languette de l'Établi rangé.
   $("languette").onclick = (e) => { e.stopPropagation(); setMode("atelier"); };
+  // Celle de l'Historique rangé, bord gauche.
+  $("histolette").onclick = (e) => { e.stopPropagation(); setMode("historique"); };
 
   // « Rafraîchir » devient une icône : depuis le jalon 4 les listes écoutent
   // `sessions.changed`. Un bouton plein de 40 px était l'aveu du contraire.
-  ["travRefresh", "livRefresh", "projRefresh", "autoRefresh"].forEach((id) => {
+  // L'Historique n'y est pas : son rafraîchissement vit dans `#ctlHisto`
+  // (`wireCtlHisto`), au même endroit que sa fermeture — comme l'Établi.
+  ["livRefresh", "projRefresh", "autoRefresh"].forEach((id) => {
     H(id, svg("relancer", { size: 18 }));
   });
   document.querySelectorAll(".u-lo").forEach((el) => {
     el.innerHTML = svg("recherche", { size: 18 });
   });
-  $("travRefresh").onclick = drawWorks;
   $("livRefresh").onclick = drawLivrables;
   $("projRefresh").onclick = drawProjets;
   // Il n'existait pas tant qu'aucun explorateur ne l'attendait. Il part du
@@ -5843,11 +6093,11 @@ function boot(){
   $("trashBtn").onclick = () => { projArchives = !projArchives; drawProjets(); };
   $("autoRefresh").onclick = drawAutos;
 
-  // Travaux charge 50 sessions, Livrables ouvre des dossiers qui en
+  // L'Historique charge 50 sessions, Livrables ouvre des dossiers qui en
   // contiennent des centaines. `.search` existait et ne servait qu'au
   // Vestiaire — celui qui en a le moins besoin.
-  $("travQ").addEventListener("input", () => {
-    travQ = $("travQ").value; drawWorksListe();
+  $("histoQ").addEventListener("input", () => {
+    histoQ = $("histoQ").value; drawHistoListe();
   });
   $("livQ").addEventListener("input", () => {
     livQ = $("livQ").value; drawLivListe();
@@ -5857,9 +6107,18 @@ function boot(){
   });
 
   // Un clic ailleurs referme les fenêtres volantes. Repris de la maquette.
-  document.addEventListener("click", () => {
+  document.addEventListener("click", (e) => {
     document.querySelectorAll(".pop.on").forEach((p) => p.classList.remove("on"));
     Notifs.close();
+    /* ⚠ « ON NE PEUT PAS QUITTER LE MENU » — kuchu, 2026-08-21. L'Historique
+       se fermait par sa croix ou en le rouvrant, jamais en cliquant à côté :
+       le seul volet de l'appli sans cette porte de sortie. Un clic DEDANS
+       (une ligne, le filtre, le ⋯) ou sur sa languette ne doit rien fermer —
+       ce serait fermer ce qu'on vient d'ouvrir. */
+    if ($("work") && $("work").classList.contains("historique")
+        && !e.target.closest("#histoVolet") && !e.target.closest("#histolette")){
+      setMode("chat");
+    }
   });
 
   // Échap sort du plein écran du Terminal — mais ferme D'ABORD un repli s'il
@@ -5899,7 +6158,7 @@ function boot(){
   // On ouvre sur Discuter, à l'accueil : le mot-marque, le champ, rien.
   // Sauf si l'URL désigne déjà une destination — un lien envoyé ne doit pas
   // repasser par la case départ, et il n'y a rien à accueillir dans les
-  // Travaux ou les Réglages.
+  // Livrables ou les Réglages.
   //
   // Le hash est lu AVANT nav() : nav() l'écrit lui-même, et le relire après
   // ferait croire à un lien profond sur chaque démarrage.
