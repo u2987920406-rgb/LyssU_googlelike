@@ -1883,7 +1883,19 @@ async function main(){
 
   /* ⚠ PLUS AUCUN APPEL A /proxy/chat. C'etait le chemin du mode pur : le
      modele nu, sans session, sans outils. Il ne doit plus rien emprunter —
-     un second chemin qui survit est un second endroit ou diverger. */
+     un second chemin qui survit est un second endroit ou diverger.
+
+     ⚠ ET CE BANC ETAIT INSTABLE — deux echecs sur trois, mesures le
+     2026-08-22 SUR LE CODE COMMITE, sans aucune modification. La cause n'a
+     rien a voir avec l'envoi : `loadStatus()` tourne toutes les 15 secondes
+     (`setInterval`, ulysse-app.js) et sonde le proxy par un POST sur
+     /proxy/chat — c'est son metier, il dit si le moteur repond. Quand un de
+     ces battements tombait dans la fenetre de 220 ms mesuree ici, la
+     verification accusait l'envoi d'un appel que la SONDE venait de faire.
+     Un banc qui accuse au hasard apprend a ne pas etre cru.
+     On tait donc la sonde le temps de la mesure : ce qu'on verifie est que
+     ENVOYER n'emprunte pas /proxy/chat, pas que personne ne le touche. */
+  win.eval("window.__verifProxy = verifProxy; verifProxy = function(){};");
   fetched.length = 0;
   const avantPlan = FakeWS.sent.length;
   win.document.getElementById("reply").value = "Un plan de chapitre";
@@ -1904,6 +1916,9 @@ async function main(){
   check("aucun message ne passe plus par /proxy/chat",
     !fetched.some((f) => f.path === "/proxy/chat"),
     JSON.stringify(fetched.map((f) => f.path)));
+  // La sonde reprend son service : on l'a tue pour UNE mesure, pas pour la
+  // suite du banc.
+  win.eval("verifProxy = window.__verifProxy; delete window.__verifProxy;");
   {
     /* ⚠ ON CHERCHE DU CODE, PAS DES MOTS. Écrite en cherchant « sendPure »
        n'importe où, cette vérification tombait sur mes propres commentaires

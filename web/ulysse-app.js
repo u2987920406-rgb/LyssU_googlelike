@@ -1110,6 +1110,243 @@ function proposerDossierEtabli(path, name){
   });
 }
 
+/* ═══ La corbeille ═══════════════════════════════════════════════════════
+   ⚠ HERMÈS N'EN A PAS. Vérifié dans son code source le 2026-08-22 :
+   `DELETE /api/files` fait un `unlink`/`rmtree` immédiat, `projects.delete`
+   efface la ligne en base, et les cinq routes de suppression de sessions sont
+   définitives. Aucun `send2trash` nulle part. Ce qui part ne revient pas.
+
+   Le glossaire d'Ulysse dit pourtant, depuis toujours, ce qu'une corbeille
+   doit être : « met à la corbeille, NE DÉTRUIT PAS ». C'est `serve.py` qui
+   tient cette promesse — l'enveloppe, pas le moteur.
+
+   ⚠ ET ELLE NE VIDE JAMAIS. Arbitré avec kuchu le 2026-08-22 : Ulysse déplace
+   et sait remettre ; effacer pour de bon reste un geste que la personne fait
+   elle-même, hors d'ici. Il n'y a donc aucun bouton « Vider » — c'est le seul
+   mot qui protège, et un bouton l'aurait rendu faux. Le panneau dit où est le
+   dossier, et laisse la personne décider.
+   ─────────────────────────────────────────────────────────────────────── */
+
+let binOuvert = false, binCache = null;
+
+function binToggle(e){
+  if (e) e.stopPropagation();
+  binOuvert = !binOuvert;
+  const el = $("binpanel");
+  if (!el) return;
+  const rw = $("railwrap");
+  el.style.left = ((rw ? rw.offsetWidth : 72) + 12) + "px";
+  el.classList.toggle("on", binOuvert);
+  if (binOuvert) binDessine();
+}
+
+function binFermer(){
+  binOuvert = false;
+  const el = $("binpanel");
+  if (el) el.classList.remove("on");
+}
+
+/* Les projets archivés vivent dans la corbeille EUX AUSSI — sinon « ce qui
+   est mis de côté » se chercherait à deux endroits. Ils n'y sont pas des
+   fichiers : rien n'a bougé sur le disque, seule la ligne d'Hermès est mise
+   de côté (`projects.archive`). C'est pourquoi ils portent leur propre
+   phrase, et pas celle des fichiers. */
+async function binProjetsArchives(){
+  if (link.state !== "open") return [];
+  try {
+    return (((await link.rpc("projects.list", {})) || {}).projects || [])
+      .filter((p) => p && p.archived);
+  } catch (e){
+    return [];
+  }
+}
+
+async function binDessine(){
+  H("binpanel", '<div class="n-groupe"><span>Corbeille</span><span class="l"></span></div>'
+    + '<div class="u-load">Lecture…</div>');
+  let d;
+  try {
+    d = await REST.corbeille();
+  } catch (e){
+    H("binpanel", '<div class="n-groupe"><span>Corbeille</span><span class="l"></span></div>'
+      + '<div class="u-todo">Lecture impossible : ' + esc(pannePhrase(e)) + "</div>");
+    return;
+  }
+  const projets = await binProjetsArchives();
+  binCache = d;
+  const items = d.entrees || [];
+
+  const ligneFichier = (it) =>
+    '<div class="row bin-row"><span class="ic">'
+    + svg(it.dossier ? "dossier" : "fichier", { size: 18 }) + "</span>"
+    + '<span class="u-l2"><span class="t">' + esc(it.nom) + "</span>"
+    + '<span class="s">' + esc(tronqueTete(it.origine || "", 40)) + "</span></span>"
+    + '<button class="btn-pick" data-bin-id="' + esc(it.id) + '">Remettre</button>'
+    + '<button class="dangerlink bin-x" data-bin-del="' + esc(it.id)
+    + '" title="Supprimer définitivement">' + svg("corbeille", { size: 16 }) + "</button>"
+    + "</div>";
+
+  const ligneProjet = (p) =>
+    '<div class="row bin-row"><span class="ic">'
+    + svg(p.icon || "dossier", { size: 18 }) + "</span>"
+    + '<span class="u-l2"><span class="t">' + esc(p.name || p.id) + "</span>"
+    + '<span class="s">projet · votre dossier n’a pas bougé</span></span>'
+    + '<button class="btn-pick" data-binp-id="' + esc(p.id) + '">Remettre</button>'
+    + '<button class="dangerlink bin-x" data-binp-del="' + esc(p.id)
+    + '" title="Supprimer définitivement">' + svg("corbeille", { size: 16 }) + "</button>"
+    + "</div>";
+
+  const groupe = (titre, n, html) => n
+    ? '<div class="n-groupe"><span>' + titre + '</span><span class="k">' + n
+      + '</span><span class="l"></span></div>' + html : "";
+
+  const total = items.length + projets.length;
+  const corps = total
+    ? groupe("Fichiers", items.length, items.map(ligneFichier).join(""))
+      + groupe("Projets", projets.length, projets.map(ligneProjet).join(""))
+    : '<div class="empty"><div class="big">Rien dedans.</div>'
+      + '<div class="u-vide-sub">Ce que vous mettez ici est <b>déplacé</b>, '
+      + "pas effacé — et revient à sa place d'un clic.</div></div>";
+
+  /* Le pied porte le seul geste d'Ulysse qui détruise. Il dit le nombre
+     AVANT de le faire, et le mot « définitivement » y est écrit en toutes
+     lettres : c'est la dernière chose qu'on lit avant qu'il n'y ait plus de
+     retour. Le chemin reste affiché — on peut toujours aller voir soi-même
+     plutôt que de nous croire sur parole. */
+  const pied = '<div class="bin-pied">'
+    + (items.length
+        ? '<button class="dangerlink" id="binVider">Vider la corbeille — '
+          + items.length + " élément" + (items.length > 1 ? "s" : "")
+          + ", définitivement</button>"
+        : "")
+    + '<code>' + esc(d.dossier || "") + "</code>"
+    + '<button class="quiet-link" id="binCopier">Copier le chemin</button></div>';
+
+  H("binpanel", '<div class="n-groupe"><span>Corbeille</span>'
+    + '<span class="k">' + total + "</span><span class=\"l\"></span></div>"
+    + corps + pied);
+
+  $("binpanel").querySelectorAll("[data-bin-id]").forEach((b) => {
+    b.onclick = async (ev) => {
+      ev.stopPropagation();
+      b.disabled = true;
+      try {
+        const r = await REST.corbeilleRestaurer(b.dataset.binId);
+        snack("« " + ((r.entree && r.entree.nom) || "L'élément") + " » est revenu à sa place.");
+        binDessine();
+      } catch (e){
+        b.disabled = false;
+        snack(pannePhrase(e));
+      }
+    };
+  });
+  // Un projet remis sort des archives : `projects.archive` avec `restore`,
+  // c'est le chemin qu'Hermès expose (server.py:11449).
+  $("binpanel").querySelectorAll("[data-binp-id]").forEach((b) => {
+    b.onclick = async (ev) => {
+      ev.stopPropagation();
+      b.disabled = true;
+      try {
+        await link.rpc("projects.archive", { id: b.dataset.binpId, restore: true });
+        snack("Projet remis dans la liste.");
+        binDessine();
+        if (current === "Projets") drawProjets();
+      } catch (e){
+        b.disabled = false;
+        snack(pannePhrase(e));
+      }
+    };
+  });
+  $("binpanel").querySelectorAll("[data-bin-del]").forEach((b) => {
+    b.onclick = (ev) => {
+      ev.stopPropagation();
+      const it = items.find((x) => x.id === b.dataset.binDel);
+      binConfirmer("Supprimer « " + ((it && it.nom) || "cet élément") + " » ?",
+        "Il part du disque pour de bon. Ni Ulysse ni Hermès ne le retrouveront.",
+        async () => {
+          await REST.corbeilleVider(b.dataset.binDel);
+          snack("Supprimé définitivement.");
+          binDessine();
+        });
+    };
+  });
+  $("binpanel").querySelectorAll("[data-binp-del]").forEach((b) => {
+    b.onclick = (ev) => {
+      ev.stopPropagation();
+      const p = projets.find((x) => x.id === b.dataset.binpDel);
+      binConfirmer("Supprimer le projet « " + ((p && p.name) || "") + " » ?",
+        "Son nom, sa couleur et ses dossiers sont effacés de la base d’Hermès. "
+        + "Votre dossier sur le disque n’est pas touché.",
+        async () => {
+          await link.rpc("projects.delete", { id: b.dataset.binpDel });
+          snack("Projet supprimé. Votre dossier n’a pas bougé.");
+          binDessine();
+          if (current === "Projets") drawProjets();
+        });
+    };
+  });
+  const vider = $("binVider");
+  if (vider) vider.onclick = (ev) => {
+    ev.stopPropagation();
+    binConfirmer("Vider la corbeille ?",
+      items.length + " élément" + (items.length > 1 ? "s partent" : " part")
+      + " du disque pour de bon : " + items.slice(0, 4).map((x) => x.nom).join(", ")
+      + (items.length > 4 ? ", et " + (items.length - 4) + " autre"
+          + (items.length - 4 > 1 ? "s" : "") : "")
+      + ". Aucun retour possible.",
+      async () => {
+        const r = await REST.corbeilleVider(null);
+        snack((r.efface || 0) + " élément(s) supprimé(s) définitivement.");
+        binDessine();
+      });
+  };
+  const cp = $("binCopier");
+  if (cp) cp.onclick = (ev) => {
+    ev.stopPropagation();
+    navigator.clipboard.writeText((binCache && binCache.dossier) || "");
+    snack("Chemin de la corbeille copié.");
+  };
+}
+
+/* La confirmation NOMMÉE, avant tout effacement. Elle dit CE QUI part, pas
+   « êtes-vous sûr ? » — une question à laquelle on répond oui par réflexe.
+   Elle remplace le panneau le temps du choix : on ne peut pas cliquer
+   ailleurs par mégarde pendant qu'elle est là. */
+function binConfirmer(titre, detail, faire){
+  const p = $("binpanel");
+  if (!p) return;
+  const avant = p.innerHTML;
+  p.innerHTML = '<div class="n-groupe panne"><span>' + esc(titre)
+    + '</span><span class="l"></span></div>'
+    + '<div class="bin-confirm"><span>' + esc(detail) + "</span>"
+    + '<div class="acts">'
+    + '<button class="dangerlink" data-bc="oui">Supprimer définitivement</button>'
+    + '<button class="quiet-link" data-bc="non">Annuler</button></div></div>';
+  p.querySelectorAll("[data-bc]").forEach((b) => {
+    b.onclick = async (ev) => {
+      ev.stopPropagation();
+      if (b.dataset.bc === "non"){ p.innerHTML = avant; binDessine(); return; }
+      b.disabled = true;
+      try { await faire(); }
+      catch (e){ snack(pannePhrase(e)); binDessine(); }
+    };
+  });
+}
+
+/* Mettre à la corbeille — le geste, depuis n'importe quel écran. */
+async function jeterALaCorbeille(chemin, nom){
+  try {
+    await REST.corbeilleJeter(chemin);
+    snack("« " + (nom || nomDeChemin(chemin)) + " » est dans la corbeille — "
+      + "déplacé, pas effacé.");
+    if (binOuvert) binDessine();
+    return true;
+  } catch (e){
+    snack(pannePhrase(e));
+    return false;
+  }
+}
+
 /* ═══ La dictée ══════════════════════════════════════════════════════════
    Le micro annonçait « pas encore branché » depuis le début. Hermès expose
    `POST /api/audio/transcribe` (web_server.py:4308) : on lui envoie une
@@ -1471,6 +1708,21 @@ function ouvrirDiscMenu(){
   // on le déplie donc, sinon le menu s'ouvre invisible. Voir `railSet()`.
   const w = $("railwrap");
   if (w && w.classList.contains("mini")) w.classList.add("open");
+  /* Il tombe SOUS le bouton Discuter, et le recouvre à partir de là. On prend
+     la position RÉELLE du bouton plutôt qu'un `top` écrit en dur : le rail a
+     déjà changé de hauteur deux fois (la porte des coulisses, le bandeau),
+     et un nombre figé ici se serait décalé sans que rien ne le dise.
+     ⚠ PAS `offsetTop` : `#railItems` est lui-même positionné (il porte
+     `position:relative` pour passer au-dessus de `.railbg`), donc `offsetTop`
+     compte À PARTIR DE LUI et vaut ~0 — le menu se posait alors sur le
+     bouton au lieu de dessous. Mesuré à l'écran le 2026-08-22. Deux boîtes
+     mesurées dans le même repère ne peuvent pas se tromper de parent. */
+  const btn = document.querySelector('#railItems [data-nav="Discuter"]');
+  const rail = $("rail");
+  if (btn && rail){
+    m.style.top = (btn.getBoundingClientRect().bottom
+                   - rail.getBoundingClientRect().top + 6) + "px";
+  }
   drawHisto();
 }
 function fermerDiscMenu(){
@@ -2035,12 +2287,19 @@ function drawHistoListe(){
     const item = (a, ic, t, danger) => '<button data-a="' + a + '"'
       + (danger ? ' class="dangerlink"' : "") + ">" + svg(ic, { size: 17 })
       + "<span>" + esc(t) + "</span></button>";
+    /* L'infobulle porte le titre ENTIER et la date COMPLETE : la ligne montre
+       ce qui distingue, le survol donne ce qui manque. Sans ça, raccourcir la
+       date reviendrait à la perdre. */
+    const titre = s.title || s.preview || s.id;
+    const quand = fmtWhen(s.last_active || s.started_at);
+    const bulle = [titre, quand, s.cwd || ""].filter(Boolean).join("\n");
     return '<div class="row" data-cle="' + esc(s.id) + '" data-resume="' + esc(s.id) + '"'
-      + (s.cwd ? ' title="' + esc(s.cwd) + '"' : "") + ">"
+      + ' title="' + esc(bulle) + '">'
       + '<span class="dot" style="background:' + col + '"></span>'
-      + '<span class="u-l2"><span class="t">' + esc(s.title || s.preview || s.id) + "</span>"
+      + '<span class="u-l2"><span class="t">' + esc(titre) + "</span>"
       + '<span class="s">' + esc(bits.join(" · ")) + "</span></span>"
-      + '<span class="u-quand">' + esc(fmtWhen(s.last_active || s.started_at)) + "</span>"
+      + '<span class="u-quand">'
+      + esc(fmtQuandCourt(s.last_active || s.started_at)) + "</span>"
       + '<button type="button" class="m-kebab" data-kebab="' + esc(s.id)
       + '" title="Actions" aria-label="Actions">' + svg("points", { size: 18 }) + "</button>"
       + '<div class="pop m-kpop">'
@@ -2230,11 +2489,19 @@ function drawLivListe(){
       + '<span class="nm">' + esc(f.name) + "</span>"
       + '<span class="sp"></span>'
       + '<span class="meta">' + (dir ? "dossier" : esc(fmtBytes(f.size))) + "</span>"
-      + acts(dir
+      /* « Mettre à la corbeille » sur CHAQUE ligne, dossier comme fichier —
+         demandé par kuchu le 2026-08-22 : « il faut pouvoir supprimer ce qui
+         est supprimable, depuis les livrables ». Ce n'est pas une
+         suppression : le fichier est DÉPLACÉ et revient d'un clic. C'est ce
+         qui permet de le proposer partout sans garde-fou anxieux — voir
+         `DOSSIER_CORBEILLE` dans serve.py. */
+      + acts((dir
           ? [{ a: "ouvrir", ic: "suivant", t: "Ouvrir ce dossier" },
              { a: "chemin", ic: "copier", t: "Copier le chemin" }]
           : [{ a: "etabli", ic: "atelier", t: "Poser sur l'Établi" },
              { a: "chemin", ic: "copier", t: "Copier le chemin" }])
+          .concat([{ a: "corbeille", ic: "corbeille",
+                     t: "Mettre à la corbeille — déplacé, pas effacé" }]))
       + "</div>";
   }).join("")));
 
@@ -2243,6 +2510,9 @@ function drawLivListe(){
     const p = ligne.dataset.cle;
     if (a === "chemin") return copier(p, "Le chemin");
     if (a === "ouvrir"){ livPath = p; return drawLivrables(); }
+    if (a === "corbeille"){
+      return jeterALaCorbeille(p).then((ok) => { if (ok) drawLivrables(); });
+    }
     // « Poser sur l'Établi » n'est pas un appel réseau : l'Établi lit le
     // dossier, on l'ouvre donc sur le parent du fichier et on montre sa fiche.
     etabliPath = livCache.path || "";
@@ -2346,8 +2616,26 @@ function geluleLieu(){
      les deux — et il compte AUTANT en Plan : c'est le dossier qu'on lit pour
      bâtir le plan. */
 
-  // Tant que la session n'est pas ouverte, on ignore où elle ira.
+  /* ⚠ QUAND ON A CHOISI LE DOSSIER, ON LE DIT — même avant le premier message.
+     La gélule affichait « dossier en attente » alors qu'on venait de glisser
+     un dossier et de choisir « travailler dessus » : le seul moment où l'on
+     doute est justement celui où l'on vient de décider. kuchu, 2026-08-22 :
+     « il faudrait que ce soit indiqué en haut, en orange, avant de passer au
+     bleu après le premier message ».
+     Deux états, deux couleurs, et la couleur DIT quelque chose :
+       · ORANGE — le dossier est choisi, la session n'est pas encore ouverte.
+         C'est la même ambre que `.change`, qui sert déjà à « ce n'est pas
+         encore acté » ;
+       · BLEU — la session tourne dedans, l'agent y lit et y écrit.
+     « dossier en attente » ne reste que pour le cas où l'on ne sait vraiment
+     pas — aucun dossier choisi. Dire « je ne sais pas » quand on sait était
+     le défaut ; le garder quand on ne sait pas reste juste. */
   if (!enCours){
+    if (prochain){
+      return '<button class="l-lieu pressenti" id="lieuBtn">'
+        + '<span class="ic">' + svg("dossier", { size: 12 }) + "</span>"
+        + '<span class="nm">' + esc(nomDeChemin(prochain)) + "</span></button>";
+    }
     return '<button class="l-lieu attente" id="lieuBtn">'
       + '<span class="ic"></span><span class="nm">dossier en attente</span></button>';
   }
@@ -2573,8 +2861,26 @@ function carteProjetVrai(p){
     + svg("regler", { size: 19 }) + "</button>"
     + '<button data-a="chemin" title="Copier le chemin du dossier">'
     + svg("copier", { size: 19 }) + "</button>"
+    /* ⚠ C'ÉTAIT `boucle`, L'ICÔNE DES AUTOMATISATIONS — deux flèches qui
+       tournent, dont le glossaire dit « ce qui tourne en boucle, sans agent
+       derrière ». Sur « Archiver ce projet », elle annonçait donc l'inverse
+       de ce que le bouton fait. `boite` porte le nom « archiver » dans le
+       jeu d'icônes, et sa raison d'être est exactement celle-ci : « range
+       sans jeter ». Signalé par kuchu le 2026-08-22. */
     + '<button data-arch-id="' + esc(p.id || "") + '" title="Archiver ce projet">'
-    + svg("boucle", { size: 19 }) + "</button></div>"
+    + svg("boite", { size: 19 }) + "</button>"
+    /* « Mettre à la corbeille » en UN geste — kuchu, 2026-08-22. Il fallait
+       jusqu'ici archiver, puis aller dans les Archivés pour supprimer : deux
+       écrans pour ranger une carte qu'on a sous les yeux.
+       Ce que ça fait vraiment : `projects.archive`, le MÊME appel que le
+       bouton d'à côté. Le projet quitte la liste et se retrouve dans la
+       Corbeille, d'où il revient ou part pour de bon. Ce n'est donc pas une
+       troisième mécanique — c'est la même, avec une autre porte de sortie.
+       Et le dossier sur le disque n'est jamais touché : Hermès n'efface que
+       sa propre ligne (`projects_db.py:586`, vérifié le 2026-08-22). */
+    + '<button data-bin-proj="' + esc(p.id || "")
+    + '" title="Mettre à la corbeille — votre dossier n\'est pas touché">'
+    + svg("corbeille", { size: 19 }) + "</button></div>"
     + "</div>"
     + '<div class="iso">'
     + "<span>" + svg("bac", { size: 17 }) + " "
@@ -3089,7 +3395,7 @@ async function drawProjets(){
 
   if (projArchives){
     H("projets", archives.length
-      ? '<div class="trashnote">' + svg("boucle", { size: 20 })
+      ? '<div class="trashnote">' + svg("boite", { size: 20 })
         + "<span>Un projet archivé sort de la liste, et <b>rien d’autre</b>. "
         + "Il revient quand vous voulez, <b>sans limite de temps</b> — et son "
         + "dossier n’a jamais été touché.</span></div>"
@@ -3180,6 +3486,25 @@ async function drawProjets(){
         const p = vrais.find((x) => x.id === b.dataset.archId);
         if (p) feuilleArchiver({ id: p.id, name: p.label || nomDeChemin(p.path),
                                  primary_path: p.path });
+      };
+    });
+    // Le même appel qu'archiver, avec une autre porte de sortie : la
+    // Corbeille. Voir le commentaire du bouton.
+    $("projets").querySelectorAll("[data-bin-proj]").forEach((b) => {
+      b.onclick = async (ev) => {
+        ev.stopPropagation();
+        const p = vrais.find((x) => x.id === b.dataset.binProj);
+        b.disabled = true;
+        try {
+          await link.rpc("projects.archive", { id: b.dataset.binProj });
+          snack("« " + ((p && (p.label || nomDeChemin(p.path))) || "Le projet")
+            + " » est dans la corbeille. Votre dossier n’a pas bougé.");
+          drawProjets();
+          if (binOuvert) binDessine();
+        } catch (e){
+          b.disabled = false;
+          snack(pannePhrase(e));
+        }
       };
     });
 
@@ -6012,6 +6337,8 @@ function boot(){
 
   $("burger").onclick = pinRail;
   $("bell").onclick = (e) => Notifs.toggle(e);
+  H("binIc", svg("corbeille", { size: 22, w: 1.6 }));
+  $("binBtn").onclick = (e) => { Notifs.close(); binToggle(e); };
   // Un seul composeur, désormais : celui de Discuter, qui sert d'accueil.
   $("composer").onsubmit = onSend;
   $("stopBtn").onclick = interruptTurn;
@@ -6277,6 +6604,11 @@ function boot(){
   document.addEventListener("click", (e) => {
     document.querySelectorAll(".pop.on").forEach((p) => p.classList.remove("on"));
     Notifs.close();
+    // La corbeille se referme comme les autres fenêtres volantes — sauf si
+    // c'est DEDANS qu'on a cliqué (« Remettre », copier le chemin).
+    if (binOuvert && !e.target.closest("#binpanel") && !e.target.closest("#binBtn")){
+      binFermer();
+    }
     /* ⚠ « ON NE PEUT PAS QUITTER LE MENU » — kuchu, 2026-08-21. Repris pour
        `#discMenu` : un clic DEDANS (une ligne, le filtre, le ⋯) ou sur le
        bouton Discuter qui l'ouvre ne doit rien fermer — ce serait fermer ce

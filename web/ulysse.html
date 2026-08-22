@@ -218,9 +218,17 @@
 .u-modenote{transition:opacity .3s ease}
 #pDiscuter.accueil .u-modenote{opacity:0}
 
-/* Et l'Établi ne s'ouvre pas à l'accueil : un volet vide à côté d'un écran nu
-   se remarque plus que tout le reste. */
-#pDiscuter.accueil .etabli{display:none}
+/* L'Établi ne s'INVITE pas à l'accueil : un volet vide à côté d'un écran nu
+   se remarque plus que tout le reste.
+   ⚠ MAIS IL DOIT S'OUVRIR QUAND ON LE DEMANDE. Cette règle ne distinguait pas
+   « ne pas apparaître tout seul » de « refuser de s'ouvrir » : à l'accueil,
+   cliquer « Ouvrir l'Établi » dans le kebab ne faisait RIEN — la classe
+   `atelier` se posait, le volet restait en `display:none`, et aucun message
+   ne disait pourquoi. Signalé par kuchu le 2026-08-22 : « sur une page vierge
+   lorsque je veux ouvrir l'Établi ça n'apparaît pas ».
+   `.work.atelier` est justement la marque d'une demande explicite — elle
+   n'est posée que par `setMode("atelier")`, jamais au chargement. */
+#pDiscuter.accueil .work:not(.atelier) .etabli{display:none}
 
 /* La barre sous le composeur : la bascule Cowork/Discussion, et ce qu'elle
    change. On la met LÀ et pas dans une barre du haut parce qu'elle décrit ce
@@ -843,7 +851,16 @@
    Ancré au rail (`position:absolute`, `.rail` est déjà repère), pas au
    volet du fil : il s'ouvre par-dessus, comme un menu, pas à côté comme
    l'Établi. */
-.disc-menu{position:absolute;top:54px;left:100%;margin-left:8px;width:340px;
+/* ⚠ SOUS L'ICONE, PAS A COTE. Il s'ouvrait a la droite du rail (`left:100%`) :
+   une colonne posee contre une autre colonne, sans rien qui dise laquelle
+   l'a ouverte. kuchu, 2026-08-22 : « j'aimerais que le volet s'ouvre sous
+   l'icone discussion et non a cote ». Il tombe donc SOUS le bouton Discuter
+   et RECOUVRE les icones du dessous — la place qu'il prend est celle du
+   menu qu'il prolonge, pas une seconde colonne prise a l'ecran.
+   Le `top` est pose par `ouvrirDiscMenu()` depuis la position REELLE du
+   bouton : l'ecrire en dur ici, c'est reecrire la hauteur du rail a chaque
+   fois qu'elle bouge. `left` s'aligne sur le rembourrage du rail (8px). */
+.disc-menu{position:absolute;top:104px;left:8px;width:380px;
   max-height:min(70vh,560px);background:var(--sidebar);border-radius:var(--radius-card);
   box-shadow:var(--elev-3);display:none;flex-direction:column;overflow:hidden;z-index:61}
 .disc-menu.on{display:flex}
@@ -868,8 +885,71 @@
    seulement : les autres écrans qui partagent `.row` n'ont pas cette
    ambiguïté (une carte de fichier, un projet — leur forme dit déjà « on
    clique »). */
-.disc-menu .row{position:relative;cursor:pointer;padding-right:44px}
+.disc-menu .row{position:relative;cursor:pointer;padding:12px 44px 12px 14px;gap:10px}
 .disc-menu .row:hover{box-shadow:inset 0 0 0 1px var(--outline-var)}
+/* ⚠ ON NE LISAIT PLUS LES TITRES — kuchu, 2026-08-22, capture a l'appui :
+   « C'est lundi… », « Salut et di… », « Reponse … ». La faute n'etait pas la
+   police mais le PARTAGE : sur ~250px de ligne, la date en prenait 110 de
+   large fixe et le kebab 44, laissant ~100px au titre. Une date longue
+   (« 22/08/2026 09:07 ») mangeait donc le seul champ qui distingue deux
+   conversations.
+   La date passe en forme courte (`fmtQuandCourt` — l'heure aujourd'hui, le
+   jour sinon), donc 52px au lieu de 110 : le titre double de largeur, a
+   police EGALE. La date reste une colonne a droite, alignee, parce que
+   c'est le seul champ qu'on compare d'une ligne a l'autre du regard — la
+   raison pour laquelle elle etait a part tient toujours.
+   La date complete n'est pas perdue : elle est dans l'infobulle de la ligne. */
+.disc-menu .u-quand{width:52px;font-size:var(--font-size-xs)}
+/* Et la police descend d'un cran dans CE menu seulement — kuchu, 2026-08-22 :
+   « reduire la police pour laisser afficher plus de texte ». C'est une liste
+   qu'on parcourt du regard pour retrouver, pas un texte qu'on lit : elle a le
+   droit d'etre plus dense que le reste du produit. Ailleurs `.u-l2 .t` garde
+   sa taille — les Livrables et le Vestiaire ne sont pas dans ce cas. */
+.disc-menu .u-l2 .t{font-size:11px}
+.disc-menu .u-l2 .s{font-size:9px}
+.disc-menu .u-rang{margin:14px 0 8px;font-size:var(--font-size-xs)}
+
+/* ═══ Les deux couleurs de la gélule du lieu ══════════════════════════════
+   Voir `geluleLieu()` : la couleur dit à quel moment on en est.
+   ORANGE tant que la session n'est pas ouverte — le dossier est CHOISI, rien
+   n'y a encore été lu ni écrit. Même ambre que `.l-lieu.change`, qui sert
+   déjà à « décidé, pas encore acté » : deux signes pour une même idée
+   seraient deux vocabulaires à apprendre.
+   BLEU dès que la session tourne dedans. Un projet range, lui, garde SA
+   couleur (`.l-lieu.projet`) — c'est ce qui le distingue d'un dossier
+   quelconque, et ça ne change pas ici. */
+.l-lieu.pressenti{background:#FEF7E0;color:#5F4200}
+.l-lieu.pressenti .ic{background:var(--amber);color:#fff}
+.l-lieu.pressenti .nm{font-weight:500}
+.l-lieu.dossier{background:var(--accent-container);color:var(--on-accent-container)}
+.l-lieu.dossier .ic{background:var(--accent);color:#fff}
+
+/* ═══ La corbeille ════════════════════════════════════════════════════════
+   Elle emprunte `.npanel` (la boîte volante des notifications) et `.row` :
+   même forme, même place, même fermeture au clic ailleurs. Seules ces trois
+   règles lui sont propres. */
+.bin-row{padding:10px 12px;gap:12px}
+.bin-row .btn-pick{height:30px;padding:0 12px;font-size:13px;flex:none}
+/* Le pied explique l'ABSENCE de « Vider ». Sans lui, ce silence se lirait
+   comme un manque ; avec lui, c'est une promesse — Ulysse déplace, il
+   n'efface pas. Voir `DOSSIER_CORBEILLE` dans serve.py. */
+.bin-pied{margin-top:10px;padding:12px 14px;border-top:1px solid var(--outline-var);
+  display:flex;flex-direction:column;gap:8px;
+  font-size:var(--font-size-xs);color:var(--muted);line-height:1.55}
+.bin-pied code{font-family:ui-monospace,Menlo,monospace;font-size:11.5px;
+  background:var(--surface);border-radius:var(--radius-sm);padding:7px 10px;
+  word-break:break-all;color:var(--text)}
+.bin-pied .quiet-link{align-self:flex-start;margin-left:-12px}
+.bin-pied .dangerlink{align-self:flex-start;margin-left:-14px;text-align:left}
+/* La croix rouge de chaque ligne : discrète au repos, elle ne se propose
+   qu'au survol — comme les actions de ligne partout ailleurs. Ce n'est pas
+   un bouton qu'on veut trouver sous le doigt par hasard. */
+.bin-x{flex:none;width:30px;height:30px;padding:0;display:grid;place-items:center;
+  opacity:0;transition:opacity .14s ease}
+.bin-row:hover .bin-x{opacity:1}
+.bin-confirm{display:flex;flex-direction:column;gap:12px;padding:12px 14px;
+  font-size:var(--font-size-sm);color:var(--text);line-height:1.55}
+.bin-confirm .acts{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
 .m-kebab{position:absolute;right:6px;top:50%;transform:translateY(-50%);
   width:32px;height:32px;border-radius:var(--radius-sm);display:grid;
   place-items:center;color:var(--muted);opacity:0;transition:opacity .15s ease,background .15s ease}
@@ -1133,6 +1213,12 @@
       <div class="rail-sep"></div>
       <button class="bellbtn" id="bell" aria-label="Notifications">
         <span class="ic" id="bellIc"></span><span class="lbl">Notifications</span></button>
+      <!-- La corbeille, sous les notifications — demandee par kuchu le
+           2026-08-22. Elle emprunte `.bellbtn` : meme forme, meme place,
+           meme rang dans le rail. Ce qu'elle contient a ete DEPLACE, jamais
+           efface : voir `DOSSIER_CORBEILLE` dans serve.py. -->
+      <button class="bellbtn" id="binBtn" aria-label="Corbeille">
+        <span class="ic" id="binIc"></span><span class="lbl">Corbeille</span></button>
       <div class="rail-note">Survolez la lisière gauche pour déplier</div>
       <!-- Le sous-menu de Discuter : nouvelle discussion, puis l'historique.
            Voir le commentaire CSS de `.disc-menu` — c'est le seul endroit où
@@ -1440,6 +1526,10 @@
 </section>
 
 <div class="npanel" id="npanel"></div>
+<!-- La corbeille emprunte `.npanel` : meme boite volante, meme place, meme
+     fermeture au clic ailleurs. Un deuxieme mecanisme de panneau flottant
+     serait un dialecte de plus a apprendre. -->
+<div class="npanel" id="binpanel"></div>
 <div class="toasts" id="toasts"></div>
 <div class="snack" id="snack"></div>
 

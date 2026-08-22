@@ -168,6 +168,25 @@ const REST = {
   ecrireMemoire: (path, content) =>
     api("/ulysse/ecrire", { method: "POST", body: { path: path, content: content } }),
   versionsDe: (path) => api("/ulysse/versions?path=" + encodeURIComponent(path)),
+
+  /* La corbeille. Trois appels, et PAS DE QUATRIEME : il n'existe aucune
+     route pour vider. Ulysse deplace et remet ; effacer pour de bon reste un
+     geste que la personne fait elle-meme, hors d'ici. Voir le bloc
+     `DOSSIER_CORBEILLE` de serve.py — Hermes, lui, n'a aucune corbeille :
+     ses suppressions sont immediates et sans retour. */
+  corbeille: () => api("/ulysse/corbeille"),
+  corbeilleJeter: (path) =>
+    api("/ulysse/corbeille/jeter", { method: "POST", body: { path: path } }),
+  corbeilleRestaurer: (id) =>
+    api("/ulysse/corbeille/restaurer", { method: "POST", body: { id: id } }),
+  /* ⚠ LE SEUL APPEL D'ULYSSE QUI DETRUISE. Ajoute le 2026-08-22 a la demande
+     de kuchu, qui revient sur l'arbitrage du matin (« Ulysse n'efface
+     jamais »). Rien ne rattrape ce qui part par la : Hermes n'a pas de
+     corbeille systeme, et il n'y en a plus derriere celle-ci. C'est pourquoi
+     l'ecran demande une confirmation NOMMEE avant de l'appeler. */
+  corbeilleVider: (id) =>
+    api("/ulysse/corbeille/vider", { method: "POST",
+      body: id ? { id: id } : { tout: true } }),
   restaurerVersion: (path, nom) =>
     api("/ulysse/restaurer", { method: "POST", body: { path: path, nom: nom } }),
 
@@ -1197,6 +1216,36 @@ function fmtWhen(ts){
     d = new Date(ts > 1e12 ? ts : ts * 1000);
   }
   return isNaN(d.getTime()) ? "—" : d.toLocaleString("fr-FR", { dateStyle: "short", timeStyle: "short" });
+}
+
+/* La meme date, en forme COURTE — pour une liste ou l'on compare des lignes,
+   pas pour un champ ou l'on lit une date. Aujourd'hui : l'heure seule, la
+   seule chose qui distingue deux conversations du jour. Cette annee : le
+   jour et le mois. Au-dela : l'annee sur deux chiffres.
+   Ce n'est pas un raccourci d'affichage gratuit : « 22/08/2026 09:07 » tenait
+   110px de large fixe dans une liste de 250, et c'est le TITRE qui payait.
+   La date complete reste servie par `fmtWhen`, en infobulle. */
+function fmtQuandCourt(ts){
+  const plein = fmtWhen(ts);
+  if (plein === "—") return plein;
+  let d;
+  if (typeof ts === "string"){
+    const n = Number(ts);
+    d = Number.isFinite(n) && ts.trim() !== "" ? new Date(n > 1e12 ? n : n * 1000) : new Date(ts);
+  } else {
+    d = new Date(ts > 1e12 ? ts : ts * 1000);
+  }
+  const now = new Date();
+  const memeJour = d.getFullYear() === now.getFullYear()
+    && d.getMonth() === now.getMonth() && d.getDate() === now.getDate();
+  if (memeJour){
+    return d.toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" });
+  }
+  const p2 = (n) => String(n).padStart(2, "0");
+  const jourMois = p2(d.getDate()) + "/" + p2(d.getMonth() + 1);
+  return d.getFullYear() === now.getFullYear()
+    ? jourMois
+    : jourMois + "/" + String(d.getFullYear()).slice(-2);
 }
 
 function fmtDur(ms){

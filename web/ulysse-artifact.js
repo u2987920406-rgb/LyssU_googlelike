@@ -85,6 +85,15 @@ function aUnRendu(nom){
   return /\.(md|markdown|mdown|csv|tsv)$/i.test(nom || "");
 }
 
+/* Le type MIME d'abord — c'est le backend qui l'a lu, pas nous — et le nom en
+   secours : `/api/files/read` ne renseigne pas toujours `mime_type`, et un
+   fichier sans type reconnu retomberait dans « aperçu impossible » alors que
+   ses octets sont bien ceux d'un PDF. */
+function estPdf(f){
+  return (f.mime || "").indexOf("application/pdf") === 0
+    || /\.pdf$/i.test(f.nom || "");
+}
+
 /* Le séparateur ne se devine pas au hasard : un export Excel français écrit
    des points-virgules, et lire « a;b;c » comme UNE colonne rendrait un
    tableau d'une seule cellule — pire que le texte brut. On prend celui qui
@@ -326,6 +335,18 @@ function renderArtifactBody(){
   if (f.mime.indexOf("image/") === 0 && f.dataUrl){
     body.innerHTML = '<img src="' + esc(f.dataUrl)
       + '" style="max-width:100%;border-radius:12px" alt="' + esc(f.nom) + '">';
+  /* ⚠ UN PDF N'EST PAS « DU BINAIRE QU'ON NE PEUT PAS MONTRER ». Il tombait
+     dans la branche d'à côté et le volet répondait « aperçu impossible » —
+     alors que le navigateur sait afficher un PDF tout seul, sans bibliothèque.
+     kuchu, 2026-08-22 : « je viens de cliquer sur un pdf mais cela ne
+     s'affiche pas ». C'est le cas le plus fréquent des Livrables : les veilles
+     y sont écrites en PDF.
+     `<embed>` plutôt qu'`<iframe>` : c'est ce que le visualiseur intégré de
+     Chrome attend, et il ne réclame pas de `sandbox` à régler. La taille est
+     déjà bornée plus haut par PREVIEW_MAX_BYTES. */
+  } else if (estPdf(f) && f.dataUrl){
+    body.innerHTML = '<embed src="' + esc(f.dataUrl) + '" type="application/pdf"'
+      + ' style="width:100%;height:100%;min-height:70vh;border:0;border-radius:12px">';
   } else if (!texteDispo){
     body.innerHTML = '<div class="u-art-empty">Fichier binaire — aperçu impossible.</div>';
   /* ⚠ LE DOCUMENT EN ENTIER. Ces deux lignes portaient `shorten(f.texte,

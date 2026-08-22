@@ -399,6 +399,232 @@ def dossier_versions(chemin):
     return os.path.join(os.path.dirname(os.path.abspath(chemin)), DOSSIER_VERSIONS)
 
 
+# ═══ LA CORBEILLE ════════════════════════════════════════════════════════════
+#
+# ⚠ HERMES N'EN A AUCUNE. Verifie dans son code source le 2026-08-22 :
+# `DELETE /api/files` (web_server.py:2576) fait un `unlink` / `rmtree`
+# IMMEDIAT, `projects.delete` efface la ligne en base, et les cinq routes de
+# suppression de sessions sont toutes definitives. Aucun `send2trash`, aucun
+# `shell.trash`, nulle part dans l'arbre. Ce qui part ne revient pas.
+#
+# Le glossaire d'Ulysse dit pourtant, depuis toujours, ce qu'une corbeille
+# doit etre : « Met a la corbeille. NE DETRUIT PAS : l'objet y reste. » Cette
+# section-ci tient cette promesse, en la fabriquant ici — c'est-a-dire dans
+# l'enveloppe, sans toucher aux binaires d'Hermes.
+#
+# ⚠ ET ELLE N'EFFACE JAMAIS. Arbitre avec kuchu le 2026-08-22 : Ulysse
+# DEPLACE et sait remettre, mais « vider pour de bon » reste un geste que la
+# personne fait elle-meme, ailleurs. Il n'y a donc AUCUNE route de purge dans
+# ce fichier, et ce n'est pas un oubli : ajouter `rmtree` ici rendrait faux le
+# seul mot qui protege — « ne detruit pas ».
+DOSSIER_CORBEILLE = "corbeille-ulysse"
+INDEX_CORBEILLE = "corbeille.json"
+
+
+def corbeille_dir():
+    """La corbeille vit dans le Hermes Home, jamais dans `web/`.
+
+    `web/` est le PRODUIT (regle S10) : tout ce qui y tombe est telechargeable
+    depuis :8080. Deux routes ont deja ete supprimees pour l'avoir oublie.
+    """
+    return os.path.join(hermes_home(), DOSSIER_CORBEILLE)
+
+
+def _chemins_proteges():
+    """Ce qu'on ne met pas a la corbeille, quoi qu'il arrive."""
+    return [
+        os.path.dirname(os.path.abspath(__file__)),   # web/ — le produit lui-meme
+        corbeille_dir(),                              # la corbeille
+    ]
+
+
+def corbeille_refusee(chemin):
+    """Raison de refus, ou None. Seule porte d'entree des regles du jeter."""
+    if not chemin or not isinstance(chemin, str):
+        return "Aucun fichier n'a ete indique."
+    if not os.path.exists(chemin):
+        return "Ce fichier n'existe plus."
+    plein = os.path.abspath(chemin)
+
+    nom = os.path.basename(plein).lower()
+    if nom in INTERDITS_ECRITURE:
+        return ("SOUL.md ne se jette pas depuis Ulysse, pas plus qu'il ne "
+                "s'ecrit : il dit ce qu'Ulysse s'autorise et ce qu'il refuse.")
+
+    # La racine d'un disque, ou le Hermes Home lui-meme : un geste par
+    # inadvertance ne doit pas pouvoir emporter tout l'espace de travail.
+    if os.path.dirname(plein) == plein:
+        return "On ne met pas la racine d'un disque a la corbeille."
+    if _sous_chemin(plein, hermes_home()):
+        return ("Ce dossier CONTIENT le dossier d'Hermes. Le deplacer "
+                "emporterait la corbeille elle-meme, et la memoire avec.")
+
+    for garde in _chemins_proteges():
+        if _sous_chemin(garde, plein) or _sous_chemin(plein, garde):
+            return ("Ce chemin fait partie d'Ulysse ou de sa corbeille. "
+                    "Ulysse ne se jette pas lui-meme.")
+
+    # Une version gardee est precisement ce qui existe pour empecher une
+    # perte : la jeter reviendrait a desarmer le retour en arriere.
+    if DOSSIER_VERSIONS in plein.replace("\\", "/").split("/"):
+        return ("Ce fichier est une version gardee. On y revient, on ne la "
+                "jette pas : c'est ce qui rend le retour en arriere sur.")
+    return None
+
+
+def corbeille_index():
+    """Ce que la corbeille contient, lu depuis son index. Jamais devine.
+
+    L'index est la SEULE chose qui sache d'ou vient un objet : sans lui, on
+    saurait remettre un nom mais pas une place, et « restaurer » ne voudrait
+    plus rien dire.
+    """
+    fichier = os.path.join(corbeille_dir(), INDEX_CORBEILLE)
+    try:
+        with open(fichier, "r", encoding="utf-8") as f:
+            donnees = json.load(f)
+    except (OSError, ValueError):
+        return []
+    return donnees if isinstance(donnees, list) else []
+
+
+def corbeille_ecrire_index(entrees):
+    os.makedirs(corbeille_dir(), exist_ok=True)
+    fichier = os.path.join(corbeille_dir(), INDEX_CORBEILLE)
+    # Ecriture par un temporaire puis remplacement : un index a moitie ecrit
+    # perdrait la trace de TOUT ce que la corbeille contient.
+    temp = fichier + ".tmp"
+    with open(temp, "w", encoding="utf-8") as f:
+        json.dump(entrees, f, ensure_ascii=False, indent=1)
+    os.replace(temp, fichier)
+
+
+def corbeille_jeter(chemin):
+    """Deplace vers la corbeille. Rend l'entree d'index creee."""
+    plein = os.path.abspath(chemin)
+    dossier = corbeille_dir()
+    os.makedirs(dossier, exist_ok=True)
+    quand = time.strftime("%Y-%m-%d-%H%M%S")
+    base = os.path.basename(plein)
+    # Le nom range porte la date : deux fichiers du meme nom, jetes deux jours
+    # differents, ne doivent pas s'ecraser dans la corbeille.
+    cible = os.path.join(dossier, quand + "__" + base)
+    n = 2
+    while os.path.exists(cible):
+        cible = os.path.join(dossier, "%s-%d__%s" % (quand, n, base))
+        n += 1
+    shutil.move(plein, cible)
+    entree = {
+        "id": os.path.basename(cible),
+        "nom": base,
+        "origine": plein,
+        "quand": quand,
+        "dossier": os.path.isdir(cible),
+    }
+    entrees = corbeille_index()
+    entrees.insert(0, entree)
+    corbeille_ecrire_index(entrees)
+    return entree
+
+
+def corbeille_restaurer(ident):
+    """Remet a sa place. Rend (entree, souci) — l'un des deux est None."""
+    entrees = corbeille_index()
+    entree = next((e for e in entrees if e.get("id") == ident), None)
+    if entree is None:
+        return None, "Cet element n'est plus dans la corbeille."
+    source = os.path.join(corbeille_dir(), entree["id"])
+    if not os.path.exists(source):
+        return None, ("Cet element a ete sorti de la corbeille a la main : "
+                      "Ulysse ne sait plus ou il est.")
+    origine = entree.get("origine") or ""
+    if not origine:
+        return None, "On ne sait pas d'ou venait cet element."
+    # On n'ECRASE PAS ce qui a repris la place entre-temps : ce serait
+    # detruire pour restaurer, exactement ce que la corbeille evite.
+    if os.path.exists(origine):
+        return None, ("Quelque chose occupe deja « %s ». Ulysse ne l'ecrase "
+                      "pas : deplacez-le d'abord." % origine)
+    parent = os.path.dirname(origine)
+    if parent and not os.path.isdir(parent):
+        try:
+            os.makedirs(parent, exist_ok=True)
+        except OSError as exc:
+            return None, "Le dossier d'origine n'a pas pu etre recree (%s)." % exc
+    shutil.move(source, origine)
+    corbeille_ecrire_index([e for e in entrees if e.get("id") != ident])
+    return entree, None
+
+
+def corbeille_vider(ident=None):
+    """Effacer POUR DE BON. Rend (nombre efface, souci).
+
+    ⚠ CETTE ROUTE N'EXISTAIT PAS, ET SON ABSENCE ETAIT LE COEUR DE LA
+    PROMESSE. Elle est ajoutee le 2026-08-22 sur demande explicite de kuchu
+    (« il faut pouvoir supprimer ce qui est supprimable »), qui revient sur
+    l'arbitrage du matin meme. Ce qui part d'ici ne revient pas : Hermes n'a
+    aucune corbeille systeme, et nous n'en avons plus derriere celle-ci.
+
+    Deux gardes tiennent la frontiere, et aucun n'est decoratif :
+      · l'identifiant est un NOM DE FICHIER, jamais un chemin — sinon
+        « ../../Documents » sortirait du dossier ;
+      · la cible est confrontee au dossier de la corbeille par un chemin
+        REEL (`_sous_chemin`), donc un lien symbolique qui pointe ailleurs
+        est refuse lui aussi.
+    Sans `ident`, on vide tout — mais seulement ce que l'index connait, pas
+    ce qui traine dans le dossier.
+    """
+    dossier = corbeille_dir()
+    entrees = corbeille_index()
+    if ident is not None:
+        if ident != os.path.basename(ident):
+            return 0, "Identifiant invalide."
+        vises = [e for e in entrees if e.get("id") == ident]
+        if not vises:
+            return 0, "Cet element n'est plus dans la corbeille."
+    else:
+        vises = list(entrees)
+
+    efface = 0
+    for e in vises:
+        cible = os.path.join(dossier, e.get("id") or "")
+        # La cible doit etre DANS la corbeille, chemins reels compares.
+        if not _sous_chemin(dossier, cible) or os.path.realpath(cible) == os.path.realpath(dossier):
+            continue
+        try:
+            if os.path.isdir(cible) and not os.path.islink(cible):
+                shutil.rmtree(cible)
+            elif os.path.exists(cible) or os.path.islink(cible):
+                os.remove(cible)
+            efface += 1
+        except OSError:
+            continue          # on garde l'entree : elle est encore la
+    restants = [e for e in entrees
+                if os.path.exists(os.path.join(dossier, e.get("id") or ""))]
+    corbeille_ecrire_index(restants)
+    return efface, None
+
+
+def corbeille_liste():
+    """L'index, mais confronte au disque — on n'affiche pas ce qui n'est plus la."""
+    dossier = corbeille_dir()
+    vues = []
+    for e in corbeille_index():
+        chemin = os.path.join(dossier, e.get("id") or "")
+        if not os.path.exists(chemin):
+            continue          # sorti a la main : on ne pretend pas le detenir
+        taille = None
+        try:
+            if os.path.isfile(chemin):
+                taille = os.path.getsize(chemin)
+        except OSError:
+            taille = None
+        vue = dict(e)
+        vue["taille"] = taille
+        vues.append(vue)
+    return vues
+
+
 def garder_version(chemin, horodatage=None):
     """Met la version actuelle de cote, datee. Rend son chemin, ou None.
 
@@ -699,6 +925,12 @@ class Handler(http.server.SimpleHTTPRequestHandler):
                 return
             self.dire_versions()
             return
+        if self.route() == "/ulysse/corbeille":
+            if self.guard():
+                return
+            self.send_json(200, {"entrees": corbeille_liste(),
+                                 "dossier": corbeille_dir()})
+            return
         if not self.static_allowed():
             self.send_error(404, "Not Found")
             return
@@ -758,6 +990,24 @@ class Handler(http.server.SimpleHTTPRequestHandler):
                 self.send_json(200, {"ok": True})
             else:
                 self.json_error(500, souci)
+            return
+        # La corbeille. DEUX gestes seulement — jeter, remettre. Il n'y a pas
+        # de troisieme route, et c'est le coeur de la promesse : voir le bloc
+        # `DOSSIER_CORBEILLE` plus haut.
+        if self.route() == "/ulysse/corbeille/jeter":
+            if self.guard():
+                return
+            self.corbeille_jeter_route()
+            return
+        if self.route() == "/ulysse/corbeille/restaurer":
+            if self.guard():
+                return
+            self.corbeille_restaurer_route()
+            return
+        if self.route() == "/ulysse/corbeille/vider":
+            if self.guard():
+                return
+            self.corbeille_vider_route()
             return
         # ⚠ NI /ulysse/capture NI /ulysse/artifact. Les deux ont existe, les
         # deux ecrivaient dans web/ — le dossier SERVI, donc le produit — et
@@ -1354,6 +1604,71 @@ class Handler(http.server.SimpleHTTPRequestHandler):
             self.json_error(400, "Chemin absent ou hors du dossier d'Hermes.")
             return
         self.send_json(200, {"path": chemin, "versions": lister_versions(chemin)})
+
+    def corbeille_jeter_route(self):
+        """Mettre a la corbeille : un DEPLACEMENT, jamais un effacement."""
+        corps, souci = self.lire_json()
+        if not isinstance(corps, dict):
+            self.json_error(400, souci or "Corps JSON attendu : {path}.")
+            return
+        chemin = corps.get("path")
+        refus = corbeille_refusee(chemin)
+        if refus:
+            self.json_error(403, refus)
+            return
+        try:
+            entree = corbeille_jeter(chemin)
+        except OSError as exc:
+            self.json_error(500, "Le deplacement a echoue (%s). Rien n'a "
+                                 "bouge." % exc)
+            return
+        self.send_json(200, {"ok": True, "entree": entree})
+
+    def corbeille_restaurer_route(self):
+        """Remettre a sa place, sans jamais ecraser ce qui l'occupe."""
+        corps, souci = self.lire_json()
+        if not isinstance(corps, dict):
+            self.json_error(400, souci or "Corps JSON attendu : {id}.")
+            return
+        ident = corps.get("id")
+        if not isinstance(ident, str) or not ident:
+            self.json_error(400, "« id » manquant.")
+            return
+        # Un identifiant est un NOM DE FICHIER dans la corbeille, jamais un
+        # chemin : sans cette ligne, « ../../ailleurs » sortirait du dossier.
+        if ident != os.path.basename(ident):
+            self.json_error(400, "Identifiant invalide.")
+            return
+        try:
+            entree, souci = corbeille_restaurer(ident)
+        except OSError as exc:
+            self.json_error(500, "La remise en place a echoue (%s)." % exc)
+            return
+        if souci:
+            self.json_error(409, souci)
+            return
+        self.send_json(200, {"ok": True, "entree": entree})
+
+    def corbeille_vider_route(self):
+        """Effacer pour de bon. Le seul endroit d'Ulysse qui detruise."""
+        corps, souci = self.lire_json()
+        if not isinstance(corps, dict):
+            self.json_error(400, souci or "Corps JSON attendu : {id} ou {tout:true}.")
+            return
+        ident = corps.get("id")
+        tout = corps.get("tout") is True
+        if not tout and not isinstance(ident, str):
+            self.json_error(400, "Indiquez « id », ou « tout: true ».")
+            return
+        try:
+            n, souci = corbeille_vider(None if tout else ident)
+        except OSError as exc:
+            self.json_error(500, "L'effacement a echoue (%s)." % exc)
+            return
+        if souci:
+            self.json_error(409, souci)
+            return
+        self.send_json(200, {"ok": True, "efface": n})
 
     def restaurer_version(self):
         """Revenir en arriere — en gardant d'abord ce qu'on quitte.
