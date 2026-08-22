@@ -33,8 +33,9 @@ const PANELS = [
   /* « Travaux » a quitté cette liste le 2026-08-21 : c'était une donnée déjà
      bonne (titres générés par Hermès, recherche déjà câblée) derrière une
      destination à part que rien ne lisait comme « mes conversations
-     passées ». Elle vit maintenant dans un volet accroché à Discuter — voir
-     `setMode("historique")`, `drawHisto` — pas d'entrée de rail pour ça.
+     passées ». Elle a vécu dans un volet accroché à Discuter, puis (même
+     jour, deuxième passe) dans le sous-menu de l'icône Discuter — voir
+     `ouvrirDiscMenu()`, `drawHisto` — pas d'entrée de rail pour ça.
      Un vieux lien `#Travaux` retombe sur `PANELS[0]` (Discuter), par le
      filet déjà écrit dans `nav()`. */
   { n: 2, id: "Livrables", lbl: "Livrables", ico: "doc",     tint: "rgba(217,101,112,.10)" },
@@ -101,6 +102,15 @@ function railSet(v, delai){
   clearTimeout(railT);
   railT = setTimeout(() => {
     const w = $("railwrap");
+    /* ⚠ LE RAIL REPLIÉ COUPE CE QUI DÉPASSE DE LUI — `.railwrap.mini:not(.open)
+       .rail{overflow:hidden}`, et le sous-menu de Discuter dépasse forcément
+       (340 px de menu contre 72 px de rail). Le replier pendant qu'il est
+       ouvert le fait donc DISPARAÎTRE alors qu'il se croit affiché : le
+       `.on` est bien là, la boîte est mesurée à la bonne place, et l'écran
+       ne montre rien. Mesuré le 2026-08-22 — le banc, lui, le voyait ouvert
+       et passait au vert (jsdom ne découpe rien).
+       Tant que le menu est ouvert, le rail reste donc déplié. */
+    if (v === false && $("discMenu") && $("discMenu").classList.contains("on")) return;
     if (w.classList.contains("mini")) w.classList.toggle("open", v);
   }, delai);
 }
@@ -144,7 +154,15 @@ function drawRail(){
     + (coulisses ? PANELS.filter((p) => p.n === 3).map(item).join("") : ""));
 
   $("railItems").querySelectorAll("[data-nav]").forEach((b) => {
-    b.onclick = () => nav(b.dataset.nav);
+    // Discuter porte un second geste : son sous-menu (nouvelle discussion +
+    // historique), qui bascule à chaque clic — voir `ouvrirDiscMenu()`.
+    b.onclick = (e) => {
+      nav(b.dataset.nav);
+      if (b.dataset.nav !== "Discuter") return;
+      e.stopPropagation();
+      const m = $("discMenu");
+      if (m && m.classList.contains("on")) fermerDiscMenu(); else ouvrirDiscMenu();
+    };
   });
   $("doorBtn").onclick = toggleCoulisses;
   H("burger", svg("menu"));
@@ -415,8 +433,8 @@ function turnHTML(t){
      à retirer. Elles viennent AVANT le texte : on a joint, puis on a écrit. */
   if (t.role === "user" && t.jointes && t.jointes.length){
     h += '<div class="u-jointes u-jdit">' + t.jointes.map((j) =>
-      '<span class="u-jointe">' + svg("fichier", { size: 15 }) + esc(j.name)
-      + '<span class="o">' + esc(j.size ? fmtBytes(j.size) : "joint") + "</span>"
+      '<span class="u-jointe">' + svg(j.dossier ? "dossier" : "fichier", { size: 15 }) + esc(j.name)
+      + '<span class="o">' + esc(j.dossier ? "référence" : j.size ? fmtBytes(j.size) : "joint") + "</span>"
       + "</span>").join("") + "</div>";
   }
   // Les outils AVANT le texte : c'est l'ordre réel d'exécution.
@@ -811,14 +829,6 @@ function paintHint(){
       + "<span>Établi" + (k ? " · " + k : "") + "</span>";
     lg.title = "Rouvrir l'Établi";
   }
-  // Même règle pour l'Historique : le nombre de conversations connues, pas
-  // seulement le mot.
-  const hl = $("histolette");
-  if (hl){
-    const k = histoCache.length;
-    hl.innerHTML = svg("eclair", { size: 16 })
-      + "<span>Historique" + (k ? " · " + k : "") + "</span>";
-  }
 }
 
 function paintBand(){
@@ -963,6 +973,15 @@ function reseauHS(){
 //   · `dataUrl` — Discussion : les octets, qui partent dans le message.
 // Jamais les deux. Une pièce sait comment elle voyage.
 const jointes = [];
+// Le type MIME custom du transfert : marque un dépôt venu d'une ligne de
+// l'Établi, pour ne pas confondre avec un vrai drag de fichier du bureau
+// (celui-là a des `File` dans `dataTransfer.files`, pas ce type).
+const DND_ETABLI = "application/x-ulysse-etabli-path";
+// Les mêmes extensions que `_IMAGE_EXTENSIONS` côté gateway (cli.py) : c'est
+// elle qui tranche `image.attach` vs `file.attach`, pas nous — mais on doit
+// deviner AVANT l'appel, pour savoir laquelle appeler.
+const IMG_EXT_ETABLI = new Set([".png", ".jpg", ".jpeg", ".gif", ".webp",
+  ".bmp", ".tiff", ".tif", ".svg", ".ico"]);
 // Il n'y a PAS de seconde liste pour les images collees. Elles entrent ici,
 // par le meme chemin que le « + » : une image collee est une image jointe.
 // Voir PASSE-DESIGN-COLLER-IMAGE.md §1 — le collage avait sa propre mecanique
@@ -972,9 +991,9 @@ const jointes = [];
 function dessineJointes(){
   const html = jointes.map((j, i) =>
     '<span class="u-jointe' + (j.etat === "envoi" ? " att" : "") + '">'
-    + svg(j.image ? "fichier" : "fichier", { size: 15 })
+    + svg(j.dossier ? "dossier" : "fichier", { size: 15 })
     + esc(j.name)
-    + '<span class="o">' + (j.etat === "envoi" ? "envoi…"
+    + '<span class="o">' + (j.dossier ? "référence" : j.etat === "envoi" ? "envoi…"
         : j.etat === "echec" ? "échec" : esc(fmtBytes(j.size))) + "</span>"
     + '<button class="x" data-jx="' + i + '" aria-label="Retirer">'
     + svg("fermer", { size: 13 }) + "</button></span>").join("");
@@ -1034,6 +1053,61 @@ async function surFichiers(files){
     }
     dessineJointes();
   }
+}
+
+/* Joindre un fichier glissé depuis l'Établi. Même liste, même affichage que
+   `surFichiers()` — seule la façon d'arriver au `ref` change (voir
+   `attacherCheminEtabli()` : un `path`, pas des octets). */
+async function joindreCheminEtabli(path, name, size){
+  const ext = "." + (name.split(".").pop() || "").toLowerCase();
+  const image = IMG_EXT_ETABLI.has(ext);
+  const j = { name: name, ref: "", image: image, size: size || 0, etat: "envoi",
+              dataUrl: "" };
+  jointes.push(j);
+  dessineJointes();
+  try {
+    const res = await attacherCheminEtabli(path, name, image);
+    j.ref = res.ref;
+    j.name = res.name || j.name;
+    j.etat = "prete";
+  } catch (e){
+    j.etat = "echec";
+    snack("« " + name + " » n'a pas pu être joint : " + e.message);
+  }
+  dessineJointes();
+}
+
+/* Un dossier glissé de l'Établi n'a que deux devenirs sensés, et aucun n'est
+   silencieux : soit il DEVIENT le dossier de travail (comme le glisser
+   valait avant cette passe), soit il reste une INDICATION posée sur ce
+   message — repère pour le texte qu'on va écrire, sans rien déplacer. On ne
+   choisit pas ça à sa place. */
+function ajouterReferenceDossier(path, name){
+  jointes.push({ name: name, ref: "", image: false, size: 0, etat: "prete",
+                 dataUrl: "", dossier: true, path: path });
+  dessineJointes();
+}
+
+// Le repli anonyme du pied (`#pop`) : posé dans la maquette, jamais câblé —
+// exactement l'emplacement qu'il faut ici, déjà au-dessus du composeur.
+function proposerDossierEtabli(path, name){
+  const pop = $("pop");
+  if (!pop) return changerDossierMaintenant(path);   // filet : sans le repli, le geste direct
+  pop.innerHTML = '<div class="tt">Dossier glissé : <b>' + esc(name) + "</b>. "
+    + "Changer le dossier de travail, ou le garder en référence pour ce message ?</div>"
+    + '<div class="acts">'
+    + '<button class="btn-pick" data-choix="changer">Changer le dossier de travail</button>'
+    + '<button class="quiet-link" data-choix="reference">Non, garder en référence</button>'
+    + "</div>";
+  pop.classList.add("on");
+  pop.querySelectorAll("[data-choix]").forEach((b) => {
+    b.onclick = (e) => {
+      e.stopPropagation();
+      pop.classList.remove("on");
+      if (b.dataset.choix === "changer") changerDossierMaintenant(path);
+      else ajouterReferenceDossier(path, name);
+    };
+  });
 }
 
 /* ═══ La dictée ══════════════════════════════════════════════════════════
@@ -1158,7 +1232,13 @@ async function transcrire(chunks, mime){
 /* Les références des pièces prêtes, ajoutées au message. */
 function refsJointes(){
   const refs = jointes.filter((j) => j.etat === "prete" && j.ref).map((j) => j.ref);
-  return refs.length ? "\n\n" + refs.join("\n") : "";
+  // Un dossier de référence n'a pas de `ref` (rien n'est joint, rien n'est
+  // lu) — juste un repère, dans les mêmes crochets que `ligneDeMode()`, pour
+  // guider le tour à venir sans toucher au dossier de travail.
+  const dossiers = jointes.filter((j) => j.etat === "prete" && j.dossier)
+    .map((j) => "[Dossier de référence : " + j.path + "]");
+  const tout = refs.concat(dossiers);
+  return tout.length ? "\n\n" + tout.join("\n") : "";
 }
 
 function viderJointes(){
@@ -1325,7 +1405,8 @@ async function onSend(ev){
      scénario, pas au banc. Ils passent maintenant par `suffix`, qui a le même
      contrat que `preamble` : ça part, ça ne s'affiche pas.
      Ce qu'on a joint se voit — en puces, dans la bulle, comme avant l'envoi. */
-  const puces = jointes.map((j) => ({ name: j.name, image: !!j.image, size: j.size }));
+  const puces = jointes.map((j) => ({ name: j.name, image: !!j.image, size: j.size,
+                                       dossier: !!j.dossier }));
   await submitPrompt(text, Object.assign({}, roleOpts(), {
     suffix: refsJointes() + ligneDeMode(),
     jointes: puces
@@ -1367,16 +1448,37 @@ function ligneDeMode(){
 
 let etabliPath = null;
 
-/* Un seul volet à la fois à côté du fil — l'Établi (fichiers) et
-   l'Historique (conversations) se partagent la même place, `.work` ne fait
-   assez de large que pour l'un des deux sans écraser le fil. */
+/* L'Établi, à côté du fil — le seul volet qui vive encore là.
+   L'Historique en vivait un second, `.work.historique` : il vit maintenant
+   sous l'icône Discuter (`ouvrirDiscMenu()`/`fermerDiscMenu()`), pas dans ce
+   volet — voir le commentaire de `.disc-menu` dans ulysse.html. */
 function setMode(m){
   const w = $("work");
-  w.classList.remove("atelier", "historique");
+  w.classList.remove("atelier");
   if (m === "atelier") w.classList.add("atelier");
-  if (m === "historique") w.classList.add("historique");
   if (m === "atelier") drawEtabli();
-  if (m === "historique") drawHisto();
+}
+
+/* Le sous-menu de Discuter : « nouvelle discussion », puis l'historique.
+   Un menu ancré au rail, pas un volet du fil — il s'ouvre par-dessus, se
+   ferme au clic ailleurs (comme tout `.pop`), et se relit à chaque
+   ouverture : les conversations changent pendant qu'on ne regarde pas. */
+function ouvrirDiscMenu(){
+  const m = $("discMenu");
+  if (!m) return;
+  m.classList.add("on");
+  // Le menu vit DANS le rail, qui coupe ce qui dépasse quand il est replié :
+  // on le déplie donc, sinon le menu s'ouvre invisible. Voir `railSet()`.
+  const w = $("railwrap");
+  if (w && w.classList.contains("mini")) w.classList.add("open");
+  drawHisto();
+}
+function fermerDiscMenu(){
+  const m = $("discMenu");
+  if (m) m.classList.remove("on");
+  // Le rail redevient libre de se replier — il le fera à la prochaine sortie
+  // de souris, par `railSet()`, comme d'habitude.
+  railSet(false, 120);
 }
 
 /* Ouvrir l'Établi SUR un dossier. C'est le retour du fil d'Ariane du volet :
@@ -1419,7 +1521,55 @@ function wireCtlHisto(){
     + '<button id="histoClose" aria-label="Fermer l\'historique" '
     + 'title="Fermer l\'historique">' + svg("fermer", { size: 18 }) + "</button>";
   $("histoRefresh").onclick = () => drawHisto();
-  $("histoClose").onclick = () => setMode("chat");
+  $("histoClose").onclick = () => fermerDiscMenu();
+}
+
+/* ⚠ « TRAVAILLER ICI » NE FERME PLUS LE FIL OUVERT.
+   Il appelait `resetSession()` d'abord — ce qui vide `conv.turns` : la
+   conversation en cours disparaissait de l'écran, **sans un mot**. Et
+   comme le fil s'en allait, il ne restait rien dont le dossier puisse
+   diverger : l'état « deux dossiers à la fois » était INATTEIGNABLE.
+
+   Signalé par kuchu le 2026-08-09 — la gélule ambre ne venait jamais.
+   Mon test la « prouvait » en posant les deux variables à la main : il
+   vérifiait le dessin, pas le fait qu'on puisse y arriver. C'est le
+   piège que cette session dénonce depuis le matin, et j'y suis tombé.
+
+   On pose donc le dossier, et on garde le fil. L'écart devient visible
+   dans la gélule, et « Ouvrir un fil là-bas » — dans son repli — fait la
+   fermeture EXPLICITEMENT, comme un choix nommé.
+
+   Un seul geste, deux portes : cliquer un dossier dans Projets, ou le
+   glisser depuis l'Établi jusqu'au composeur. */
+function travaillerIci(chemin){
+  const filOuvert = !!(conv.info && conv.info.cwd);
+  CFG.SESSION_CWD = chemin;
+  // Rien à garder : on repart propre, comme avant.
+  if (!filOuvert){ resetSession(); }
+  nav("Discuter");
+  majLieu();
+  snack(filOuvert
+    ? "Le prochain fil s’ouvrira dans " + (chemin || "le dossier d’Hermès")
+      + ". Celui-ci continue là où il est."
+    : "Dossier de travail : " + (chemin || "celui d’Hermès")
+      + " — la prochaine session s’y ouvrira.");
+}
+
+/* Changer de dossier de travail EN GLISSANT UN DOSSIER, ce n'est pas la même
+   intention que le cliquer dans Projets — c'est un choix fait EXPRÈS, au
+   milieu d'un geste sur ce message précis. kuchu, 2026-08-21 : dans ce cas,
+   on ne garde pas le fil ouvert pour « plus tard » comme `travaillerIci()`
+   le fait — on repart sur une page vierge tout de suite, le nouveau dossier
+   déjà en place. */
+function changerDossierMaintenant(chemin){
+  CFG.SESSION_CWD = chemin;
+  resetSession();
+  accueil = true;
+  majEtats();
+  majInvite();
+  paintThread();
+  majLieu();
+  snack("Dossier de travail : " + (chemin || "celui d’Hermès") + " — nouveau fil.");
 }
 
 async function drawEtabli(){
@@ -1435,24 +1585,43 @@ async function drawEtabli(){
       // /api/files). Avec `is_dir` seul, TOUS les dossiers passaient pour des
       // fichiers, et les ouvrir renvoyait 400 « Path is not a file ».
       const dir = f.is_directory || f.is_dir || f.type === "dir";
-      return '<div class="row" ' + (dir ? 'data-dir="' + esc(f.path) + '"'
-                                        : 'data-file="' + esc(f.path) + '"') + ">"
+      return '<div class="row" draggable="true" data-name="' + esc(f.name) + '" '
+        + (dir ? 'data-dir="' + esc(f.path) + '"'
+               : 'data-file="' + esc(f.path) + '" data-size="' + (f.size || 0) + '"') + ">"
         + '<span class="ic">' + svg(dir ? "dossier" : "fichier", { size: 18 }) + "</span>"
         + '<span class="nm">' + esc(f.name) + '</span><span class="sp"></span>'
         + '<span class="meta">' + (dir ? "" : esc(fmtBytes(f.size))) + "</span></div>";
     }).join("") || '<div class="u-load">Dossier vide.</div>');
-    wireFileRows("files", (p) => { etabliPath = p; drawEtabli(); });
+    wireFileRows("files", (p) => { etabliPath = p; drawEtabli(); }, true);
   } catch (e){
     H("files", '<div class="u-todo">Lecture impossible : ' + esc(pannePhrase(e)) + "</div>");
   }
 }
 
-function wireFileRows(hostId, onDir){
+// Glisser une ligne de l'Établi jusqu'au composeur : le même repère que le
+// « + », parti de ce qu'on regarde déjà. `draggable` ne vaut que pour
+// l'Établi (le parent « .. » et les Livrables restent sans ce geste — pas le
+// besoin qu'on nous a signalé).
+function wireFileRows(hostId, onDir, draggable){
   const host = $(hostId);
   host.querySelectorAll("[data-dir]").forEach((r) => { r.onclick = () => onDir(r.dataset.dir); });
   host.querySelectorAll("[data-file]").forEach((r) => {
     r.onclick = () => showFile(r.dataset.file, r.querySelector(".nm").textContent);
   });
+  if (draggable){
+    host.querySelectorAll('[draggable="true"]').forEach((r) => {
+      r.addEventListener("dragstart", (e) => {
+        const isDir = r.hasAttribute("data-dir");
+        e.dataTransfer.effectAllowed = "copy";
+        e.dataTransfer.setData(DND_ETABLI, JSON.stringify({
+          path: isDir ? r.dataset.dir : r.dataset.file,
+          isDir: isDir,
+          name: r.dataset.name || "",
+          size: +(r.dataset.size || 0)
+        }));
+      });
+    });
+  }
 }
 
 /* Montrer un fichier — L'ÉTABLI, LES LIVRABLES ET LE FIL PASSENT TOUS ICI, et
@@ -1971,9 +2140,9 @@ function reprendre(ligne){
        l'accueil recouvrait un fil pourtant peint en dessous. « Conversation
        reprise » s'affichait — sur un écran vide. */
     quitterAccueil();
-    // Le volet se referme AU CHOIX : on est venu chercher une conversation,
+    // Le menu se referme AU CHOIX : on est venu chercher une conversation,
     // pas rester dans la liste une fois qu'on l'a trouvée.
-    setMode("chat");
+    fermerDiscMenu();
     nav("Discuter");
     snack("Conversation reprise.");
   }).catch((e) => {
@@ -3014,38 +3183,12 @@ async function drawProjets(){
       };
     });
 
-    /* ⚠ « TRAVAILLER ICI » NE FERME PLUS LE FIL OUVERT.
-       Il appelait `resetSession()` d'abord — ce qui vide `conv.turns` : la
-       conversation en cours disparaissait de l'écran, **sans un mot**. Et
-       comme le fil s'en allait, il ne restait rien dont le dossier puisse
-       diverger : l'état « deux dossiers à la fois » était INATTEIGNABLE.
-
-       Signalé par kuchu le 2026-08-09 — la gélule ambre ne venait jamais.
-       Mon test la « prouvait » en posant les deux variables à la main : il
-       vérifiait le dessin, pas le fait qu'on puisse y arriver. C'est le
-       piège que cette session dénonce depuis le matin, et j'y suis tombé.
-
-       On pose donc le dossier, et on garde le fil. L'écart devient visible
-       dans la gélule, et « Ouvrir un fil là-bas » — dans son repli — fait la
-       fermeture EXPLICITEMENT, comme un choix nommé. */
+    // Voir `travaillerIci()` : pourquoi le fil ouvert ne ferme plus.
     $("projets").querySelectorAll("[data-cwd]").forEach((b) => {
-      b.onclick = () => {
-        const chemin = b.dataset.cwd;
-        const filOuvert = !!(conv.info && conv.info.cwd);
-        CFG.SESSION_CWD = chemin;
-        // Rien à garder : on repart propre, comme avant.
-        if (!filOuvert){ resetSession(); }
-        nav("Discuter");
-        majLieu();
-        snack(filOuvert
-          ? "Le prochain fil s’ouvrira dans " + (chemin || "le dossier d’Hermès")
-            + ". Celui-ci continue là où il est."
-          : "Dossier de travail : " + (chemin || "celui d’Hermès")
-            + " — la prochaine session s’y ouvrira.");
-      };
+      b.onclick = () => travaillerIci(b.dataset.cwd);
     });
     $("projets").querySelectorAll("[data-voir]").forEach((b) => {
-      b.onclick = () => { nav("Discuter"); setMode("historique"); };
+      b.onclick = () => { nav("Discuter"); ouvrirDiscMenu(); };
     });
     $("projets").querySelectorAll("[data-ranger]").forEach((b) => {
       b.onclick = (ev) => { ev.stopPropagation(); ouvrirRanger(b.dataset.ranger); };
@@ -5676,7 +5819,7 @@ if (typeof document !== "undefined"){
    coute une requete pour rien. */
 coreHooks.onChanged = (quoi) => {
   if (quoi === "sessions"){
-    if ($("work").classList.contains("historique")) drawHisto();
+    if ($("discMenu") && $("discMenu").classList.contains("on")) drawHisto();
     if (current === "Projets") drawProjets();
   }
   if (quoi === "cron" && current === "Automatisations") drawAutos();
@@ -5888,6 +6031,31 @@ function boot(){
   const replyEl = $("reply");
   if (replyEl) replyEl.addEventListener("paste", collerCapture);
 
+  // Glisser une ligne de l'Établi jusqu'au composeur : un fichier se joint
+  // (comme le « + »), un dossier demande d'abord — `proposerDossierEtabli()`
+  // — s'il devient le lieu de travail ou juste une référence pour ce message.
+  const composerEl = $("composer");
+  if (composerEl){
+    composerEl.addEventListener("dragover", (e) => {
+      if (!e.dataTransfer.types.includes(DND_ETABLI)) return;
+      e.preventDefault();
+      e.dataTransfer.dropEffect = "copy";
+      composerEl.classList.add("dragover");
+    });
+    composerEl.addEventListener("dragleave", () => composerEl.classList.remove("dragover"));
+    composerEl.addEventListener("drop", (e) => {
+      composerEl.classList.remove("dragover");
+      const brut = e.dataTransfer.getData(DND_ETABLI);
+      if (!brut) return;                // pas notre transfert : laisser faire
+      e.preventDefault();
+      let it;
+      try { it = JSON.parse(brut); } catch (er){ return; }
+      if (!it || !it.path) return;
+      if (it.isDir) proposerDossierEtabli(it.path, it.name || nomDeChemin(it.path));
+      else joindreCheminEtabli(it.path, it.name || nomDeChemin(it.path), it.size);
+    });
+  }
+
   // Le « + » joint un fichier : c'est le geste attendu là où il est posé.
   // L'Établi (parcourir les fichiers déjà sur la machine) reste dans le
   // menu « ⋯ » — ce n'est pas le même besoin.
@@ -5918,11 +6086,6 @@ function boot(){
           ? "Fermer l'Établi" : "Ouvrir l'Établi")
       + "<span class=\"sub\">Les fichiers déjà sur la machine, à côté du fil</span>"
       + "</span></button>"
-      + '<button id="mHisto"><span>' + svg("eclair", { size: 20 })
-      + "</span><span>" + ($("work").classList.contains("historique")
-          ? "Fermer l'historique" : "Ouvrir l'historique")
-      + "<span class=\"sub\">Les conversations passées, à côté du fil</span>"
-      + "</span></button>"
       + '<button id="mNew"><span>' + svg("plus", { size: 20 })
       + "</span><span>Nouvelle conversation<span class=\"sub\">La session s'ouvrira au "
       + "prochain message</span></span></button>";
@@ -5932,10 +6095,6 @@ function boot(){
     $("mEtabli").onclick = () => {
       p.classList.remove("on");
       setMode($("work").classList.contains("atelier") ? "chat" : "atelier");
-    };
-    $("mHisto").onclick = () => {
-      p.classList.remove("on");
-      setMode($("work").classList.contains("historique") ? "chat" : "historique");
     };
     $("mIncog").onclick = () => {
       incognito = !incognito;
@@ -6069,8 +6228,16 @@ function boot(){
 
   // La languette de l'Établi rangé.
   $("languette").onclick = (e) => { e.stopPropagation(); setMode("atelier"); };
-  // Celle de l'Historique rangé, bord gauche.
-  $("histolette").onclick = (e) => { e.stopPropagation(); setMode("historique"); };
+
+  // Le sous-menu de Discuter : « + nouvelle discussion » au-dessus de
+  // l'historique. Voir `ouvrirDiscMenu()`/`fermerDiscMenu()`.
+  H("discNouvelleIc", svg("plus", { size: 18 }));
+  $("discNouvelle").onclick = (e) => {
+    e.stopPropagation();
+    fermerDiscMenu();
+    resetSession();
+    paintThread();
+  };
 
   // « Rafraîchir » devient une icône : depuis le jalon 4 les listes écoutent
   // `sessions.changed`. Un bouton plein de 40 px était l'aveu du contraire.
@@ -6110,14 +6277,15 @@ function boot(){
   document.addEventListener("click", (e) => {
     document.querySelectorAll(".pop.on").forEach((p) => p.classList.remove("on"));
     Notifs.close();
-    /* ⚠ « ON NE PEUT PAS QUITTER LE MENU » — kuchu, 2026-08-21. L'Historique
-       se fermait par sa croix ou en le rouvrant, jamais en cliquant à côté :
-       le seul volet de l'appli sans cette porte de sortie. Un clic DEDANS
-       (une ligne, le filtre, le ⋯) ou sur sa languette ne doit rien fermer —
-       ce serait fermer ce qu'on vient d'ouvrir. */
-    if ($("work") && $("work").classList.contains("historique")
-        && !e.target.closest("#histoVolet") && !e.target.closest("#histolette")){
-      setMode("chat");
+    /* ⚠ « ON NE PEUT PAS QUITTER LE MENU » — kuchu, 2026-08-21. Repris pour
+       `#discMenu` : un clic DEDANS (une ligne, le filtre, le ⋯) ou sur le
+       bouton Discuter qui l'ouvre ne doit rien fermer — ce serait fermer ce
+       qu'on vient d'ouvrir. Même piège que `#mHisto` avant lui : le clic
+       d'OUVERTURE bubble jusqu'ici APRÈS avoir posé `.on`, donc sans
+       l'exclusion du déclencheur, il se refermait dans le même tick. */
+    if ($("discMenu") && $("discMenu").classList.contains("on")
+        && !e.target.closest("#discMenu") && !e.target.closest('[data-nav="Discuter"]')){
+      fermerDiscMenu();
     }
   });
 

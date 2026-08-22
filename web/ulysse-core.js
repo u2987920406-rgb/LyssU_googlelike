@@ -1128,6 +1128,25 @@ async function attacherFichier(file){
   };
 }
 
+/* Joindre un fichier de L'ÉTABLI (glisser-déposer) — pas du « + ». La
+   différence tient en un mot : `path`. L'Établi lit déjà le disque QUE le
+   gateway voit — c'est le même — donc pas besoin d'envoyer les octets comme
+   `attacherFichier()` le fait pour un fichier venu du système du navigateur.
+   `image.attach` / `file.attach` prennent un `path` seul pour exactement ce
+   cas (méthodes_prompt.py, tui_gateway) : c'est la voie courte, pas un
+   deuxième mécanisme. */
+async function attacherCheminEtabli(path, name, image){
+  const sid = await ensureSession();
+  const res = image
+    ? await link.rpc("image.attach", { session_id: sid, path: path }, 120000)
+    : await link.rpc("file.attach", { session_id: sid, path: path, name: name }, 120000);
+  return {
+    name: (image ? name : (res && res.name)) || name,
+    ref: (res && res.ref_text) || "",
+    image: image
+  };
+}
+
 function resetSession(){
   conv.sessionId = null;
   conv.storedId = null;

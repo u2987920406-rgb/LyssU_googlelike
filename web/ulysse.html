@@ -832,24 +832,28 @@
 /* `.work` est déjà `position:relative` dans la maquette — on ne la redéclare
    pas pour ça, la languette s'y ancre telle quelle. */
 
-/* ═══ L'Historique — volet accroché à Discuter (PITCH-DISCUTER-VIVANT.html)
-   Fusion de l'ancien panneau « Travaux ». Même geste que l'Établi (glisse,
-   laisse une languette), bord GAUCHE pour ne pas se superposer à la sienne,
-   et jamais visible en même temps que lui (`setMode`, un seul volet à la
-   fois). Pas `.etabli` : cette classe est déjà montrée par
-   `.work.atelier .etabli{display:flex}`, et les deux volets la partager
-   aurait ouvert l'Historique chaque fois qu'on ouvre l'Établi. */
-.u-histolette{position:absolute;left:0;top:50%;transform:translateY(-50%);
-  z-index:4;display:none;align-items:center;gap:6px;
-  padding:14px 6px;border-radius:0 var(--radius-md) var(--radius-md) 0;
-  background:var(--sidebar);color:var(--muted);font-size:var(--font-size-xs);
-  writing-mode:vertical-rl}
-.u-histolette:hover{color:var(--text);background:var(--surface-hi)}
-#pDiscuter:not(.accueil) .work:not(.historique) .u-histolette{display:flex}
-.u-histo{flex:0 0 340px;background:var(--sidebar);border-radius:var(--radius-card);
-  display:none;flex-direction:column;overflow:hidden}
-.work.historique .u-histo{display:flex}
-.u-histo:hover .ctl{opacity:1;transform:none}
+/* ═══ Le sous-menu de Discuter : nouvelle discussion + historique ═════════
+   L'Historique vivait en volet accroché à Discuter (PITCH-DISCUTER-VIVANT.
+   html), ouvert depuis le kebab — un menu à l'autre bout de l'écran pour
+   une liste qui parle du MÊME choix que « Discuter » dans le rail : quel
+   fil regarder. kuchu, 2026-08-21 : il doit vivre SOUS l'icône Discuter,
+   avec « nouvelle discussion » juste au-dessus — les deux gestes qui
+   décident ça, au même endroit, plutôt que deux mécanismes pour un seul
+   choix.
+   Ancré au rail (`position:absolute`, `.rail` est déjà repère), pas au
+   volet du fil : il s'ouvre par-dessus, comme un menu, pas à côté comme
+   l'Établi. */
+.disc-menu{position:absolute;top:54px;left:100%;margin-left:8px;width:340px;
+  max-height:min(70vh,560px);background:var(--sidebar);border-radius:var(--radius-card);
+  box-shadow:var(--elev-3);display:none;flex-direction:column;overflow:hidden;z-index:61}
+.disc-menu.on{display:flex}
+.disc-menu .new-fil{display:flex;align-items:center;gap:10px;height:44px;flex:none;
+  margin:8px 10px 0;padding:0 12px;border-radius:var(--radius-sm);
+  color:var(--accent);font-size:14px;font-weight:500;transition:background .14s ease}
+.disc-menu .new-fil:hover{background:var(--hover-bg)}
+.disc-menu .new-fil .ic{display:grid;place-items:center;flex:none}
+.disc-menu .pop-sep{margin:10px 10px 0}
+.disc-menu:hover .ctl{opacity:1;transform:none}
 /* ⚠ DEUX DÉFAUTS VUS À L'ÉCRAN LE 2026-08-21, PAS AU BANC (jsdom ne met rien
    en page). D'abord `.acts` — cinq icônes de ~168px qui réservent leur
    largeur même invisibles (`opacity:0`, pas `display:none` — ulysse.css:550)
@@ -864,12 +868,12 @@
    seulement : les autres écrans qui partagent `.row` n'ont pas cette
    ambiguïté (une carte de fichier, un projet — leur forme dit déjà « on
    clique »). */
-.u-histo .row{position:relative;cursor:pointer;padding-right:44px}
-.u-histo .row:hover{box-shadow:inset 0 0 0 1px var(--outline-var)}
+.disc-menu .row{position:relative;cursor:pointer;padding-right:44px}
+.disc-menu .row:hover{box-shadow:inset 0 0 0 1px var(--outline-var)}
 .m-kebab{position:absolute;right:6px;top:50%;transform:translateY(-50%);
   width:32px;height:32px;border-radius:var(--radius-sm);display:grid;
   place-items:center;color:var(--muted);opacity:0;transition:opacity .15s ease,background .15s ease}
-.u-histo .row:hover .m-kebab,.u-histo .row .m-kebab.on{opacity:1}
+.disc-menu .row:hover .m-kebab,.disc-menu .row .m-kebab.on{opacity:1}
 .m-kebab:hover{background:var(--hover-bg);color:var(--text)}
 /* `.pop` est déjà « repris de la maquette » pour se refermer au clic
    ailleurs (ulysse-app.js, l'écouteur global sur `document`) — on hérite de
@@ -1130,6 +1134,20 @@
       <button class="bellbtn" id="bell" aria-label="Notifications">
         <span class="ic" id="bellIc"></span><span class="lbl">Notifications</span></button>
       <div class="rail-note">Survolez la lisière gauche pour déplier</div>
+      <!-- Le sous-menu de Discuter : nouvelle discussion, puis l'historique.
+           Voir le commentaire CSS de `.disc-menu` — c'est le seul endroit où
+           l'Historique vit désormais. -->
+      <div class="disc-menu" id="discMenu">
+        <button type="button" class="new-fil" id="discNouvelle">
+          <span class="ic" id="discNouvelleIc"></span><span>Nouvelle discussion</span></button>
+        <div class="pop-sep"></div>
+        <div class="etabli-head"><span class="vt">Historique</span>
+          <span class="sp" style="flex:1"></span>
+          <label class="search"><span class="u-lo"></span>
+            <input id="histoQ" placeholder="Filtrer…"></label>
+          <div class="ctl" id="ctlHisto"></div></div>
+        <div class="etabli-body" id="histoList"></div>
+      </div>
     </nav>
   </div>
 
@@ -1183,13 +1201,6 @@
         <!-- La languette de l'Établi rangé. -->
         <button class="u-languette" id="languette"></button>
 
-        <!-- La languette de l'Historique rangé — bord GAUCHE, pour ne pas se
-             superposer à celle de l'Établi. Même geste : un volet qu'on ferme
-             et qui ne laisse rien derrière lui est un volet qu'on ne rouvrira
-             pas. -->
-        <button class="u-histolette" id="histolette" aria-label="Ouvrir l'historique"
-                title="Ouvrir l'historique"></button>
-
         <!-- L'Établi : les fichiers ouverts, à droite. Il ne pousse rien,
              il s'ouvre à côté. -->
         <div class="etabli">
@@ -1197,21 +1208,6 @@
             <span class="sp" style="flex:1"></span>
             <div class="ctl" id="ctlEtabli"></div></div>
           <div class="etabli-body" id="files"></div>
-        </div>
-
-        <!-- L'Historique : les conversations passées, à côté du fil — fusion
-             de l'ancien panneau « Travaux », qui vivait en destination à
-             part du rail sans se lire comme « mes conversations passées ».
-             Même règle que l'Établi : il ne pousse rien, il s'ouvre à côté,
-             et un seul des deux tient la place à la fois (`setMode`). Voir
-             PITCH-DISCUTER-VIVANT.html. -->
-        <div class="u-histo" id="histoVolet">
-          <div class="etabli-head"><span class="vt">Historique</span>
-            <span class="sp" style="flex:1"></span>
-            <label class="search"><span class="u-lo"></span>
-              <input id="histoQ" placeholder="Filtrer…"></label>
-            <div class="ctl" id="ctlHisto"></div></div>
-          <div class="etabli-body" id="histoList"></div>
         </div>
       </div>
 

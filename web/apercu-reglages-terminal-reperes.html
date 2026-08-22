@@ -93,6 +93,11 @@ input{font:inherit;color:inherit;background:none;border:none;outline:none}
   align-items:center;gap:6px;background:var(--surface);border-radius:var(--radius-lg);
   padding:8px 8px 8px 12px;transition:background .2s ease,box-shadow .2s ease}
 .composer:focus-within{background:var(--bg);box-shadow:var(--elev-2)}
+/* Glisser un fichier ou un dossier de l'Établi jusqu'ici : le même geste
+   que le « + », parti de ce qu'on regarde déjà. */
+.composer.dragover{background:var(--bg);box-shadow:var(--elev-2);
+  outline:2px dashed var(--accent);outline-offset:2px}
+.row[draggable="true"]{cursor:grab}
 .composer input{flex:1;font-size:16px;padding:12px 6px}
 .composer input::placeholder{color:var(--muted)}
 .icon-btn{width:44px;height:44px;flex:none;border-radius:var(--radius-pill);display:grid;
@@ -247,6 +252,56 @@ input{font:inherit;color:inherit;background:none;border:none;outline:none}
 #pDiscuter.incog .privnote{display:flex}
 #incogBtn.on{background:rgba(95,99,104,.14);color:var(--text)}
 
+/* ── LA GÉLULE DU LIEU ───────────────────────────────────────────────────
+   Elle se pose à côté du titre, là où `#privchip` se pose déjà : la barre
+   de titre décrit l'écran, et **où l'on travaille fait partie de ce qu'il
+   est**.
+
+   Elle reprend les trois espèces arbitrées dans la passe des Projets, avec
+   les mêmes signes — un vrai projet a sa couleur, un dossier déduit est
+   gris et vide. On ne réapprend pas un vocabulaire d'un écran à l'autre. */
+.l-lieu{display:inline-flex;align-items:center;gap:7px;margin-left:12px;
+  height:28px;padding:0 12px 0 8px;border-radius:var(--radius-pill);
+  font-size:12.5px;background:var(--surface);color:var(--muted);
+  max-width:280px;transition:background .14s ease}
+.l-lieu:hover{background:var(--surface-hi);color:var(--text)}
+.l-lieu .ic{width:18px;height:18px;flex:none;border-radius:5px;display:grid;
+  place-items:center}
+.l-lieu .nm{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+/* Un vrai projet porte sa couleur. Un dossier déduit, non — c'est ce qui
+   les distingue dans la liste, et ça doit être vrai ici aussi. */
+.l-lieu.projet .ic{color:#fff}
+.l-lieu.dossier .ic{background:var(--surface-hi);color:var(--muted)}
+/* Tant qu'on ne sait pas, on ne dit pas. Même règle que les pastilles de
+   `#first` : « je ne sais pas » n'est pas « nulle part ». */
+.l-lieu.attente{color:var(--faint)}
+.l-lieu.attente .ic{background:var(--outline-var);animation:l-pulse 1.4s ease-in-out infinite}
+@keyframes l-pulse{0%,100%{opacity:1}50%{opacity:.4}}
+
+/* ── LE CAS QUI N'EXISTAIT NULLE PART : DEUX DOSSIERS À LA FOIS ──────────
+   `CFG.SESSION_CWD` est le dossier de la PROCHAINE session.
+   `conv.info.cwd` est celui de la session EN COURS.
+
+   Cliquer « Travailler ici » pendant qu'un fil est ouvert change le
+   premier, pas le second — et **rien ne le dit aujourd'hui**. On croit
+   avoir déménagé ; on écrit encore à l'ancienne adresse.
+
+   La gélule se dédouble alors, avec une flèche entre les deux. C'est le
+   seul moment où elle prend de la place, et c'est le seul où il le faut. */
+.l-lieu.change{background:#FEF7E0;color:#5F4200;padding-right:8px}
+.l-lieu .fl{color:var(--amber);flex:none;display:grid}
+.l-lieu .suite{color:#5F4200;font-weight:500}
+
+/* Le repli : le chemin entier, et où aller. On ne met pas un chemin de
+   cent caractères dans une barre de titre. */
+.l-pop{position:absolute;top:44px;left:0;right:auto;bottom:auto;min-width:300px;
+  max-width:420px;padding:14px 16px}
+.l-pop .ch{font-family:ui-monospace,Menlo,monospace;font-size:12px;
+  word-break:break-all;color:var(--text);background:var(--surface);
+  border-radius:var(--radius-sm);padding:9px 12px;margin:8px 0 4px}
+.l-pop .tt{font-size:var(--font-size-xs);color:var(--muted);line-height:1.55}
+.l-pop .acts{flex-wrap:wrap;gap:8px;margin-top:12px}
+
 /* ═══ Discuter ═══ */
 .work{position:relative;z-index:1;flex:1;display:flex;min-height:0;gap:var(--space-2);
   padding:0 var(--space-4) 0 0}
@@ -310,9 +365,16 @@ input{font:inherit;color:inherit;background:none;border:none;outline:none}
 .pop{position:absolute;bottom:74px;left:0;min-width:250px;background:var(--bg);
   border-radius:var(--radius-md);box-shadow:var(--elev-3);padding:8px;z-index:40;display:none}
 .pop.on{display:block}
-.pop button{width:100%;display:flex;align-items:center;gap:14px;padding:11px 14px;
+/* Même exclusion que `.acts button` juste au-dessus, même raison : un
+   bouton-texte porte déjà sa propre forme (pilule, largeur au contenu) —
+   cette ligne pleine largeur est taillée pour un item de menu, pas pour lui.
+   Vu sur `.btn-pick`/`.quiet-link` dans `#lieuPop` : rendus en rectangle
+   8px plein-largeur au lieu de la pilule prévue, kuchu 2026-08-21. */
+.pop button:not(.btn-pick):not(.txt-btn):not(.dangerlink):not(.quiet-link){
+  width:100%;display:flex;align-items:center;gap:14px;padding:11px 14px;
   border-radius:var(--radius-sm);font-size:15px;transition:background .14s ease}
-.pop button:hover{background:var(--hover-bg)}
+.pop button:not(.btn-pick):not(.txt-btn):not(.dangerlink):not(.quiet-link):hover{
+  background:var(--hover-bg)}
 .pop .sub{font-size:var(--font-size-xs);color:var(--muted);display:block}
 .pop-sep{height:1px;background:var(--outline-var);margin:6px 10px}
 
@@ -567,11 +629,24 @@ svg.graph{width:100%;height:auto;max-height:100%}
 .chip{font-size:var(--font-size-xs);padding:3px 10px;border-radius:var(--radius-pill);
   background:var(--bg);color:var(--muted);white-space:nowrap}
 .chip.b{background:var(--accent-container);color:var(--on-accent-container)}
-.acts{display:flex;gap:2px;opacity:0;transition:opacity .16s ease}
+/* Se cacher jusqu'au survol n'est un trait que d'UNE ligne ou UNE carte — pas
+   de `.acts` en général. Un `.acts` posé ailleurs (un `.pop`, par exemple)
+   n'a pas de survol qui le révèle : caché par défaut, il resterait caché
+   pour de bon. Vu sur le choix « changer / référence » du glisser-déposer
+   de dossier — le popup s'ouvrait sans ses boutons, kuchu 2026-08-21. */
+.acts{display:flex;gap:2px}
+.row .acts,.pcard .acts{opacity:0;transition:opacity .16s ease}
 .row:hover .acts,.pcard:hover .acts{opacity:1}
-.acts button{width:32px;height:32px;border-radius:var(--radius-sm);display:grid;place-items:center;
+/* :not(...) exclut les boutons-texte (btn-pick, txt-btn, dangerlink, quiet-link) :
+   ce carré 32×32 est taillé pour une icône seule, pas pour un libellé — un
+   bouton-texte pris dedans voit son texte plié sur trois lignes dans la case.
+   Vu sur la gélule du lieu (« Voir les Projets »), signalé par kuchu le
+   2026-08-21 ; le même piège guettait les cartes de projet archivé. */
+.acts button:not(.btn-pick):not(.txt-btn):not(.dangerlink):not(.quiet-link){
+  width:32px;height:32px;border-radius:var(--radius-sm);display:grid;place-items:center;
   color:var(--muted);transition:background .14s ease,color .14s ease}
-.acts button:hover{background:var(--hover-bg);color:var(--text)}
+.acts button:not(.btn-pick):not(.txt-btn):not(.dangerlink):not(.quiet-link):hover{
+  background:var(--hover-bg);color:var(--text)}
 .empty{text-align:center;padding:48px 24px;color:var(--muted)}
 .empty .big{font-size:20px;color:var(--text);font-weight:500;margin-bottom:6px}
 .set{display:flex;align-items:center;justify-content:space-between;gap:24px;padding:18px 4px;
@@ -1017,7 +1092,7 @@ svg.graph *{cursor:inherit}
 .day.on{background:var(--accent-container);color:var(--on-accent-container);border-color:transparent}
 .tinput{height:38px;border-radius:var(--radius-sm);border:1px solid var(--outline-var);
   padding:0 12px;background:var(--bg);font-size:15px;color:var(--text)}
-.btn-pick{height:34px;padding:0 15px;border-radius:var(--radius-pill);
+.btn-pick{height:34px;padding:0 15px;border-radius:var(--radius-pill);white-space:nowrap;
   border:1px solid var(--outline-var);font-size:14px;font-weight:500;color:var(--muted);
   transition:background .14s ease,color .14s ease,border-color .14s ease}
 .btn-pick:hover{background:var(--hover-bg)}
@@ -1195,7 +1270,7 @@ svg.graph *{cursor:inherit}
 .reader-body{padding-top:12px}
 .canvas-body{padding-top:6px}
 .reader-foot{flex:none;padding:12px 22px 16px}
-.quiet-link{font-size:14px;color:var(--muted);padding:7px 12px;
+.quiet-link{font-size:14px;color:var(--muted);padding:7px 12px;white-space:nowrap;
   border-radius:var(--radius-pill);transition:background .14s ease,color .14s ease}
 /* Le premier seul se recale sur la marge du texte ; les suivants
    gardent leur cible intacte. Deux zones de clic qui se recouvrent

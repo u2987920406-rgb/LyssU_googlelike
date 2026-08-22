@@ -938,18 +938,18 @@ async function main(){
     win.document.getElementById("pDiscuter").classList.contains("on"));
 
   console.log("\n--- Les données réelles arrivent à l'écran ---");
-  // L'Historique n'est plus une destination du rail — c'est un volet
-  // accroché à Discuter (`setMode("historique")`, PITCH-DISCUTER-VIVANT.html).
+  // L'Historique n'est plus une destination du rail — c'est le sous-menu de
+  // l'icône Discuter (`ouvrirDiscMenu()`, PITCH-DISCUTER-VIVANT.html).
   win.nav("Discuter");
-  win.eval('setMode("historique")');
+  win.eval("ouvrirDiscMenu()");
   await wait(80);
-  check("le volet Historique s'ouvre à côté du fil, pas ailleurs",
-    win.document.getElementById("work").classList.contains("historique")
+  check("le sous-menu Discuter s'ouvre au-dessus du rail, pas ailleurs",
+    win.document.getElementById("discMenu").classList.contains("on")
     && win.document.getElementById("pDiscuter").classList.contains("on"));
   let txt = win.document.getElementById("histoList").textContent;
   check("les sessions s'affichent avec leur titre", txt.includes("Site vitrine"), txt.slice(0, 100));
   check("celle qui tourne est signalée", /en cours/i.test(txt));
-  win.eval('setMode("chat")');
+  win.eval("fermerDiscMenu()");
 
   win.nav("Livrables");
   await wait(80);
@@ -2390,10 +2390,11 @@ async function main(){
   console.log("\n--- Les cinq passes de design ---");
 
   // ── Listes : les actions de ligne, les rangs, le fil d'Ariane ──
-  // « Travaux » a fusionné dans un volet accroché à Discuter le 2026-08-21
-  // (PITCH-DISCUTER-VIVANT.html) — la donnée et ses actions n'ont pas changé,
-  // seul l'endroit d'où on les regarde a bougé.
-  win.eval('nav("Discuter"); setMode("historique")');
+  // « Travaux » a fusionné dans un volet accroché à Discuter le 2026-08-21,
+  // puis (même jour) dans le sous-menu de l'icône Discuter
+  // (PITCH-DISCUTER-VIVANT.html) — la donnée et ses actions n'ont pas
+  // changé, seul l'endroit d'où on les regarde a bougé deux fois.
+  win.eval('nav("Discuter"); ouvrirDiscMenu()');
   await wait(120);
   const w0 = win.document.getElementById("histoList");
   check("Listes · la ligne a deux niveaux, pas trois meta de même poids",
@@ -2437,17 +2438,18 @@ async function main(){
   check("Listes · l'historique a gagné son filtre", !!win.document.getElementById("histoQ"));
 
   /* ⚠ « ON NE PEUT PAS QUITTER LE MENU » — kuchu, 2026-08-21. Aucune porte de
-     sortie sauf sa croix ou le rouvrir : le seul volet de l'appli sans clic-
-     ailleurs-referme. */
-  win.eval('setMode("historique")');
+     sortie sauf sa croix, le rouvrir, ou un clic ailleurs — comme les autres
+     `.pop`. Repris pour `#discMenu` quand l'Historique a déménagé sous
+     l'icône Discuter (même jour, deuxième passe). */
+  win.eval("ouvrirDiscMenu()");
   await wait(40);
-  check("un clic DANS le volet (une ligne) ne le ferme pas",
-    win.document.getElementById("work").classList.contains("historique"));
+  check("un clic DANS le menu (une ligne) ne le ferme pas",
+    win.document.getElementById("discMenu").classList.contains("on"));
   win.document.getElementById("thread").click();
   await wait(40);
   check("...mais un clic AILLEURS le referme, comme les autres fenêtres volantes",
-    !win.document.getElementById("work").classList.contains("historique"));
-  win.eval('setMode("chat")');
+    !win.document.getElementById("discMenu").classList.contains("on"));
+  win.eval("fermerDiscMenu()");
 
   win.eval('nav("Livrables")');
   await wait(150);
