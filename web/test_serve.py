@@ -1043,6 +1043,43 @@ def main():
     finally:
         lancer_bancs.RAPPORTS = vrai_dossier
 
+    # --- la copie versionnee du plugin ne doit pas diverger -------------
+    #
+    # ⚠ CE GARDE EXISTE PARCE QUE LA DIVERGENCE SERAIT SILENCIEUSE. Le plugin
+    # qui rend « Manuel » vrai tourne depuis le dossier d'Hermes ; le depot
+    # n'en porte qu'une COPIE, pour qu'une machine neuve puisse l'installer.
+    # Modifier l'un sans l'autre ne casse rien ici et rien la-bas : ca se voit
+    # le jour ou quelqu'un installe la copie et se retrouve avec un « Manuel »
+    # qui ne demande pas. Voir web/plugin-hermes/INSTALLER.md.
+    #
+    # Si le plugin n'est pas installe sur cette machine, on ne verifie rien et
+    # on le DIT — un banc qui se tait sur ce qu'il n'a pas regarde laisse
+    # croire qu'il l'a regarde.
+    ici = os.path.dirname(os.path.abspath(__file__))
+    copie = os.path.join(ici, "plugin-hermes", "ulysse-approbation")
+    racine_hermes = os.environ.get("LOCALAPPDATA") or os.path.expanduser("~")
+    installe = os.path.join(racine_hermes, "hermes", "plugins", "ulysse-approbation")
+    if not os.path.isdir(installe):
+        installe = os.path.join(os.path.expanduser("~"), ".hermes",
+                                "plugins", "ulysse-approbation")
+    check("la copie versionnee du plugin existe",
+          os.path.isfile(os.path.join(copie, "__init__.py"))
+          and os.path.isfile(os.path.join(copie, "plugin.yaml")), copie)
+    if os.path.isdir(installe):
+        for nom in ("__init__.py", "plugin.yaml"):
+            a = os.path.join(copie, nom)
+            b = os.path.join(installe, nom)
+            try:
+                with open(a, "rb") as f1, open(b, "rb") as f2:
+                    pareil = f1.read() == f2.read()
+                ecart = ""
+            except OSError as exc:
+                pareil, ecart = False, str(exc)
+            check("le plugin installe et sa copie sont identiques (%s)" % nom,
+                  pareil, ecart or "la copie du depot a divergé de ce qui tourne")
+    else:
+        print("  (plugin non installe sur cette machine — comparaison non faite)")
+
     # --- bilan ---------------------------------------------------------
     passed = sum(1 for _, ok, _ in results if ok)
     total = len(results)

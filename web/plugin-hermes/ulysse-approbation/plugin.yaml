@@ -1,0 +1,13 @@
+name: ulysse-approbation
+version: "0.1.0"
+description: >-
+  Soumet chaque ecriture de fichier (write_file, patch, skill_manage) a la
+  porte d'approbation humaine d'Hermes, via une directive `approve` sur le
+  hook pre_tool_call. Sans lui, approvals.mode=manual ne couvre que le
+  terminal ("affects subsequent terminal guard checks", approval_mode.py) et
+  un write_file ordinaire passe sans question, a tout reglage. C'est ce trou
+  qui empechait Ulysse de tenir un mode "Manuel". Fail-closed : un refus, une
+  panne ou une expiration bloque l'ecriture, jamais l'inverse.
+author: "Projet Ulysse"
+hooks:
+  - pre_tool_call
