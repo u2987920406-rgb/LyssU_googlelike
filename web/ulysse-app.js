@@ -286,7 +286,15 @@ let activeRole = null;
    le cache saute à chaque bascule — c'est-à-dire à chaque fois qu'on l'utilise.
    Le mode se dit dans le TOUR DE L'UTILISATEUR, après le préfixe.
    Voir PASSE-DESIGN-UN-SEUL-FIL.md §2. */
-let mode = "plan";            // plan (Discussion/Plan) | build (Build → Vérif)
+/* ⚠ « build » AU DÉMARRAGE, ET CE N'EST PAS UN RELÂCHEMENT. Ça l'était tant
+   que Plan était la seule chose qui retenait l'agent — mais il ne retenait
+   rien : la porte d'Hermès ne soumettait pas les écritures de fichier, et ce
+   fichier le dit à quatre endroits. Depuis le plugin `ulysse-approbation`,
+   c'est la POSITION qui protège, et sa valeur de départ est « Manuel » :
+   chaque écriture est réellement soumise. Voir `POSITIONS`.
+   Plan reste, et il garantit maintenant ce qu'il annonce — mais il n'a plus à
+   être l'état de repos d'un produit dont le premier verbe est « Discuter ». */
+let mode = "build";           // plan (posture) | build (Build → Vérif)
 let incognito = false;
 
 /* Le repli présente les six avec les ENCOCHES de la maquette (`.opt` et
@@ -1496,16 +1504,140 @@ function viderJointes(){
 
 const MODES = { plan: "Plan", build: "Build" };
 
+/* ═══ LES QUATRE POSITIONS ══════════════════════════════════════════════════
+   `mode` (plan | build) N'A PAS BOUGÉ. C'est la posture, et une douzaine
+   d'endroits la lisent — `ligneDeMode`, `refusDeMode`, `phaseBuild`,
+   `aValider`… La renommer aurait été un grand diff pour aucun gain. Ce qui
+   s'ajoute au-dessus, c'est la POSITION : ce que la personne choisit.
+
+   ⚠ TROIS DES QUATRE NOMS VIENNENT D'HERMÈS, PAS DE NOUS. `manual`, `smart`
+   et `off` sont ses modes d'approbation (hermes_cli/approval_mode.py:16) ;
+   changer de position écrit `approvals.mode` par le RPC `config.set`, la même
+   clé que le terminal d'Hermès. Une clé `ulysse.*` à nous aurait fait deux
+   sources de vérité pour une seule question, et la nôtre aurait menti dès que
+   quelqu'un aurait touché la sienne. Décidé avec kuchu le 2026-08-23 : « on
+   n'invente rien, on reprend ce qui existe déjà sur Hermès. »
+
+   ⚠ CE QUI REND CES POSITIONS RÉELLES N'EST PAS ICI. `_run_approval_gate`
+   (tools/approval.py) ne consulte JAMAIS `approvals.mode` — le mode n'est lu
+   que sur le chemin des commandes. C'est le plugin `ulysse-approbation` qui
+   le relit à chaque appel d'outil et décide d'escalader ou non. Sans lui,
+   les quatre lignes ci-dessous seraient un décor.
+
+   ⚠ « AUTO » NE FAIT PAS JUGER LES FICHIERS, ET SON TEXTE LE DIT. Le juge
+   auxiliaire d'Hermès (`_smart_approve`) évalue des COMMANDES shell — son
+   propre prompt : *"You assess whether shell commands are safe to execute"*.
+   Lui soumettre « écrire ce fichier » donnerait un juge qui dit toujours oui,
+   c'est-à-dire une garantie creuse portant le nom d'une garantie. On garde
+   donc la position — elle existe et elle agit, sur les commandes — mais son
+   sous-titre ne promet rien de plus. Voir PITCH-CONVERSATION-NATURELLE.html §7. */
+const POSITIONS = [
+  { id: "manual", nom: "Manuel", accords: "manual", mode: "build",
+    sub: "Toujours demander avant d'apporter des modifications." },
+  { id: "off", nom: "Accepter les modifications", accords: "off", mode: "build",
+    sub: "Accepter automatiquement toutes les modifications de fichiers." },
+  { id: "smart", nom: "Auto", accords: "smart", mode: "build",
+    sub: "Hermès juge les commandes lui-même. Les fichiers passent sans question." },
+  { id: "plan", nom: "Plan", accords: "manual", mode: "plan", sep: true,
+    sub: "Discuter, lire, proposer. Ulysse refuse ce qui modifierait le disque." }
+];
+
+/* Manuel au démarrage — c'est aussi le défaut d'Hermès (approval.py:2917),
+   donc on ne force rien, on s'aligne. Décidé pour le public visé : un
+   débutant qui se méfie n'a pas encore de raison de faire confiance, et
+   c'est à lui que la position par défaut s'adresse. */
+let position = "manual";
+
+function posDe(id){ return POSITIONS.find((p) => p.id === id) || POSITIONS[0]; }
+
+/* La feuille. Elle se PEINT au moment où on l'ouvre, jamais d'avance : les
+   accords peuvent changer depuis le terminal d'Hermès, et une liste dessinée
+   une fois pour toutes finirait par cocher l'état d'hier. Même raison que
+   pour la bulle du « i ». */
+function drawPositions(){
+  const p = $("posePop");
+  if (!p) return;
+  p.innerHTML = POSITIONS.map((o) =>
+    (o.sep ? '<div class="pop-sep"></div>' : "")
+    + '<button type="button" data-pos="' + esc(o.id) + '"'
+    + (position === o.id ? ' class="on"' : "") + ">"
+    + '<span class="tick"></span>'
+    + '<span><span class="nom">' + esc(o.nom) + "</span>"
+    + '<span class="sub">' + esc(o.sub) + "</span></span></button>").join("");
+  p.querySelectorAll("[data-pos]").forEach((b) => {
+    b.onclick = (e) => {
+      e.stopPropagation();
+      p.classList.remove("on");
+      setPosition(b.dataset.pos);
+    };
+  });
+}
+
+/* Changer de position, c'est écrire un réglage GLOBAL d'Hermès. On l'annonce
+   au lieu de le taire : il vaut aussi pour le terminal et les autres
+   sessions, exactement comme le disait déjà le bouton « Passer les accords en
+   manuel ».
+
+   ⚠ L'ÉCRAN NE BOUGE QU'APRÈS LA RELECTURE. Si `config.set` échoue, la
+   position affichée resterait vraie alors que rien n'a changé — le genre de
+   décor que ce produit retire depuis quatre passes. On écrit, on relit, et
+   c'est ce qu'on a relu qui s'affiche. */
+async function setPosition(id){
+  const o = POSITIONS.find((x) => x.id === id);
+  if (!o || position === id) return;
+  const avant = position;
+  try {
+    await link.rpc("config.set", { key: "approval_mode", value: o.accords }, 20000);
+    await lireModeAccords();
+  } catch (err){
+    snack("Position non changée : " + err.message);
+    return;
+  }
+  if (modeAccords !== o.accords){
+    snack("Le réglage n'a pas pris : les accords restent en « "
+      + String(modeAccords) + " ». La position n'a pas changé.");
+    return;
+  }
+  position = id;
+  setMode2(o.mode);
+  if (avant !== id) snack(messagePosition(o));
+}
+
+/* ⚠ AU DÉMARRAGE, C'EST HERMÈS QUI A RAISON, PAS NOTRE VALEUR PAR DÉFAUT.
+   `approvals.mode` est global et persistant : il survit à la fermeture
+   d'Ulysse, et le terminal d'Hermès peut l'avoir changé entre deux sessions.
+   Afficher « Manuel » parce que c'est notre défaut, alors que le fichier dit
+   `off`, aurait été la cinquième promesse creuse de ce produit — et la pire,
+   puisqu'elle porte sur ce qui protège les fichiers.
+
+   `plan` n'a pas d'équivalent côté Hermès : il retombe sur `manual`, dont il
+   partage le réglage. On ne peut donc pas le retrouver au démarrage, et c'est
+   juste — une posture appartient à une session, pas à une machine. */
+function alignerPosition(){
+  if (!modeAccords) return;                       // inconnu : on n'affirme rien
+  const o = POSITIONS.find((x) => x.accords === modeAccords && x.id !== "plan");
+  if (!o || o.id === position) return;
+  position = o.id;
+  setMode2(o.mode);
+}
+
+/* Ce qu'on vient de changer, dit en une phrase qui engage. On ne félicite
+   personne : on rappelle la portée, parce que c'est elle qui compte. */
+function messagePosition(o){
+  if (o.id === "manual") return "Manuel — chaque écriture de fichier vous sera soumise.";
+  if (o.id === "off") return "Les modifications sont acceptées sans question, y compris hors d'Ulysse.";
+  if (o.id === "smart") return "Auto — Hermès juge les commandes. Les fichiers ne sont plus soumis.";
+  return "Plan — Ulysse refuse ce qui modifierait le disque.";
+}
+
 function setMode2(m){
   if (!MODES[m]) return;
   mode = m;
-  document.querySelectorAll(".u-modeseg button").forEach((b) => {
-    b.classList.toggle("on", b.dataset.mode === m);
-  });
+  drawPositions();
   /* La phase. « Vérif » n'est pas un cran — c'est la fin du build, décidée
      par kuchu : elle s'affiche, elle ne se choisit pas. */
   const mention = $("modeMention");
-  if (mention) mention.textContent = mode === "build" ? phaseBuild() : "Plan";
+  if (mention) mention.textContent = nomMention();
   // Deuxième endroit où la promesse s'écrivait. Même raison de la retirer :
   // aucun réglage ne la rend vraie (voir `avertissementAccordsHTML`).
   const note = mode === "build"
@@ -1540,11 +1672,23 @@ function dernierPlan(){
   return null;
 }
 
+/* Le mot de la gélule. En Plan c'est la posture qui parle ; ailleurs c'est la
+   position, SAUF quand le build touche à sa fin — « Vérif » est un fait sur
+   le travail en cours, il l'emporte sur un réglage qui, lui, ne change pas.
+   `phaseBuild()` ne rend « Vérif » que sur un plan dont toutes les étapes
+   sont closes : le reste du temps il rend « Build », qui ne nomme aucune
+   position et n'a plus rien à dire ici. */
+function nomMention(){
+  if (position === "plan") return "Plan";
+  const phase = phaseBuild();
+  return phase === "Vérif" ? phase : posDe(position).nom;
+}
+
 /* La mention suit la phase sans qu'on ait à la rappeler partout : paintThread
    passe ici, et c'est le seul endroit où le fil change. */
 function majMention(){
   const m = $("modeMention");
-  if (m) m.textContent = mode === "build" ? phaseBuild() : "Plan";
+  if (m) m.textContent = nomMention();
 }
 
 /* À l'accueil on demande, ensuite on répond : ce n'est pas la même invite, et
@@ -1671,14 +1815,52 @@ async function onSend(ev){
    endroit ou proposer de vraies alternatives a du sens ; l'ajouter aussi au
    fragment Build aurait paye le cout sur CHAQUE tour, pas seulement ceux ou
    la convention sert. `estOption`/`choisirOptionPlan` (ulysse-app.js) lisent
-   ce meme mot. */
+   ce meme mot.
+
+   ⚠ « POSEZ LE PLAN » ÉTAIT UN ORDRE SANS CONDITION, et c'était le défaut le
+   plus visible du produit. Relevé par kuchu le 2026-08-23, séance de cadrage :
+   il demande où en est l'actualité de l'IA, et Ulysse lui répond par un plan à
+   étapes et une proposition de build. Une question traitée comme un chantier.
+
+   La cause n'était pas le sélecteur, elle était ici. Cette ligne part dans
+   CHAQUE message (voir `submit`, plus bas) et elle ordonnait `todo` sans
+   jamais dire quand. L'agent obéissait — c'est la seule chose qu'on puisse
+   lui reprocher de bien faire.
+
+   Ce qui change : l'appel à `todo` devient CONDITIONNEL. Le mode continue de
+   dire ce qu'il interdit — ça, c'est sa portée, et elle ne bouge pas — mais il
+   cesse de dicter la forme de chaque réponse. Un mode d'autorisation qui parle
+   à chaque tour n'est plus une autorisation, c'est une posture ; et une posture
+   permanente empêche de discuter. Voir PITCH-CONVERSATION-NATURELLE.html §1.
+
+   ⚠ LE FRAGMENT TIENT SOUS LES 200 CARACTÈRES DU BANC, et ce n'est pas un
+   hasard qu'il ait fallu se battre : l'ancien en faisait 182, donc le garde de
+   `test_page.js` ne laissait que 18 caractères. Il protège un coût réel — cette
+   phrase part à CHAQUE tour. Plutôt que de relever le seuil pour faire entrer
+   la condition, on a coupé ailleurs : « proposez » est parti (redondant avec
+   « lisez et cherchez »), et la phrase « Option » a perdu sa glose sur les
+   tâches — `estOption` n'a jamais lu que le premier mot. Un garde qu'on relève
+   pour faire passer son propre patch ne garde plus rien.
+   Résultat mesuré : 197 caractères. Toujours dans le TOUR DE L'UTILISATEUR,
+   donc le préfixe de 15 067 tokens ne bouge pas et le cache tient.
+
+   ⚠ UNE RESTRICTION N'EST PAS UNE INSTRUCTION. Première rédaction, essayée en
+   réel le 2026-08-23 : « todo seulement pour un travail à étapes, pas pour une
+   question ». L'agent a reçu une demande de plan complet, a produit six phases
+   à cases cochables… EN TEXTE, sans appeler `todo` — donc aucune carte
+   `.m-plan`, aucun bouton de bascule. En retirant « Posez le plan avec l'outil
+   todo » pour caser la condition, on avait retiré le seul ordre positif de la
+   phrase : il ne restait qu'une interdiction, et une interdiction n'apprend
+   pas quoi faire. La condition ET l'ordre doivent tenir ensemble.
+   Vu sur `tencent/hy3:free` ; un modèle plus obéissant l'aurait peut-être
+   deviné, ce qui aurait caché le défaut au lieu de le supprimer. */
 function ligneDeMode(){
   return mode === "build"
     ? "\n\n[Mode Build : vous pouvez écrire et exécuter. Vérifiez ensuite votre"
       + " travail contre le plan.]"
-    : "\n\n[Mode Plan : ne modifiez rien sur le disque. Lisez, cherchez,"
-      + " proposez. Posez le plan avec l'outil todo — préfixez « Option » les"
-      + " étapes qui sont des alternatives, pas des tâches.]";
+    : "\n\n[Mode Plan : lisez, cherchez, ne modifiez rien. Répondez brièvement :"
+      + " pas de plan pour une question. Pour un travail à étapes, posez-le"
+      + " avec l'outil todo et préfixez « Option » les alternatives.]";
 }
 
 /* --- L'Établi : les fichiers, à côté du fil ------------------------------ */
@@ -5676,7 +5858,27 @@ const PORTEE = {
    choix retenu, comme la maquette le prévoit. On ne l'efface qu'à la demande
    suivante ou à la remise à zéro du fil. */
 
+/* ⚠ UNE ESCALADE DE PLUGIN N'A PAS DE COMMANDE — elle a une ÉTIQUETTE.
+   Relevé en réel le 2026-08-23, à la première demande venue du plugin
+   `ulysse-approbation`. `request_tool_approval` (tools/approval.py) fabrique
+   un `display_target` — littéralement « <write_file> (plugin approval rule) »
+   — et le pose dans `command`. Le commentaire du source le dit lui-même :
+   « It never executes; it only labels the gate. »
+
+   Affiché tel quel, ça donnait une question à laquelle personne ne peut
+   répondre : on demande d'autoriser quelque chose sans dire QUOI. Le fichier
+   visé, lui, vit dans `description` — c'est le message que le plugin écrit,
+   et le seul champ lisible qui traverse jusqu'ici.
+
+   On reconnaît ces demandes à leur `pattern_key`, préfixé `plugin_rule:`
+   (approval.py, même fonction). Pas au contenu de `command` : deviner à
+   partir de chevrons dans une chaîne serait lire une mise en forme comme un
+   protocole. Voir PITCH-CONVERSATION-NATURELLE.html §7. */
 function accordQuoi(pl){
+  const cle = String((pl && pl.pattern_key) || "");
+  if (cle.indexOf("plugin_rule:") === 0 && pl.description){
+    return String(pl.description);
+  }
   const outil = pl.tool || pl.name || "";
   const cmd = pl.command || pl.path || pl.args || "";
   return (outil && cmd) ? outil + "  ·  " + cmd : (outil || cmd || "une action");
@@ -6328,7 +6530,7 @@ function boot(){
      le mode Plan garantit quelque chose ou se contente de le dire. Sans
      réponse, `modeAccords` reste nul et on n'affirme rien : on ne remplace pas
      une promesse fausse par une accusation fausse. */
-  link.ready().then(lireModeAccords).catch(() => {});
+  link.ready().then(lireModeAccords).then(alignerPosition).catch(() => {});
   initRailHover();
   drawRail();
   drawRoles();
@@ -6435,22 +6637,19 @@ function boot(){
     };
   };
 
-  /* La mention ouvre les deux positions ; choisir referme. Le repli suit le
+  /* La mention ouvre les positions ; choisir referme. Le repli suit le
      langage de `#cadrePop` — `.pop.on` — parce qu'un deuxième mécanisme de
-     repli dans le même composeur serait un dialecte de plus à apprendre. */
-  document.querySelectorAll(".u-modeseg button").forEach((b) => {
-    b.onclick = (e) => {
-      e.stopPropagation();
-      setMode2(b.dataset.mode);
-      const p = document.querySelector(".u-modeseg");
-      if (p) p.classList.remove("on");
-    };
-  });
+     repli dans le même composeur serait un dialecte de plus à apprendre.
+     Les boutons se câblent dans `drawPositions()`, avec le contenu : ici on
+     n'attacherait qu'un clic à des éléments qui n'existent pas encore. */
   if ($("modeMention")){
     $("modeMention").onclick = (e) => {
       e.stopPropagation();
-      const p = document.querySelector(".u-modeseg");
-      if (p) p.classList.toggle("on");
+      const p = $("posePop");
+      if (!p) return;
+      if (p.classList.contains("on")){ p.classList.remove("on"); return; }
+      drawPositions();          // repeinte : les accords ont pu changer ailleurs
+      p.classList.add("on");
     };
   }
   /* Le « i ». Il REMPLIT au moment du clic, jamais d'avance : le réglage des

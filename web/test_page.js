@@ -684,21 +684,28 @@ async function main(){
   check("le titre « Discuter » s'efface : le mot-marque le dit déjà",
     win.getComputedStyle(win.document.querySelector("#pDiscuter .topbar .title"))
       .opacity === "0");
-  /* Plan par defaut : on n'ouvre pas quelqu'un sur le mode ou l'agent ecrit
-     dans son projet. Le mode ne choisit plus un MOTEUR (c'etait "pur" ou
-     "cowork", un detail de transport promu au rang de decision) mais ce que
-     l'agent a le droit de MODIFIER. Voir PASSE-DESIGN-UN-SEUL-FIL.md §1. */
-  check("Plan est le mode par défaut",
-    win.eval("mode") === "plan"
-    && win.document.querySelector('#pDiscuter .u-modeseg button.on').dataset.mode === "plan",
-    String(win.eval("mode")));
-  /* « Quasi invisible » : le segment de 120 px est devenu un mot, et les deux
+  /* ⚠ CE GARDE EXIGEAIT « Plan par defaut » JUSQU'AU 2026-08-23. Il avait
+     raison tant que Plan etait la seule chose qui retenait l'agent — mais il
+     ne retenait rien : la porte d'Hermes ne soumettait pas les ecritures de
+     fichier (approvals-manual-ne-demande-pas). Le defaut protegeait donc par
+     CONSIGNE, et une consigne s'oublie.
+
+     Depuis le plugin `ulysse-approbation`, chaque ecriture est reellement
+     soumise, et le defaut devient « Manuel » — qui est aussi celui d'Hermes
+     (approval.py:2917). Le produit ne s'ouvre donc plus sur une posture de
+     travail : son premier verbe est « Discuter », et on peut enfin discuter.
+     Decide avec kuchu en seance de cadrage. Voir
+     PITCH-CONVERSATION-NATURELLE.html §1 et §4. */
+  check("Manuel est la position par défaut — et c'est celle d'Hermès",
+    win.eval("position") === "manual" && win.eval("mode") === "build",
+    String(win.eval("position")) + " / " + String(win.eval("mode")));
+  /* « Quasi invisible » : le segment de 120 px est devenu un mot, et les
      positions sont derriere. Un choix qu'on fait deux fois par heure ne
      s'affiche pas en permanence a cote de ce qu'on ecrit. */
   check("...et le mode est une mention, pas un segment permanent",
     !!win.document.getElementById("modeMention")
-    && win.document.getElementById("modeMention").textContent === "Plan"
-    && win.document.querySelector(".u-modeseg").classList.contains("pop"),
+    && win.document.getElementById("modeMention").textContent === "Manuel"
+    && win.document.getElementById("posePop").classList.contains("pop"),
     (win.document.getElementById("modeMention") || {}).textContent);
 
   console.log("\n--- Le menu ---");
@@ -1009,11 +1016,76 @@ async function main(){
 
   /* Un tour complet, joue par le faux serveur, DEPUIS L'ACCUEIL. Les DEUX
      modes ouvrent maintenant une session — c'etait la difference de fond
-     entre Chat et Cowork, et elle a disparu avec le chemin pur. */
-  win.document.querySelector('#pDiscuter .u-modeseg button[data-mode="build"]').click();
+     entre Chat et Cowork, et elle a disparu avec le chemin pur.
+
+     ⚠ LE SEGMENT plan|build A DISPARU le 2026-08-23 : quatre POSITIONS le
+     remplacent, et changer de position ECRIT `approvals.mode` chez Hermes.
+     Le banc suit donc le vrai chemin — ouvrir la feuille, choisir, repondre
+     au config.set PUIS au config.get — au lieu d'un clic direct. C'est plus
+     long, et c'est le seul moyen de verifier ce qui compte : la position
+     affichee ne bouge QU'APRES confirmation d'Hermes. */
+  const avantPose = FakeWS.sent.length;
+  win.document.getElementById("modeMention").click();
+  await wait(20);
+  check("la feuille des positions s'ouvre sous la gelule",
+    win.document.getElementById("posePop").classList.contains("on"));
+  check("elle porte les quatre positions",
+    win.document.querySelectorAll("#posePop [data-pos]").length === 4);
+  check("...dont trois portent un identifiant d'Hermes, pas de nous",
+    ["manual", "off", "smart"].every((k) =>
+      !!win.document.querySelector('#posePop [data-pos="' + k + '"]')));
+  check("Manuel est coche au demarrage — le defaut d'Hermes aussi",
+    win.document.querySelector('#posePop [data-pos="manual"]').classList.contains("on"));
+
+  win.document.querySelector('#posePop [data-pos="plan"]').click();
   await wait(30);
+  const poseSent = FakeWS.sent.slice(avantPose).map((s) => JSON.parse(s.trim()));
+  const majPose = poseSent.find((m) => m.method === "config.set");
+  check("choisir une position ecrit approvals.mode chez Hermes",
+    !!majPose && majPose.params && majPose.params.key === "approval_mode",
+    JSON.stringify(majPose && majPose.params));
+  /* ⚠ TANT QU'HERMES N'A PAS REPONDU, RIEN NE BOUGE. Une position qui
+     s'afficherait avant confirmation serait un decor : elle dirait « Plan »
+     pendant que le disque reste ouvert. Ce `check` echouerait si l'on
+     revenait a une mise a jour optimiste. */
+  check("...et la gelule ne change pas tant qu'il n'a pas confirme",
+    win.document.getElementById("modeMention").textContent !== "Plan",
+    win.document.getElementById("modeMention").textContent);
+  FakeWS.last.push({ jsonrpc: "2.0", id: majPose.id, result: { ok: true } });
+  await wait(30);
+  const relu = FakeWS.sent.slice(avantPose).map((s) => JSON.parse(s.trim()))
+    .filter((m) => m.method === "config.get").pop();
+  check("il relit le reglage au lieu de croire son propre envoi", !!relu);
+  FakeWS.last.push({ jsonrpc: "2.0", id: relu.id, result: { value: "manual" } });
+  await wait(40);
+  check("la gelule dit Plan une fois le reglage confirme",
+    win.document.getElementById("modeMention").textContent === "Plan",
+    win.document.getElementById("modeMention").textContent);
   check("changer de mode ne quitte pas l'accueil",
     win.document.getElementById("pDiscuter").classList.contains("accueil"));
+
+  /* ⚠ ON REVIENT A MANUEL, ET CE N'EST PAS DU MENAGE. La suite du banc joue
+     une `approval.request` et verifie qu'elle s'affiche dans le fil : en Plan,
+     `refusDeMode` la refuse d'office et il n'y a plus rien a voir. Laisser le
+     banc en Plan aurait fait echouer huit verifications sans rapport, et la
+     cause aurait ete cherchee dans la carte d'accord. Au passage, ca prouve
+     que la bascule marche DANS LES DEUX SENS — l'aller seul ne le disait pas. */
+  const avantRetour = FakeWS.sent.length;
+  win.document.getElementById("modeMention").click();
+  await wait(20);
+  win.document.querySelector('#posePop [data-pos="manual"]').click();
+  await wait(30);
+  const retSent = FakeWS.sent.slice(avantRetour).map((s) => JSON.parse(s.trim()));
+  const setRet = retSent.find((m) => m.method === "config.set");
+  FakeWS.last.push({ jsonrpc: "2.0", id: setRet.id, result: { ok: true } });
+  await wait(30);
+  const getRet = FakeWS.sent.slice(avantRetour).map((s) => JSON.parse(s.trim()))
+    .filter((m) => m.method === "config.get").pop();
+  FakeWS.last.push({ jsonrpc: "2.0", id: getRet.id, result: { value: "manual" } });
+  await wait(40);
+  check("revenir sur Manuel quitte la posture Plan",
+    win.document.getElementById("modeMention").textContent === "Manuel",
+    win.document.getElementById("modeMention").textContent);
   win.document.getElementById("reply").value = "Fais le point";
   win.document.getElementById("composer").dispatchEvent(new win.Event("submit"));
   await wait(120);
@@ -1869,17 +1941,40 @@ async function main(){
   }
 
   console.log("\n--- Le mode : une permission, pas un moteur ---");
-  const segs = win.document.querySelectorAll('.u-modeseg button[data-mode="plan"]');
-  check("la bascule est sous le composeur, et il n'y en a qu'une",
-    segs.length === 1, segs.length + " trouvee(s)");
-  const boutons = win.document.querySelectorAll(".u-modeseg button");
-  check("Plan est proposé avant Build",
-    boutons[0].dataset.mode === "plan" && /Plan/.test(boutons[0].textContent),
-    boutons[0].textContent);
-  segs[0].click();
+  check("la feuille des positions est sous le composeur, et il n'y en a qu'une",
+    win.document.querySelectorAll("#pDiscuter .u-modewrap .u-posepop").length === 1,
+    win.document.querySelectorAll(".u-posepop").length + " trouvee(s)");
+  win.document.getElementById("modeMention").click();
+  await wait(20);
+  const posBtns = win.document.querySelectorAll("#posePop [data-pos]");
+  /* ⚠ L'ORDRE EST UNE DECISION, PAS UNE MISE EN PAGE. Les trois regles
+     d'autorisation d'abord — de la plus retenue a la plus laxe — puis Plan,
+     apres un filet, parce qu'il n'est pas de meme nature : c'est une posture
+     de travail, la seule des quatre qui n'existe pas chez Hermes. */
+  check("les regles d'autorisation viennent avant la posture",
+    [...posBtns].map((b) => b.dataset.pos).join(",") === "manual,off,smart,plan",
+    [...posBtns].map((b) => b.dataset.pos).join(","));
+  check("Plan est separe des trois autres par un filet",
+    !!win.document.querySelector('#posePop .pop-sep + [data-pos="plan"]'));
+  /* ⚠ CHAQUE LIGNE DIT CE QU'ELLE FAIT. Une position sans consequence ecrite
+     est un reglage qu'on choisit a l'aveugle — et « Auto » est precisement
+     celle dont le nom promet plus que ce qu'elle tient sur les fichiers. */
+  check("chaque position porte sa consequence, sous son nom",
+    [...posBtns].every((b) => {
+      const s = b.querySelector(".sub");
+      return s && s.textContent.trim().length > 20;
+    }));
+  check("...et « Auto » ne promet pas de juger les fichiers",
+    /fichiers passent sans question/i.test(
+      win.document.querySelector('#posePop [data-pos="smart"] .sub').textContent),
+    win.document.querySelector('#posePop [data-pos="smart"] .sub').textContent);
+  win.document.getElementById("modeMention").click();
+  await wait(20);
+  /* La posture reste pilotable par le code : `mode` n'a pas change de nom, et
+     une douzaine d'endroits la lisent encore. */
+  win.eval("setMode2('plan')");
   await wait(30);
-  check("la bascule répond", segs[0].classList.contains("on")
-    && win.eval("mode") === "plan");
+  check("la posture Plan reste atteignable", win.eval("mode") === "plan");
 
   /* ⚠ PLUS AUCUN APPEL A /proxy/chat. C'etait le chemin du mode pur : le
      modele nu, sans session, sans outils. Il ne doit plus rien emprunter —
@@ -2260,10 +2355,18 @@ async function main(){
 
   /* « Verif » n'est pas un cran du selecteur : c'est la fin du build, decidee
      par kuchu. Elle s'affiche quand TOUTES les etapes sont terminees — on ne
-     l'invente pas, une phase inventee serait pire qu'une phase absente. */
+     l'invente pas, une phase inventee serait pire qu'une phase absente.
+
+     ⚠ « Build » NE S'AFFICHE PLUS, ET C'EST LE POINT. Depuis les quatre
+     positions (2026-08-23), la gelule porte ce que la personne A CHOISI. Or
+     `phaseBuild()` ne rend « Build » qu'a defaut — il ne dit rien de plus que
+     « pas encore fini ». Ecraser « Manuel » par ce mot-la, c'etait remplacer
+     un reglage qu'on peut relire par un mot qui n'apprend rien. « Verif », si :
+     il dit que le travail est fait et qu'il reste a le controler. On garde
+     donc l'information et on laisse tomber le remplissage. */
   win.eval('setMode2("build"); paintThread();');
-  check("tant qu'une étape reste ouverte, la phase dit « Build »",
-    win.document.getElementById("modeMention").textContent === "Build",
+  check("tant qu'une étape reste ouverte, la gélule garde la position choisie",
+    win.document.getElementById("modeMention").textContent === "Manuel",
     win.document.getElementById("modeMention").textContent);
   win.eval('conv.turns.length = 0;');
   envoieTodo([{ id: "1", content: "Fini", status: "completed" },
@@ -3196,7 +3299,11 @@ async function main(){
   win.document.getElementById("moreBtn").click();
   await wait(40);
 
-  win.document.querySelector('.u-modeseg button[data-mode="build"]').click();
+  // Preambule, pas une verification : ce bloc teste les CADRES, et la gelule
+  // du cadre ne s'affiche qu'en Build. On y va par le code — passer par la
+  // feuille des positions ferait dependre ce test d'un aller-retour RPC qui
+  // n'a rien a voir avec ce qu'il verifie.
+  win.eval('setMode2("build")');
   await wait(60);
   check("Discuter · les six cadres sont repliés derrière une gélule",
     !!win.document.getElementById("cadreBtn")

@@ -796,6 +796,37 @@
   color:var(--muted);font-size:var(--font-size-xs);white-space:nowrap}
 .u-cadre:hover,.u-modemention:hover{background:var(--surface-hi);color:var(--text)}
 .u-cadre i{width:6px;height:6px;border-radius:50%;background:var(--accent);flex:none}
+
+/* ═══ La feuille des positions ═══════════════════════════════════════════
+   Quatre lignes, chacune avec ce qu'elle FAIT sous son nom. C'est la forme
+   de menu de `.pop` — celle de `#cadrePop` et de `.disc-menu` — pas une
+   cinquième façon de poser une question dans le même produit.
+
+   ⚠ LA SPÉCIFICITÉ EST COPIÉE, PAS SURENCHÉRIE. `ulysse.css:353` pose
+   `.pop button:not(.btn-pick):not(.txt-btn):not(.dangerlink):not(.quiet-link)`
+   — cinq classes, donc (0,5,1). Une règle `.u-posepop button` pèse (0,1,1)
+   et se ferait écraser en silence : c'est le piège relevé le 2026-08-21 sur
+   `#lieuPop`, où des pilules sont sorties en rectangles pleine largeur. On
+   reprend donc le MÊME patron `:not(…)`, à égalité, et l'ordre du fichier
+   tranche. Empiler un `!important` aurait masqué le conflit au lieu de le
+   résoudre — et le suivant l'aurait repayé. */
+.u-posepop{min-width:296px;max-width:340px}
+.u-posepop button:not(.btn-pick):not(.txt-btn):not(.dangerlink):not(.quiet-link){
+  align-items:flex-start;text-align:left;gap:11px;padding:10px 12px}
+.u-posepop .tick{width:17px;height:17px;flex:none;border-radius:50%;
+  border:2px solid var(--outline-var);margin-top:2px;display:grid;
+  place-items:center;transition:border-color .14s ease,background .14s ease}
+.u-posepop button.on .tick{border-color:var(--accent);background:var(--accent);
+  box-shadow:inset 0 0 0 2.5px var(--bg)}
+.u-posepop button.on{color:var(--text)}
+.u-posepop .nom{font-weight:500}
+/* Le sous-titre hérite de `.pop .sub` (taille, couleur). Il ne lui manque
+   qu'une chose : ne pas se serrer sur une seule ligne. */
+.u-posepop .sub{margin-top:2px;line-height:1.42;white-space:normal}
+/* Plan n'est pas une règle d'autorisation — c'est une posture. Le filet dit
+   cette différence de nature, comme `.u-accord .u-sep` distingue
+   « toujours » sans l'interdire. */
+.u-posepop .pop-sep{margin:7px 10px}
 /* La gélule n'apparaît qu'en Cowork. Ce n'est pas une préférence : en Chat,
    `sendPure()` n'appelle pas `roleOpts()` — le cadre n'agirait sur rien, et
    afficher un contrôle qui ne fait rien est exactement ce que STU-1 interdit.
@@ -1321,16 +1352,26 @@
           <!-- ⚠ « QUASI INVISIBLE », demandé par kuchu le 2026-08-12. C'était
                un segment de 120 px qui proposait un CHOIX à chaque coup d'œil,
                pour un réglage qu'on change deux fois par heure. Ce n'est plus
-               qu'un mot — l'endroit où l'on est — qui ouvre les deux positions
+               qu'un mot — l'endroit où l'on est — qui ouvre les positions
                quand on le touche. Ce qui reste sous la main, c'est le champ.
-               Les valeurs `data-mode` valent maintenant plan | build. -->
+
+               ⚠ QUATRE POSITIONS, ET TROIS NOMS QUI NE SONT PAS DE NOUS.
+               `manual`, `smart` et `off` sont les modes d'approbation
+               d'Hermès (hermes_cli/approval_mode.py) ; Ulysse les AFFICHE, il
+               ne les redéfinit pas. Décidé avec kuchu le 2026-08-23 : « on
+               n'invente rien, on reprend ce qui existe déjà sur Hermès ». Les
+               libellés français viennent de Claude Code, dont il a fourni la
+               capture. Seul `plan` est propre à Ulysse — ce n'est pas une
+               règle d'autorisation, c'est une posture de travail, et cette
+               différence est assumée plutôt que maquillée.
+
+               Le contenu est peint par `drawPositions()` : chaque ligne dit
+               ce qu'elle FAIT, et ce texte ne doit jamais promettre plus que
+               la mesure. Voir PITCH-CONVERSATION-NATURELLE.html §4. -->
           <span class="u-modewrap">
             <button class="u-modemention" id="modeMention"
-                    aria-haspopup="true">Plan</button>
-            <div class="seg u-modeseg pop" data-seg="1">
-              <button data-mode="plan" class="on">Plan</button>
-              <button data-mode="build">Build</button>
-            </div>
+                    aria-haspopup="true">Manuel</button>
+            <div class="pop u-posepop" id="posePop" data-seg="1"></div>
           </span>
           <!-- Ce que le mode retient VRAIMENT. Ce texte s'écrivait dans le fil,
                après chaque tour, sous des réponses qui n'avaient rien à voir.

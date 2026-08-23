@@ -1,0 +1,557 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Ulysse — Une conversation qui sait travailler</title>
+<style>
+:root{
+  --bg:#FFFFFF;--sidebar:#F8FAFD;--surface:#F0F4F9;--surface-hi:#E9EEF6;
+  --outline:#747775;--outline-var:#C4C7C5;
+  --text:#1F1F1F;--muted:#5F6368;--faint:#9AA0A6;
+  --accent:#0B57D0;--accent-container:#D3E3FD;--on-accent-container:#041E49;
+  --green:#188038;--amber:#E37400;--red:#B3261E;--violet:#9B72CB;
+  --font-ui:"Google Sans","Product Sans",Roboto,Arial,system-ui,sans-serif;
+  --mono:"Roboto Mono",ui-monospace,Consolas,monospace;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme=light]){
+  --bg:#131314;--sidebar:#1B1C1D;--surface:#1E1F20;--surface-hi:#282A2C;
+  --outline:#8E918F;--outline-var:#444746;
+  --text:#E3E3E3;--muted:#C4C7C5;--faint:#8E918F;
+  --accent:#A8C7FA;--accent-container:#0842A0;--on-accent-container:#D3E3FD;
+  --green:#6DD58C;--amber:#FDB60D;--red:#F2B8B5;
+}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--text);font-family:var(--font-ui);
+  line-height:1.6;font-size:16px;-webkit-font-smoothing:antialiased}
+main{max-width:920px;margin:0 auto;padding:32px 24px 80px}
+h1{font-size:34px;line-height:1.2;margin:0 0 4px;font-weight:500}
+h2{font-size:23px;margin:56px 0 4px;font-weight:500;
+  padding-top:20px;border-top:1px solid var(--outline-var)}
+h3{font-size:17px;margin:28px 0 8px;font-weight:500;color:var(--muted)}
+p{margin:12px 0}
+code{font-family:var(--mono);font-size:.88em;background:var(--surface);
+  padding:2px 6px;border-radius:6px}
+.sub{color:var(--muted);font-size:15px;margin-top:0}
+.warn{background:var(--surface);border-left:4px solid var(--amber);
+  border-radius:0 12px 12px 0;padding:16px 20px;margin:24px 0}
+.warn b{color:var(--amber)}
+.key{background:var(--surface);border-left:4px solid var(--accent);
+  border-radius:0 12px 12px 0;padding:16px 20px;margin:24px 0}
+.quote{font-size:19px;line-height:1.45;margin:24px 0;padding-left:20px;
+  border-left:3px solid var(--accent);color:var(--text)}
+.wrap{overflow-x:auto;margin:20px 0;-webkit-overflow-scrolling:touch}
+table{border-collapse:collapse;width:100%;font-size:15px;min-width:520px}
+th,td{text-align:left;padding:10px 14px;border-bottom:1px solid var(--outline-var);
+  vertical-align:top}
+th{color:var(--muted);font-weight:500;font-size:13px;text-transform:uppercase;
+  letter-spacing:.04em}
+tbody tr:last-child td{border-bottom:none}
+.tag{display:inline-block;font-size:12px;padding:2px 9px;border-radius:999px;
+  background:var(--surface-hi);color:var(--muted);white-space:nowrap}
+.tag.ok{background:rgba(24,128,56,.14);color:var(--green)}
+.tag.no{background:rgba(179,38,30,.14);color:var(--red)}
+.tag.mid{background:rgba(227,116,0,.16);color:var(--amber)}
+.prov{color:var(--violet);font-weight:500}
+ul,ol{margin:12px 0;padding-left:22px}
+li{margin:6px 0}
+.screens{display:grid;gap:24px;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));
+  margin:24px 0}
+.sc{border:1px solid var(--outline-var);border-radius:16px;overflow:hidden;
+  background:var(--sidebar);display:flex;flex-direction:column}
+.sc-h{font-size:12px;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);
+  padding:10px 14px;border-bottom:1px solid var(--outline-var);background:var(--surface)}
+.sc-b{padding:16px 14px;flex:1;display:flex;flex-direction:column;gap:10px;
+  min-height:150px;justify-content:center}
+.sc-l{font-size:13px;color:var(--muted);padding:12px 14px;
+  border-top:1px solid var(--outline-var);background:var(--bg)}
+.sc-l b{color:var(--text);font-weight:500}
+.bul{background:var(--surface);border-radius:14px;padding:9px 13px;font-size:14px;
+  max-width:88%}
+.bul.me{background:var(--accent-container);color:var(--on-accent-container);
+  align-self:flex-end}
+.comp{border:1px solid var(--outline-var);border-radius:999px;padding:9px 15px;
+  color:var(--faint);font-size:13px;background:var(--bg)}
+.card{border:1px solid var(--outline-var);border-radius:12px;padding:12px;
+  background:var(--bg);font-size:13px}
+.card .t{font-weight:500;font-size:14px;margin-bottom:6px;display:flex;gap:7px;
+  align-items:center}
+.acts{display:flex;gap:7px;margin-top:10px;flex-wrap:wrap}
+.b{font-size:12px;padding:5px 12px;border-radius:999px;border:1px solid var(--outline-var);
+  background:var(--bg);color:var(--text);white-space:nowrap}
+.b.pri{background:var(--accent);border-color:var(--accent);color:#fff}
+@media (prefers-color-scheme:dark){:root:not([data-theme=light]) .b.pri{color:#062E6F}}
+.b.ghost{color:var(--faint)}
+.opt{display:flex;gap:9px;align-items:flex-start;padding:9px 11px;border-radius:10px;
+  border:1px solid var(--outline-var);font-size:13px;background:var(--bg)}
+.opt.on{border-color:var(--accent);background:var(--accent-container);
+  color:var(--on-accent-container)}
+.opt .r{width:14px;height:14px;border-radius:50%;border:2px solid var(--outline);
+  flex:none;margin-top:3px}
+.opt.on .r{border-color:var(--accent);background:var(--accent);
+  box-shadow:inset 0 0 0 2.5px var(--bg)}
+.opt small{display:block;color:var(--muted);font-size:12px;line-height:1.4}
+.opt.on small{color:var(--on-accent-container);opacity:.85}
+.step{display:flex;gap:11px;align-items:baseline;font-size:14px;margin:5px 0}
+.step .n{width:20px;height:20px;border-radius:50%;background:var(--surface-hi);
+  color:var(--muted);font-size:11px;display:grid;place-items:center;flex:none}
+.dot{width:7px;height:7px;border-radius:50%;flex:none}
+.foot{margin-top:64px;padding-top:20px;border-top:1px solid var(--outline-var);
+  color:var(--muted);font-size:14px}
+</style>
+</head>
+<body>
+<main>
+
+<h1>Une conversation qui sait travailler</h1>
+<p class="sub">Pitch de cadrage — Ulysse, mode Discuter · 23 août 2026</p>
+
+<div class="warn">
+<b>Ceci est une proposition à corriger, pas une spécification.</b>
+Elle est écrite pour qu'on puisse la contredire. Si elle traverse la relecture
+sans une seule correction, c'est qu'elle n'a rien révélé et qu'il faut la
+refaire. Les noms marqués <span class="prov">✳</span> sont provisoires :
+ils tiennent la place, ils ne sont pas choisis.
+</div>
+
+<h2>1 · Le constat</h2>
+
+<p><b>La scène.</b> Tu demandes à Ulysse où en est l'actualité de l'IA.
+Il te répond avec un plan à étapes et une proposition de build. Tu voulais
+discuter ; il t'a traité comme un chantier.</p>
+
+<p><b>La cause n'est pas dans le sélecteur.</b> Elle est dans une phrase.
+<code>ligneDeMode()</code> — <code>ulysse-app.js:1675</code> — part dans
+<i>chaque</i> message que tu envoies (<code>ulysse-app.js:1648</code>), et
+elle dit :</p>
+
+<p class="quote">« Mode Plan : ne modifiez rien sur le disque. Lisez, cherchez,
+proposez. <b>Posez le plan avec l'outil todo.</b> »</p>
+
+<p>Cette consigne n'a aucune condition. Elle ne dort jamais. L'agent obéit :
+tu poses une question, il ouvre un chantier.</p>
+
+<div class="key">
+<b>Le problème, en une phrase.</b><br>
+Ulysse n'a pas de position de repos. Son état par défaut est une posture de
+travail, donc discuter y est impossible : chaque phrase déclenche un plan.
+Le travail devrait être une <i>conséquence</i> de ce qui est demandé, jamais
+un préalable à choisir.
+</div>
+
+<h3>Pourquoi copier le sélecteur de Claude Code ne suffirait pas</h3>
+
+<p>Les quatre positions de Claude Code ne disent qu'une chose : <b>ce qui se
+passe quand une modification se présente.</b> Elles ne disent rien de ce que
+l'agent fait à chaque tour. Sur mobile, en mode Plan, on peut parler de
+l'actualité de l'IA sans recevoir de plan : le mode dort tant qu'aucun fichier
+n'est en jeu.</p>
+
+<div class="wrap"><table>
+<thead><tr><th></th><th>Claude Code</th><th>Ulysse aujourd'hui</th></tr></thead>
+<tbody>
+<tr><td>Nature</td><td>une <b>règle d'autorisation</b></td>
+    <td>une <b>posture permanente</b></td></tr>
+<tr><td>Quand ça agit</td><td>quand une écriture se présente</td>
+    <td>à chaque tour, écriture ou pas</td></tr>
+<tr><td>Où c'est rangé</td><td>une feuille qu'on ouvre</td>
+    <td>en permanence sous le champ</td></tr>
+<tr><td>Position au départ</td><td><b>Auto</b> — le modèle décide</td>
+    <td><b>Plan</b> — le modèle planifie</td></tr>
+</tbody>
+</table></div>
+
+<p>On pourrait copier les quatre positions ce soir et garder exactement le même
+agacement. Le défaut n'est pas le nombre de positions — c'est que la position
+parle tout le temps.</p>
+
+<h3>Le public a changé le projet</h3>
+
+<p>Ulysse ne sert pas qu'à son auteur : il est destiné à un entourage qui ne
+connaît rien à l'IA, et qui s'en méfie. Cela retourne une conclusion que ce
+document allait proposer — <i>Auto par défaut</i> — et impose l'inverse :
+<b>Manuel par défaut</b>. Ce n'est pas un choix contre l'outil : c'est déjà
+le défaut d'Hermès (<code>approval.py:2917</code>).</p>
+
+<div class="key">
+<b>La règle de vocabulaire de ce pitch : on n'invente rien.</b><br>
+Les modes d'approbation existent déjà dans Hermès —
+<code>manual</code>, <code>smart</code>, <code>off</code>
+(<code>approval_mode.py:16</code>). Ulysse les affiche, il ne les redéfinit
+pas. <code>smart</code> fait décider un LLM auxiliaire, avec un disjoncteur
+contre les relances (<code>approval.py:2364</code>) : c'est exactement
+« Auto ». Seul <b>Plan</b> n'a pas d'équivalent — parce que ce n'est pas une
+règle d'autorisation, c'est une posture de travail. La différence est
+assumée, pas maquillée.
+</div>
+
+<div class="warn">
+<b>Et voilà pourquoi les fichiers passaient quand même.</b>
+<code>manual</code> ne couvre que le <b>terminal</b> — <i>« affects subsequent
+terminal guard checks »</i>, <code>approval_mode.py:5</code>.
+<code>write_file</code> n'est pas dedans. La mesure faite sur l'installation
+— un fichier écrit, aucune demande d'accord — ne révélait pas un réglage mal
+posé : elle révélait un trou dans la couverture. C'est ce trou que le plugin
+<code>pre_tool_call</code> bouche.
+</div>
+
+<div class="warn">
+<b>Et cela durcit le problème au lieu de l'adoucir.</b>
+Un utilisateur averti à qui on montre une garantie creuse hausse les épaules.
+Un débutant craintif à qui on affiche « toujours demander avant de modifier »,
+et dont les fichiers changent sans qu'on lui demande, on lui a menti sur la
+seule chose qui le retenait de partir. C'est déjà la doctrine du code : quatre
+endroits où la promesse « rien ne sera modifié » a été retirée faute d'être
+tenue.
+</div>
+
+<h2>2 · Le parcours</h2>
+
+<p>Du point de vue de la personne, un verbe par moment.</p>
+
+<div class="wrap"><table>
+<thead><tr><th>#</th><th>Le moment</th><th>Qui décide</th><th>Ce qu'elle ressent</th></tr></thead>
+<tbody>
+<tr><td>1</td><td><b>J'écris.</b> Je ne dis pas si c'est une question ou un travail.</td>
+    <td>—</td><td>rien, j'écris</td></tr>
+<tr><td>2</td><td><b>Il répond.</b> Court. Aucun plan, sauf si c'en est vraiment un.</td>
+    <td>l'agent</td><td>on parle</td></tr>
+<tr><td>3</td><td><i>(le seuil est invisible)</i> — aucune annonce, aucun changement de registre</td>
+    <td>—</td><td>—</td></tr>
+<tr><td>4</td><td><b>Une écriture se présente</b> → la règle s'applique</td>
+    <td>le sélecteur</td><td>consulté, ou pas, selon son choix</td></tr>
+<tr><td>5</td><td><b>Je vois ce qui a changé</b></td>
+    <td>—</td><td>rassuré — ou je reviens en arrière</td></tr>
+</tbody>
+</table></div>
+
+<p>Le moment 3 est délibérément vide. C'est la décision centrale du pitch :
+<b>il n'y a pas de seuil annoncé.</b> On ne remplace pas un mode à cliquer
+par une question à cliquer.</p>
+
+<h2>3 · La structure</h2>
+
+<p>Déduite du parcours, un verbe par surface. Rien de neuf dans le rail :
+tout se joue dans <b>Discuter</b>.</p>
+
+<div class="wrap"><table>
+<thead><tr><th>Surface</th><th>Son verbe unique</th><th>Statut</th></tr></thead>
+<tbody>
+<tr><td>Le fil</td><td><b>parler</b></td><td><span class="tag ok">existe</span></td></tr>
+<tr><td>La demande d'autorisation, dans le fil</td><td><b>autoriser</b></td>
+    <td><span class="tag no">à écrire</span></td></tr>
+<tr><td>La feuille de mode <span class="prov">✳</span></td><td><b>régler</b></td>
+    <td><span class="tag mid">change de forme</span></td></tr>
+<tr><td>La carte « Plan proposé »</td><td><b>valider</b></td>
+    <td><span class="tag ok">existe, devient rare</span></td></tr>
+<tr><td>La Corbeille</td><td><b>revenir</b></td><td><span class="tag ok">existe</span></td></tr>
+</tbody>
+</table></div>
+
+<p>Le segment <code>.u-modeseg</code> quitte le dessous du champ : un réglage
+qu'on touche deux fois par semaine n'a pas à occuper la place la plus chère de
+l'écran. Il devient une feuille qu'on ouvre — comme sur mobile.</p>
+
+<h2>4 · Les écrans</h2>
+<p>L'état vide en premier, toujours. Chaque légende dit quelle décision
+l'écran encode.</p>
+
+<div class="screens">
+
+  <div class="sc">
+    <div class="sc-h">A · L'état vide</div>
+    <div class="sc-b">
+      <div style="text-align:center;color:var(--faint);font-size:13px">
+        Dites ce que vous aimeriez faire.</div>
+      <div class="comp">Écrire à Ulysse…</div>
+    </div>
+    <div class="sc-l"><b>Décision :</b> plus aucun mode sous le champ.
+      Le repos n'est plus une posture de travail — il n'est plus une posture
+      du tout.</div>
+  </div>
+
+  <div class="sc">
+    <div class="sc-h">B · Discuter (la scène des news IA)</div>
+    <div class="sc-b">
+      <div class="bul me">où en est l'actu IA ?</div>
+      <div class="bul">Trois choses ce mois-ci : …</div>
+      <div class="comp">Répondre…</div>
+    </div>
+    <div class="sc-l"><b>Décision :</b> la consigne s'est tue. Aucun plan,
+      aucune proposition de build. Une question reçoit une réponse.</div>
+  </div>
+
+  <div class="sc">
+    <div class="sc-h">C · Une écriture se présente</div>
+    <div class="sc-b">
+      <div class="bul me">corrige la faute dans le pied de page</div>
+      <div class="card">
+        <div class="t"><span class="dot" style="background:var(--amber)"></span>
+          Modifier <code>ulysse-view.js</code> ?</div>
+        <div style="color:var(--muted)">Remplacer « recevoire » par « recevoir »,
+          ligne 214.</div>
+        <div class="acts"><span class="b pri">Autoriser</span>
+          <span class="b">Voir la modification</span>
+          <span class="b ghost">Refuser</span></div>
+      </div>
+    </div>
+    <div class="sc-l"><b>Décision :</b> la demande porte sur <b>l'objet</b>,
+      pas sur un mode. Elle nomme le fichier et ce qui change. On répond à une
+      action, on ne règle pas une machine.</div>
+  </div>
+
+  <div class="sc">
+    <div class="sc-h">D · La feuille de mode</div>
+    <div class="sc-b" style="gap:7px;justify-content:flex-start">
+      <div class="opt on"><span class="r"></span><span><b>Manuel</b>
+        <small>toujours demander avant d'apporter des modifications
+        · <code>manual</code></small></span></div>
+      <div class="opt"><span class="r"></span><span><b>Accepter les modifications</b>
+        <small>accepter automatiquement toutes les modifications
+        · <code>off</code></small></span></div>
+      <div class="opt"><span class="r"></span><span><b>Plan</b>
+        <small>créer un plan avant d'effectuer des modifications
+        · <i>propre à Ulysse</i></small></span></div>
+      <div class="opt"><span class="r"></span><span><b>Auto</b>
+        <small>Ulysse gère les décisions d'autorisation
+        · <code>smart</code></small></span></div>
+    </div>
+    <div class="sc-l"><b>Décision :</b> <b>rien n'est inventé.</b> Les
+      identifiants sont ceux d'Hermès (<code>approval_mode.py:16</code>), les
+      libellés ceux de Claude Code. <b>« Manuel » est le défaut</b> — et c'est
+      déjà celui d'Hermès (<code>approval.py:2917</code>).</div>
+  </div>
+
+</div>
+
+<h3>Les quatre états de la demande</h3>
+<p>Toute surface qui attend une réponse doit dire ce qu'elle fait quand la
+réponse ne vient pas.</p>
+
+<div class="screens">
+  <div class="sc"><div class="sc-h">Vide</div><div class="sc-b">
+    <div style="color:var(--faint);font-size:13px;text-align:center">
+      Rien à autoriser.<br>La conversation suit son cours.</div></div>
+    <div class="sc-l"><b>Décision :</b> l'absence de demande est l'état normal,
+      pas un état d'attente. Aucun bandeau permanent.</div></div>
+
+  <div class="sc"><div class="sc-h">En attente</div><div class="sc-b">
+    <div class="card"><div class="t">
+      <span class="dot" style="background:var(--amber)"></span>
+      Modifier <code>serve.py</code> ?</div>
+      <div style="color:var(--muted)">L'agent attend votre réponse.</div>
+      <div class="acts"><span class="b pri">Autoriser</span>
+        <span class="b ghost">Refuser</span></div></div></div>
+    <div class="sc-l"><b>Décision :</b> l'agent est réellement arrêté —
+      il n'a pas déjà écrit en attendant.</div></div>
+
+  <div class="sc"><div class="sc-h">Rempli — autorisé</div><div class="sc-b">
+    <div class="card"><div class="t">
+      <span class="dot" style="background:var(--green)"></span>
+      <code>serve.py</code> modifié</div>
+      <div style="color:var(--muted)">2 lignes changées · récupérable dans la
+        Corbeille</div></div></div>
+    <div class="sc-l"><b>Décision :</b> la carte ne disparaît pas, elle devient
+      la trace. Le fil garde le compte de ce qui a été touché.</div></div>
+
+  <div class="sc"><div class="sc-h">Erreur — expiré ou refusé</div><div class="sc-b">
+    <div class="card"><div class="t">
+      <span class="dot" style="background:var(--red)"></span>
+      Non modifié</div>
+      <div style="color:var(--muted)">Sans réponse au bout de 5 minutes, la
+        modification est abandonnée.</div></div></div>
+    <div class="sc-l"><b>Décision :</b> <b>fail-closed</b> — le silence vaut
+      refus, jamais accord. C'est déjà le comportement d'Hermès
+      (<code>plugins.py:2534</code>) : on ne le réinvente pas, on l'affiche.</div></div>
+</div>
+
+<h2>5 · Le coût</h2>
+
+<div class="wrap"><table>
+<thead><tr><th>Statut</th><th>Ce que c'est</th><th>Où</th></tr></thead>
+<tbody>
+<tr><td><span class="tag ok">existe</span></td>
+    <td>La porte d'approbation côté écran — Ulysse écoute déjà, et sait refuser</td>
+    <td><code>refusDeMode</code>, <code>ulysse-app.js:6306</code></td></tr>
+<tr><td><span class="tag ok">existe</span></td>
+    <td>Le hook <code>pre_tool_call</code> et l'escalade <code>approve</code></td>
+    <td><code>model_tools.py:1315</code>, <code>plugins.py:2505</code></td></tr>
+<tr><td><span class="tag ok">existe</span></td>
+    <td>La carte « Plan proposé », ses options, son bouton de bascule</td>
+    <td><code>.m-plan</code>, <code>ulysse-app.js:596</code></td></tr>
+<tr><td><span class="tag ok">existe</span></td>
+    <td>La Corbeille — le retour arrière après coup</td><td><code>serve.py</code></td></tr>
+<tr><td><span class="tag mid">change de forme</span></td>
+    <td><b>La consigne devient conditionnelle</b> : répondre court par défaut,
+      n'appeler <code>todo</code> que si c'est un travail à étapes</td>
+    <td><code>ligneDeMode()</code></td></tr>
+<tr><td><span class="tag mid">change de forme</span></td>
+    <td>Le mode passe de 2 à 4 positions, et cesse d'être une posture</td>
+    <td><code>MODES</code>, <code>ulysse-app.js:1497</code></td></tr>
+<tr><td><span class="tag mid">change de forme</span></td>
+    <td>Le segment quitte le dessous du champ pour une feuille</td>
+    <td><code>.u-modeseg</code></td></tr>
+<tr><td><span class="tag mid">change de forme</span></td>
+    <td>Le refus devient une <b>demande</b> : « Autoriser » au lieu de
+      « passez en Build »</td><td><code>refusDeMode</code></td></tr>
+<tr><td><span class="tag no">à écrire</span></td>
+    <td><b>Le plugin Hermès</b> — un hook <code>pre_tool_call</code> sur les
+      outils qui écrivent, qui répond <code>approve</code></td>
+    <td>nouveau fichier Python</td></tr>
+<tr><td><span class="tag no">à écrire</span></td>
+    <td>La carte de demande dans le fil, avec ses quatre états</td>
+    <td><code>ulysse-app.js</code> + <code>ulysse.html</code></td></tr>
+<tr><td><span class="tag no">à écrire</span></td>
+    <td>La feuille de sélection à quatre positions</td>
+    <td><code>ulysse.html</code></td></tr>
+<tr><td><span class="tag no">à écrire</span></td>
+    <td>La mémoire des autorisations — « ne plus me demander pour ce fichier »</td>
+    <td>étape 3</td></tr>
+</tbody>
+</table></div>
+
+<div class="warn">
+<b>Une contrainte qui ne se négocie pas.</b> Le préfixe système pèse
+15 067 tokens (mesuré) et le cache ne tient que s'il ne bouge pas d'un appel à
+l'autre. Rien de tout cela n'entre dans le system prompt : la consigne continue
+de voyager dans le tour de l'utilisateur, après le préfixe.
+</div>
+
+<h2>6 · L'appétit et le hors-sujet</h2>
+
+<p><b>L'appétit est large</b> — Ulysse est un outil du quotidien, destiné à
+durer et à sortir de la machine de son auteur. Large ne veut pas dire d'un
+bloc : trois étapes, dont <b>chacune tient debout seule</b>.</p>
+
+<div class="wrap"><table>
+<thead><tr><th></th><th>L'étape</th><th>Ce qu'elle règle</th><th>Si on s'arrête là</th></tr></thead>
+<tbody>
+<tr><td>1</td><td><b>Le silence</b> — la consigne devient conditionnelle</td>
+    <td>La scène des news IA</td>
+    <td>Ulysse discute enfin. Les modes restent ce qu'ils sont.</td></tr>
+<tr><td>2</td><td><b>La demande réelle</b> — le plugin, la carte, ses états</td>
+    <td>« Manuel » cesse d'être une promesse</td>
+    <td>Le produit est complet pour un débutant.</td></tr>
+<tr><td>3</td><td><b>Les quatre positions et la mémoire</b></td>
+    <td>Chacun règle sa confiance</td>
+    <td>—</td></tr>
+</tbody>
+</table></div>
+
+<div class="key">
+<b>Construit le 2026-08-23 — les trois étapes sont livrées.</b> Deux choses
+ont changé en route, et elles valent d'être lues avant le reste :
+<ul style="margin-top:8px">
+<li><b>La mémoire des autorisations n'était pas à écrire.</b> Elle existe :
+  <code>is_approved(session_key, pattern_key)</code> court-circuite le gate.
+  « Pour cette conversation » et « toujours » marchent déjà, au grain du
+  fichier. Ce qui reste à faire, c'est de la rendre <i>révocable depuis
+  l'écran</i> — pas de la construire.</li>
+<li><b>« Auto » ne juge pas les fichiers, et son libellé le dit maintenant.</b>
+  Le juge auxiliaire d'Hermès (<code>_smart_approve</code>) évalue des
+  <i>commandes shell</i> — son propre prompt le dit. Lui soumettre « écrire ce
+  fichier » aurait donné un juge qui approuve toujours : une garantie creuse
+  portant le nom d'une garantie. La position reste, elle agit sur les
+  commandes, et son sous-titre ne promet rien d'autre.</li>
+</ul>
+</div>
+
+<div class="wrap"><table>
+<thead><tr><th>Position</th><th><code>approvals.mode</code></th><th>Ce qui se passe, mesuré</th></tr></thead>
+<tbody>
+<tr><td><b>Manuel</b> <span class="tag ok">défaut</span></td><td><code>manual</code></td>
+    <td>le plugin escalade → chaque écriture est soumise</td></tr>
+<tr><td><b>Accepter les modifications</b></td><td><code>off</code></td>
+    <td>le plugin se tait → rien ne demande</td></tr>
+<tr><td><b>Auto</b></td><td><code>smart</code></td>
+    <td>le plugin se tait ; les <b>commandes</b> restent jugées par Hermès</td></tr>
+<tr><td><b>Plan</b></td><td><code>manual</code></td>
+    <td>le plugin escalade → <b>Ulysse refuse d'office</b></td></tr>
+</tbody>
+</table></div>
+
+<h3>Ce qu'on ne fait pas</h3>
+<ul>
+<li>On ne touche <b>ni au préfixe système ni aux toolsets</b>.</li>
+<li>On ne supprime <b>pas</b> la carte « Plan proposé ». Elle devient rare ;
+    rare n'est pas supprimé.</li>
+<li>Pas d'écran de réglages dédié : la feuille s'ouvre depuis le fil.</li>
+<li>Pas de granularité par dossier ou par type de fichier.</li>
+<li>On ne fabrique <b>pas</b> une porte d'approbation maison : celle d'Hermès
+    existe, on la réveille.</li>
+</ul>
+
+<h2>7 · Le pari risqué</h2>
+
+<p>Le pari de départ était : <i>« si Ulysse ne peut pas intercepter une écriture
+de fichier, Manuel est un mensonge et tout le reste est inutile. »</i>
+Il a été levé par une sonde dans le source d'Hermès, et il est levé
+<b>positivement</b> :</p>
+
+<div class="key">
+<div class="step"><span class="n">1</span><span><code>model_tools.py:1315</code>
+  émet <code>pre_tool_call</code>, une fois par appel d'outil, avec un
+  <code>matcher</code> par nom d'outil.</span></div>
+<div class="step"><span class="n">2</span><span><code>plugins.py:2361</code> —
+  un plugin peut répondre <code>{"action":"approve"}</code>.</span></div>
+<div class="step"><span class="n">3</span><span><code>plugins.py:2505</code> —
+  cette directive escalade vers <code>request_tool_approval()</code>.</span></div>
+<div class="step"><span class="n">4</span><span>Et cette porte-là,
+  <b>Ulysse l'écoute déjà</b>.</span></div>
+</div>
+
+<p>Deux propriétés viennent avec, gratuitement : c'est <b>fail-closed</b>
+(refus, panne ou expiration ⇒ bloqué, jamais exécuté en silence) et la porte
+attend jusqu'à <b>300 secondes</b> — le temps de poser la question.</p>
+
+<p><b>La nuance à ne pas rater :</b> un simple hook shell déclaré dans
+<code>config.yaml</code> sait seulement <b>bloquer</b>, pas demander
+(<code>shell_hooks.py:600</code>). La vraie question exige un <b>plugin</b>.
+C'est un fichier Python, pas un fork d'Hermès.</p>
+
+<div class="warn">
+<b>Le nouveau pari, celui qui reste ouvert : la fatigue d'approbation.</b>
+Un débutant à qui on demande douze fois d'affilée finira par cliquer
+« Autoriser » sans lire — et une approbation qu'on ne lit plus ne protège de
+rien. C'est déjà écrit dans le code, à propos d'autre chose :
+<i>« un avertissement qu'on apprend à sauter ne protège plus. »</i>
+Cela ne se déduit pas : ça se mesure à l'usage, sur une vraie session de
+travail. <b>C'est ce risque-là qui décidera du grain de l'étape 3</b> — par
+fichier, par tâche, ou par session.
+</div>
+
+<h2>8 · Ce qui reste ouvert</h2>
+<ol>
+<li><b>Faut-il quatre positions, ou trois ?</b> Hermès n'en a que trois
+  (<code>manual</code> / <code>smart</code> / <code>off</code>). <b>Plan</b>
+  est la quatrième, et elle n'est pas de même nature : c'est la seule qui
+  reste une posture de travail, donc la seule où la consigne continue de
+  parler à chaque tour. Assumé — mais à surveiller.</li>
+<li><b>Quels outils déclenchent la demande.</b> L'écriture de fichier, oui.
+  Les commandes shell ? La suppression ? Le réseau ?</li>
+<li><b>Le grain de la mémoire d'autorisation</b> — dépend de la mesure de
+  fatigue ci-dessus.</li>
+<li><b>« Auto » doit-il être offert à tout le monde ?</b> Pour un public
+  craintif, une position où un LLM auxiliaire s'autorise lui-même mérite
+  d'être discutée — même si elle existe déjà dans Hermès.</li>
+<li><b>Que se passe-t-il quand personne n'est devant l'écran ?</b> Au bout de
+  300 s la porte se referme et le travail s'arrête. Est-ce le bon
+  comportement pour une tâche lancée puis quittée ?</li>
+<li><b>Le seuil du « travail à étapes ».</b> On laisse le modèle juger seul,
+  ou on lui donne un repère ?</li>
+</ol>
+
+<div class="foot">
+<p><b>Ce pitch cadre le problème et la forme. Il ne décide pas du comment.</b>
+S'il devenait un contrat, il empêcherait de dévier — et la construction révèle
+toujours des choses.</p>
+<p><b>Il ne remplace pas les mesures.</b> Ce qu'un hook coûte réellement en
+latence, ce que le modèle fait vraiment d'une consigne conditionnelle, à quelle
+fréquence une demande d'autorisation tombe sur une session normale : rien de
+cela ne se déduit d'un parcours utilisateur. Le pitch dit où aller ; les sondes
+disent si la route existe.</p>
+</div>
+
+</main>
+</body>
+</html>
