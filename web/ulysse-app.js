@@ -5033,13 +5033,19 @@ async function drawSet(){
   }
 
   if (setSel === 3){
+    /* ⚠ « DEMANDÉS À CHAQUE FOIS » ÉTAIT UNE ÉTIQUETTE FIGÉE, et elle est
+       devenue fausse le jour où la position a pu valoir « Accepter les
+       modifications ». Elle dit maintenant l'état réel, celui qu'on vient de
+       relire — la cinquième promesse creuse évitée dans ce fichier. */
+    const pos = posDe(position);
     b.innerHTML = titre("Sécurité et accords")
-      + ligne("Les accords", "Ulysse demande votre permission avant d'écrire, d'envoyer ou de publier.",
-          '<span class="tag">demandés à chaque fois</span>')
+      + ligne("Les accords", pos.sub,
+          '<span class="tag">' + esc(pos.nom) + "</span>")
       + ligne("Ce que la page détient", "Aucun jeton, aucune clé, aucun secret de webhook.",
           '<span class="tag">rien</span>')
       + ligne("Qui peut atteindre Ulysse", "Le serveur n'écoute que sur cette machine.",
           '<span class="tag">127.0.0.1 seulement</span>')
+      + '<div id="setPerm"><div class="u-load">Lecture des autorisations…</div></div>'
       // Cet avertissement était écrit DEUX FOIS, presque à l'identique — ici
       // et dans le Terminal. Il est trop important pour disparaître d'un des
       // deux endroits, mais un avertissement qu'on a déjà lu ailleurs
@@ -5049,13 +5055,100 @@ async function drawSet(){
       + '<div class="avert"><span class="pt">' + svg("alerte", { size: 17 }) + "</span>"
       + "<span><b>Les accords donnés dans Ulysse ne s'appliquent pas au Terminal.</b> "
       + '<a id="setVersTerm">Ce que ça veut dire exactement</a></span></div>'
-      + '<div class="u-todo"><b>Les 4 sous-modes de permission</b> (Auto / Accept-edit / '
-      + "Manuel / Plan) se règlent par <code>config.set</code> sur <code>approvals.mode</code>. "
-      + "Non branché tant que le sous-mode Plan n'est pas câblé comme workflow.</div>";
+      // Le « u-todo » qui vivait ici annonçait les quatre sous-modes comme
+      // « non branchés ». Ils le sont depuis le 2026-08-23 : la feuille est
+      // sous le champ de saisie. Une dette réglée qui reste affichée est une
+      // dette inventée.
+      ;
     const t = $("setVersTerm");
     if (t) t.onclick = () => nav("Terminal");
+    dessinerPermanentes();
     return;
   }
+
+/* ═══ Les « toujours » accordés, et comment les retirer ════════════════════
+   La passe Accord promet depuis des semaines : « Vous pourrez revenir sur
+   "toujours" dans Réglages · Sécurité et accords. » L'écran ne montrait rien.
+   Une promesse de lieu vaut celle d'un contenu : envoyer quelqu'un chercher
+   là où il n'y a rien, c'est le tort que ce produit retire ailleurs depuis
+   quatre passes.
+
+   ⚠ ON N'INVENTE PAS DE LISIBILITÉ. `command_allowlist` mêle deux espèces :
+   des motifs de commandes posés par Hermès (« recursive delete ») et nos
+   escalades de fichier (`plugin_rule:write_file:<chemin>`). On les distingue
+   au préfixe — le même que lit `accordQuoi` — et on montre le reste tel quel
+   plutôt que de deviner ce qu'un motif inconnu veut dire. */
+function litPermanente(p){
+  const s = String(p || "");
+  const i = s.indexOf("plugin_rule:");
+  if (i !== 0) return { quoi: s, ou: "", motif: false };
+  const reste = s.slice("plugin_rule:".length);
+  const sep = reste.indexOf(":");
+  if (sep < 0) return { quoi: reste, ou: "", motif: false };
+  const outil = reste.slice(0, sep);
+  return {
+    quoi: outil === "patch" ? "Modifier" : outil === "skill_manage"
+      ? "Modifier la compétence" : "Écrire",
+    ou: reste.slice(sep + 1),
+    motif: false
+  };
+}
+
+async function dessinerPermanentes(){
+  const h = $("setPerm");
+  if (!h) return;
+  let liste;
+  try {
+    const c = await REST.config();
+    liste = (c && c.command_allowlist) || [];
+  } catch (err){
+    // On ne prétend pas « aucune autorisation » quand on n'a pas pu lire :
+    // ce serait rassurer à faux sur exactement ce qu'on vient consulter.
+    h.innerHTML = '<div class="u-todo"><b>Liste illisible.</b> '
+      + esc(err.message) + " — on ne peut pas affirmer ici qu'il n'y en a aucune.</div>";
+    return;
+  }
+  if (!liste.length){
+    h.innerHTML = '<div class="u-lecture">' + svg("point", { size: 12 })
+      + "Aucun « toujours » accordé. Chaque demande vous sera posée.</div>";
+    return;
+  }
+  h.innerHTML = '<div class="u-todo" style="margin-bottom:10px"><b>Les « toujours » accordés — '
+    + liste.length + (liste.length > 1 ? " entrées" : " entrée") + ".</b> "
+    + "Retirer une entrée fait redemander l'accord à la prochaine occasion. "
+    + "Ce réglage est global : il vaut aussi pour le terminal d'Hermès.</div>"
+    + liste.map((p, i) => {
+        const d = litPermanente(p);
+        // `coffre` — celle que la maquette donne pour un accord accordé ;
+        // c'est déjà l'icône de la notification d'accord. On ne dessine pas
+        // une clé qui n'existe pas dans le jeu.
+        return '<div class="row"><span class="ic">' + svg("coffre", { size: 18 })
+          + '</span><span class="nm">' + esc(d.quoi)
+          + (d.ou ? ' <span class="u-meta">' + esc(d.ou) + "</span>" : "")
+          + '</span><span class="sp"></span>'
+          + '<button class="dangerlink" data-perm="' + i + '">Retirer</button></div>';
+      }).join("");
+  h.querySelectorAll("[data-perm]").forEach((b) => {
+    b.onclick = async () => {
+      const i = Number(b.dataset.perm);
+      const retiree = liste[i];
+      b.disabled = true;
+      try {
+        await REST.autorisationsPermanentes(liste.filter((_, j) => j !== i));
+      } catch (err){
+        snack("Non retiré : " + err.message);
+        b.disabled = false;
+        return;
+      }
+      /* ⚠ ON RELIT PLUTÔT QUE DE RETIRER LA LIGNE À L'ÉCRAN. Une ligne qu'on
+         efface soi-même dit « c'est fait » sans l'avoir vérifié — et ici le
+         doute porte sur ce qui protège les fichiers. */
+      await dessinerPermanentes();
+      const d = litPermanente(retiree);
+      snack("Retiré : " + (d.ou || d.quoi) + " — l'accord sera redemandé.");
+    };
+  });
+}
 
   if (setSel === 4){
     const plats = (lastStatus && lastStatus.gateway_platforms) || {};

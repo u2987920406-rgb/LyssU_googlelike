@@ -295,6 +295,26 @@ const REST = {
   }),
   // web_server.py — configuration et modeles
   config: () => api("/api/config"),
+  /* Reecrit `command_allowlist` — la liste ou vit chaque « Autoriser
+     toujours ». C'est ce qui rend revocable une promesse que l'ecran affiche
+     depuis la passe Accord : « Vous pourrez revenir sur toujours dans
+     Reglages · Securite et accords. »
+
+     ⚠ ON N'ENVOIE QUE CETTE CLE, ET C'EST SUR. `PUT /api/config` fusionne en
+     profondeur et `_deep_merge` remplace toute valeur qui n'est pas un
+     dictionnaire — donc une liste entiere (mesure, AUDIT-ENDPOINTS-REEL.md
+     §5 bis). Renvoyer la config complete « pour ne rien perdre » aurait ete
+     l'inverse d'une precaution : le moindre champ mal relu serait reecrit
+     par-dessus celui d'Hermes. Une cle, une liste, rien d'autre.
+
+     ⚠ LE CORPS S'ENVELOPPE DANS `config`. Envoye a plat, le vrai serveur rend
+     un 422 : `{"loc":["body","config"],"msg":"Field required"}`. Constate en
+     direct le 2026-08-23 — l'audit avait note la route et la fusion, pas la
+     forme du corps, et le faux du banc acceptait tout. Enieme fois qu'un faux
+     qui ne ment pas comme le vrai ne prouve rien : le banc etait au vert. */
+  autorisationsPermanentes: (liste) =>
+    api("/api/config", { method: "PUT",
+      body: { config: { command_allowlist: liste } } }),
   modelOptions: () => api("/api/model/options"),
   // Change le modele de la session Hermes vivante (scope main = profil) :
   // c'est exactement ce que fait /model dans Hermes. Cowork suit.

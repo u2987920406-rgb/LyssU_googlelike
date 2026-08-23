@@ -66,6 +66,22 @@ const FIXTURES = {
      prouve rien. Forme constatée le 2026-08-09 : {"memory": 2263, "user": 1380}. */
   "/api/memory": { active: "builtin", providers: [],
                    builtin_files: { memory: 2263, user: 1380, projet: 0 } },
+  /* ⚠ `command_allowlist` MELE DEUX ESPECES, et le faux doit mentir comme le
+     vrai. Hermes y met ses motifs de commandes (« recursive delete », releve
+     tel quel dans la config de kuchu) ET, depuis le plugin
+     `ulysse-approbation`, nos escalades de fichier sous la forme
+     `plugin_rule:<outil>:<chemin>`. Un faux qui n'aurait porte que la
+     deuxieme espece aurait laisse passer un ecran incapable d'afficher la
+     premiere — et c'est celle qui est deja chez tout le monde. */
+  "/api/config": {
+    model: "hy3",
+    approvals: { mode: "manual", timeout: 300 },
+    command_allowlist: [
+      "recursive delete",
+      "plugin_rule:write_file:D:\\projet\\notes.md",
+      "plugin_rule:patch:D:\\projet\\app.js"
+    ]
+  },
   // Une LISTE, pas un objet. Et chaque competence porte sa `provenance` —
   // le vrai /api/skills le fait (verifie en direct : « agent », « personnel »,
   // « projet:… »), et c'est elle qui range les 99 du Vestiaire.
@@ -251,6 +267,24 @@ function fakeFetch(url, opts){
   if (bare === "/api/cron/blueprints/instantiate" && BP_REFUS){
     return Promise.resolve({ ok: false, status: 422,
       text: () => Promise.resolve(JSON.stringify({ detail: BP_REFUS })) });
+  }
+
+  /* ⚠ LE VRAI SERVEUR EXIGE UNE ENVELOPPE `config`, ET CE FAUX L'A LONGTEMPS
+     IGNOREE. Un PUT a plat rend `{"loc":["body","config"],"msg":"Field
+     required"}` — constate en direct le 2026-08-23, alors que ce banc etait
+     au vert sur un corps que le vrai refusait. On refuse donc pareil : sans
+     ca, la revocation d'un « toujours » serait verte ici et morte la-bas. */
+  if (bare === "/api/config" && (opts && opts.method) === "PUT"){
+    const envoye = opts.body ? JSON.parse(opts.body) : {};
+    if (!envoye || typeof envoye.config !== "object" || envoye.config === null){
+      return Promise.resolve({ ok: false, status: 422,
+        text: () => Promise.resolve(JSON.stringify({ detail: [
+          { type: "missing", loc: ["body", "config"], msg: "Field required" }] })) });
+    }
+    // Fusion en profondeur cote vrai serveur : une LISTE est remplacee entiere.
+    FIXTURES["/api/config"] = Object.assign({}, FIXTURES["/api/config"], envoye.config);
+    return Promise.resolve({ ok: true, status: 200,
+      text: () => Promise.resolve(JSON.stringify({ ok: true })) });
   }
 
   if (body === undefined && bare === "/api/files/read"){
@@ -990,6 +1024,51 @@ async function main(){
   await wait(90);
   txt = win.document.getElementById("setbody").textContent;
   check("la mémoire s'affiche", txt.includes("SOUL.md"), txt.slice(0, 90));
+  /* ⚠ LA PROMESSE DE LA PASSE ACCORD EST TENUE ICI, OU NULLE PART. La carte
+     d'accord dit depuis des semaines « Vous pourrez revenir sur "toujours"
+     dans Reglages · Securite et accords ». Envoyer quelqu'un chercher la ou
+     il n'y a rien vaut la promesse creuse qu'on retire ailleurs. */
+  nav[3].click();                       // « Sécurité et accords »
+  await wait(120);
+  txt = win.document.getElementById("setbody").textContent;
+  check("Sécurité · les « toujours » accordés sont montrés, pas seulement promis",
+    /toujours .+ accord/i.test(txt) && txt.includes("notes.md"), txt.slice(0, 120));
+  check("Sécurité · une escalade de fichier se lit en français, pas en clé brute",
+    txt.includes("Écrire") && !txt.includes("plugin_rule:"), txt.slice(0, 160));
+  check("Sécurité · un motif de commande d'Hermès reste affiché tel quel",
+    txt.includes("recursive delete"));
+  check("Sécurité · l'étiquette des accords dit la position réelle",
+    txt.includes("Manuel"), txt.slice(0, 100));
+  const avantRetrait = fetched.length;
+  win.document.querySelector('#setPerm [data-perm="1"]').click();
+  await wait(140);
+  const envoiRetrait = fetched.slice(avantRetrait).find((f) => f.method === "PUT");
+  /* ⚠ L'ENVELOPPE `config` EST VERIFIEE, PAS SUPPOSEE. Le vrai serveur rend un
+     422 sans elle ; ce banc etait au vert sur un corps a plat que Hermes
+     refusait. On regarde donc la forme exacte, pas seulement le contenu. */
+  check("Sécurité · le corps porte l'enveloppe `config` exigée par Hermès",
+    !!envoiRetrait && !!envoiRetrait.corps
+    && typeof envoiRetrait.corps.config === "object",
+    JSON.stringify(envoiRetrait && envoiRetrait.corps));
+  check("Sécurité · retirer une entrée écrit la liste FILTRÉE chez Hermès",
+    envoiRetrait.path === "/api/config"
+    && Array.isArray(envoiRetrait.corps.config.command_allowlist)
+    && envoiRetrait.corps.config.command_allowlist.length === 2
+    && !envoiRetrait.corps.config.command_allowlist.some((p) => p.includes("notes.md")),
+    JSON.stringify(envoiRetrait.corps.config));
+  /* ⚠ UNE SEULE CLE PART. Renvoyer la config entiere « pour ne rien perdre »
+     reecrirait par-dessus celle d'Hermes a chaque champ mal relu. */
+  check("Sécurité · ...et rien d'autre que cette clé ne part",
+    Object.keys(envoiRetrait.corps.config).length === 1,
+    Object.keys(envoiRetrait.corps.config).join(","));
+  check("Sécurité · il relit la liste au lieu de croire son propre envoi",
+    fetched.slice(avantRetrait).filter((f) => f.path === "/api/config"
+      && f.method === "GET").length >= 1);
+  /* Et la ligne a VRAIMENT disparu de l'ecran, pas seulement de la requete. */
+  await wait(60);
+  check("Sécurité · la ligne retirée quitte l'écran après relecture",
+    !win.document.getElementById("setbody").textContent.includes("notes.md"));
+
   nav[5].click();                       // « Dépenses »
   await wait(90);
   txt = win.document.getElementById("setbody").textContent;
