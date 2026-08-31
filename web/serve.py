@@ -129,8 +129,13 @@ def _hermes_racine():
     base = os.environ.get("HERMES_AGENT_PATH")
     if base:
         return base
-    return os.path.join(os.path.expanduser("~"), "AppData", "Local", "hermes",
-                        "hermes-agent")
+    # Meme logique que hermes_home() : LOCALAPPDATA sur Windows, ~/.hermes
+    # ailleurs. (hermes_home() est definie plus bas ; EMPRUNTS est evalue a
+    # l'import, on ne peut donc pas l'appeler ici.)
+    local = os.environ.get("LOCALAPPDATA")
+    if local:
+        return os.path.join(local, "hermes", "hermes-agent")
+    return os.path.join(os.path.expanduser("~"), ".hermes", "hermes-agent")
 
 
 def _nm(*bouts):
