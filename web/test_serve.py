@@ -1524,6 +1524,26 @@ def main():
     else:
         print("  (liens symboliques indisponibles ici — garde non mesurable)")
 
+    # -- vider tout, le cas NOMINAL : de vrais fichiers partent et se
+    #    comptent — un vider qui ne supprimerait rien passait au vert,
+    #    l'autre test ne voyant que l'orphelin (issue #54) ------------------
+    reels = []
+    for nom_reel in ("plein-un.txt", "plein-deux.txt"):
+        chemin_reel = os.path.join(bac, nom_reel)
+        with open(chemin_reel, "w", encoding="utf-8") as fh:
+            fh.write("a effacer pour de bon\n")
+        st, _, corps = jeter(chemin_reel)
+        reels.append((json.loads(corps).get("entree") or {}) if st == 200 else {})
+    st, _, corps = vider({"tout": True})
+    st2, _, corps2 = req("GET", "/ulysse/corbeille", headers=same)
+    check("vider tout avec de vrais fichiers -> 200, efface=2",
+          st == 200 and json.loads(corps).get("efface") == 2,
+          "HTTP %d — %s" % (st, corps[:60]))
+    check("...les deux ont quitte le dossier et la liste est vide",
+          all(not os.path.exists(os.path.join(corbeille, e.get("id", "?")))
+              for e in reels)
+          and st2 == 200 and json.loads(corps2).get("entrees") == [])
+
     # -- la liste ne pretend pas detenir ce qui est sorti a la main --------
     st, _, corps = jeter(victime)
     e3 = (json.loads(corps).get("entree") or {}) if st == 200 else {}
