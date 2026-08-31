@@ -662,6 +662,19 @@ def main():
     # c'etait precisement la faille S11.
     print("\n-- Le terminal : xterm.js emprunte --")
 
+    # L'installation Hermes peut ne PAS porter le fichier emprunte (version
+    # differente, dossier deplace) : la route le dit par un 404 explicite,
+    # pas par un silence (issue #61).
+    emprunt_avant = serve.EMPRUNTS["/xterm/xterm.js"]
+    serve.EMPRUNTS["/xterm/xterm.js"] = (emprunt_avant[0] + ".n-existe-pas",
+                                         emprunt_avant[1])
+    try:
+        st, _, txt = req("GET", "/xterm/xterm.js", headers=same)
+    finally:
+        serve.EMPRUNTS["/xterm/xterm.js"] = emprunt_avant
+    check("l'emprunt absent de l'installation -> 404 qui le dit",
+          st == 404 and "introuvable" in txt, "HTTP %d — %s" % (st, txt[:80]))
+
     st, _, body = req("GET", "/xterm/xterm.js", headers=same)
     check("xterm.js est servi depuis l'installation Hermes",
           st == 200 and len(body) > 100000, "HTTP %d, %d octets" % (st, len(body)))
