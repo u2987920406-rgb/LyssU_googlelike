@@ -1279,6 +1279,90 @@ def main():
           st == 200 and st2 == 200 and json.loads(corps2).get("entrees") == [],
           "HTTP %d puis %s" % (st, corps2[:60]))
 
+    print("\n=== 9. /ulysse/set-model : la route, pas seulement son helper (issue #20) ===")
+
+    # CONFIG_FILE est redirige vers une COPIE jetable : la route ecrit un vrai
+    # fichier, versions comprises, mais jamais celui du produit.
+    etabli = tempfile.mkdtemp(prefix="ulysse-essai-config-")
+    copie = os.path.join(etabli, "ulysse-config.js")
+    with open(copie, "w", encoding="utf-8", newline="") as f:
+        f.write('window.ULYSSE_CONFIG = {\n'
+                '  PROXY_MODEL: "",\n'
+                '  SESSION_MODEL: "modele-du-debut",\n'
+                '};\n')
+    with open(serve.CONFIG_FILE, "rb") as f:
+        vrai_avant = f.read()
+
+    def set_model(corps):
+        return req("POST", "/ulysse/set-model", headers=same,
+                   body=json.dumps(corps).encode())
+
+    config_avant = serve.CONFIG_FILE
+    serve.CONFIG_FILE = copie
+    try:
+        st, _, corps = set_model({"key": "PROXY_MODEL", "value": "essai/modele-x"})
+        rep = json.loads(corps) if st == 200 else {}
+        with open(copie, encoding="utf-8", newline="") as f:
+            texte = f.read()
+        check("poser un modele -> 200, la valeur est ecrite",
+              st == 200 and 'PROXY_MODEL: "essai/modele-x"' in texte,
+              "HTTP %d — %s" % (st, corps[:80]))
+        garde = rep.get("version_gardee") or ""
+        check("...et une version datee a ete mise de cote AVANT",
+              bool(garde) and os.path.isfile(
+                  os.path.join(etabli, serve.DOSSIER_VERSIONS, garde)),
+              garde or "aucune")
+
+        with open(copie, "rb") as f:
+            octets_ref = f.read()
+        st, _, _ = set_model({"key": "INCONNUE", "value": "x"})
+        with open(copie, "rb") as f:
+            apres = f.read()
+        check("une cle hors liste blanche -> 400, fichier intact",
+              st == 400 and apres == octets_ref, "HTTP %d" % st)
+        st, _, _ = set_model({"key": "PROXY_MODEL", "value": 123})
+        with open(copie, "rb") as f:
+            apres = f.read()
+        check("une valeur non-texte -> 400, fichier intact",
+              st == 400 and apres == octets_ref, "HTTP %d" % st)
+
+        st, _, corps = set_model({"key": "PROXY_MODEL", "value": ""})
+        rep = json.loads(corps) if st == 200 else {}
+        with open(copie, encoding="utf-8", newline="") as f:
+            texte = f.read()
+        check("valeur vide = heritage : la cle est videe et la reponse le dit",
+              st == 200 and 'PROXY_MODEL: ""' in texte and rep.get("value") == "",
+              "HTTP %d — %s" % (st, corps[:80]))
+
+        # La garde qui echoue : le dossier des versions est PRIS par un
+        # fichier — makedirs ne peut pas, garder_version leve, rien ne s'ecrit.
+        with open(copie, "rb") as f:
+            octets_ref = f.read()
+        coffre = os.path.join(etabli, serve.DOSSIER_VERSIONS)
+        for nom in os.listdir(coffre):
+            os.remove(os.path.join(coffre, nom))
+        os.rmdir(coffre)
+        with open(coffre, "w", encoding="utf-8") as f:
+            f.write("j'occupe la place du coffre")
+        st, _, _ = set_model({"key": "SESSION_MODEL", "value": "jamais-ecrit"})
+        with open(copie, "rb") as f:
+            apres = f.read()
+        check("si la version ne peut etre gardee -> 500 et RIEN n'est ecrit",
+              st == 500 and apres == octets_ref
+              and "jamais-ecrit" not in apres.decode("utf-8"),
+              "HTTP %d" % st)
+        os.remove(coffre)
+
+        serve.CONFIG_FILE = os.path.join(etabli, "n-existe-pas.js")
+        st, _, _ = set_model({"key": "PROXY_MODEL", "value": "x"})
+        check("config introuvable -> 404", st == 404, "HTTP %d" % st)
+    finally:
+        serve.CONFIG_FILE = config_avant
+    with open(serve.CONFIG_FILE, "rb") as f:
+        vrai_apres = f.read()
+    check("le vrai ulysse-config.js n'a pas bouge d'un octet",
+          vrai_apres == vrai_avant)
+
     # --- bilan ---------------------------------------------------------
     passed = sum(1 for _, ok, _ in results if ok)
     total = len(results)
