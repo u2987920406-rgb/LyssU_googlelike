@@ -1,0 +1,39 @@
+# CI de la boucle de peaufinage : donne un sens a `gh pr checks` (Phase C).
+#
+# Seules tournent ici les suites sans dependance locale vivante :
+#   - test_serve.py    (les faux backends sont dans le test lui-meme)
+#   - test_personas.py (autonome)
+# Restent locales : test_page.py (proxy Hermes + modeles LLM externes) et
+# test_reel.py (exige la pile lancee).
+name: tests
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+
+jobs:
+  tests:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      # test_serve emprunte xterm a l'installation Hermes. Le runner n'a pas
+      # de Hermes : on installe la vraie bibliotheque dans un dossier neutre,
+      # que serve.py sait designer via HERMES_AGENT_PATH.
+      - name: Fournir les emprunts xterm
+        run: npm install --prefix "$RUNNER_TEMP/hermes-agent" @xterm/xterm @xterm/addon-fit
+
+      - name: test_serve
+        working-directory: web
+        env:
+          HERMES_AGENT_PATH: ${{ runner.temp }}/hermes-agent
+        run: python3 test_serve.py
+
+      - name: test_personas
+        working-directory: web
+        run: python3 test_personas.py
