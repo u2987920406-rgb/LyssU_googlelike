@@ -786,6 +786,25 @@ def main():
         octets_apres = fh.read()
     check("...et le temoin n'a pas bouge d'un octet", octets_apres == octets_temoin)
 
+    # Le JSON peut etre VALIDE et les champs faux quand meme : un content qui
+    # n'est pas du texte (400), un path absent ou non-texte (403 via
+    # ecriture_refusee). Distinct des corps malformes ci-dessus (issue #35).
+    with open(panne, "rb") as fh:
+        octets_temoin = fh.read()
+    st, _, _ = req("POST", "/ulysse/ecrire", headers=same,
+                   body=json.dumps({"path": panne, "content": 123}).encode())
+    check("Un « content » non-texte -> 400", st == 400, "HTTP %d" % st)
+    st, _, _ = req("POST", "/ulysse/ecrire", headers=same,
+                   body=json.dumps({"content": "x"}).encode())
+    check("Un « path » absent -> 403", st == 403, "HTTP %d" % st)
+    st, _, _ = req("POST", "/ulysse/ecrire", headers=same,
+                   body=json.dumps({"path": 123, "content": "x"}).encode())
+    check("Un « path » non-texte -> 403", st == 403, "HTTP %d" % st)
+    with open(panne, "rb") as fh:
+        octets_apres = fh.read()
+    check("...et le temoin des champs faux n'a pas bouge non plus",
+          octets_apres == octets_temoin)
+
     # La frontiere de la route elle-meme : sans chemin, ou hors du dossier
     # d'Hermes, on refuse — lister les versions d'un fichier arbitraire
     # reviendrait a lire le disque a travers le coffre (issue #22).
