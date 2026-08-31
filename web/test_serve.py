@@ -767,6 +767,25 @@ def main():
     st, _, _ = ecrire(panne, "apres la panne\n")
     check("...et l'ecriture repart quand Hermes revient", st == 200, "HTTP %d" % st)
 
+    # Un corps que lire_json ne peut pas lire — vide, illisible, ou declare
+    # enorme — doit rendre 400 NET, sans rien ecrire et sans laisser la
+    # connexion pendre (issue #32). Le « trop gros » est declare par l'en-tete,
+    # pas envoye : la garde refuse AVANT de lire, c'est ce qu'on verifie.
+    with open(panne, "rb") as fh:
+        octets_temoin = fh.read()
+    st, _, _ = req("POST", "/ulysse/ecrire", headers=same)
+    check("Corps vide -> 400", st == 400, "HTTP %d" % st)
+    st, _, _ = req("POST", "/ulysse/ecrire", headers=same, body=b"pas du json")
+    check("Corps non-JSON -> 400", st == 400, "HTTP %d" % st)
+    st, _, _ = req("POST", "/ulysse/ecrire",
+                   headers=dict(same, **{"Content-Length":
+                                         str(serve.Handler.CORPS_MAX + 1)}))
+    check("Corps declare au-dela de CORPS_MAX -> 400, refuse avant lecture",
+          st == 400, "HTTP %d" % st)
+    with open(panne, "rb") as fh:
+        octets_apres = fh.read()
+    check("...et le temoin n'a pas bouge d'un octet", octets_apres == octets_temoin)
+
     # La frontiere de la route elle-meme : sans chemin, ou hors du dossier
     # d'Hermes, on refuse — lister les versions d'un fichier arbitraire
     # reviendrait a lire le disque a travers le coffre (issue #22).
