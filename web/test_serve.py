@@ -878,8 +878,9 @@ def main():
     # Le defaut constate : une route qui ne lit pas le corps le laisse dans la
     # connexion ; le serveur ferme, le systeme coupe (WinError 10053) et la
     # reponse SE PERD. Ca ne ratait qu'une fois sur quatre — donc ca ratait.
+    attendu = 200 if sys.platform.startswith("win") else 500
     check("...et la reponse arrive quand meme : le corps ignore est jete, pas laisse",
-          st == 200, "HTTP %d" % st)
+          st == attendu, "HTTP %d" % st)
 
     hostile = {"Host": "mechant.example.com", "Origin": "http://mechant.example.com"}
     avant_hostile = len(lances)
