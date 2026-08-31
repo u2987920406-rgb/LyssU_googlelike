@@ -1442,6 +1442,24 @@ def main():
     check("restaurer recree le dossier d'origine disparu, contenu intact",
           st == 200 and contenu_nid == "contenu du nid\n", "HTTP %d" % st)
 
+    # L'objet peut etre SORTI de la corbeille a la main (l'index le croit
+    # encore la) : restaurer refuse en le disant — la corbeille ne pretend
+    # pas detenir ce qu'elle n'a plus — et n'efface rien (issue #49).
+    fantome = os.path.join(bac, "fantome-restaurer.txt")
+    with open(fantome, "w", encoding="utf-8") as fh:
+        fh.write("bientot sorti\n")
+    st, _, corps = jeter(fantome)
+    e_fant = (json.loads(corps).get("entree") or {}) if st == 200 else {}
+    os.remove(os.path.join(corbeille, e_fant.get("id", "?")))
+    st, _, corps = restaurer(e_fant.get("id", "?"))
+    reste_indexe = any(e.get("id") == e_fant.get("id")
+                       for e in serve.corbeille_index())
+    check("restaurer un objet sorti a la main -> 409 qui le dit, index intact",
+          st == 409 and "sorti" in corps and reste_indexe,
+          "HTTP %d — %s" % (st, corps[:80]))
+    serve.corbeille_ecrire_index(
+        [e for e in serve.corbeille_index() if e.get("id") != e_fant.get("id")])
+
     # -- vider : la SEULE destruction, et ses deux gardes ------------------
     st, _, _ = vider({"id": "../../" + e2.get("id", "x")})
     check("vider avec un identifiant-chemin est refuse sans rien effacer",
