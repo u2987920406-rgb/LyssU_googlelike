@@ -97,14 +97,22 @@ PROXY_URL_FALLBACK = "http://127.0.0.1:8645"
 
 CONFIG_FILE = "ulysse-config.js"
 
+def hermes_home():
+    """Racine Hermes ($HERMES_HOME, sinon %LOCALAPPDATA%\\hermes, sinon ~/.hermes)."""
+    env = os.environ.get("HERMES_HOME")
+    if env:
+        return env
+    local = os.environ.get("LOCALAPPDATA")
+    if local:
+        return os.path.join(local, "hermes")
+    return os.path.join(os.path.expanduser("~"), ".hermes")
+
+
 # Le marqueur de premier lancement. Il vit DANS LE HERMES HOME, pas dans le
 # dossier servi : tout ce qui est ici est publie a qui sait taper une URL.
 # Un fichier de plus dans web/ serait aussi un fichier de plus a ignorer dans
 # les verifications de fidelite.
-MARQUEUR = os.path.join(
-    os.environ.get("HERMES_HOME") or os.path.join(
-        os.path.expanduser("~"), "AppData", "Local", "hermes"),
-    "ulysse-premier-vu")
+MARQUEUR = os.path.join(hermes_home(), "ulysse-premier-vu")
 
 
 def premier_lancement():
@@ -129,13 +137,7 @@ def _hermes_racine():
     base = os.environ.get("HERMES_AGENT_PATH")
     if base:
         return base
-    # Meme logique que hermes_home() : LOCALAPPDATA sur Windows, ~/.hermes
-    # ailleurs. (hermes_home() est definie plus bas ; EMPRUNTS est evalue a
-    # l'import, on ne peut donc pas l'appeler ici.)
-    local = os.environ.get("LOCALAPPDATA")
-    if local:
-        return os.path.join(local, "hermes", "hermes-agent")
-    return os.path.join(os.path.expanduser("~"), ".hermes", "hermes-agent")
+    return os.path.join(hermes_home(), "hermes-agent")
 
 
 def _nm(*bouts):
@@ -310,22 +312,6 @@ HOP_BY_HOP = {
 # que soit le backend vise. Sinon un jeton destine au dashboard partirait vers
 # le gateway webhook, qui n'a rien a en faire.
 CLIENT_AUTH_HEADERS = {"x-hermes-session-token", "authorization", "cookie"}
-
-# ===========================================================================
-# Webhooks — signature HMAC calculee ici, secret jamais expose
-# ===========================================================================
-
-
-def hermes_home():
-    """Racine Hermes ($HERMES_HOME, sinon %LOCALAPPDATA%\\hermes)."""
-    env = os.environ.get("HERMES_HOME")
-    if env:
-        return env
-    local = os.environ.get("LOCALAPPDATA")
-    if local:
-        return os.path.join(local, "hermes")
-    return os.path.join(os.path.expanduser("~"), ".hermes")
-
 
 # ===========================================================================
 # Ecrire dans la memoire — la copie datee AVANT l'ecrasement
