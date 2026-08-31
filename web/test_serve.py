@@ -1431,11 +1431,16 @@ def main():
           st == 200 and e3.get("id") not in vus, str(vus))
 
     # -- vider tout : l'index connu part, la corbeille finit vide ----------
+    # A ce stade l'index ne porte QUE l'entree orpheline (sortie a la main) :
+    # vider doit purger l'index sans la compter — « efface » ne dit que ce
+    # que le geste a reellement fait disparaitre (issue #41).
     st, _, corps = vider({"tout": True})
     st2, _, corps2 = req("GET", "/ulysse/corbeille", headers=same)
     check("vider tout -> 200, et la liste finit vide",
           st == 200 and st2 == 200 and json.loads(corps2).get("entrees") == [],
           "HTTP %d puis %s" % (st, corps2[:60]))
+    check("...et l'orphelin purge de l'index n'est PAS compte comme efface",
+          st == 200 and json.loads(corps).get("efface") == 0, corps[:60])
 
     print("\n=== 9. /ulysse/set-model : la route, pas seulement son helper (issue #20) ===")
 

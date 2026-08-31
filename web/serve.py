@@ -587,6 +587,11 @@ def corbeille_vider(ident=None):
                 shutil.rmtree(cible)
             elif os.path.exists(cible) or os.path.islink(cible):
                 os.remove(cible)
+            else:
+                # Sorti a la main : rien a effacer ICI. L'index est purge
+                # plus bas, mais « efface » ne compte que ce que NOTRE geste
+                # a fait disparaitre — un compteur qui compte l'absent ment.
+                continue
             efface += 1
         except OSError:
             continue          # on garde l'entree : elle est encore la
