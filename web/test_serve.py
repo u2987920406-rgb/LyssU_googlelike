@@ -734,6 +734,39 @@ def main():
     st, _, _ = ecrire(os.path.join(home, "..", "serve.py"), "# efface")
     check("...et un detour par « .. » n'y change rien", st == 403, "HTTP %d" % st)
 
+    # Hermes peut etre ABSENT (tombe, pas lance) : la route doit rendre 502
+    # en le disant, ne rien ecrire — et la copie qu'elle venait de garder
+    # doit SURVIVRE, c'est ecrit dans son propre message (issue #31).
+    panne = os.path.join(home, "panne.md")
+    with open(panne, "w", encoding="utf-8") as fh:
+        fh.write("avant la panne\n")
+    s_mort = socket.socket()
+    s_mort.bind(("127.0.0.1", 0))
+    port_mort = s_mort.getsockname()[1]
+    s_mort.close()  # plus personne n'ecoute : connexion refusee garantie
+    back_avant = serve.BACKEND
+    serve.BACKEND = serve.Backend("http://127.0.0.1:%d" % port_mort, TOKEN)
+    try:
+        st, _, txt = ecrire(panne, "jamais ecrit\n")
+    finally:
+        serve.BACKEND = back_avant
+    with open(panne, encoding="utf-8") as fh:
+        intact = fh.read()
+    gardes = serve.lister_versions(panne)
+    check("Hermes injoignable -> 502, et le corps le dit",
+          st == 502 and "n'a pas repondu" in txt, "HTTP %d — %s" % (st, txt[:80]))
+    copie_ok = False
+    if gardes:
+        with open(os.path.join(serve.dossier_versions(panne), gardes[0]["nom"]),
+                  encoding="utf-8") as fh:
+            copie_ok = fh.read() == "avant la panne\n"
+    check("...rien n'est ecrit, et la copie gardee n'est pas perdue",
+          intact == "avant la panne\n" and len(gardes) == 1 and copie_ok,
+          "%r, %d garde(s)" % (intact[:20], len(gardes)))
+    # ...et Hermes revenu, la meme ecriture passe : la panne n'a rien casse.
+    st, _, _ = ecrire(panne, "apres la panne\n")
+    check("...et l'ecriture repart quand Hermes revient", st == 200, "HTTP %d" % st)
+
     # La frontiere de la route elle-meme : sans chemin, ou hors du dossier
     # d'Hermes, on refuse — lister les versions d'un fichier arbitraire
     # reviendrait a lire le disque a travers le coffre (issue #22).
