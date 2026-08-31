@@ -1782,8 +1782,31 @@ def port_deja_pris(host, port, delai=0.4):
         return False
 
 
+def port_effectif(argv, env):
+    """Le port d'ecoute reel : --port N (argv) prime, sinon ULYSSE_PORT (env),
+    sinon la constante PORT du fichier.
+
+    C'est le contrat de verif_ports.py : quand 8080 est pris, il resout un
+    port libre et le transmet via ulysse_ports.bat — un serveur qui l'ignore
+    rend la bascule inutile (le navigateur s'ouvre sur un port ou personne
+    n'ecoute)."""
+    if "--port" in argv:
+        try:
+            return int(argv[argv.index("--port") + 1])
+        except (IndexError, ValueError):
+            raise SystemExit("Usage : python serve.py [--port N]")
+    brut = env.get("ULYSSE_PORT", "")
+    if brut:
+        try:
+            return int(brut)
+        except ValueError:
+            raise SystemExit("ULYSSE_PORT doit etre un entier, pas %r" % brut)
+    return PORT
+
+
 def main():
-    global BACKEND, WEBHOOK_BACKEND, PROXY_BACKEND, ALLOWED_HOSTS, ALLOWED_ORIGINS
+    global BACKEND, WEBHOOK_BACKEND, PROXY_BACKEND, ALLOWED_HOSTS, ALLOWED_ORIGINS, PORT
+    PORT = port_effectif(sys.argv[1:], os.environ)
     os.chdir(os.path.dirname(os.path.abspath(__file__)))
 
     url, token, wh_url, proxy_url, proxy_token = load_config()
