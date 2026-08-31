@@ -1138,6 +1138,147 @@ def main():
         check("une valeur invalide est refusee net : argv=%r env=%r"
               % (mauvais_argv, mauvais_env), refuse)
 
+    print("\n=== 8. La corbeille : la seule porte qui detruit (issue #19) ===")
+
+    bac = tempfile.mkdtemp(prefix="ulysse-essai-corbeille-")
+    corbeille = serve.corbeille_dir()
+
+    def jeter(path):
+        return req("POST", "/ulysse/corbeille/jeter", headers=same,
+                   body=json.dumps({"path": path}).encode())
+
+    def restaurer(ident):
+        return req("POST", "/ulysse/corbeille/restaurer", headers=same,
+                   body=json.dumps({"id": ident}).encode())
+
+    def vider(corps):
+        return req("POST", "/ulysse/corbeille/vider", headers=same,
+                   body=json.dumps(corps).encode())
+
+    # -- les refus, un par garde : chacun a une raison, et il la dit --------
+    st, _, _ = jeter(None)
+    check("jeter sans chemin -> 403", st == 403, "HTTP %d" % st)
+    st, _, _ = jeter(os.path.join(bac, "fantome.txt"))
+    check("jeter un fichier deja absent -> 403", st == 403, "HTTP %d" % st)
+
+    soul = os.path.join(bac, "SOUL.md")
+    with open(soul, "w", encoding="utf-8") as f:
+        f.write("ce qu'Ulysse s'autorise")
+    st, _, corps = jeter(soul)
+    check("SOUL.md ne se jette pas, et le refus le nomme",
+          st == 403 and "SOUL" in corps, "HTTP %d — %s" % (st, corps[:80]))
+
+    st, _, _ = jeter(os.path.abspath(os.sep))
+    check("la racine d'un disque est refusee", st == 403, "HTTP %d" % st)
+    st, _, _ = jeter(os.path.dirname(serve.hermes_home().rstrip(os.sep)))
+    check("un dossier qui CONTIENT le Hermes Home est refuse", st == 403, "HTTP %d" % st)
+    st, _, _ = jeter(os.path.abspath("serve.py"))
+    check("web/ — le produit — ne se jette pas lui-meme", st == 403, "HTTP %d" % st)
+    os.makedirs(corbeille, exist_ok=True)
+    st, _, _ = jeter(corbeille)
+    check("la corbeille ne se jette pas dans elle-meme", st == 403, "HTTP %d" % st)
+
+    coffre = os.path.join(bac, serve.DOSSIER_VERSIONS)
+    os.makedirs(coffre, exist_ok=True)
+    version = os.path.join(coffre, "memoire.md.2020-01-01")
+    with open(version, "w", encoding="utf-8") as f:
+        f.write("etat d'avant")
+    st, _, _ = jeter(version)
+    check("une version gardee est refusee : c'est le retour en arriere",
+          st == 403, "HTTP %d" % st)
+
+    # -- jeter DEPLACE, il n'efface pas ------------------------------------
+    doc = os.path.join(bac, "brouillon.txt")
+    with open(doc, "w", encoding="utf-8") as f:
+        f.write("premier jet")
+    st, _, corps = jeter(doc)
+    e1 = (json.loads(corps).get("entree") or {}) if st == 200 else {}
+    check("jeter un vrai fichier -> 200 et une entree d'index",
+          st == 200 and bool(e1.get("id")), "HTTP %d — %s" % (st, corps[:80]))
+    check("...l'origine est vide, l'objet est dans la corbeille",
+          not os.path.exists(doc)
+          and os.path.isfile(os.path.join(corbeille, e1.get("id", "?"))))
+
+    with open(doc, "w", encoding="utf-8") as f:
+        f.write("second jet")
+    st, _, corps = jeter(doc)
+    e2 = (json.loads(corps).get("entree") or {}) if st == 200 else {}
+    check("le meme nom jete deux fois : deux identifiants, rien d'ecrase",
+          st == 200 and bool(e2.get("id")) and e2.get("id") != e1.get("id")
+          and os.path.isfile(os.path.join(corbeille, e1.get("id", "?")))
+          and os.path.isfile(os.path.join(corbeille, e2.get("id", "?"))),
+          "%s / %s" % (e1.get("id"), e2.get("id")))
+
+    # -- restaurer remet, et n'ecrase JAMAIS -------------------------------
+    st, _, _ = restaurer(e1.get("id", "?"))
+    with open(doc, encoding="utf-8") as f:
+        revenu = f.read() if os.path.exists(doc) else ""
+    check("restaurer remet a sa place, contenu intact",
+          st == 200 and revenu == "premier jet", "HTTP %d — %r" % (st, revenu[:30]))
+    st, _, corps = restaurer(e2.get("id", "?"))
+    check("...et refuse (409) quand la place est reoccupee",
+          st == 409 and os.path.isfile(os.path.join(corbeille, e2.get("id", "?"))),
+          "HTTP %d" % st)
+    st, _, _ = restaurer("../../ailleurs")
+    check("un identifiant-chemin est refuse au restaurer", st == 400, "HTTP %d" % st)
+    st, _, _ = restaurer("inconnu-jamais-vu")
+    check("un identifiant inconnu -> 409, dit clairement", st == 409, "HTTP %d" % st)
+
+    # -- vider : la SEULE destruction, et ses deux gardes ------------------
+    st, _, _ = vider({"id": "../../" + e2.get("id", "x")})
+    check("vider avec un identifiant-chemin est refuse sans rien effacer",
+          st == 409 and os.path.isfile(os.path.join(corbeille, e2.get("id", "?"))),
+          "HTTP %d" % st)
+    st, _, corps = vider({"id": e2.get("id", "?")})
+    check("vider un element : 200, efface=1, et il n'est plus la",
+          st == 200 and json.loads(corps).get("efface") == 1
+          and not os.path.exists(os.path.join(corbeille, e2.get("id", "?"))),
+          "HTTP %d — %s" % (st, corps[:60]))
+
+    victime = os.path.join(bac, "victime.txt")
+    with open(victime, "w", encoding="utf-8") as f:
+        f.write("toujours la")
+    lien_id = "2020-01-01-000000__lien"
+    lien = os.path.join(corbeille, lien_id)
+    try:
+        os.symlink(victime, lien)
+        peut_lier = True
+    except (OSError, NotImplementedError):
+        peut_lier = False
+    if peut_lier:
+        serve.corbeille_ecrire_index(
+            [{"id": lien_id, "nom": "lien", "origine": victime + ".faux",
+              "quand": "2020-01-01-000000", "dossier": False}]
+            + serve.corbeille_index())
+        st, _, corps = vider({"id": lien_id})
+        with open(victime, encoding="utf-8") as f:
+            encore = f.read()
+        check("un lien vers l'exterieur n'est pas suivi : la cible survit",
+              st == 200 and json.loads(corps).get("efface") == 0
+              and encore == "toujours la",
+              "HTTP %d — %s" % (st, corps[:60]))
+        os.remove(lien)
+        serve.corbeille_ecrire_index(
+            [e for e in serve.corbeille_index() if e.get("id") != lien_id])
+    else:
+        print("  (liens symboliques indisponibles ici — garde non mesurable)")
+
+    # -- la liste ne pretend pas detenir ce qui est sorti a la main --------
+    st, _, corps = jeter(victime)
+    e3 = (json.loads(corps).get("entree") or {}) if st == 200 else {}
+    os.remove(os.path.join(corbeille, e3.get("id", "?")))
+    st, _, corps = req("GET", "/ulysse/corbeille", headers=same)
+    vus = [e.get("id") for e in json.loads(corps).get("entrees", [])]
+    check("la liste confronte l'index au disque : le sorti a la main disparait",
+          st == 200 and e3.get("id") not in vus, str(vus))
+
+    # -- vider tout : l'index connu part, la corbeille finit vide ----------
+    st, _, corps = vider({"tout": True})
+    st2, _, corps2 = req("GET", "/ulysse/corbeille", headers=same)
+    check("vider tout -> 200, et la liste finit vide",
+          st == 200 and st2 == 200 and json.loads(corps2).get("entrees") == [],
+          "HTTP %d puis %s" % (st, corps2[:60]))
+
     # --- bilan ---------------------------------------------------------
     passed = sum(1 for _, ok, _ in results if ok)
     total = len(results)
