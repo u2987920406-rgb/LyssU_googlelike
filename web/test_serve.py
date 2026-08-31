@@ -145,6 +145,32 @@ class FakeDashboard(BaseHTTPRequestHandler):
         self.send_header("Content-Length", "2")
         self.end_headers()
 
+    def _echo_methode(self):
+        """PUT/PATCH/DELETE : le vrai dashboard les connait ; le faux dit
+        seulement QUELLE methode l'a atteint — c'est tout ce qu'on verifie."""
+        FakeDashboard.seen.append({"path": self.path, "method": self.command,
+                                   "host": self.headers.get("Host"),
+                                   "token": self.headers.get("X-Hermes-Session-Token")})
+        if not self._accepted_host(self.headers.get("Host")):
+            self._reject(403, "Host header mismatch")
+            return
+        if self.headers.get("X-Hermes-Session-Token") != TOKEN:
+            self._reject(401, "Unauthorized")
+            return
+        n = int(self.headers.get("Content-Length") or 0)
+        if n:
+            self.rfile.read(n)
+        body = json.dumps({"methode": self.command}).encode()
+        self.send_response(200)
+        self.send_header("Content-Type", "application/json")
+        self.send_header("Content-Length", str(len(body)))
+        self.end_headers()
+        self.wfile.write(body)
+
+    do_PUT = _echo_methode
+    do_PATCH = _echo_methode
+    do_DELETE = _echo_methode
+
     def do_POST(self):
         """Le vrai `/api/fs/write-text` ECRIT sur le disque (web_server.py:2651).
 
@@ -1333,6 +1359,21 @@ def main():
           "HTTP %d, corps=%r, CL=%s" % (st, corps_h[:10], cl))
     st, _, _ = req("HEAD", "/route-qui-n-existe-pas", headers=same)
     check("HEAD sur l'inconnu -> 404", st == 404, "HTTP %d" % st)
+
+    print("\n-- PUT/PATCH/DELETE : 405 local, relais sinon (issue #58) --")
+
+    for methode in ("PUT", "PATCH", "DELETE"):
+        st, entetes, _ = req(methode, "/ulysse/corbeille", headers=same)
+        cors = any(k.lower().startswith("access-control-") for k in entetes)
+        check("%s sur une route locale -> 405, sans en-tete CORS" % methode,
+              st == 405 and not cors, "HTTP %d%s" % (st, " +CORS" if cors else ""))
+        FakeDashboard.seen.clear()
+        st, _, _ = req(methode, "/api/foo", headers=same)
+        check("%s sur /api/* est RELAYE, methode comprise" % methode,
+              st == 200 and bool(FakeDashboard.seen)
+              and FakeDashboard.seen[-1].get("method") == methode,
+              "HTTP %d — vu: %s" % (st, FakeDashboard.seen[-1].get("method")
+                                    if FakeDashboard.seen else "rien"))
 
     print("\n=== 7. Le port suit verif_ports (issue #7) ===")
 
