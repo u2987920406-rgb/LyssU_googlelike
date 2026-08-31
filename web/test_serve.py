@@ -928,6 +928,40 @@ def main():
         check("Restaurer PAR-DESSUS une version gardee est refuse (403)",
               st == 403, "HTTP %d" % st)
 
+    # La garde peut ECHOUER (coffre inaccessible) : restaurer garde AVANT de
+    # copier, et si la copie de l'etat courant ne peut pas se faire, rien ne
+    # bouge — 500 qui le dit (issue #45). Le coffre passe en lecture seule :
+    # la version source y reste LISIBLE, mais rien ne peut plus s'y ecrire.
+    coin = os.path.join(home, "coin-500")
+    _sh.rmtree(coin, ignore_errors=True)  # le faux home SURVIT d'un run a
+    os.makedirs(coin, exist_ok=True)      # l'autre : on repart de zero ici
+    cible500 = os.path.join(coin, "cible.md")
+    with open(cible500, "w", encoding="utf-8") as fh:
+        fh.write("v1\n")
+    st, _, _ = ecrire(cible500, "v2\n")
+    v500 = serve.lister_versions(cible500)
+    check("(prealable) une version de v1 existe", st == 200 and len(v500) == 1)
+    coffre500 = serve.dossier_versions(cible500)
+    os.chmod(coffre500, 0o555)
+    try:
+        st, _, txt = req("POST", "/ulysse/restaurer", headers=same,
+                         body=json.dumps({"path": cible500,
+                                          "nom": v500[0]["nom"]}).encode())
+    finally:
+        os.chmod(coffre500, 0o755)
+    with open(cible500, encoding="utf-8") as fh:
+        courant500 = fh.read()
+    check("coffre inaccessible -> 500 qui le dit, rien ne bouge",
+          st == 500 and "echoue" in txt and courant500 == "v2\n",
+          "HTTP %d — %r" % (st, courant500[:10]))
+    st, _, _ = req("POST", "/ulysse/restaurer", headers=same,
+                   body=json.dumps({"path": cible500,
+                                    "nom": v500[0]["nom"]}).encode())
+    with open(cible500, encoding="utf-8") as fh:
+        courant500 = fh.read()
+    check("...et le coffre libere, le retour en arriere passe (200)",
+          st == 200 and courant500 == "v1\n", "HTTP %d" % st)
+
     # Les sauvegardes sont DANS le Hermes Home : sans garde, la meme route
     # permettrait d'ecraser une version gardee — detruire precisement ce qui
     # existe pour empecher une destruction.
