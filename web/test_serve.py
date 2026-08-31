@@ -1413,6 +1413,16 @@ def main():
               and FakeDashboard.seen[-1].get("method") == methode,
               "HTTP %d — vu: %s" % (st, FakeDashboard.seen[-1].get("method")
                                     if FakeDashboard.seen else "rien"))
+        # La garde tient AUSSI sur ces methodes : Host ou Origin etrangere ->
+        # 403 avant le relais, rien n'atteint le dashboard (issue #66).
+        FakeDashboard.seen.clear()
+        st1, _, _ = req(methode, "/api/foo",
+                        headers=dict(same, Host="mechant.example.com"))
+        st2, _, _ = req(methode, "/api/foo",
+                        headers={"Origin": "http://evil.example.com"})
+        check("%s hostile (Host puis Origin) -> 403, rien ne passe" % methode,
+              st1 == 403 and st2 == 403 and not FakeDashboard.seen,
+              "HTTP %d / %d — vus: %d" % (st1, st2, len(FakeDashboard.seen)))
 
     print("\n=== 7. Le port suit verif_ports (issue #7) ===")
 
