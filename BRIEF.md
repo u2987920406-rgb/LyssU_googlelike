@@ -12,7 +12,8 @@ aucune commande à taper ».
   autonome (ne fonctionne pas sans Hermes + Python/uv/Node installés).
 
 ## Phase actuelle
-**Développement quasi terminé — jalon 4 committé (2026-08-09).**
+**Développement terminé — jalon 4 committé (2026-08-09). Boucle de peaufinage
+automatique opérationnelle (2026-08-31).**
 - Le dépôt vit dans `~/projets/ulysse` (remote GitHub `LyssU_googlelike`).
 - Produit : `web/` (ulysse.html + css/js + serve.py), 10 panneaux branchés sur
   les endpoints réels d'Hermes, terminal intégré (`/api/pty`), dictée,
@@ -22,11 +23,14 @@ aucune commande à taper ».
 ## Ce qui reste
 1. **Partie « human use » et **beta test**** — la seule partie qu'aucune boucle
    automatique ne remplace : faire sentir l'app à de vrais utilisateurs,
-   recueillir du retour réel, ajuster l'UX.
-2. **Peaufinage automatique** (en cours de conception) — une boucle
-   Hermes ⇄ GitHub ⇄ Claude Code : Hermes crée des issues sur le repo, Claude
-   Code les répare et pousse à GitHub, hooks + boucle pour itérer. Garde-fous
-   : tests verts avant push, revue. Ne couvre pas le retour humain (voir 1).
+   recueillir du retour réel, ajuster l'UX. Les retours beta de Raf sur Discord
+   deviennent des issues étiquetées `beta-test`.
+2. **Peaufinage automatique** — **opérationnel** : boucle
+   Hermes ⇄ GitHub ⇄ Claude Code. Hermes crée des issues sur le repo, Claude
+   Code les répare et pousse à GitHub, Hermes vérifie (Phase C). Garde-fous :
+   tests verts avant push, revue, CI (`gh pr checks`). Bilan au 2026-08-31 :
+   **10 issues réparées, 10 PRs mergées**, file d'issues vide. Méthode détaillée
+   dans `BOUCLE-PEAUFINAGE-AUTO.md`. Ne couvre pas le retour humain (voir 1).
 
 ## Stack portes / ports
 | Port  | Rôle                          |

@@ -34,7 +34,7 @@ window.ULYSSE_CONFIG = {
   /* --- Lu par serve.py uniquement ---------------------------------------- */
 
   // Origine reelle du dashboard Hermes. Pas de slash final.
-  HERMES_URL: "http://127.0.0.1:9123",
+  HERMES_URL: "http://127.0.0.1:9119",
 
   // Gateway des webhooks. serve.py y relaie POST /webhooks/<nom> en posant
   // lui-meme la signature HMAC (le secret est lu dans le Hermes Home).

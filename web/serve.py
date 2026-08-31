@@ -62,7 +62,7 @@ import urllib.parse
 # EDITER ICI — configuration du serveur
 # ===========================================================================
 
-PORT = 8080
+PORT = 8090
 
 # Interface d'ecoute. 127.0.0.1 = accessible depuis CETTE machine uniquement.
 # Ne PAS mettre "" ni "0.0.0.0" : le proxy porte le jeton du dashboard, donc
@@ -1831,10 +1831,13 @@ def main():
     # soit une erreur de configuration, soit une tentative de rebinding.
     ALLOWED_HOSTS = frozenset({
         "127.0.0.1:%d" % PORT, "localhost:%d" % PORT, "[::1]:%d" % PORT,
+        # Acces tailnet (telephone de Raf) — expose via `tailscale serve`.
+        "raf-bmax.tail14baaa.ts.net:%d" % PORT,
     })
     ALLOWED_ORIGINS = frozenset({
         "http://127.0.0.1:%d" % PORT, "http://localhost:%d" % PORT,
         "http://[::1]:%d" % PORT,
+        "https://raf-bmax.tail14baaa.ts.net:%d" % PORT,
     })
 
     # AVANT toute banniere : si quelqu'un repond deja ici, se lier par-dessus
