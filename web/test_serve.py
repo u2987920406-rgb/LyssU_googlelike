@@ -1384,6 +1384,28 @@ def main():
         serve.CONFIG_FILE = os.path.join(etabli, "n-existe-pas.js")
         st, _, _ = set_model({"key": "PROXY_MODEL", "value": "x"})
         check("config introuvable -> 404", st == 404, "HTTP %d" % st)
+
+        # L'AUTRE 404 : la cle est autorisee mais le fichier ne la porte pas
+        # (config amputee, vieille version). On ne CREE pas la ligne — ecrire
+        # une cle que le fichier ne connait pas serait inventer sa config —
+        # et rien ne bouge (issue #27).
+        ampute = os.path.join(etabli, "config-amputee.js")
+        with open(ampute, "w", encoding="utf-8", newline="") as f:
+            f.write('window.ULYSSE_CONFIG = {\n  PROXY_MODEL: "",\n};\n')
+        with open(ampute, "rb") as f:
+            octets_ref = f.read()
+        serve.CONFIG_FILE = ampute
+        st, _, _ = set_model({"key": "SESSION_MODEL", "value": "x"})
+        with open(ampute, "rb") as f:
+            apres = f.read()
+        check("cle autorisee mais absente du fichier -> 404, fichier intact",
+              st == 404 and apres == octets_ref, "HTTP %d" % st)
+        st, _, _ = set_model({"key": "PROXY_MODEL", "value": "toujours-la"})
+        with open(ampute, encoding="utf-8", newline="") as f:
+            texte = f.read()
+        check("...et la cle presente, elle, s'ecrit toujours (200)",
+              st == 200 and 'PROXY_MODEL: "toujours-la"' in texte,
+              "HTTP %d" % st)
     finally:
         serve.CONFIG_FILE = config_avant
     with open(serve.CONFIG_FILE, "rb") as f:
