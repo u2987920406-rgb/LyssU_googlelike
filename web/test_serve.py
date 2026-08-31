@@ -129,6 +129,22 @@ class FakeDashboard(BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(body)
 
+    def do_HEAD(self):
+        """Le vrai dashboard repond aux HEAD comme aux GET, sans corps."""
+        FakeDashboard.seen.append({"path": self.path, "method": "HEAD",
+                                   "host": self.headers.get("Host"),
+                                   "token": self.headers.get("X-Hermes-Session-Token")})
+        if not self._accepted_host(self.headers.get("Host")):
+            self._reject(403, "Host header mismatch")
+            return
+        if self.headers.get("X-Hermes-Session-Token") != TOKEN:
+            self._reject(401, "Unauthorized")
+            return
+        self.send_response(200)
+        self.send_header("Content-Type", "application/json")
+        self.send_header("Content-Length", "2")
+        self.end_headers()
+
     def do_POST(self):
         """Le vrai `/api/fs/write-text` ECRIT sur le disque (web_server.py:2651).
 
@@ -1299,6 +1315,24 @@ def main():
                   pareil, ecart or "la copie du depot a divergé de ce qui tourne")
     else:
         print("  (plugin non installe sur cette machine — comparaison non faite)")
+
+    print("\n-- HEAD : les deux branches, relais et statique (issue #57) --")
+
+    FakeDashboard.seen.clear()
+    st, entetes, corps_h = req("HEAD", "/api/status", headers=same)
+    check("HEAD sur une route relais -> 200, et le dashboard a recu un HEAD",
+          st == 200 and bool(FakeDashboard.seen)
+          and FakeDashboard.seen[-1].get("method") == "HEAD",
+          "HTTP %d — vu: %s" % (st, FakeDashboard.seen[-1].get("method")
+                                if FakeDashboard.seen else "rien"))
+    st, entetes, corps_h = req("HEAD", "/ulysse-app.js", headers=same)
+    cl = next((v for k, v in entetes.items()
+               if k.lower() == "content-length"), None)
+    check("HEAD sur un fichier servi -> 200, corps vide, Content-Length pose",
+          st == 200 and corps_h == "" and cl is not None and int(cl) > 0,
+          "HTTP %d, corps=%r, CL=%s" % (st, corps_h[:10], cl))
+    st, _, _ = req("HEAD", "/route-qui-n-existe-pas", headers=same)
+    check("HEAD sur l'inconnu -> 404", st == 404, "HTTP %d" % st)
 
     print("\n=== 7. Le port suit verif_ports (issue #7) ===")
 
