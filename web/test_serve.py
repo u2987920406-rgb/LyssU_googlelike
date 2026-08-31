@@ -492,6 +492,15 @@ def main():
     st, _, _ = req("OPTIONS", "/api/status", headers={"Origin": "http://evil.example.com"})
     check("S2 preflight CORS non accorde", st == 403, "HTTP %d" % st)
 
+    # MEME en meme origine : « aucun CORS n'est accorde » veut dire aucun.
+    # Un preflight propre est refuse pareil, sans le moindre en-tete
+    # Access-Control (issue #65).
+    st, hd_opt, _ = req("OPTIONS", "/api/status", headers=same)
+    check("S2 ...et le preflight de MEME origine est refuse pareil (403)",
+          st == 403
+          and not any(k.lower().startswith("access-control-") for k in hd_opt),
+          "HTTP %d" % st)
+
     st, head, payload = ws_handshake({"Origin": "http://evil.example.com"})
     check("S3 WebSocket refuse depuis une origine hostile", st == 403, "HTTP %d" % st)
 
