@@ -1091,6 +1091,17 @@ def main():
           serve.port_effectif([], {"ULYSSE_PORT": "8124"}) == 8124)
     check("sans argv ni env, la constante PORT du fichier reste le defaut",
           serve.port_effectif([], {}) == serve.PORT)
+    # Les deux moities du lancement partent du MEME port par defaut : si l'une
+    # bouge sans l'autre, verif_ports resout un port ou serve n'ecoute pas et
+    # le navigateur s'ouvre sur du vide (issue #11 — constate sur une machine
+    # ou serve.py avait ete edite a 8090 en local, verif_ports restant a 8080).
+    import verif_ports
+    check("serve.PORT et verif_ports.UI_PORT partent du meme defaut",
+          serve.PORT == verif_ports.UI_PORT,
+          "serve=%d verif_ports=%d" % (serve.PORT, verif_ports.UI_PORT))
+    check("le dashboard demarre la ou la config l'attend (9123)",
+          verif_ports.DASH_ULYSSE_PORT == 9123,
+          str(verif_ports.DASH_ULYSSE_PORT))
     for mauvais_argv, mauvais_env in ((["--port"], {}), (["--port", "abc"], {}),
                                       ([], {"ULYSSE_PORT": "abc"})):
         try:
