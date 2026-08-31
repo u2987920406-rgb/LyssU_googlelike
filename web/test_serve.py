@@ -63,6 +63,9 @@ class FakeDashboard(BaseHTTPRequestHandler):
 
     bound = "127.0.0.1:%d" % DASH_PORT
     seen = []  # journal des requetes vues, pour les assertions
+    # (code, message) pour faire refuser /api/fs/write-text — le vrai Hermes
+    # sait dire non (disque plein, chemin interdit), le faux doit savoir aussi.
+    panne_ecriture = None
 
     def log_message(self, *a):
         pass
@@ -145,6 +148,10 @@ class FakeDashboard(BaseHTTPRequestHandler):
         path = urllib.parse.urlsplit(self.path).path
         if path != "/api/fs/write-text":
             self._reject(404, "Not Found: " + path)
+            return
+        if FakeDashboard.panne_ecriture:
+            code, msg = FakeDashboard.panne_ecriture
+            self._reject(code, msg)
             return
         try:
             n = int(self.headers.get("Content-Length") or 0)
@@ -804,6 +811,33 @@ def main():
         octets_apres = fh.read()
     check("...et le temoin des champs faux n'a pas bouge non plus",
           octets_apres == octets_temoin)
+
+    # Hermes peut REFUSER (chemin interdit chez lui, disque plein) : la route
+    # relaie SON statut et son message tels quels, n'ecrit rien — et la copie
+    # gardee juste avant le refus survit (issue #44).
+    refus = os.path.join(home, "refus.md")
+    with open(refus, "w", encoding="utf-8") as fh:
+        fh.write("avant le refus\n")
+    for code in (403, 500):
+        FakeDashboard.panne_ecriture = (code, "interdit par le faux backend")
+        st, _, txt = ecrire(refus, "jamais ecrit\n")
+        FakeDashboard.panne_ecriture = None
+        with open(refus, encoding="utf-8") as fh:
+            intact = fh.read()
+        check("un refus %d d'Hermes est relaye tel quel, rien n'est ecrit" % code,
+              st == code and "refuse l'ecriture" in txt
+              and "interdit par le faux backend" in txt
+              and intact == "avant le refus\n",
+              "HTTP %d — %s" % (st, txt[:80]))
+    gardes_refus = serve.lister_versions(refus)
+    copie_refus = ""
+    if gardes_refus:
+        with open(os.path.join(serve.dossier_versions(refus),
+                               gardes_refus[0]["nom"]), encoding="utf-8") as fh:
+            copie_refus = fh.read()
+    check("...et les copies gardees avant chaque refus sont toujours la",
+          len(gardes_refus) == 2 and copie_refus == "avant le refus\n",
+          "%d garde(s)" % len(gardes_refus))
 
     # La frontiere de la route elle-meme : sans chemin, ou hors du dossier
     # d'Hermes, on refuse — lister les versions d'un fichier arbitraire
