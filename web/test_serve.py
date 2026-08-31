@@ -493,6 +493,27 @@ def main():
     st, _, body = req("POST", "/webhooks/inconnu", headers=same)
     check("E3 route sans secret -> 404 explicite", st == 404, "HTTP %d" % st)
 
+    # Le gateway peut etre ABSENT (pas lance, tombe) : serve.py doit repondre
+    # 502 et le DIRE, pas rendre un 200 menteur ni laisser pendre la requete.
+    # Ce chemin (serve.py, bloc except -> json_error 502) n'etait jamais
+    # exerce : le FakeGateway est toujours debout pendant cette section.
+    s_mort = socket.socket()
+    s_mort.bind(("127.0.0.1", 0))
+    port_mort = s_mort.getsockname()[1]
+    s_mort.close()  # plus personne n'ecoute ici : connexion refusee garantie
+    gw_avant = serve.WEBHOOK_BACKEND
+    serve.WEBHOOK_BACKEND = serve.Backend("http://127.0.0.1:%d" % port_mort, "")
+    try:
+        st, _, body = req("POST", "/webhooks/" + WH_NAME, headers=same)
+    finally:
+        serve.WEBHOOK_BACKEND = gw_avant
+    check("E3 gateway injoignable -> 502, et le corps le dit",
+          st == 502 and "injoignable" in (body or ""),
+          "HTTP %d — %s" % (st, (body or "")[:120]))
+    # ...et le gateway revenu, le relais repart : la panne n'a rien casse.
+    st, _, _ = req("POST", "/webhooks/" + WH_NAME, headers=same)
+    check("E3 ...et le relais repart quand le gateway revient", st == 200, "HTTP %d" % st)
+
     # Le chemin est normalise AVANT l'aiguillage : « /webhooks/..%2F..%2Fetc »
     # devient « /etc », qui n'est plus une route webhook du tout — d'ou 405 et
     # non 400. La remontee est neutralisee avant meme d'etre interpretee comme
