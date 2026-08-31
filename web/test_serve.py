@@ -792,6 +792,37 @@ def main():
         check("Une version bricolee est refusee : « %s »" % mauvais,
               st in (400, 404), "HTTP %d" % st)
 
+    # La MEME garde d'ecriture tient la route du retour en arriere : restaurer
+    # est une ecriture, elle passe par ecriture_refusee AVANT tout le reste —
+    # le refus est un 403 de frontiere, pas un 400 de version (issue #28).
+    soul_rest = os.path.join(home, "SOUL.md")
+    with open(soul_rest, "w", encoding="utf-8") as fh:
+        fh.write("intouchable\n")
+    st, _, _ = req("POST", "/ulysse/restaurer", headers=same,
+                   body=json.dumps({"path": soul_rest,
+                                    "nom": "SOUL.md.2026-01-01-000000"}).encode())
+    with open(soul_rest, encoding="utf-8") as fh:
+        tjrs = fh.read()
+    check("Restaurer SOUL.md est refuse (403) et le fichier n'a pas bouge",
+          st == 403 and tjrs == "intouchable\n", "HTTP %d" % st)
+    os.remove(soul_rest)
+
+    st, _, _ = req("POST", "/ulysse/restaurer", headers=same,
+                   body=json.dumps({"path": dehors,
+                                    "nom": "serve.py.2026-01-01-000000"}).encode())
+    check("Restaurer hors du dossier d'Hermes est refuse (403)",
+          st == 403, "HTTP %d" % st)
+
+    vers_rest = serve.lister_versions(memo)
+    if vers_rest:
+        cible_v = os.path.join(serve.dossier_versions(memo), vers_rest[0]["nom"])
+        st, _, _ = req("POST", "/ulysse/restaurer", headers=same,
+                       body=json.dumps({"path": cible_v,
+                                        "nom": os.path.basename(cible_v)
+                                        + ".2026-01-01-000000"}).encode())
+        check("Restaurer PAR-DESSUS une version gardee est refuse (403)",
+              st == 403, "HTTP %d" % st)
+
     # Les sauvegardes sont DANS le Hermes Home : sans garde, la meme route
     # permettrait d'ecraser une version gardee — detruire precisement ce qui
     # existe pour empecher une destruction.
