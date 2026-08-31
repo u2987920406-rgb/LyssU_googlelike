@@ -671,6 +671,13 @@ async function main(){
       // fetch() et ouvre son WebSocket des son amorcage.
       win.fetch = fakeFetch;
       win.WebSocket = FakeWS;
+      /* jsdom ne fournit pas TextDecoder/TextEncoder (globaux Node, pas DOM
+         chez lui) alors que tout vrai navigateur les a. Sans eux,
+         decodeDataUrlText() avale une ReferenceError et rend null : chaque
+         fichier texte du faux disque devenait « binaire — aperçu
+         impossible ». On prete ceux de Node, conformes a la meme spec. */
+      win.TextDecoder = TextDecoder;
+      win.TextEncoder = TextEncoder;
       FakeRecorder.morceau = new win.Blob(["son"], { type: "audio/webm" });
       win.MediaRecorder = FakeRecorder;
       Object.defineProperty(win.navigator, "mediaDevices", {
@@ -3942,8 +3949,11 @@ async function main(){
     touche.getAttribute("aria-label") === "Quitter le plein écran",
     String(touche.getAttribute("aria-label")));
   const dit = touche.querySelector(".u-dit");
+  // « 0 » OU « 0px » : jsdom serialise `max-width:0` sans unite, un vrai
+  // navigateur repond « 0px ». Les deux disent la meme largeur nulle.
   check("0b · la phrase existe, mais ne se lit pas au repos",
-    !!dit && gcs(dit, "opacity") === "0" && gcs(dit, "max-width") === "0px",
+    !!dit && gcs(dit, "opacity") === "0"
+    && (gcs(dit, "max-width") === "0px" || gcs(dit, "max-width") === "0"),
     dit ? gcs(dit, "opacity") + " · " + gcs(dit, "max-width") : "absente");
   // jsdom ne simule pas `:hover` : on ne peut pas mesurer l'état survolé. On
   // vérifie donc que la règle qui le découvre EXISTE — sans elle, la phrase
@@ -3966,12 +3976,23 @@ async function main(){
   //    emportait hors de vue la ligne « Quitter le plein écran ». Elle
   //    existait, on ne la voyait plus : un plein écran dont on ne sait pas
   //    sortir. Signalé par kuchu le 2026-08-09.
-  ["#tmain .avert", "#tmain .tlaunch", "#tmain .cout", "#tmain .u-todo", "#tmain .u-repli"]
+  ["#tmain .avert", "#tmain .tlaunch", "#tmain .cout", "#tmain .u-todo"]
     .forEach((sel) => {
       const el = win.document.querySelector(sel);
       check("0b · en plein écran, « " + sel.replace("#tmain ", "") + " » ne prend plus de place",
         !el || gcs(el, "display") === "none", el ? gcs(el, "display") : "absent");
     });
+  /* ⚠ `.u-repli` ne se mesure pas ici : la cascade de jsdom suit l'ORDRE de la
+     feuille en ignorant la spécificité — `#pTerminal.u-term-ouvert .u-repli`
+     (1,2,0 ; ligne ~721) écrase pour lui `#pTerminal .term.u-plein .u-repli`
+     (1,3,0 ; ligne ~611) parce qu'elle vient apres. Un vrai navigateur rend
+     `none`. Comme pour `:hover` plus haut : on prouve que la regle existe ET
+     que l'element est bien sous `.term.u-plein` — ensemble, c'est `none`. */
+  const repliPlein = win.document.querySelector("#tmain .u-repli");
+  check("0b · en plein écran, « .u-repli » ne prend plus de place",
+    /#pTerminal \.term\.u-plein \.u-repli\{display:none\}/.test(feuille)
+    && (!repliPlein || !!repliPlein.closest(".term.u-plein")),
+    repliPlein ? "chaîne: " + (repliPlein.closest(".term.u-plein") ? "sous .term.u-plein" : "hors .term.u-plein") : "absent");
   check("0b · ...et le cadre ne défile plus : l'écran s'étire à la place",
     gcs(win.document.getElementById("tmain"), "overflow-y") === "hidden"
     && gcs(win.document.getElementById("tmain"), "display") === "flex",
@@ -4318,8 +4339,10 @@ async function main(){
     && !win.document.querySelector(".u-art-panel"),
     corpsF.parentElement ? corpsF.parentElement.className : "orphelin");
   const styleCorps = win.getComputedStyle(corpsF);
+  // « 0 » OU « 0px » : meme serialisation jsdom que pour max-width plus haut.
   check("...et il peut devenir plus petit que son contenu (min-height:0)",
-    styleCorps.overflowY === "auto" && styleCorps.minHeight === "0px",
+    styleCorps.overflowY === "auto"
+    && (styleCorps.minHeight === "0px" || styleCorps.minHeight === "0"),
     "overflow-y:" + styleCorps.overflowY + " min-height:" + styleCorps.minHeight);
   // Le fantôme de la modale : le script fabriquait un backdrop pendant que la
   // feuille écrivait, trois lignes plus haut, « Pas de backdrop masquant ».

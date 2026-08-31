@@ -1,0 +1,8 @@
+{
+  "name": "ulysse-web-tests",
+  "private": true,
+  "description": "Dependances de test du front Ulysse (test_page.js) — rien du produit lui-meme.",
+  "devDependencies": {
+    "jsdom": "^25.0.1"
+  }
+}
