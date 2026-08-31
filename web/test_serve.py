@@ -467,6 +467,23 @@ def main():
     st, _, _ = req("GET", "/api/status", headers={"Origin": "http://evil.example.com"})
     check("S2 Origin etrangere refusee sur /api/*", st == 403, "HTTP %d" % st)
 
+    # Le dashboard peut etre ETEINT : le relais generique repond 502 en le
+    # disant, puis repart quand le backend revient (issue #62). Les deux
+    # autres 502 (webhook, ecriture) sont testes plus bas ; celui-ci passe
+    # par proxy_http, le chemin de TOUTES les routes /api/*.
+    s_gen = socket.socket()
+    s_gen.bind(("127.0.0.1", 0))
+    port_gen = s_gen.getsockname()[1]
+    s_gen.close()
+    backend_gen = serve.BACKEND
+    serve.BACKEND = serve.Backend("http://127.0.0.1:%d" % port_gen, TOKEN)
+    try:
+        st, _, txt = req("GET", "/api/status", headers=same)
+    finally:
+        serve.BACKEND = backend_gen
+    check("Dashboard eteint -> 502 du relais generique, qui le dit",
+          st == 502 and "injoignable" in txt, "HTTP %d — %s" % (st, txt[:80]))
+
     st, hd, _ = req("GET", "/api/status", headers=same)
     check("Requete meme origine acceptee", st == 200, "HTTP %d" % st)
     check("S2 aucun en-tete CORS permissif emis",
