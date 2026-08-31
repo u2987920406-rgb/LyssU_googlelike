@@ -1354,6 +1354,26 @@ def main():
     st, _, _ = restaurer("inconnu-jamais-vu")
     check("un identifiant inconnu -> 409, dit clairement", st == 409, "HTTP %d" % st)
 
+    # Le dossier d'origine peut avoir DISPARU entre le jeter et le restaurer :
+    # la route le recree plutot que d'echouer — remettre a sa place, c'est
+    # remettre la place aussi (issue #40).
+    nid = os.path.join(bac, "sous", "dossier")
+    os.makedirs(nid, exist_ok=True)
+    oiseau = os.path.join(nid, "oiseau.txt")
+    with open(oiseau, "w", encoding="utf-8") as fh:
+        fh.write("contenu du nid\n")
+    st, _, corps = jeter(oiseau)
+    e_nid = (json.loads(corps).get("entree") or {}) if st == 200 else {}
+    os.rmdir(nid)
+    os.rmdir(os.path.dirname(nid))
+    st, _, _ = restaurer(e_nid.get("id", "?"))
+    contenu_nid = ""
+    if os.path.isfile(oiseau):
+        with open(oiseau, encoding="utf-8") as fh:
+            contenu_nid = fh.read()
+    check("restaurer recree le dossier d'origine disparu, contenu intact",
+          st == 200 and contenu_nid == "contenu du nid\n", "HTTP %d" % st)
+
     # -- vider : la SEULE destruction, et ses deux gardes ------------------
     st, _, _ = vider({"id": "../../" + e2.get("id", "x")})
     check("vider avec un identifiant-chemin est refuse sans rien effacer",
