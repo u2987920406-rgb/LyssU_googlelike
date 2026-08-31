@@ -1340,6 +1340,14 @@ def main():
     check("vider avec un identifiant-chemin est refuse sans rien effacer",
           st == 409 and os.path.isfile(os.path.join(corbeille, e2.get("id", "?"))),
           "HTTP %d" % st)
+    # Un JSON valide mais sans champ utile ne detruit RIEN : ni « id », ni
+    # « tout: true » -> on refuse, on n'interprete pas (issue #36).
+    st, _, _ = vider({})
+    check("vider sans « id » ni « tout » -> 400", st == 400, "HTTP %d" % st)
+    st, _, _ = vider({"id": 123})
+    check("...et un « id » non-texte -> 400", st == 400, "HTTP %d" % st)
+    check("...sans qu'aucun de ces refus n'ait rien efface",
+          os.path.isfile(os.path.join(corbeille, e2.get("id", "?"))))
     st, _, corps = vider({"id": e2.get("id", "?")})
     check("vider un element : 200, efface=1, et il n'est plus la",
           st == 200 and json.loads(corps).get("efface") == 1
