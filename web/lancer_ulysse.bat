@@ -62,7 +62,7 @@ timeout /t 5 >nul
 
 REM --- 4. Serveur Ulysse (statique + proxy authentifie) --------------------
 echo Demarrage du serveur Ulysse sur le port %ULYSSE_PORT%...
-start "Ulysse-Serve" /MIN cmd /c "python serve.py"
+start "Ulysse-Serve" /MIN cmd /c "python serve.py --port %ULYSSE_PORT%"
 
 timeout /t 2 >nul
 

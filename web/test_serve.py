@@ -1081,6 +1081,26 @@ def main():
     else:
         print("  (plugin non installe sur cette machine — comparaison non faite)")
 
+    print("\n=== 7. Le port suit verif_ports (issue #7) ===")
+
+    # Le contrat : verif_ports.py resout un port libre et le transmet ;
+    # serve.py doit l'ecouter, pas retomber sur 8080 en dur.
+    check("--port en argv prime sur tout",
+          serve.port_effectif(["--port", "8123"], {"ULYSSE_PORT": "8999"}) == 8123)
+    check("ULYSSE_PORT en env est lu quand argv n'en dit rien",
+          serve.port_effectif([], {"ULYSSE_PORT": "8124"}) == 8124)
+    check("sans argv ni env, la constante PORT du fichier reste le defaut",
+          serve.port_effectif([], {}) == serve.PORT)
+    for mauvais_argv, mauvais_env in ((["--port"], {}), (["--port", "abc"], {}),
+                                      ([], {"ULYSSE_PORT": "abc"})):
+        try:
+            serve.port_effectif(mauvais_argv, mauvais_env)
+            refuse = False
+        except SystemExit:
+            refuse = True
+        check("une valeur invalide est refusee net : argv=%r env=%r"
+              % (mauvais_argv, mauvais_env), refuse)
+
     # --- bilan ---------------------------------------------------------
     passed = sum(1 for _, ok, _ in results if ok)
     total = len(results)
