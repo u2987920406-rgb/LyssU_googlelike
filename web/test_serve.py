@@ -1095,10 +1095,15 @@ def main():
     # bouge sans l'autre, verif_ports resout un port ou serve n'ecoute pas et
     # le navigateur s'ouvre sur du vide (issue #11 — constate sur une machine
     # ou serve.py avait ete edite a 8090 en local, verif_ports restant a 8080).
+    # `serve.PORT` ne se lit pas ici : ce banc l'a mute a 18080 pour son
+    # propre serveur. La constante du FICHIER, elle, ne ment pas.
     import verif_ports
+    with open("serve.py", encoding="utf-8") as f:
+        m = re.search(r"^PORT = (\d+)", f.read(), re.M)
+    defaut_serve = int(m.group(1)) if m else -1
     check("serve.PORT et verif_ports.UI_PORT partent du meme defaut",
-          serve.PORT == verif_ports.UI_PORT,
-          "serve=%d verif_ports=%d" % (serve.PORT, verif_ports.UI_PORT))
+          defaut_serve == verif_ports.UI_PORT,
+          "serve=%d verif_ports=%d" % (defaut_serve, verif_ports.UI_PORT))
     check("le dashboard demarre la ou la config l'attend (9123)",
           verif_ports.DASH_ULYSSE_PORT == 9123,
           str(verif_ports.DASH_ULYSSE_PORT))
