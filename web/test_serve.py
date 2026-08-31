@@ -1407,6 +1407,30 @@ def main():
           and os.path.isfile(os.path.join(corbeille, e2.get("id", "?"))),
           "%s / %s" % (e1.get("id"), e2.get("id")))
 
+    # Un DOSSIER se jette aussi — entier, avec ce qu'il contient — et se vide
+    # de meme : la branche rmtree du vider n'existe que pour lui (issue #53).
+    malle = os.path.join(bac, "malle")
+    os.makedirs(os.path.join(malle, "fond"), exist_ok=True)
+    with open(os.path.join(malle, "fond", "objet.txt"), "w", encoding="utf-8") as fh:
+        fh.write("au fond de la malle\n")
+    st, _, corps = jeter(malle)
+    e_malle = (json.loads(corps).get("entree") or {}) if st == 200 else {}
+    dans_corbeille = os.path.join(corbeille, e_malle.get("id", "?"))
+    check("jeter un dossier -> 200, entree marquee dossier:true",
+          st == 200 and e_malle.get("dossier") is True, corps[:80])
+    check("...le dossier a quitte l'origine, son contenu est dans la corbeille",
+          not os.path.exists(malle)
+          and os.path.isfile(os.path.join(dans_corbeille, "fond", "objet.txt")))
+    st, _, corps = vider({"id": e_malle.get("id", "?")})
+    vus_malle = [e.get("id") for e in
+                 json.loads(req("GET", "/ulysse/corbeille", headers=same)[2])
+                 .get("entrees", [])]
+    check("vider l'entree-dossier -> 200, efface=1, l'arbre entier a disparu",
+          st == 200 and json.loads(corps).get("efface") == 1
+          and not os.path.exists(dans_corbeille)
+          and e_malle.get("id") not in vus_malle,
+          "HTTP %d — %s" % (st, corps[:60]))
+
     # -- restaurer remet, et n'ecrase JAMAIS -------------------------------
     st, _, _ = restaurer(e1.get("id", "?"))
     with open(doc, encoding="utf-8") as f:
