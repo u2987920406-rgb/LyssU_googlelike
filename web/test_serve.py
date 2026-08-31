@@ -1455,6 +1455,23 @@ def main():
     check("...et un « id » non-texte -> 400", st == 400, "HTTP %d" % st)
     check("...sans qu'aucun de ces refus n'ait rien efface",
           os.path.isfile(os.path.join(corbeille, e2.get("id", "?"))))
+    # Un id que l'index ne connait plus (purge entre-temps) : vider refuse en
+    # le disant, et ne touche a rien — meme pas au fichier homonyme qui
+    # trainerait encore dans le dossier (issue #50).
+    disparu = os.path.join(bac, "disparu-vider.txt")
+    with open(disparu, "w", encoding="utf-8") as fh:
+        fh.write("hors index\n")
+    st, _, corps = jeter(disparu)
+    e_disp = (json.loads(corps).get("entree") or {}) if st == 200 else {}
+    serve.corbeille_ecrire_index(
+        [e for e in serve.corbeille_index() if e.get("id") != e_disp.get("id")])
+    st, _, corps = vider({"id": e_disp.get("id", "?")})
+    check("vider un id que l'index ne connait plus -> 409 qui le dit",
+          st == 409 and "n'est plus dans la corbeille" in corps,
+          "HTTP %d — %s" % (st, corps[:80]))
+    check("...et le fichier encore present dans le dossier n'est pas touche",
+          os.path.isfile(os.path.join(corbeille, e_disp.get("id", "?"))))
+    os.remove(os.path.join(corbeille, e_disp.get("id", "?")))
     st, _, corps = vider({"id": e2.get("id", "?")})
     check("vider un element : 200, efface=1, et il n'est plus la",
           st == 200 and json.loads(corps).get("efface") == 1
