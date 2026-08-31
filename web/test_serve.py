@@ -597,6 +597,21 @@ def main():
           'SESSION_TOKEN: ""' in txt or 'SESSION_TOKEN:""' in txt
           or "SESSION_TOKEN" not in txt, txt[:0])
 
+    # Le fichier peut MANQUER (config perdue, deplacee) : la route doit le
+    # dire par un 404 net, pas servir un corps vide qui casserait la page
+    # en silence (issue #23). La route lit CONFIG_FILE a la requete : on le
+    # pointe vers un nom qui n'existe pas, puis on le remet.
+    config_avant = serve.CONFIG_FILE
+    serve.CONFIG_FILE = "config-envolee-essai.js"
+    try:
+        st, _, _ = req("GET", "/" + serve.CONFIG_FILE, headers=same)
+    finally:
+        serve.CONFIG_FILE = config_avant
+    check("Config introuvable -> 404, pas un 200 vide", st == 404, "HTTP %d" % st)
+    st, _, txt = req("GET", "/" + serve.CONFIG_FILE, headers=same)
+    check("...et le nominal marche toujours apres la remise en place",
+          st == 200 and "PREMIER = true" in txt, "HTTP %d" % st)
+
     # Le fichier SERVI n'est pas le fichier sur DISQUE : serve.py y ajoute une
     # ligne. Les tests de page lisent le disque et ne verraient donc jamais
     # une erreur dans cette ligne — c'est exactement ce qui est arrive :
