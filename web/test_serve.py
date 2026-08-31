@@ -719,6 +719,19 @@ def main():
     st, _, _ = ecrire(os.path.join(home, "..", "serve.py"), "# efface")
     check("...et un detour par « .. » n'y change rien", st == 403, "HTTP %d" % st)
 
+    # La frontiere de la route elle-meme : sans chemin, ou hors du dossier
+    # d'Hermes, on refuse — lister les versions d'un fichier arbitraire
+    # reviendrait a lire le disque a travers le coffre (issue #22).
+    st, _, _ = req("GET", "/ulysse/versions", headers=same)
+    check("Versions sans chemin -> 400", st == 400, "HTTP %d" % st)
+    st, _, _ = req("GET", "/ulysse/versions?path=" + urllib.parse.quote(dehors),
+                   headers=same)
+    check("...et un chemin hors du dossier d'Hermes -> 400", st == 400, "HTTP %d" % st)
+    st, _, _ = req("GET", "/ulysse/versions?path="
+                   + urllib.parse.quote(os.path.join(home, "..", "serve.py")),
+                   headers=same)
+    check("...meme par un detour « .. »", st == 400, "HTTP %d" % st)
+
     st, _, txt = req("GET", "/ulysse/versions?path=" + urllib.parse.quote(memo),
                      headers=same)
     liste = json.loads(txt).get("versions", []) if st == 200 else []
