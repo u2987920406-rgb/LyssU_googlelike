@@ -3,6 +3,7 @@
 # Seules tournent ici les suites sans dependance locale vivante :
 #   - test_serve.py    (les faux backends sont dans le test lui-meme)
 #   - test_personas.py (autonome)
+#   - test_verif_ports.py (sockets locaux, aucun service requis)
 #   - test_page.js     (jsdom + faux fetch/WebSocket, aucun reseau)
 # Restent locales : test_page.py (proxy Hermes + modeles LLM externes) et
 # test_reel.py (exige la pile lancee).
@@ -38,6 +39,10 @@ jobs:
       - name: test_personas
         working-directory: web
         run: python3 test_personas.py
+
+      - name: test_verif_ports
+        working-directory: web
+        run: python3 test_verif_ports.py
 
       # Le banc DOM : la page se monte-t-elle vraiment ? Seule suite qui voit
       # les regressions invisibles cote reseau (panneau absent, page blanche).
