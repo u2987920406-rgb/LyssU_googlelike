@@ -1221,9 +1221,15 @@ async function binDessine(){
      lettres : c'est la dernière chose qu'on lit avant qu'il n'y ait plus de
      retour. Le chemin reste affiché — on peut toujours aller voir soi-même
      plutôt que de nous croire sur parole. */
+  /* Le bouton dit sa PORTÉE : il ne vide que les fichiers (l'index de la
+     corbeille), jamais les projets archivés — ceux-ci partent un par un,
+     par leur propre bouton, vers `projects.delete`. Quand des projets sont
+     affichés à côté, « Vider la corbeille » mentirait : le panneau
+     annoncerait 5 et le bouton n'en effacerait que 3. */
+  const viderQuoi = projets.length ? "Vider les fichiers" : "Vider la corbeille";
   const pied = '<div class="bin-pied">'
     + (items.length
-        ? '<button class="dangerlink" id="binVider">Vider la corbeille — '
+        ? '<button class="dangerlink" id="binVider">' + viderQuoi + " — "
           + items.length + " élément" + (items.length > 1 ? "s" : "")
           + ", définitivement</button>"
         : "")
@@ -1296,7 +1302,7 @@ async function binDessine(){
   const vider = $("binVider");
   if (vider) vider.onclick = (ev) => {
     ev.stopPropagation();
-    binConfirmer("Vider la corbeille ?",
+    binConfirmer(viderQuoi + " ?",
       items.length + " élément" + (items.length > 1 ? "s partent" : " part")
       + " du disque pour de bon : " + items.slice(0, 4).map((x) => x.nom).join(", ")
       + (items.length > 4 ? ", et " + (items.length - 4) + " autre"
