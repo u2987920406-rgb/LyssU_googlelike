@@ -1062,6 +1062,24 @@ def main():
     # La frontiere de la route elle-meme : sans chemin, ou hors du dossier
     # d'Hermes, on refuse — lister les versions d'un fichier arbitraire
     # reviendrait a lire le disque a travers le coffre (issue #22).
+    # Ces deux LECTURES exposent des donnees (liste de la corbeille, versions
+    # d'une memoire) : un lecteur hostile est refuse pareil qu'un ecrivain,
+    # sans le moindre en-tete CORS (issue #94).
+    for lecture in ("/ulysse/corbeille",
+                    "/ulysse/versions?path=" + urllib.parse.quote(memo)):
+        st1, hd1, _ = req("GET", lecture,
+                          headers=dict(same, Host="mechant.example.com"))
+        st2, hd2, _ = req("GET", lecture,
+                          headers={"Origin": "http://mechant.example.com"})
+        cors_l = any(k.lower().startswith("access-control-")
+                     for k in list(hd1) + list(hd2))
+        check("lecture hostile refusee : %s" % lecture.split("?")[0],
+              st1 == 403 and st2 == 403 and not cors_l,
+              "HTTP %d / %d" % (st1, st2))
+    st, _, _ = req("GET", "/ulysse/corbeille", headers=same)
+    check("...et la lecture de meme origine passe toujours (200)",
+          st == 200, "HTTP %d" % st)
+
     st, _, _ = req("GET", "/ulysse/versions", headers=same)
     check("Versions sans chemin -> 400", st == 400, "HTTP %d" % st)
     st, _, _ = req("GET", "/ulysse/versions?path=" + urllib.parse.quote(dehors),
