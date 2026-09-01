@@ -1851,6 +1851,12 @@ def main():
           "HTTP %d" % st)
     st, _, _ = restaurer("../../ailleurs")
     check("un identifiant-chemin est refuse au restaurer", st == 400, "HTTP %d" % st)
+    # ...et un « id » qui n'est pas du texte non plus : nombre, null, vide
+    # (issue #105).
+    for id_faux in (123, None, ""):
+        st, _, _ = restaurer(id_faux)
+        check("un « id » non-texte est refuse au restaurer : %r -> 400" % (id_faux,),
+              st == 400, "HTTP %d" % st)
     st, _, _ = restaurer("inconnu-jamais-vu")
     check("un identifiant inconnu -> 409, dit clairement", st == 409, "HTTP %d" % st)
 
