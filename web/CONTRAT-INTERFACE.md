@@ -124,11 +124,11 @@ menu ne peuvent pas diverger. **`#pDiscuter` porte les cinq classes d'état.**
 > s'autorise pas**.
 >
 > ⚠ **La dette ne s'affiche que sur Discuter et Réglages** (`DETTE_PANNEAUX`).
-> Elle vit dans `.stage` : sans ce filtre elle pousse le contenu des dix
-> panneaux, et dans le Terminal elle parle d'autre chose.
+> Elle vit dans `.stage` : sans ce filtre elle pousse le contenu de tous
+> les panneaux, et dans le Terminal elle parle d'autre chose.
 
 **Les filtres** — `travQ` `livQ` `repQ` (et `vq`, déjà là). Quatre panneaux
-sur dix filtrent ; `.search` n'était utilisée que par le Vestiaire, celui qui
+filtrent ; `.search` n'était utilisée que par le Vestiaire, celui qui
 en avait le moins besoin.
 
 **Plan** — `studio` `stseg` `vCanvas` `vReader` `svg` `recentrer` `paneG`
@@ -464,7 +464,7 @@ d'accord » et « les six réparations ». Ils étaient tous invisibles côté r
 Sans ces vérifications, une passe de design les réintroduit sans bruit.
 
 `test_page.js` est celui qui attrape les dégâts d'une passe de design : il
-monte la vraie page et vérifie que les dix panneaux s'affichent, que la
+monte la vraie page et vérifie que tous les panneaux s'affichent, que la
 bascule répond, que la pièce jointe part, que la demande d'accord sonne.
 
 S'il tombe en rouge après un changement de design, ce n'est pas le test qui a
