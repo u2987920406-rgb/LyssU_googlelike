@@ -1157,6 +1157,14 @@ def main():
           st1 == 403 and st2 == 403 and memo_apres_hostile == memo_avant_hostile,
           "HTTP %d / %d" % (st1, st2))
 
+    # Le « nom » peut ne pas etre du texte du tout (null, nombre) : 400 net,
+    # avant meme de chercher une version (issue #101).
+    for nom_faux in (123, None, ["liste"]):
+        st, _, _ = req("POST", "/ulysse/restaurer", headers=same,
+                       body=json.dumps({"path": memo, "nom": nom_faux}).encode())
+        check("Un « nom » non-texte est refuse : %r -> 400" % (nom_faux,),
+              st == 400, "HTTP %d" % st)
+
     for mauvais in ("../../serve.py", "..\\serve.py", "autre.md.2026-01-01-000000",
                     "user.md.2099-01-01-000000"):
         st, _, _ = req("POST", "/ulysse/restaurer", headers=same,
