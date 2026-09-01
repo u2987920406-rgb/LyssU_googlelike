@@ -1874,6 +1874,28 @@ def main():
               "HTTP %d" % st)
         os.remove(coffre)
 
+        # L'ECRITURE elle-meme peut echouer (fichier verrouille) : la garde a
+        # ete posee, mais la valeur ne rentre pas — 500 « Ecriture impossible »
+        # et le fichier n'a pas change d'un octet (issue #77).
+        with open(copie, "rb") as f:
+            octets_verrou = f.read()
+        os.chmod(copie, 0o444)
+        try:
+            st, _, txt = set_model({"key": "PROXY_MODEL", "value": "verrouille"})
+        finally:
+            os.chmod(copie, 0o644)
+        with open(copie, "rb") as f:
+            apres_verrou = f.read()
+        check("fichier config verrouille -> 500 « Ecriture impossible », intact",
+              st == 500 and "impossible" in txt and apres_verrou == octets_verrou,
+              "HTTP %d — %s" % (st, txt[:80]))
+        st, _, _ = set_model({"key": "PROXY_MODEL", "value": "deverrouille"})
+        with open(copie, encoding="utf-8", newline="") as f:
+            texte = f.read()
+        check("...et deverrouille, la meme ecriture passe (200)",
+              st == 200 and 'PROXY_MODEL: "deverrouille"' in texte,
+              "HTTP %d" % st)
+
         serve.CONFIG_FILE = os.path.join(etabli, "n-existe-pas.js")
         st, _, _ = set_model({"key": "PROXY_MODEL", "value": "x"})
         check("config introuvable -> 404", st == 404, "HTTP %d" % st)
