@@ -206,7 +206,7 @@ function memManquants(d){
 }
 
 /* Où la dette a un objet. Elle vit dans `.stage` : sans ce filtre elle
-   s'affiche sur les DIX panneaux et pousse le contenu de chacun. Elle est
+   s'affiche sur TOUS les panneaux et pousse le contenu de chacun. Elle est
    juste — un profil vide rend les réponses vagues — mais dans le Terminal ou
    les Repères, elle parle d'autre chose que ce qu'on est venu faire.
      · Discuter — c'est là qu'on lit la réponse vague ;
@@ -6093,7 +6093,7 @@ function onApproval(pl){
 }
 
 /* Comment un identifiant de panneau s'écrit à l'écran, pour la ligne « où mène
-   ceci ». La source est `PANELS` et elle seule : recopier les dix libellés
+   ceci ». La source est `PANELS` et elle seule : recopier les libellés
    ailleurs, c'est se donner une occasion de divergence dont la première victime
    serait justement celle que `drawBell()` vient de subir — « Reglages » d'un
    côté, « Réglages » de l'autre. */
@@ -6298,9 +6298,9 @@ let lastStatus = null;
    `decision` était poussé : le vocabulaire existait en entier, le produit en
    employait un quart.
 
-   Or l'état d'Hermès concerne les DIX panneaux. Il n'était lisible que dans
-   le bandeau du kebab de Discuter : juste pour Discuter, angle mort pour les
-   neuf autres. Depuis le Vestiaire, si le lien tombait, rien ne le disait.
+   Or l'état d'Hermès concerne TOUS les panneaux. Il n'était lisible que dans
+   le bandeau du kebab de Discuter : juste pour Discuter, angle mort pour
+   tous les autres. Depuis le Vestiaire, si le lien tombait, rien ne le disait.
 
    On ne crée pas un nouveau point qui veille : la cloche EST le lieu de ce
    qui ne va pas, elle est visible de partout, et `NKIND.panne.dur` vaut déjà

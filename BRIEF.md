@@ -15,8 +15,10 @@ aucune commande à taper ».
 **Développement terminé — jalon 4 committé (2026-08-09). Boucle de peaufinage
 automatique opérationnelle (2026-08-31).**
 - Le dépôt vit dans `~/projets/ulysse` (remote GitHub `LyssU_googlelike`).
-- Produit : `web/` (ulysse.html + css/js + serve.py), 10 panneaux branchés sur
-  les endpoints réels d'Hermes, terminal intégré (`/api/pty`), dictée,
+- Produit : `web/` (ulysse.html + css/js + serve.py), les panneaux branchés
+  sur les endpoints réels d'Hermes — leur liste de référence vit dans
+  `PANELS` (ulysse-app.js) : neuf ce jour, « Travaux » ayant fusionné dans
+  Discuter le 2026-08-21 —, terminal intégré (`/api/pty`), dictée,
   écriture mémoire avec versions, Projets complet.
 - 6 suites de tests — 4 en CI à chaque PR (`test_serve.py`, `test_page.js`,
   `test_personas.py`, `test_verif_ports.py`) et 2 locales (`test_page.py` :
