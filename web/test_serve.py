@@ -640,6 +640,27 @@ def main():
     st, _, body = req("POST", "/proxy/chat", headers=dict(same, **{"Content-Type": "application/json"}),
                       body=json.dumps({"model": "m", "messages": [{"role": "user", "content": "ping"}]}))
     check("Relais /proxy/chat fonctionne", st == 200 and "pong" in body, "HTTP %d" % st)
+
+    # Le proxy Hermes peut etre ETEINT : 502 qui le dit, puis le relais
+    # repart quand il revient (issue #82).
+    s_px = socket.socket()
+    s_px.bind(("127.0.0.1", 0))
+    port_px = s_px.getsockname()[1]
+    s_px.close()
+    proxy_avant = serve.PROXY_BACKEND
+    serve.PROXY_BACKEND = serve.Backend("http://127.0.0.1:%d" % port_px, "cle")
+    try:
+        st, _, body = req("POST", "/proxy/chat",
+                          headers=dict(same, **{"Content-Type": "application/json"}),
+                          body=json.dumps({"model": "m", "messages": []}))
+    finally:
+        serve.PROXY_BACKEND = proxy_avant
+    check("Proxy eteint -> 502 qui le dit", st == 502 and "injoignable" in body,
+          "HTTP %d — %s" % (st, body[:80]))
+    st, _, body = req("POST", "/proxy/chat", headers=dict(same, **{"Content-Type": "application/json"}),
+                      body=json.dumps({"model": "m", "messages": [{"role": "user", "content": "ping"}]}))
+    check("...et le relais repart quand le proxy revient",
+          st == 200 and "pong" in body, "HTTP %d" % st)
     check("Cle du proxy injectee par le serveur",
           bool(FakeProxy.seen) and FakeProxy.seen[-1]["auth"] == "Bearer cle-proxy",
           str(FakeProxy.seen[-1]["auth"]) if FakeProxy.seen else "")
