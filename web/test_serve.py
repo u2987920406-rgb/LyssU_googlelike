@@ -1936,6 +1936,14 @@ def main():
     check("vider sans « id » ni « tout » -> 400", st == 400, "HTTP %d" % st)
     st, _, _ = vider({"id": 123})
     check("...et un « id » non-texte -> 400", st == 400, "HTTP %d" % st)
+    # « tout » n'est vrai que s'il est LE booleen true : la chaine "true" ou
+    # le nombre 1 ne detruisent rien — on n'interprete pas (issue #106).
+    for tout_faux in ("true", 1):
+        st, _, _ = vider({"tout": tout_faux})
+        check("...et « tout »=%r n'est pas true : 400, rien ne part" % (tout_faux,),
+              st == 400
+              and os.path.isfile(os.path.join(corbeille, e2.get("id", "?"))),
+              "HTTP %d" % st)
     check("...sans qu'aucun de ces refus n'ait rien efface",
           os.path.isfile(os.path.join(corbeille, e2.get("id", "?"))))
     # Un id que l'index ne connait plus (purge entre-temps) : vider refuse en
