@@ -519,6 +519,26 @@ def main():
     check("E1 gateway.ready traverse le tunnel",
           b"gateway.ready" in payload, repr(payload[:80]))
 
+    # Le dashboard peut etre ETEINT au moment du handshake : 502 qui le dit,
+    # pas un tunnel qui pend — puis le 101 repasse au retour (issue #81).
+    s_ws = socket.socket()
+    s_ws.bind(("127.0.0.1", 0))
+    port_ws = s_ws.getsockname()[1]
+    s_ws.close()
+    backend_ws = serve.BACKEND
+    serve.BACKEND = serve.Backend("http://127.0.0.1:%d" % port_ws, TOKEN)
+    try:
+        st, head, payload = ws_handshake(same)
+    finally:
+        serve.BACKEND = backend_ws
+    # (ws_handshake ne lit que l'entete : le statut 502 est le contrat,
+    # le corps d'erreur n'est pas capture par ce helper.)
+    check("E1 dashboard eteint au handshake -> 502, pas un tunnel qui pend",
+          st == 502, "HTTP %d" % st)
+    st, head, payload = ws_handshake(same)
+    check("E1 ...et le 101 repasse quand le dashboard revient", st == 101,
+          head.splitlines()[0] if head else "")
+
     print("\n=== 3. Jeton : injecte, jamais divulgue (S6-S9) ===")
     FakeDashboard.seen.clear()
     req("GET", "/api/status", headers=same)
