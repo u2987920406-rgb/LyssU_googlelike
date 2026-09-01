@@ -1660,6 +1660,28 @@ def main():
           and not os.path.exists(os.path.join(corbeille, e2.get("id", "?"))),
           "HTTP %d — %s" % (st, corps[:60]))
 
+    # L'effacement peut ECHOUER (dossier verrouille) : 500 qui le dit, et
+    # rien ne bouge — ni le fichier, ni son entree d'index (issue #70).
+    tenace = os.path.join(bac, "tenace.txt")
+    with open(tenace, "w", encoding="utf-8") as fh:
+        fh.write("dur a effacer\n")
+    st, _, corps = jeter(tenace)
+    e_ten = (json.loads(corps).get("entree") or {}) if st == 200 else {}
+    os.chmod(corbeille, 0o555)
+    try:
+        st, _, corps = vider({"id": e_ten.get("id", "?")})
+    finally:
+        os.chmod(corbeille, 0o755)
+    encore_indexe = any(e.get("id") == e_ten.get("id")
+                        for e in serve.corbeille_index())
+    check("corbeille verrouillee -> 500 qui le dit, fichier et index intacts",
+          st == 500 and "echoue" in corps and encore_indexe
+          and os.path.isfile(os.path.join(corbeille, e_ten.get("id", "?"))),
+          "HTTP %d — %s" % (st, corps[:80]))
+    st, _, corps = vider({"id": e_ten.get("id", "?")})
+    check("...et la corbeille deverrouillee, l'effacement passe (efface=1)",
+          st == 200 and json.loads(corps).get("efface") == 1, "HTTP %d" % st)
+
     victime = os.path.join(bac, "victime.txt")
     with open(victime, "w", encoding="utf-8") as f:
         f.write("toujours la")
