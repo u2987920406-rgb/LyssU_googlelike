@@ -1811,6 +1811,26 @@ def main():
           and e_malle.get("id") not in vus_malle,
           "HTTP %d — %s" % (st, corps[:60]))
 
+    # Et un dossier jete se RESTAURE entier aussi : l'arbre revient a sa
+    # place, contenu compris (issue #102).
+    coffret = os.path.join(bac, "coffret")
+    os.makedirs(os.path.join(coffret, "double-fond"), exist_ok=True)
+    with open(os.path.join(coffret, "double-fond", "secret.txt"), "w",
+              encoding="utf-8") as fh:
+        fh.write("bien garde\n")
+    st, _, corps = jeter(coffret)
+    e_cof = (json.loads(corps).get("entree") or {}) if st == 200 else {}
+    st, _, _ = restaurer(e_cof.get("id", "?"))
+    secret = os.path.join(coffret, "double-fond", "secret.txt")
+    contenu_cof = ""
+    if os.path.isfile(secret):
+        with open(secret, encoding="utf-8") as fh:
+            contenu_cof = fh.read()
+    check("restaurer un dossier remet l'arbre entier, contenu intact",
+          st == 200 and contenu_cof == "bien garde\n"
+          and not os.path.exists(os.path.join(corbeille, e_cof.get("id", "?"))),
+          "HTTP %d" % st)
+
     # -- restaurer remet, et n'ecrase JAMAIS -------------------------------
     st, _, _ = restaurer(e1.get("id", "?"))
     with open(doc, encoding="utf-8") as f:
