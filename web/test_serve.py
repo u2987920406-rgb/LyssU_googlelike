@@ -1637,6 +1637,33 @@ def main():
         return req("POST", "/ulysse/corbeille/vider", headers=same,
                    body=json.dumps(corps).encode())
 
+    # La garde Host/Origin tient sur TOUTES les portes d'ecriture, pas
+    # seulement /api/* : un onglet hostile ne jette rien, ne restaure rien,
+    # ne vide rien, ne pose aucun modele (issue #93).
+    mechant = {"Host": "mechant.example.com",
+               "Origin": "http://mechant.example.com"}
+    proie = os.path.join(bac, "proie.txt")
+    with open(proie, "w", encoding="utf-8") as fh:
+        fh.write("toujours chez moi\n")
+    index_avant_hostile = [e.get("id") for e in serve.corbeille_index()]
+    with open(serve.CONFIG_FILE, "rb") as fh:
+        config_avant_hostile = fh.read()
+    for route, corps_h in (("/ulysse/corbeille/jeter", {"path": proie}),
+                           ("/ulysse/corbeille/restaurer", {"id": "x"}),
+                           ("/ulysse/corbeille/vider", {"tout": True}),
+                           ("/ulysse/set-model", {"key": "PROXY_MODEL",
+                                                  "value": "pirate"})):
+        st, _, _ = req("POST", route, headers=mechant,
+                       body=json.dumps(corps_h).encode())
+        check("hostile sur %s -> 403" % route, st == 403, "HTTP %d" % st)
+    with open(serve.CONFIG_FILE, "rb") as fh:
+        config_apres_hostile = fh.read()
+    check("...et rien n'a bouge : proie, index, config intacts",
+          os.path.isfile(proie)
+          and [e.get("id") for e in serve.corbeille_index()] == index_avant_hostile
+          and config_apres_hostile == config_avant_hostile)
+    os.remove(proie)
+
     # -- les refus, un par garde : chacun a une raison, et il la dit --------
     st, _, _ = jeter(None)
     check("jeter sans chemin -> 403", st == 403, "HTTP %d" % st)
