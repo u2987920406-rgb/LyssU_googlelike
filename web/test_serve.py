@@ -1059,6 +1059,27 @@ def main():
     check("...et le coffre libere, le retour en arriere passe (200)",
           st == 200 and courant500 == "v1\n", "HTTP %d" % st)
 
+    # L'autre echec du meme geste : la garde a REUSSI mais la COPIE finale
+    # (copy2 vers la cible) ne peut pas se faire — cible verrouillee. 500 qui
+    # le dit, et l'etat courant n'a pas bouge (issue #78).
+    os.chmod(cible500, 0o444)
+    try:
+        st, _, txt = req("POST", "/ulysse/restaurer", headers=same,
+                         body=json.dumps({"path": cible500,
+                                          "nom": v500[0]["nom"]}).encode())
+    finally:
+        os.chmod(cible500, 0o644)
+    with open(cible500, encoding="utf-8") as fh:
+        toujours500 = fh.read()
+    check("cible verrouillee : la copie finale echoue -> 500, rien ne bouge",
+          st == 500 and "echoue" in txt and toujours500 == "v1\n",
+          "HTTP %d — %s" % (st, txt[:80]))
+    st, _, _ = req("POST", "/ulysse/restaurer", headers=same,
+                   body=json.dumps({"path": cible500,
+                                    "nom": v500[0]["nom"]}).encode())
+    check("...et la cible deverrouillee, le retour en arriere repasse (200)",
+          st == 200, "HTTP %d" % st)
+
     # Les sauvegardes sont DANS le Hermes Home : sans garde, la meme route
     # permettrait d'ecraser une version gardee — detruire precisement ce qui
     # existe pour empecher une destruction.
