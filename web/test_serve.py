@@ -109,6 +109,12 @@ class FakeDashboard(BaseHTTPRequestHandler):
             return
 
         path = urllib.parse.urlsplit(self.path).path
+        # Le vrai dashboard sait repondre une ERREUR en etant bien vivant
+        # (401 jeton perime, 500 interne) : cette route la simule, pour
+        # verifier que serve.py recopie le statut amont tel quel.
+        if path == "/api/erreur-forcee":
+            self._reject(500, "erreur forcee du faux dashboard")
+            return
         if path == "/api/status":
             payload = {"version": "0.20.0", "gateway_running": False,
                        "auth_required": True, "active_sessions": 0}
@@ -483,6 +489,15 @@ def main():
         serve.BACKEND = backend_gen
     check("Dashboard eteint -> 502 du relais generique, qui le dit",
           st == 502 and "injoignable" in txt, "HTTP %d — %s" % (st, txt[:80]))
+
+    # Le contraire de la panne : le dashboard VIT et repond une erreur. Le
+    # relais recopie CE statut, sans le recouvrir de son propre 502 ni
+    # reecrire le corps de l'amont (issue #85).
+    st, _, txt = req("GET", "/api/erreur-forcee", headers=same)
+    check("Une erreur AMONT traverse telle quelle : 500 et le corps du dashboard",
+          st == 500 and "erreur forcee du faux dashboard" in txt
+          and "injoignable" not in txt,
+          "HTTP %d — %s" % (st, txt[:80]))
 
     st, hd, _ = req("GET", "/api/status", headers=same)
     check("Requete meme origine acceptee", st == 200, "HTTP %d" % st)
