@@ -1646,6 +1646,33 @@ def main():
     serve.corbeille_ecrire_index(
         [e for e in serve.corbeille_index() if e.get("id") != e_fant.get("id")])
 
+    # La remise en place peut ECHOUER (dossier d'origine verrouille) : 500
+    # qui le dit, l'objet reste dans la corbeille, l'entree dans l'index —
+    # la panne ne perd rien (issue #74).
+    abri = os.path.join(bac, "abri")
+    os.makedirs(abri, exist_ok=True)
+    fragile = os.path.join(abri, "fragile.txt")
+    with open(fragile, "w", encoding="utf-8") as fh:
+        fh.write("a remettre\n")
+    st, _, corps = jeter(fragile)
+    e_frag = (json.loads(corps).get("entree") or {}) if st == 200 else {}
+    os.chmod(abri, 0o555)
+    try:
+        st, _, corps = restaurer(e_frag.get("id", "?"))
+    finally:
+        os.chmod(abri, 0o755)
+    check("origine verrouillee au restaurer -> 500, l'objet reste en corbeille",
+          st == 500 and "echoue" in corps
+          and os.path.isfile(os.path.join(corbeille, e_frag.get("id", "?")))
+          and any(e.get("id") == e_frag.get("id")
+                  for e in serve.corbeille_index()),
+          "HTTP %d — %s" % (st, corps[:80]))
+    st, _, _ = restaurer(e_frag.get("id", "?"))
+    with open(fragile, encoding="utf-8") as fh:
+        revenu_frag = fh.read()
+    check("...et deverrouillee, la remise en place passe, contenu intact",
+          st == 200 and revenu_frag == "a remettre\n", "HTTP %d" % st)
+
     # -- vider : la SEULE destruction, et ses deux gardes ------------------
     st, _, _ = vider({"id": "../../" + e2.get("id", "x")})
     check("vider avec un identifiant-chemin est refuse sans rien effacer",
