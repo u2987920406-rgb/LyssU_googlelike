@@ -18,7 +18,11 @@ automatique opérationnelle (2026-08-31).**
 - Produit : `web/` (ulysse.html + css/js + serve.py), 10 panneaux branchés sur
   les endpoints réels d'Hermes, terminal intégré (`/api/pty`), dictée,
   écriture mémoire avec versions, Projets complet.
-- 4 suites de tests (620 vérifications). Maquette de référence : la **33**.
+- 6 suites de tests — 4 en CI à chaque PR (`test_serve.py`, `test_page.js`,
+  `test_personas.py`, `test_verif_ports.py`) et 2 locales (`test_page.py` :
+  proxy + modèles vivants ; `test_reel.py` : pile lancée). Le compte exact vit
+  dans leurs bilans, pas ici — un chiffre figé avait menti (620 pour 1000+).
+  Maquette de référence : la **33**.
 
 ## Ce qui reste
 1. **Partie « human use » et **beta test**** — la seule partie qu'aucune boucle
