@@ -554,6 +554,21 @@ def main():
     check("E1 ...et le 101 repasse quand le dashboard revient", st == 101,
           head.splitlines()[0] if head else "")
 
+    # Le dashboard VIT mais refuse le handshake (jeton rejete par l'amont) :
+    # son statut de refus traverse tel quel, aucun tunnel ne s'ouvre, et le
+    # nominal repasse juste apres (issue #86).
+    backend_jeton = serve.BACKEND
+    serve.BACKEND = serve.Backend(backend_jeton.url, "jeton-que-l-amont-rejette")
+    try:
+        st, head, payload = ws_handshake(same)
+    finally:
+        serve.BACKEND = backend_jeton
+    check("E1 refus amont au handshake -> son statut traverse (401), pas d'invente",
+          st == 401, "HTTP %d" % st)
+    st, head, payload = ws_handshake(same)
+    check("E1 ...et le 101 nominal repasse, rien n'est casse", st == 101,
+          head.splitlines()[0] if head else "")
+
     print("\n=== 3. Jeton : injecte, jamais divulgue (S6-S9) ===")
     FakeDashboard.seen.clear()
     req("GET", "/api/status", headers=same)
