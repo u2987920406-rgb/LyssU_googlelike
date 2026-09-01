@@ -1139,6 +1139,24 @@ def main():
               len(serve.lister_versions(memo)) == avant_rest + 1,
               "%d version(s)" % len(serve.lister_versions(memo)))
 
+    # Une page ETRANGERE ne force aucun retour en arriere : la garde refuse
+    # avant tout, et la memoire ne bouge pas (issue #98).
+    with open(memo, encoding="utf-8") as fh:
+        memo_avant_hostile = fh.read()
+    vers_hostile = serve.lister_versions(memo)
+    nom_hostile = vers_hostile[0]["nom"] if vers_hostile else "memo.md.2026-01-01-000000"
+    st1, _, _ = req("POST", "/ulysse/restaurer",
+                    headers={"Host": "mechant.example.com"},
+                    body=json.dumps({"path": memo, "nom": nom_hostile}).encode())
+    st2, _, _ = req("POST", "/ulysse/restaurer",
+                    headers={"Origin": "http://mechant.example.com"},
+                    body=json.dumps({"path": memo, "nom": nom_hostile}).encode())
+    with open(memo, encoding="utf-8") as fh:
+        memo_apres_hostile = fh.read()
+    check("Une page etrangere ne force aucun retour en arriere (403, memoire intacte)",
+          st1 == 403 and st2 == 403 and memo_apres_hostile == memo_avant_hostile,
+          "HTTP %d / %d" % (st1, st2))
+
     for mauvais in ("../../serve.py", "..\\serve.py", "autre.md.2026-01-01-000000",
                     "user.md.2099-01-01-000000"):
         st, _, _ = req("POST", "/ulysse/restaurer", headers=same,
