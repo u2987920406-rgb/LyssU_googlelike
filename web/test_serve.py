@@ -331,11 +331,24 @@ class FakeProxy(BaseHTTPRequestHandler):
     def log_message(self, *a):
         pass
 
+    # (code, corps) : le vrai proxy sait repondre une erreur en etant bien
+    # vivant (429 quota, 500 interne) — le faux doit savoir aussi.
+    panne = None
+
     def do_POST(self):
         body = self.rfile.read(int(self.headers.get("Content-Length") or 0))
         FakeProxy.seen.append({"path": self.path,
                                "auth": self.headers.get("Authorization"),
                                "body": body.decode()})
+        if FakeProxy.panne:
+            code, msg = FakeProxy.panne
+            corps = json.dumps({"error": msg}).encode()
+            self.send_response(code)
+            self.send_header("Content-Type", "application/json")
+            self.send_header("Content-Length", str(len(corps)))
+            self.end_headers()
+            self.wfile.write(corps)
+            return
         payload = json.dumps({"choices": [{"message": {"content": "pong"}}]}).encode()
         self.send_response(200)
         self.send_header("Content-Type", "application/json")
@@ -686,6 +699,20 @@ def main():
     finally:
         serve.PROXY_BACKEND = proxy_avant
     check("Proxy eteint -> 502 qui le dit", st == 502 and "injoignable" in body,
+          "HTTP %d — %s" % (st, body[:80]))
+
+    # Le proxy VIT mais repond une erreur (quota, modele inconnu) : son
+    # statut et son corps traversent tels quels, pas de 502 par-dessus
+    # (issue #89).
+    FakeProxy.panne = (429, "quota depasse chez le faux proxy")
+    try:
+        st, _, body = req("POST", "/proxy/chat",
+                          headers=dict(same, **{"Content-Type": "application/json"}),
+                          body=json.dumps({"model": "m", "messages": []}))
+    finally:
+        FakeProxy.panne = None
+    check("Une erreur AMONT du proxy traverse telle quelle (429, corps intact)",
+          st == 429 and "quota depasse" in body and "injoignable" not in body,
           "HTTP %d — %s" % (st, body[:80]))
     st, _, body = req("POST", "/proxy/chat", headers=dict(same, **{"Content-Type": "application/json"}),
                       body=json.dumps({"model": "m", "messages": [{"role": "user", "content": "ping"}]}))
