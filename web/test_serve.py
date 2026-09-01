@@ -1537,6 +1537,28 @@ def main():
           not os.path.exists(doc)
           and os.path.isfile(os.path.join(corbeille, e1.get("id", "?"))))
 
+    # Le deplacement peut ECHOUER (corbeille verrouillee) : 500 qui promet
+    # « Rien n'a bouge » — et rien n'a bouge : l'origine est intacte, l'index
+    # ne porte aucune entree fantome (issue #73).
+    lourd = os.path.join(bac, "lourd.txt")
+    with open(lourd, "w", encoding="utf-8") as fh:
+        fh.write("reste chez moi\n")
+    index_avant_500 = [e.get("id") for e in serve.corbeille_index()]
+    os.chmod(corbeille, 0o555)
+    try:
+        st, _, corps = jeter(lourd)
+    finally:
+        os.chmod(corbeille, 0o755)
+    check("corbeille verrouillee au jeter -> 500, l'origine n'a pas bouge",
+          st == 500 and "Rien n'a" in corps and os.path.isfile(lourd)
+          and [e.get("id") for e in serve.corbeille_index()] == index_avant_500,
+          "HTTP %d — %s" % (st, corps[:80]))
+    st, _, corps = jeter(lourd)
+    e_lourd = (json.loads(corps).get("entree") or {}) if st == 200 else {}
+    check("...et deverrouillee, le meme jeter passe (200)",
+          st == 200 and bool(e_lourd.get("id")), "HTTP %d" % st)
+    vider({"id": e_lourd.get("id", "?")})
+
     with open(doc, "w", encoding="utf-8") as f:
         f.write("second jet")
     st, _, corps = jeter(doc)
