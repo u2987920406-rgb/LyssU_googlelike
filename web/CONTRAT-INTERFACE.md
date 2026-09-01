@@ -464,7 +464,7 @@ d'accord » et « les six réparations ». Ils étaient tous invisibles côté r
 Sans ces vérifications, une passe de design les réintroduit sans bruit.
 
 `test_page.js` est celui qui attrape les dégâts d'une passe de design : il
-monte la vraie page et vérifie que les dix panneaux s'affichent, que la
+monte la vraie page et vérifie que tous les panneaux s'affichent, que la
 bascule répond, que la pièce jointe part, que la demande d'accord sonne.
 
 S'il tombe en rouge après un changement de design, ce n'est pas le test qui a

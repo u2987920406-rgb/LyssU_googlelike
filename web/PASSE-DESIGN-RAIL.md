@@ -56,7 +56,7 @@ alors tout seul.
 `NKIND` définit quatre genres, et **seul `decision` est jamais poussé**. Le
 vocabulaire visuel existe en entier ; le produit en emploie un quart.
 
-Or **l'état d'Hermès concerne les dix panneaux.** On l'a rangé dans le kebab de
+Or **l'état d'Hermès concerne tous les panneaux.** On l'a rangé dans le kebab de
 Discuter — c'était juste pour Discuter, et c'est devenu un angle mort pour les
 neuf autres. Depuis le Vestiaire, si le lien tombe, rien ne le dit.
 
@@ -76,7 +76,7 @@ Le badge de la cloche passe en rouge — même signal, autre gravité.
 
 ## 3. La dette n'a pas à être partout
 
-`#dettewrap` s'affiche sur les dix panneaux et **pousse le contenu** de chacun.
+`#dettewrap` s'affiche sur tous les panneaux et **pousse le contenu** de chacun.
 
 Elle est juste — un profil vide rend les réponses vagues — mais elle n'est pas
 également utile partout. Dans le Terminal ou les Repères, **elle parle d'autre
