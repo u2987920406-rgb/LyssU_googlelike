@@ -267,6 +267,9 @@ class FakeGateway(BaseHTTPRequestHandler):
     """Reproduit gateway/platforms/webhook.py : POST seul, HMAC V2 obligatoire."""
 
     seen = []
+    # (code, message) : le vrai gateway sait repondre une erreur en etant
+    # bien vivant (file pleine, 500 interne) — le faux doit savoir aussi.
+    panne = None
 
     def log_message(self, *a):
         pass
@@ -288,6 +291,13 @@ class FakeGateway(BaseHTTPRequestHandler):
 
     def do_POST(self):
         path = urllib.parse.urlsplit(self.path).path
+        if FakeGateway.panne:
+            n = int(self.headers.get("Content-Length") or 0)
+            if n:
+                self.rfile.read(n)
+            code, msg = FakeGateway.panne
+            self._json(code, {"error": msg})
+            return
         if not path.startswith("/webhooks/"):
             self._json(404, {"error": "Not Found"})
             return
@@ -630,6 +640,21 @@ def main():
 
     st, _, body = req("POST", "/webhooks/inconnu", headers=same)
     check("E3 route sans secret -> 404 explicite", st == 404, "HTTP %d" % st)
+
+    # Le gateway VIT mais repond une erreur (file pleine, 500 interne) : son
+    # statut et son corps traversent tels quels — pas de 502 par-dessus, pas
+    # de reecriture (issue #90).
+    FakeGateway.panne = (503, "file pleine chez le faux gateway")
+    try:
+        st, _, body = req("POST", "/webhooks/" + WH_NAME, headers=same)
+    finally:
+        FakeGateway.panne = None
+    check("E3 une erreur AMONT du gateway traverse telle quelle (503)",
+          st == 503 and "file pleine" in body and "injoignable" not in body,
+          "HTTP %d — %s" % (st, body[:80]))
+    st, _, _ = req("POST", "/webhooks/" + WH_NAME, headers=same)
+    check("E3 ...et le declenchement repart quand le gateway va mieux",
+          st == 200, "HTTP %d" % st)
 
     # Le gateway peut etre ABSENT (pas lance, tombe) : serve.py doit repondre
     # 502 et le DIRE, pas rendre un 200 menteur ni laisser pendre la requete.
