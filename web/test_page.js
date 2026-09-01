@@ -632,7 +632,7 @@ async function main(){
   /* ⚠ LES DIX APERCUS RECOPIENT LA FEUILLE, ils ne la lient pas — il faut
      qu'ils s'ouvrent d'un double-clic, seuls. Autant de copies que de fichiers,
      donc autant d'occasions de diverger EN SILENCE : Cowork retouche la feuille et les
-     resynchronise, puis je touche la feuille ici et les dix se figent sur
+     resynchronise, puis je touche la feuille ici et tous se figent sur
      l'etat d'avant. Personne ne le voit — un apercu ne casse pas, il ment.
 
      Cowork a demande, le 2026-08-09 : « dis-le-moi quand tu y touches ». Une
@@ -645,7 +645,7 @@ async function main(){
      feuille PLUS des regles en trop — et c'est la divergence la PLUS
      probable : quelqu'un ajoute une regle dans un apercu pour voir, et elle
      y reste. Le trou s'est montre tout seul : apres avoir resynchronise sur
-     une feuille d'essai puis retire l'essai, les dix gardaient la ligne en
+     une feuille d'essai puis retire l'essai, tous gardaient la ligne en
      trop et le test les disait a jour.
      `</style>` ne parait jamais dans la feuille : la borne est sure. */
   for (const f of fs.readdirSync(DIR).filter((n) => /^apercu-.*\.html$/.test(n)).sort()){
@@ -819,7 +819,7 @@ async function main(){
   /* ── UNE PANNE EST UNE NOTIFICATION ────────────────────────────────────
      `NKIND` définit quatre genres et seul `decision` était jamais poussé :
      le vocabulaire existait en entier, le produit en employait un quart.
-     Or l'état d'Hermès concerne les DIX panneaux — il n'était lisible que
+     Or l'état d'Hermès concerne TOUS les panneaux — il n'était lisible que
      dans le bandeau du kebab de Discuter. */
   // Ce bloc pousse une bulle qui NE PART PAS toute seule et remplace l'état
   // mémoire : on met les deux de côté, et on rend tout à la fin.
@@ -934,7 +934,7 @@ async function main(){
   win.eval("Notifs.close()");
 
   /* ── LA DETTE N'A PAS À ÊTRE PARTOUT ───────────────────────────────────
-     `#dettewrap` vit dans `.stage` : elle s'affichait sur les dix panneaux
+     `#dettewrap` vit dans `.stage` : elle s'affichait sur tous les panneaux
      et poussait le contenu de chacun. Dans le Terminal, elle parle d'autre
      chose que ce qu'on est venu faire. */
   win.eval("memoireEtat = { manquants: ['USER.md'] };");
@@ -1262,7 +1262,7 @@ async function main(){
   // La couleur, elle, n'est pas dans `info` : elle vient de `projects.list`,
   // lu une fois. Une couleur qui manque ne cache rien — le nom est déjà là.
   // ⚠ Le DERNIER, pas le premier : un `projects.list` part déjà au démarrage
-  //   (la boucle qui visite les dix panneaux appelle `drawProjets`). Répondre
+  //   (la boucle qui visite tous les panneaux appelle `drawProjets`). Répondre
   //   au premier envoyait la réponse à un appel déjà oublié.
   const dmdCoul = FakeWS.sent.map((s) => JSON.parse(s.trim()))
     .filter((m) => m.method === "projects.list").pop();
