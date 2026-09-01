@@ -1,6 +1,6 @@
 # Passe de design — le rail
 
-Le dernier écran que personne n'avait regardé en face. Il porte les dix
+Le dernier écran que personne n'avait regardé en face. Il porte tous les
 panneaux, la cloche et la porte des coulisses : **c'est la seule pièce qui
 relie toutes les autres.**
 
@@ -14,7 +14,7 @@ Aperçu : `apercu-rail.html` (quatre destinations × panne × actuel/proposé).
 
 - `nav()` appelle `drawRail()` mais **n'ouvre jamais les coulisses** ;
 - `NKIND` définit quatre genres de notification — **un seul est poussé** ;
-- `#dettewrap` vit dans `.stage`, donc s'affiche sur **les dix** panneaux.
+- `#dettewrap` vit dans `.stage`, donc s'affiche sur **tous les** panneaux.
 
 **Supposé** : que les genres `livrable` et `auto` puissent être détectés. **Je
 ne les propose pas** — voir §4.

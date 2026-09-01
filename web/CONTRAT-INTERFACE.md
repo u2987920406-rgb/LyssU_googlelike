@@ -124,11 +124,11 @@ menu ne peuvent pas diverger. **`#pDiscuter` porte les cinq classes d'état.**
 > s'autorise pas**.
 >
 > ⚠ **La dette ne s'affiche que sur Discuter et Réglages** (`DETTE_PANNEAUX`).
-> Elle vit dans `.stage` : sans ce filtre elle pousse le contenu des dix
-> panneaux, et dans le Terminal elle parle d'autre chose.
+> Elle vit dans `.stage` : sans ce filtre elle pousse le contenu de tous
+> les panneaux, et dans le Terminal elle parle d'autre chose.
 
 **Les filtres** — `travQ` `livQ` `repQ` (et `vq`, déjà là). Quatre panneaux
-sur dix filtrent ; `.search` n'était utilisée que par le Vestiaire, celui qui
+filtrent ; `.search` n'était utilisée que par le Vestiaire, celui qui
 en avait le moins besoin.
 
 **Plan** — `studio` `stseg` `vCanvas` `vReader` `svg` `recentrer` `paneG`
