@@ -708,6 +708,22 @@ def main():
     st, _, _ = req("GET", "/ulysse-premier-vu", headers=same)
     check("...et il n'est pas telechargeable", st == 404, "HTTP %d" % st)
 
+    # Un marqueur qu'on ne peut pas ecrire n'est PAS une panne : on reverra
+    # l'ecran une fois de trop, c'est tout — 200 {ok:false, raison}, jamais
+    # un 500 qui casserait l'amorcage de la page (issue #69).
+    marqueur_avant = serve.MARQUEUR
+    serve.MARQUEUR = os.path.join(tempfile.gettempdir(),
+                                  "dossier-qui-n-existe-pas-ulysse", "marqueur")
+    try:
+        st, _, txt = req("POST", "/ulysse/premier-vu", headers=same, body=b"{}")
+    finally:
+        serve.MARQUEUR = marqueur_avant
+    rep_marq = json.loads(txt) if st == 200 else {}
+    check("Marqueur inscriptible impossible -> 200 {ok:false} avec la raison",
+          st == 200 and rep_marq.get("ok") is False
+          and bool(rep_marq.get("raison")),
+          "HTTP %d — %s" % (st, txt[:80]))
+
     # --- xterm.js, emprunte a Hermes ------------------------------------
     # C'est une porte de plus vers le disque : elle doit etre AUSSI etroite
     # que le reste. La liste est fermee et aucun segment ne vient du client —
