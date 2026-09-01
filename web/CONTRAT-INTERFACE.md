@@ -83,8 +83,10 @@ n'avait pas de doublure, et il se rejoue en `.wait.inline` dans le fil.
 
 Le mot-marque n'a plus d'`id` : il porte `.u-marque` et rien ne le lit.
 
-**Les panneaux** — `pDiscuter` `pPlan` `pTravaux` `pLivrables` `pProjets`
+**Les panneaux** — `pDiscuter` `pPlan` `pLivrables` `pProjets`
 `pAutomatisations` `pVestiaire` `pReglages` `pTerminal` `pReperes`.
+(`pTravaux` a quitté la liste avec « Travaux », fusionné dans Discuter le
+2026-08-21 — la liste de référence est `PANELS`, ulysse-app.js.)
 `nav()` les compose (`"p" + destination`) : le nom du panneau et l'entrée du
 menu ne peuvent pas diverger. **`#pDiscuter` porte les cinq classes d'état.**
 
