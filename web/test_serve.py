@@ -641,6 +641,17 @@ def main():
     st, _, body = req("POST", "/webhooks/inconnu", headers=same)
     check("E3 route sans secret -> 404 explicite", st == 404, "HTTP %d" % st)
 
+    # Une page ETRANGERE ne declenche aucun webhook : la garde refuse avant
+    # la signature, et le gateway ne voit rien (issue #97).
+    FakeGateway.seen.clear()
+    st1, _, _ = req("POST", "/webhooks/" + WH_NAME,
+                    headers={"Host": "mechant.example.com"})
+    st2, _, _ = req("POST", "/webhooks/" + WH_NAME,
+                    headers={"Origin": "http://mechant.example.com"})
+    check("E3 page etrangere (Host puis Origin) -> 403, le gateway ne voit rien",
+          st1 == 403 and st2 == 403 and not FakeGateway.seen,
+          "HTTP %d / %d — vus: %d" % (st1, st2, len(FakeGateway.seen)))
+
     # Le gateway VIT mais repond une erreur (file pleine, 500 interne) : son
     # statut et son corps traversent tels quels — pas de 502 par-dessus, pas
     # de reecriture (issue #90).
