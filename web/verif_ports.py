@@ -35,7 +35,7 @@ import sys
 GATEWAY_PORT = 8644      # webhook gateway (GET /health)
 PROXY_PORT = 8645        # proxy chat OpenAI-compatible (GET /v1/models)
 DASH_ULYSSE_PORT = 9123  # dashboard Ulysse (on DEMARRE le notre)
-UI_PORT = 8080           # serve.py UI
+UI_PORT = 8090           # serve.py UI (aligné sur serve.PORT, config Raf)
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 

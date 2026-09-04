@@ -18,29 +18,21 @@ const H = (id, html) => { const n = $(id); if (n) n.innerHTML = html; };
 /* ═══ Le menu — repris de la maquette ════════════════════════════════════ */
 
 const PANELS = [
-  /* Niveau 2 — le fil du travail en cours. */
+  /* Niveau 2 — le fil du travail en cours. Ordre demandé par Raf le
+     2026-09-01 : Discuter > Projet > Livrable au 1er plan, le reste en
+     coulisses. */
   { n: 2, id: "Discuter",  lbl: "Discuter",  ico: "bulle",   tint: "rgba(66,133,244,.10)" },
-  // « Ce que fait l'agent », et non « Plan » — décidé avec kuchu le
-  // 2026-08-08. Un plan promet un avenir ; cet écran montre un passé et un
-  // présent : Hermès n'annonce pas ce qu'il va faire, il le fait et émet
-  // tool.start / tool.complete à mesure. C'est le mot que la maquette avait
-  // déjà trouvé, dans le bandeau de volet qu'on a supprimé.
-  //
-  // `id` reste « Plan » : il porte l'ancre `#Plan` et compose `#pPlan`, qui
-  // est du contrat. Seul le libellé change.
-  { n: 2, id: "Plan",      lbl: "Ce que fait l'agent", ico: "noeuds",
-    tint: "rgba(155,114,203,.12)" },
-  /* « Travaux » a quitté cette liste le 2026-08-21 : c'était une donnée déjà
-     bonne (titres générés par Hermès, recherche déjà câblée) derrière une
-     destination à part que rien ne lisait comme « mes conversations
-     passées ». Elle a vécu dans un volet accroché à Discuter, puis (même
-     jour, deuxième passe) dans le sous-menu de l'icône Discuter — voir
-     `ouvrirDiscMenu()`, `drawHisto` — pas d'entrée de rail pour ça.
-     Un vieux lien `#Travaux` retombe sur `PANELS[0]` (Discuter), par le
-     filet déjà écrit dans `nav()`. */
+  // « Projet(s) » remonté du niveau 3 le 2026-09-01 (demande Raf). `id`
+  // reste « Projets » : il compose `#pProjets` (le panneau) et porte l'ancre
+  // — c'est du contrat. Seuls le niveau et le libellé changent.
+  { n: 2, id: "Projets",   lbl: "Projet",    ico: "dossier", tint: "rgba(66,133,244,.09)" },
   { n: 2, id: "Livrables", lbl: "Livrables", ico: "doc",     tint: "rgba(217,101,112,.10)" },
   /* Niveau 3 — la machine derrière. */
-  { n: 3, id: "Projets",   lbl: "Projets",   ico: "dossier", tint: "rgba(66,133,244,.09)" },
+  // « Ce que fait l'agent » quitte le 1er plan le 2026-09-01 (demande Raf).
+  // `id` reste « Plan » : il porte l'ancre `#Plan` et compose `#pPlan`, qui
+  // est du contrat. Seul le niveau change — le libellé ne bouge pas.
+  { n: 3, id: "Plan",      lbl: "Ce que fait l'agent", ico: "noeuds",
+    tint: "rgba(155,114,203,.12)" },
   { n: 3, id: "Automatisations", lbl: "Automatisations", ico: "boucle", tint: "rgba(0,121,145,.10)" },
   { n: 3, id: "Vestiaire", lbl: "Vestiaire", ico: "equipe",  tint: "rgba(234,67,53,.09)" },
   { n: 3, id: "Reglages",  lbl: "Réglages",  ico: "regler",  tint: "rgba(95,99,104,.07)" },
@@ -63,6 +55,9 @@ const LIFE = {
 };
 
 function nav(id){
+  // Sur mobile, naviguer referme le drawer — sinon il reste au premier plan
+  // et masque le panneau qu'on vient de choisir.
+  fermerDrawer();
   // Une destination inconnue (#top, un vieux lien, une majuscule) ne doit
   // jamais laisser l'écran entièrement gris : tous les panneaux sont en
   // display:none, et sortir sans rien allumer donnait une page morte.
@@ -169,6 +164,24 @@ function drawRail(){
   Notifs.drawBell();
 }
 
+/* Sur mobile (≤720px) le rail est un drawer : le burger l'ouvre/ferme via
+   `.m-open`. Sur desktop (large), le burer bascule toujours l'épinglage. */
+function isMobile(){ return window.matchMedia && window.matchMedia("(max-width:720px)").matches; }
+function toggleDrawer(){
+  const w = $("railwrap");
+  if (isMobile()){
+    w.classList.toggle("m-open");
+    $("burger").setAttribute("aria-label",
+      w.classList.contains("m-open") ? "Fermer le menu" : "Ouvrir le menu");
+    return;
+  }
+  pinRail();
+}
+function fermerDrawer(){
+  if (!isMobile()) return;
+  $("railwrap").classList.remove("m-open");
+  $("burger").setAttribute("aria-label", "Ouvrir le menu");
+}
 function pinRail(){
   pinned = !pinned;
   $("railwrap").classList.toggle("mini", !pinned);
@@ -317,27 +330,10 @@ function drawRoles(){
     b.onclick = () => {
       const r = ROLES.find((x) => x.id === b.dataset.role);
       activeRole = (activeRole && activeRole.id === r.id) ? null : r;   // reclic = désactive
-      const p = $("cadrePop");
-      if (p) p.classList.remove("on");
       drawRoles(); paintHint();
       if (current === "Vestiaire") drawVestiaire();
     };
   });
-  majCadre();
-}
-
-/* La gélule reste GRISE dans les deux états. Elle ne passe pas au bleu quand
-   un cadre est actif : ce serait donner à un réglage la couleur que le
-   produit réserve à ce qui est SÉLECTIONNÉ DANS LE CONTENU. Un point bleu à
-   gauche du nom suffit à dire qu'on n'écrit plus à nu. */
-function majCadre(){
-  const b = $("cadreBtn");
-  if (!b) return;
-  b.innerHTML = (activeRole ? "<i></i>" : "") + "<span>"
-    + esc(activeRole ? activeRole.name : "Cadre") + "</span>";
-  b.title = activeRole
-    ? "Cadre « " + activeRole.name + " » — il est envoyé en tête du premier message"
-    : "Choisir un cadre — il dit à l'agent comment travailler";
 }
 
 /* Les blocs de code emportables, gardés hors du DOM. Voir turnHTML.
@@ -742,8 +738,7 @@ function paintThread(){
        conditionnée à `planGaranti()`, en croyant qu'un réglage « manuel »
        la rendait tenable. Éprouvé le 2026-08-12, accords en manuel : un
        fichier a été écrit et une commande lancée, sans aucune demande
-       d'accord (voir `avertissementAccordsHTML` pour les deux lignes du code
-       d'Hermès qui l'expliquent). Il n'existe donc aucun réglage sous lequel
+       d'accord. Il n'existe donc aucun réglage sous lequel
        cette promesse soit vraie.
        Une promesse affichée à l'accueil, là où l'on décide de faire confiance,
        doit être vraie ou ne pas être. Celle-là ne pouvait pas être. */
@@ -766,9 +761,8 @@ function paintThread(){
      un échange sur autre chose n'est plus lu comme un avertissement, il est lu
      comme du bruit — et un avertissement qu'on apprend à sauter ne protège
      plus de rien.
-     Le texte n'a pas disparu : il vit derrière le « i » de la gélule Plan,
-     là où l'on va quand on se demande ce que ce mode retient. Voir
-     `infoModeHTML()`. */
+     Le texte lui-même a été retiré avec le « i » de la gélule Plan, le
+     2026-09-01 (demande Raf : supprimer l'icône « i » définitivement). */
 
   host.innerHTML = h;
   host.querySelectorAll("[data-ch]").forEach((b) => {
@@ -781,9 +775,6 @@ function paintThread(){
     b.onclick = () => choisirOptionPlan(Number(b.dataset.planTurn), Number(b.dataset.planOpt));
   });
   armVivant();
-  /* `#accordsManuel` ne se câble plus ici : le bouton a suivi son texte dans
-     la bulle du « i ». Le laisser aurait fait un câblage qui ne trouve jamais
-     son bouton — du code mort, c'est-à-dire une embuscade pour qui le lira. */
   const bb = host.querySelector("#basculeBuild");
   if (bb) bb.onclick = async () => {
     bb.disabled = true;
@@ -815,7 +806,6 @@ function paintHint(){
   // `.privchip{display:none}` gagne et #privchip était rempli à chaque
   // passage ici pour rester invisible — de même pour la teinte et la ligne.
   majEtats();
-  majCadre();
   // L'ICÔNE SEULE, sans les mots « Sans mémoire » : ils répétaient en toutes
   // lettres ce que la fenêtre entière est déjà en train de dire — la teinte
   // du fond, la ligne en tête de fil. Elle est posée en `--text` quand tout
@@ -1645,7 +1635,7 @@ function setMode2(m){
   const mention = $("modeMention");
   if (mention) mention.textContent = nomMention();
   // Deuxième endroit où la promesse s'écrivait. Même raison de la retirer :
-  // aucun réglage ne la rend vraie (voir `avertissementAccordsHTML`).
+  // aucun réglage ne la rend vraie.
   const note = mode === "build"
     ? "l'agent écrit et exécute, puis vérifie son travail contre le plan"
     : "on discute, on lit, on propose";
@@ -6533,59 +6523,6 @@ async function lireModeAccords(){
    sur la bonne volonté du modèle n'est pas une garantie. »
 
    Alors on ne promet plus. On dit ce qui est vrai, dans les deux réglages. */
-function porteConsultee(){ return modeAccords === "manual"; }
-
-/* Le contenu du « i », à côté de la gélule du mode.
-   ⚠ IL DIT LA MÊME CHOSE QU'AVANT, AU MÊME ENDROIT DANS LE CODE. Ce texte a
-   coûté une soirée de mesures sur cette installation ; ce qui a changé le
-   2026-08-13, c'est OÙ il s'affiche, pas ce qu'il affirme. Le déplacer dans un
-   second texte « plus court pour la bulle » aurait fait deux versions d'une
-   phrase dont la justesse est tout l'intérêt. */
-function infoModeHTML(){
-  if (modeAccords === null){
-    return "<strong>Ce que ce mode retient.</strong> Le réglage des accords "
-      + "d'Hermès n'a pas encore été lu — sans lui, on ne peut rien affirmer "
-      + "ici, et on préfère ne rien dire que dire à faux.";
-  }
-  if (mode === "build"){
-    return "<strong>Build : l'agent écrit et exécute.</strong> Il fait le "
-      + "travail, puis le vérifie contre le plan. Rien ne l'en empêche, et "
-      + "c'est le but de ce mode."
-      + '<div class="u-meta">Les accords d\'Hermès sont sur « '
-      + esc(modeAccords) + " ».</div>";
-  }
-  return avertissementAccordsHTML();
-}
-
-function avertissementAccordsHTML(){
-  if (mode !== "plan" || modeAccords === null) return "";
-  /* Accords en manuel : Ulysse EST consulté — mais seulement sur ce qu'Hermès
-     lui soumet, et il ne lui soumet pas une écriture ordinaire. Plus de
-     bouton : il n'y a plus rien à basculer. Plus de rouge non plus — ce n'est
-     pas une alarme, c'est la portée exacte de ce qu'on a. */
-  /* Rend le CONTENU seul, sans enveloppe de message : il ne se pose plus dans
-     le fil, il remplit la bulle du « i ». */
-  if (porteConsultee()){
-    return "<strong>Ce que le mode Plan retient, et ce qu'il ne retient pas.</strong> "
-      + "Les accords sont en manuel : quand Hermès demande, Ulysse refuse ici. "
-      + "Mais Hermès ne demande pas pour tout — un fichier écrit ou une "
-      + "commande sans motif de danger passent sans question, à tout réglage. "
-      + "Ce qui retient l'agent en Plan, c'est la consigne qu'il reçoit, et "
-      + "il peut l'oublier."
-      + "<div class=\"u-meta\">Mesuré sur cette installation, pas déduit : "
-      + "un fichier écrit et une commande lancée, aucune demande d'accord.</div>";
-  }
-  return "<strong>Le mode Plan ne peut rien garantir pour l'instant.</strong> "
-    + "Les accords d'Hermès sont réglés sur « " + esc(modeAccords) + " » : "
-    + "l'agent s'autorise lui-même ce qu'il juge sans danger, et Ulysse n'est "
-    + "jamais consulté. Il peut donc écrire et exécuter, même ici."
-    + '<div class="m-pied"><button class="m-bascule" type="button" '
-    + 'id="accordsManuel">Passer les accords en manuel</button></div>'
-    + "<div class=\"u-meta\">Ce réglage est global : il vaut aussi pour le "
-    + "terminal d'Hermès et les autres sessions. Il élargit ce qu'Ulysse peut "
-    + "refuser — il ne couvre pas les écritures de fichier.</div>";
-}
-
 /* La porte, côté écran. Rend la phrase du refus, ou "" pour laisser passer. */
 /* ⚠ LE VRAI PAYLOAD N'A PAS DE `tool`, ET LE FAUX EN AVAIT UN.
    Relevé sur l'installation le 2026-08-12, à la PREMIÈRE ouverture réelle de
@@ -6636,7 +6573,7 @@ function boot(){
   graph.init();
   graph.state.onFiche = ouvrirFiche;
 
-  $("burger").onclick = pinRail;
+  $("burger").onclick = toggleDrawer;
   $("bell").onclick = (e) => Notifs.toggle(e);
   H("binIc", svg("corbeille", { size: 22, w: 1.6 }));
   $("binBtn").onclick = (e) => { Notifs.close(); binToggle(e); };
@@ -6737,8 +6674,8 @@ function boot(){
   };
 
   /* La mention ouvre les positions ; choisir referme. Le repli suit le
-     langage de `#cadrePop` — `.pop.on` — parce qu'un deuxième mécanisme de
-     repli dans le même composeur serait un dialecte de plus à apprendre.
+     langage des `.pop.on` — parce qu'un deuxième mécanisme de repli dans le
+     même composeur serait un dialecte de plus à apprendre.
      Les boutons se câblent dans `drawPositions()`, avec le contenu : ici on
      n'attacherait qu'un clic à des éléments qui n'existent pas encore. */
   if ($("modeMention")){
@@ -6751,41 +6688,8 @@ function boot(){
       p.classList.add("on");
     };
   }
-  /* Le « i ». Il REMPLIT au moment du clic, jamais d'avance : le réglage des
-     accords se lit au démarrage et peut changer depuis le terminal d'Hermès —
-     une bulle peinte une fois pour toutes finirait par affirmer l'état d'hier. */
-  if ($("infoMode")){
-    $("infoMode").onclick = (e) => {
-      e.stopPropagation();
-      const p = $("infoModePop");
-      if (!p) return;
-      if (p.classList.contains("on")){ p.classList.remove("on"); return; }
-      p.innerHTML = infoModeHTML();
-      p.classList.add("on");
-      // Un clic DANS la bulle ne la referme pas : le clic global ferme tous
-      // les `.pop.on`, et le bouton du réglage vit dedans.
-      p.onclick = (ev) => ev.stopPropagation();
-      // Le même bouton que dans l'ancien encart, avec le même effet : il sort
-      // d'Ulysse et vaut pour tout Hermès, donc le clic EST l'accord.
-      const b = p.querySelector("#accordsManuel");
-      if (b) b.onclick = async () => {
-        b.disabled = true;
-        try {
-          await link.rpc("config.set", { key: "approval_mode", value: "manual" }, 20000);
-          await lireModeAccords();
-          snack(porteConsultee()
-            ? "Accords en manuel — Ulysse est consulté quand Hermès demande."
-            : "Le réglage n'a pas pris : les accords restent en « "
-              + String(modeAccords) + " ».");
-          p.innerHTML = infoModeHTML();
-        } catch (err){
-          snack("Réglage non changé : " + err.message);
-          b.disabled = false;
-        }
-      };
-    };
-  }
   setMode2(mode);
+
 
   // Le « + » des deux composeurs ouvre le même sélecteur de fichiers.
   $("fileInput").onchange = (e) => surFichiers(e.target.files);
@@ -6833,23 +6737,6 @@ function boot(){
 
   wireCtlEtabli();
   wireCtlHisto();
-
-  // La gélule « Cadre » : le repli reçoit #roles, l'élément du contrat, par
-  // déplacement — ni recréé ni renommé.
-  $("cadreBtn").onclick = (e) => {
-    e.stopPropagation();
-    const p = $("cadrePop");
-    if (!p.contains($("roles"))){
-      p.innerHTML = "";
-      p.appendChild($("roles"));
-      const pied = document.createElement("div");
-      pied.className = "u-pied";
-      pied.textContent = "Un cadre est envoyé en tête du premier message. "
-        + "Il ne remplace pas l'agent, il lui dit comment travailler.";
-      p.appendChild(pied);
-    }
-    p.classList.toggle("on");
-  };
 
   // La languette de l'Établi rangé.
   $("languette").onclick = (e) => { e.stopPropagation(); setMode("atelier"); };

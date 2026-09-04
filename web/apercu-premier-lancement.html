@@ -393,11 +393,6 @@ input{font:inherit;color:inherit;background:none;border:none;outline:none}
    mentions discrètes de la barre. Il ne se colore QUE pendant le build :
    c'est le seul moment où l'on veut le savoir sans le demander. */
 .u-modewrap{position:relative;display:inline-flex}
-/* ⚠ SA FORME EST CELLE DE `.u-cadre`, ET ELLE EST DÉFINIE AVEC ELLE (bloc
-   <style> d'ulysse.html, `.u-cadre,.u-modemention`). Deux mentions de même
-   rang, côte à côte sous le champ, ne doivent pas avoir deux règles : c'est
-   ainsi que « Plan » est resté un mot nu à côté d'une gélule. Ici, seulement
-   ce qui lui appartient en propre. */
 .u-modemention{font-weight:500;transition:background .15s,color .15s}
 #pDiscuter.build .u-modemention{background:var(--accent-container,#D3E3FD);
   color:var(--accent,#0B57D0);font-weight:600}
@@ -1997,6 +1992,36 @@ svg.graph *{cursor:inherit}
 @media (max-width:560px){
   #app.artifact-split .u-art-viewer{width:100%}
   #app.artifact-split .work{display:none}
+}
+
+/* ═══ RESPONSIVE mobile — l'app doit marcher sur un téléphone comme sur un PC
+   (demande Raf, 2026-09-01). Sur petit écran, le rail devient un drawer
+   (position:fixed, sorti de l'écran par défaut) qu'on ouvre via le burger ;
+   il n'y a PAS de survol sur mobile, donc le pattern `railSet` desktop est
+   neutralisé. Les panneaux passent en pleine largeur, les zones tactiles
+   montent à ≥44px, et rien ne déborde horizontalement. ─────────────────── */
+@media (max-width:720px){
+  html,body{overflow-x:hidden}
+  #app{padding-bottom:0}
+  /* Le rail devient un drawer pleine hauteur, sorti de l'écran. */
+  .railwrap{position:fixed;top:0;left:0;bottom:0;width:240px;height:100vh;z-index:80;
+    transform:translateX(-100%);transition:transform .26s cubic-bezier(.2,0,0,1)}
+  .railwrap.mini{width:240px}
+  .railwrap.m-open{transform:translateX(0);box-shadow:var(--elev-3)}
+  /* Le fond-obstacle du drawer, par-dessus le contenu. */
+  .railwrap.m-open::before{content:"";position:fixed;inset:0;z-index:-1;
+    background:rgba(0,0,0,.40)}
+  .railwrap.mini .rail, .rail{width:240px}
+  /* Pas de lisière-souris sur mobile — elle n'a plus de sens au toucher. */
+  .railhot{display:none}
+  /* Les boutons de navigation montent à la taille tactile recommandée. */
+  .rail-btn{min-height:46px;height:auto}
+  .rail-top .icon-btn{width:44px;height:44px}
+  .bellbtn{min-height:46px}
+  /* Les panneaux occupent toute la largeur, sans marge latérale parasite. */
+  .panel{width:100vw;inset:0}
+  .stage{padding:0}
+  .thread{padding:0 12px 8px}
 }
 
 </style>

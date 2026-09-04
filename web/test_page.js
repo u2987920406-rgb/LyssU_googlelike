@@ -523,18 +523,19 @@ async function main(){
         f === champ, f + "  ≠  " + champ);
     });
 
-    /* Les DEUX gélules de la sous-barre, habillées par la MÊME règle. « Plan »
-       est resté un mot nu à côté de « Cadre » du 2026-08-12 au 13 : deux
-       règles séparées, et personne pour les comparer. On exige donc un seul
-       sélecteur — pas deux blocs qui se ressemblent aujourd'hui. */
-    check("« Plan » et « Cadre » sont habillés par une seule et même règle",
-      /\.u-cadre\s*,\s*\.u-modemention\s*\{/.test(html)
-      || /\.u-modemention\s*,\s*\.u-cadre\s*\{/.test(html),
-      "aucune règle ne les prend ensemble");
-    check("et la règle propre à « Plan » ne redéfinit plus sa forme",
-      !/\.u-modemention\{[^}]*(padding|height|border-radius)/.test(
-        CSS.replace(/\s+/g, "")),
-      (CSS.match(/\.u-modemention\{[^}]*\}/) || [""])[0].slice(0, 70));
+    /* Le « cadre » et le « i » ont été retirés (demande Raf 2026-09-01).
+       On vérifie que rien de leur UI ne subsiste dans la page, et que la
+       mention de mode garde sa forme de gélule. */
+    check("le sélecteur de cadre (gélule « Cadre ») a été supprimé",
+      !/cadreBtn|cadrePop|u-cadre/.test(html),
+      "référence cadre encore présente");
+    check("l'icône « i » d'information a été supprimée",
+      !/infoMode|u-infomode|u-infowrap/.test(html),
+      "référence infoMode encore présente");
+    check("la mention de mode garde sa forme de gélule (`.u-modemention`)",
+      /\.u-modemention\{[^}]*(padding|height|border-radius)/.test(
+        html.replace(/\s+/g, "")),
+      "règle u-modemention absente");
   }
 
   /* ⚠ `svg()` fait `I[k] || {}` : un nom d'icône inconnu ne lève RIEN, il
@@ -2177,79 +2178,24 @@ async function main(){
      yeux. Trouve en jouant un scenario reel, jamais au banc.
      Ulysse ne peut pas reparer seul (le reglage est GLOBAL, il vaut pour le
      TUI). Alors il regarde, il le DIT, et il propose. Le clic est l'accord. */
-  /* ⚠ ET IL LE DIT AILLEURS QUE DANS LE FIL, DEPUIS LE 2026-08-13. L'encart se
-     posait après chaque tour, sous des réponses qui n'avaient rien à voir.
-     kuchu, capture à l'appui : « ça n'a rien à faire là ». Un avertissement
-     permanent qui s'invite dans un échange sur autre chose n'est plus lu comme
-     un avertissement — il est lu comme du bruit, et on apprend à le sauter.
-     Il vit derrière le « i » de la gélule du mode. Ce qu'on vérifie ici est
-     donc double : que le fil n'en porte plus rien, ET que la bulle le dit. */
-  const bulle = () => (win.document.getElementById("infoModePop") || {}).textContent || "";
-  const ouvrirBulle = () => {
-    const p = win.document.getElementById("infoModePop");
-    if (p) p.classList.remove("on");
-    win.document.getElementById("infoMode").click();
-  };
+  /* ⚠ Le « i » de la gélule du mode a été supprimé (demande Raf 2026-09-01),
+     avec la bulle et le réglage « accords en manuel » qu'il portait. On
+     vérifie que ni l'icône ni sa popup ne subsistent, et que le fil ne porte
+     jamais l'avertissement (il restait de l'ancien encart). */
   win.eval('conv.turns.length = 0; modeAccords = "smart"; setMode2("plan"); paintThread();');
-  check("le fil ne porte AUCUN pavé d'avertissement — il appartient à la conversation",
-    !/s'autorise lui-même/.test(win.document.getElementById("thread").textContent)
-    && !win.document.getElementById("accordsManuel"),
+  check("le « i » et sa bulle ont été retirés du composeur",
+    !win.document.getElementById("infoMode")
+    && !win.document.getElementById("infoModePop")
+    && !win.document.getElementById("accordsManuel"));
+  check("le fil ne porte AUCUN pavé d'avertissement",
+    !/s'autorise lui-même|ne retient pas/.test(win.document.getElementById("thread").textContent),
     win.document.getElementById("thread").textContent.slice(0, 80));
-  check("un « i » se tient à côté de la gélule du mode",
-    !!win.document.getElementById("infoMode"));
-  ouvrirBulle();
-  check("accords en « smart » : la bulle dit que Plan ne garantit rien",
-    /s'autorise lui-même/.test(bulle())
-    && !!win.document.querySelector("#infoModePop #accordsManuel"),
-    bulle().slice(0, 90));
-  /* ⚠ ET LA PROMESSE ELLE-MEME DISPARAIT. Le garder tout en affichant
-     l'avertissement, ce serait dire une chose et son contraire sur le meme
-     ecran — et c'est la version affirmative qu'on retiendrait. */
-  check("...et la phrase « rien ne sera modifié » n'est PLUS affichée",
+  /* La promesse « rien ne sera modifié » reste fausse dans tous les réglages —
+     elle ne doit réapparaître nulle part. */
+  win.eval('modeAccords = "manual"; conv.turns.length = 0; setMode2("plan"); paintThread();');
+  check("la promesse « rien ne sera modifié » ne réapparaît pas dans le fil",
     !/[Rr]ien ne sera modifi/.test(win.document.getElementById("thread").textContent),
     win.document.getElementById("thread").textContent.slice(0, 70));
-  /* ⚠ CE BANC GARDAIT UNE FAUSSETE. Il verifiait ici « accords en manuel : la
-     promesse revient, l'avertissement part » — il exigeait le defaut.
-     Eprouve le 2026-08-12 APRES le passage en manuel, donc dans les conditions
-     que cet ecran reclamait : `write_file` a ecrit, `terminal echo` a tourne
-     en 185 ms, ZERO `approval.request`. Le code d'Hermes le dit :
-       · approval.py:3938 — `if not warnings: return {"approved": True}`,
-         avant toute lecture du mode. Sans motif de danger, pas de question,
-         dans TOUS les modes ;
-       · file_tools.py:706 — la seule porte toujours-demander sur une ecriture
-         couvre agents.md, claude.md, soul.md, .cursorrules. Rien d'autre.
-     Il n'existe donc aucun reglage sous lequel « rien ne sera modifie sur le
-     disque » soit vrai. La phrase est retiree partout, et l'encart ne
-     disparait plus : il change de propos. */
-  win.eval('modeAccords = "manual"; paintThread();');
-  {
-    const fil = win.document.getElementById("thread").textContent;
-    check("accords en « manuel » : la promesse ne revient PAS — elle n'est vraie nulle part",
-      !/[Rr]ien ne sera modifi/.test(fil), fil.slice(0, 80));
-    /* ⚠ LA BULLE SE REMPLIT AU CLIC, PAS UNE FOIS POUR TOUTES. Le réglage des
-       accords se lit au démarrage et peut changer depuis le terminal d'Hermès :
-       une bulle peinte d'avance finirait par affirmer l'état d'hier — c'est-à-
-       dire exactement le genre de promesse fausse qu'on vient de retirer. On
-       change donc le réglage ENTRE deux ouvertures, et on exige que le texte
-       change avec lui. */
-    ouvrirBulle();
-    check("...et la bulle ne se tait pas : elle dit ce qui n'est PAS retenu",
-      /ne retient pas/.test(bulle()) && /sans question/.test(bulle()),
-      bulle().slice(0, 120));
-    check("...sans bouton, puisqu'il n'y a plus rien à basculer",
-      !win.document.querySelector("#infoModePop #accordsManuel"));
-  }
-  /* Tant qu'on n'a pas pu lire le reglage, on n'affirme RIEN — ni promesse,
-     ni accusation, ni portee. On ne remplace pas un mensonge par un autre. */
-  win.eval('modeAccords = null; paintThread();');
-  ouvrirBulle();
-  check("...et tant qu'on ignore le réglage, on n'affirme rien du tout",
-    !win.document.querySelector("#infoModePop #accordsManuel")
-    && !/[Rr]ien ne sera modifi/.test(bulle())
-    && !/ne retient pas/.test(bulle()), bulle().slice(0, 90));
-  check("...et le fil, lui, n'a jamais rien porté de tout ça",
-    !/ne retient pas|s'autorise lui-même/.test(
-      win.document.getElementById("thread").textContent));
   /* La phrase ne doit pas non plus se reinstaller par la bande — elle vivait a
      TROIS endroits : l'accueil, la note sous le composeur, et l'encart. */
   win.eval('modeAccords = "manual"; conv.turns.length = 0; setMode2("plan"); paintThread();');
@@ -3385,28 +3331,16 @@ async function main(){
   win.document.getElementById("moreBtn").click();
   await wait(40);
 
-  // Preambule, pas une verification : ce bloc teste les CADRES, et la gelule
-  // du cadre ne s'affiche qu'en Build. On y va par le code — passer par la
-  // feuille des positions ferait dependre ce test d'un aller-retour RPC qui
-  // n'a rien a voir avec ce qu'il verifie.
+  // Le sélecteur de cadre (gélule « Cadre ») a été retiré du composeur
+  // (demande Raf 2026-09-01). Le rôle reste choisissable au Vestiaire (#roles).
   win.eval('setMode2("build")');
   await wait(60);
-  check("Discuter · les six cadres sont repliés derrière une gélule",
-    !!win.document.getElementById("cadreBtn")
-    && /Cadre/.test(win.document.getElementById("cadreBtn").textContent));
-  win.document.getElementById("cadreBtn").click();
-  await wait(60);
-  check("Discuter · le repli reçoit #roles, déplacé et non recréé",
-    !!win.document.querySelector("#cadrePop #roles [data-role]"));
-  check("Discuter · avec les encoches de la maquette, pas un second langage",
-    !!win.document.querySelector("#cadrePop .u-role .tick"));
-  win.document.querySelector("#cadrePop [data-role]").click();
-  await wait(60);
-  check("Discuter · choisir un cadre le nomme sur la gélule",
-    win.eval("activeRole") !== null
-    && !/^Cadre$/.test(win.document.getElementById("cadreBtn").textContent.trim()),
-    win.document.getElementById("cadreBtn").textContent);
-  win.eval("activeRole = null; drawRoles(); paintHint()");
+  check("Discuter · la gélule « Cadre » a été retirée du composeur",
+    !win.document.getElementById("cadreBtn")
+    && !win.document.getElementById("cadrePop"));
+  check("Discuter · le choix de rôle reste disponible au Vestiaire",
+    !!win.document.getElementById("roles")
+    && !!win.document.querySelector("#roles [data-role]"));
   await wait(40);
   check("Discuter · l'Établi laisse une languette quand il est rangé",
     !!win.document.getElementById("languette")
@@ -4944,6 +4878,68 @@ async function main(){
        ③ QUOI FAIRE. Un message qui s'arrête à ② est un mur poli.
      Cette section vient en DERNIER : elle casse le lien et coupe les
      fixtures, donc rien ne doit tourner après elle. */
+  // ─────────────────────────────────────────────────────────────────────
+  //  NAVIGATION — l'ordre du 1er plan (demande Raf 2026-09-01)
+  //  Au 1er plan : Discuter > Projet > Livrable. Le reste (Plan,
+  //  Automatisations, Vestiaire, Réglages, Terminal, Repères) en coulisses.
+  // ─────────────────────────────────────────────────────────────────────
+  console.log("\n--- Navigation : ordre du 1er plan (Discuter > Projet > Livrable) ---");
+  win.nav("Discuter");
+  const ids2 = win.eval("PANELS.filter((p) => p.n === 2).map((p) => p.id)");
+  const [d1, d2, d3] = ids2;
+  check("le 1er plan ne porte QUE Discuter, Projet, Livrable",
+    ids2.length === 3 && ids2.join(",") === "Discuter,Projets,Livrables",
+    "1er plan actuel: " + ids2.join(","));
+  check("...dans cet ordre : Discuter puis Projet puis Livrable",
+    d1 === "Discuter" && d2 === "Projets" && d3 === "Livrables",
+    ids2.join(" → "));
+  check("« Projet(s) » est remonté au 1er plan (niveau 2)",
+    win.eval("PANELS.find((p) => p.id === 'Projets').n") === 2,
+    "n=" + win.eval("PANELS.find((p) => p.id === 'Projets').n"));
+  check("« Projet » s'affiche au singulier",
+    win.eval("PANELS.find((p) => p.id === 'Projets').lbl") === "Projet"
+    && win.document.querySelector('.rail-btn[data-nav="Projets"] .lbl').textContent === "Projet",
+    win.document.querySelector('.rail-btn[data-nav="Projets"] .lbl').textContent);
+  check("« Ce que fait l'agent » (Plan) quitte le 1er plan pour les coulisses",
+    !ids2.includes("Plan")
+    && win.eval("PANELS.find((p) => p.id === 'Plan').n") === 3,
+    "Plan: n=" + win.eval("PANELS.find((p) => p.id === 'Plan').n"));
+  check("chaque panneau du 1er plan a un bouton visible dans le rail",
+    [d1, d2, d3].every((id) =>
+      !!win.document.querySelector('.rail-btn[data-nav="' + id + '"]')),
+    "manquant: " + [d1, d2, d3].filter((id) =>
+      !win.document.querySelector('.rail-btn[data-nav="' + id + '"]')).join(","));
+
+  // ─────────────────────────────────────────────────────────────────────
+  //  RESPONSIVE — mobile (demande Raf 2026-09-01) : l'app doit marcher
+  //  sur téléphone comme sur PC. On vérifie ce qui est vérifiable dans
+  //  jsdom : les règles CSS du breakpoint mobile font du rail un drawer,
+  //  passent les panneaux en pleine largeur, grossissent les zones
+  //  tactiles à ≥44px et interdisent l'overflow horizontal.
+  // ─────────────────────────────────────────────────────────────────────
+  console.log("\n--- Responsive : mobile (drawer, pleine largeur, zones tactiles, overflow) ---");
+  const breakpointMobile = CSS.match(/@media[^{]*max-width:\s*(\d+(?:\.\d+)?)px/);
+  check("le CSS déclare au moins un breakpoint mobile (max-width)",
+    !!breakpointMobile, "aucun @media max-width trouvé");
+  const railDrawer = /@media[^{]*max-width:[^{]*\{[^@]*\.railwrap\s*\{[^}]*position:\s*fixed/i.test(CSS);
+  check("le rail passe en drawer (position:fixed) dans un breakpoint mobile",
+    railDrawer, "`.railwrap{position:fixed}` introuvable sous un @media max-width");
+  const railHidden = /@media[^{]*max-width:[^{]*\{[^@]*\.railwrap\s*\{[^}]*transform:\s*(translateX\(-100%\)|translat[^}]*)/i.test(CSS)
+    || /@media[^{]*max-width:[^{]*\{[^@]*\.railwrap[^{]*\{[^}]*left:\s*-[^}]+\}/i.test(CSS);
+  check("le drawer mobile sort de l'écran par défaut (replié)",
+    railHidden, "le rail mobile doit être hors-champ tant qu'on ne l'ouvre pas");
+  const panelsPleineLargeur = /@media[^{]*max-width:[^{]*\{[^@]*\.panel\s*\{[^}]*width:\s*(100%|100vw)/i.test(CSS)
+    || /@media[^{]*max-width:[^{]*\{[^@]*#app[^{]*\{[^}]*padding:[^}]*0[^}]*\}/i.test(CSS);
+  check("les panneaux passent en pleine largeur sur mobile",
+    panelsPleineLargeur, "aucune règle mobile de pleine largeur sur .panel");
+  const touchTargets = /@media[^{]*max-width:[^{]*\{[^@]*\.rail-btn\s*\{[^}]*min-height:\s*4[4-9]px/i.test(CSS)
+    || /@media[^{]*max-width:[^{]*\{[^@]*\.rail-btn\s*\{[^}]*height:\s*4[4-9]px/i.test(CSS);
+  check("les boutons du rail font ≥44px de haut sur mobile (zones tactiles)",
+    touchTargets, "`.rail-btn{min-height:44px}` (ou height) introuvable sous un @media max-width");
+  const noOverflow = /@media[^{]*max-width:[^{]*\{(?:[^@])*?(?:body|html|#app)\s*\{[^}]*overflow-x:\s*hidden/i.test(CSS);
+  check("pas d'overflow horizontal sur mobile",
+    noOverflow, "`overflow-x:hidden` (body|html|#app) introuvable sous un @media max-width");
+
   console.log("\n--- Les chemins dégradés ---");
   win.eval('nav("Discuter"); setMode2("cowork");');
   await wait(60);
