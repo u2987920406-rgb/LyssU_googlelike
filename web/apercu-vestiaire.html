@@ -2083,7 +2083,10 @@ svg.graph *{cursor:inherit}
     background:transparent;box-shadow:none;display:grid;color:var(--muted);
     border:none}
   .m-languette:active{background:rgba(0,0,0,.06);border-radius:50%}
-  .m-languette + .stage .topbar{padding-left:62px}
+  /* ~ et pas + : le voile s'intercale entre la languette et .stage,
+     un sélecteur d'adjacence (+) sautait et le titre repartait sous le
+     burger (capture Raf 2026-09-05 18:56). */
+  .m-languette ~ .stage .topbar{padding-left:62px}
   /* Les boutons de navigation montent à la taille tactile recommandée. */
   .rail-btn{min-height:46px;height:auto}
   .rail-top .icon-btn{width:44px;height:44px}
