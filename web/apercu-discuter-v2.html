@@ -2072,10 +2072,15 @@ svg.graph *{cursor:inherit}
      desktop (380px) débordait et son contenu partait hors écran. */
   .disc-menu{width:auto;left:8px;right:8px;position:absolute;z-index:61}
   /* La languette-ouvreur du drawer : fixe en haut à gauche, TOUJOURS
-     accessible (le burger du rail est hors écran avec lui). Desktop : elle
-     n'existe pas — le rail se déplie au survol. */
-  .m-languette{position:fixed;top:10px;left:10px;z-index:90;width:44px;height:44px;
-    background:var(--surface);box-shadow:var(--elev-2);display:grid}
+     accessible (le burger du rail est hors écran avec lui). Discrète à la
+     demande de Raf (2026-09-05) : sans plaque ni ombre — l'icône seule, teintée
+     muted, sur un fond quasi transparent. Elle reste une cible de 44px, mais
+     elle ne crie plus ; au toucher elle prend un fond léger pour dire qu'elle
+     a reçu le geste. */
+  .m-languette{position:fixed;top:8px;left:8px;z-index:90;width:44px;height:44px;
+    background:transparent;box-shadow:none;display:grid;color:var(--muted);
+    border:none}
+  .m-languette:active{background:rgba(0,0,0,.06);border-radius:50%}
   .m-languette + .stage .topbar{padding-left:62px}
   /* Les boutons de navigation montent à la taille tactile recommandée. */
   .rail-btn{min-height:46px;height:auto}
