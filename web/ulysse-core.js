@@ -847,7 +847,12 @@ async function ensureSession(extra){
   await link.ready();
   if (conv.sessionId) return conv.sessionId;
 
-  const params = Object.assign({ cols: 100, source: "ulysse" }, extra || {});
+  /* Profil « ulysse » (demande Raf le 2026-09-05) : le chat Ulysse est une
+     ENTITÉ VIERGE — ni les sessions, ni la mémoire vive de l'Hermès Discord/CLI.
+     Il vit dans son propre Hermes Home (~/.hermes/profiles/ulysse) : ses
+     sessions y sont isolées, sa mémoire commence à zéro. L'identité de Raf
+     (SOUL/USER/MEMORY) et les skills y ont été copiées à la main. */
+  const params = Object.assign({ cols: 100, source: "ulysse", profile: "ulysse" }, extra || {});
   if (CFG.SESSION_CWD && !params.cwd) params.cwd = CFG.SESSION_CWD;
   if (CFG.SESSION_MODEL && !params.model) params.model = CFG.SESSION_MODEL;
 
