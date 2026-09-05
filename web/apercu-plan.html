@@ -180,6 +180,9 @@ input{font:inherit;color:inherit;background:none;border:none;outline:none}
   border-radius:0 var(--radius-card) var(--radius-card) 0}
 /* Le fond en tant qu'élément, pas en tant que propriété. */
 .rail{isolation:isolate}
+/* La languette mobile n'existe pas sur desktop (display:grid posé dans le
+   bloc ≤720px seulement). Hors media query : display:none. */
+.m-languette{display:none}
 .railbg{position:absolute;top:0;left:0;width:100%;height:100vh;z-index:-1;
   background:#FFFFFF;opacity:0;
   border-radius:0 var(--radius-card) var(--radius-card) 0;
@@ -2029,6 +2032,12 @@ svg.graph *{cursor:inherit}
   .railwrap.mini .rail, .rail{width:240px}
   /* Pas de lisière-souris sur mobile — elle n'a plus de sens au toucher. */
   .railhot{display:none}
+  /* La languette-ouvreur du drawer : fixe en haut à gauche, TOUJOURS
+     accessible (le burger du rail est hors écran avec lui). Desktop : elle
+     n'existe pas — le rail se déplie au survol. */
+  .m-languette{position:fixed;top:10px;left:10px;z-index:90;width:44px;height:44px;
+    background:var(--surface);box-shadow:var(--elev-2);display:grid}
+  .m-languette + .stage .topbar{padding-left:62px}
   /* Les boutons de navigation montent à la taille tactile recommandée. */
   .rail-btn{min-height:46px;height:auto}
   .rail-top .icon-btn{width:44px;height:44px}

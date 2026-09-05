@@ -161,6 +161,9 @@ function drawRail(){
   });
   $("doorBtn").onclick = toggleCoulisses;
   H("burger", svg("menu"));
+  /* La languette hors-drawer porte la même icône que le burger. */
+  const bmL = $("burgerM");
+  if (bmL) bmL.innerHTML = svg("menu");
   Notifs.drawBell();
 }
 
@@ -6789,6 +6792,9 @@ function boot(){
   graph.state.onFiche = ouvrirFiche;
 
   $("burger").onclick = toggleDrawer;
+  /* La languette hors-drawer (mobile) ouvre le même drawer. */
+  const bm = $("burgerM");
+  if (bm) bm.onclick = toggleDrawer;
   $("bell").onclick = (e) => Notifs.toggle(e);
   H("binIc", svg("corbeille", { size: 22, w: 1.6 }));
   $("binBtn").onclick = (e) => { Notifs.close(); binToggle(e); };

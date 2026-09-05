@@ -1232,6 +1232,14 @@
     </nav>
   </div>
 
+  <!-- ⚠ L'OUVREUR DU DRAWER VIT HORS DU DRAWER (constat Raf le 2026-09-05 :
+       « le menu principal n'est pas apparent » — le seul bouton qui ouvrait
+       le rail-mobile était DANS le rail, donc hors écran quand le rail l'est).
+       Languette fixe en haut à gauche, visible uniquement sur mobile (CSS) ;
+       sur desktop, le rail se déplie au survol, elle n'a rien à faire là. -->
+  <button class="icon-btn m-languette" id="burgerM"
+          aria-label="Ouvrir le menu"></button>
+
   <div class="stage">
     <div class="dettewrap" id="dettewrap"></div>
     <div class="panelwrap">
