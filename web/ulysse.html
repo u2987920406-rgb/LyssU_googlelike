@@ -1240,6 +1240,13 @@
   <button class="icon-btn m-languette" id="burgerM"
           aria-label="Ouvrir le menu"></button>
 
+  <!-- Le voile du drawer : un VRAI bouton plein écran (Raf, 2026-09-05 :
+       « cliquer dans le vide pour masquer »). Le ::before du railwrap vivait
+       derrière la page et ne recevait aucun tap. Caché sur desktop, allumé
+       par toggleDrawer avec la classe m-open. -->
+  <button class="u-drawer-voile" id="drawerVoile" aria-label="Fermer le menu"
+          tabindex="-1"></button>
+
   <div class="stage">
     <div class="dettewrap" id="dettewrap"></div>
     <div class="panelwrap">

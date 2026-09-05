@@ -176,10 +176,14 @@ function toggleDrawer(){
     w.classList.toggle("m-open");
     /* La languette s'efface quand le drawer est ouvert (elle recouvrait son
        angle) et revient à la fermeture. */
+    const ouvert = w.classList.contains("m-open");
     const lm = $("burgerM");
-    if (lm) lm.classList.toggle("inutile", w.classList.contains("m-open"));
+    if (lm) lm.classList.toggle("inutile", ouvert);
+    /* Le voile suit : c'est LUI qui ferme au tap dans le vide (Raf, 2026-09-05). */
+    const v = $("drawerVoile");
+    if (v) v.classList.toggle("on", ouvert);
     $("burger").setAttribute("aria-label",
-      w.classList.contains("m-open") ? "Fermer le menu" : "Ouvrir le menu");
+      ouvert ? "Fermer le menu" : "Ouvrir le menu");
     return;
   }
   pinRail();
@@ -189,6 +193,8 @@ function fermerDrawer(){
   $("railwrap").classList.remove("m-open");
   const lm = $("burgerM");
   if (lm) lm.classList.remove("inutile");
+  const v = $("drawerVoile");
+  if (v) v.classList.remove("on");
   $("burger").setAttribute("aria-label", "Ouvrir le menu");
 }
 function pinRail(){
@@ -6878,6 +6884,9 @@ function boot(){
   /* La languette hors-drawer (mobile) ouvre le même drawer. */
   const bm = $("burgerM");
   if (bm) bm.onclick = toggleDrawer;
+  /* Le voile : un tap dans le vide referme le drawer (Raf, 2026-09-05). */
+  const dv = $("drawerVoile");
+  if (dv) dv.onclick = fermerDrawer;
   $("bell").onclick = (e) => Notifs.toggle(e);
   H("binIc", svg("corbeille", { size: 22, w: 1.6 }));
   $("binBtn").onclick = (e) => { Notifs.close(); binToggle(e); };

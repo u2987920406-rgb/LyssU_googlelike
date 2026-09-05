@@ -2046,9 +2046,18 @@ svg.graph *{cursor:inherit}
     transform:translateX(-100%);transition:transform .26s cubic-bezier(.2,0,0,1)}
   .railwrap.mini{width:240px}
   .railwrap.m-open{transform:translateX(0);box-shadow:var(--elev-3)}
-  /* Le fond-obstacle du drawer, par-dessus le contenu. */
+  /* Le fond-obstacle du drawer, par-dessus le contenu.
+     ⚠ UN VRAI BOUTON, PAS UN ::before (Raf, 2026-09-05 : « cliquer dans le
+     vide pour masquer »). Le ::before en z-index:-1 vivait DERRIÈRE la page :
+     il grisé, il ne recevait aucun tap, le drawer ne se fermait que par le
+     burger. Le backdrop est un bouton plein écran sous le drawer (z 79),
+     au-dessus du reste (les panneaux sont en z 1-2) : le tap dans le vide
+     referme. */
   .railwrap.m-open::before{content:"";position:fixed;inset:0;z-index:-1;
     background:rgba(0,0,0,.40)}
+  .u-drawer-voile{position:fixed;inset:0;z-index:79;background:rgba(0,0,0,.40);
+    border:none;padding:0;cursor:pointer;display:none}
+  .u-drawer-voile.on{display:block}
   .railwrap.mini .rail, .rail{width:240px}
   /* Pas de lisière-souris sur mobile — elle n'a plus de sens au toucher. */
   .railhot{display:none}
