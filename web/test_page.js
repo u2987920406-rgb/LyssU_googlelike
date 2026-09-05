@@ -1430,7 +1430,13 @@ async function main(){
   txt = win.document.getElementById("thread").textContent;
   check("le message de l'utilisateur s'affiche", txt.includes("Fais le point"));
   check("la réponse de l'agent s'affiche", txt.includes("Voici le point."));
-  check("l'outil utilisé s'affiche", txt.includes("read_file"));
+  // ⚠ MÉCANIQUE SOUS LE CAPOT (Raf 2026-09-05) : la vue NOVICE cache les
+  // outils. Ce bloc vérifie la vue EXPERT — on allume le toggle, puis on
+  // le retire à la fin du scénario outil (voir plus bas).
+  win.eval('montrerMecanique = true; paintThread();');
+  await wait(60);
+  txt = win.document.getElementById("thread").textContent;
+  check("l'outil utilisé s'affiche (vue expert)", txt.includes("read_file"));
   check("le composer est rendu à la fin du tour",
     win.document.getElementById("snd1").style.display !== "none");
 
@@ -4410,6 +4416,9 @@ async function main(){
   await wait(40);
   check("fermer le volet rend sa largeur à la conversation",
     !appEl.classList.contains("artifact-split"), appEl.className);
+  // Fin du scénario outil : retour à la vue NOVICE (défaut produit).
+  win.eval('montrerMecanique = false; paintThread();');
+  await wait(60);
 
   /* ══ Le lien vient de ce que l'agent A FAIT ═══════════════════════════════
      Signalé par kuchu le 2026-08-11 : « montre-moi le contrat d'interface »
@@ -4418,7 +4427,11 @@ async function main(){
      pense pas — c'était la réserve du §5 de la passe.
      Levée en lisant Hermès : `tool.complete` porte `args` (le dict complet)
      TOUJOURS — server.py:5423, pas seulement en mode verbeux — et la clé est
-     `path` pour read_file/write_file/patch (agent/display.py:443). */
+     `path` pour read_file/write_file/patch (agent/display.py:443).
+     ⚠ Vue EXPERT (mécanique on) : la ligne d'outil N'EXISTE PAS en vue
+     novice — c'est le propos même du toggle. */
+  win.eval('montrerMecanique = true; paintThread();');
+  await wait(60);
   const cheminReel = "D:/faux-home/notes.md";
   win.eval('conv.info = Object.assign({}, conv.info || {}, {cwd:"D:/faux-home"});');
   const wsOutil = FakeWS.last;
@@ -4993,6 +5006,34 @@ async function main(){
     const lieuHtml = win.document.getElementById("lieuSlot").innerHTML;
     check("la gélule de lieu dit « dossier en attente » à l'ouverture",
       /attente/.test(lieuHtml), lieuHtml.slice(0, 80));
+  }
+
+  /* === MECANIQUE SOUS LE CAPOT (demande Raf, 2026-09-05) ===
+     Par defaut (novice) : le fil ne montre que la reponse. Toggle
+     Reglages > General 'Afficher la mecanique' pour l'expert. */
+  {
+    // Les scénarios outil précédents laissent le toggle allumé : on repart
+    // du DÉFAUT produit (novice) avant de vérifier.
+    win.eval('montrerMecanique = false; paintThread();');
+    await wait(60);
+    win.eval("conv.turns = [{role:'user', text:'petite finale 2026'},{role:'assistant', text:'Reponse finale visible.',tools:[{name:'web_search', state:'done', ms:2600, context:'q', result:'r'}],reasoning:'Je cherche le score exact.'}]; paintThread();");
+    await wait(120);
+    const filM = win.document.querySelector('.thread, #fil, .disc-fil');
+    const htmlM = filM ? filM.innerHTML : win.document.body.innerHTML;
+    check("novice : les cartes d'outils sont absentes du fil",
+      htmlM.indexOf('u-tool') < 0, 'web_search visible dans le fil');
+    check("novice : la reflexion de l'agent est absente",
+      htmlM.indexOf('reflexion') < 0 && htmlM.indexOf('réflexion') < 0, 'reflexion visible');
+    check("novice : la REPONSE reste visible",
+      /Reponse finale visible/.test(htmlM), 'reponse absente !');
+    win.eval('montrerMecanique = true; paintThread();');
+    await wait(120);
+    const html2M = filM ? filM.innerHTML : '';
+    check("expert (toggle on) : les outils reviennent",
+      /u-tool/.test(html2M) && /web_search/.test(html2M), 'outils absents');
+    check("expert (toggle on) : la reflexion revient",
+      /reflexion|réflexion/.test(html2M), 'reflexion absente');
+    win.eval('montrerMecanique = false; paintThread();');
   }
 
 

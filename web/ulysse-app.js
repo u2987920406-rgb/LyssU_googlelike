@@ -327,6 +327,15 @@ let incognito = false;
 let reprendreEtat = false;    // toggle : restaurer la dernière utilisation ?
 let etatPrecedent = null;     // ce que la dernière session avait laissé
 
+/* ═══ LA MÉCANIQUE SOUS LE CAPOT — cachée au novice, montrée à l'expert ════
+   Demande Raf (2026-09-05) : les cartes d'outils (web_search, read_file…) et
+   la « réflexion de l'agent » parlent à celui qui construit, pas à celui qui
+   demande. La cible est l'utilisateur novice qui devient expert à son rythme :
+   PAR DÉFAUT le fil ne montre que la réponse ; le toggle « Afficher la
+   mécanique » de Réglages remet les engrenages en vue. Persisté côté serveur
+   comme le toggle de reprise (survit au changement d'appareil). */
+let montrerMecanique = false;
+
 /* Le repli présente les six avec les ENCOCHES de la maquette (`.opt` et
    `.tick`, le langage de ses questions à choix) : on ne dessine pas une
    deuxième façon de choisir dans le même produit.
@@ -470,7 +479,12 @@ function turnHTML(t){
      « il aurait dû me proposer le lien, c'était plus simple ». La balise
      `[artifact: …]` ne suffit pas : elle dépend de ce que l'agent pense à
      écrire, et il n'y pense pas. */
-  if (t.tools && t.tools.length){
+  /* ⚠ LA MÉCANIQUE SE MONTRE SUR DEMANDE (Raf, 2026-09-05). Cartes d'outils
+     et réflexion : invisibles par défaut — le novice ne lit que la réponse.
+     Le toggle Réglages (« Afficher la mécanique ») les remet pour l'expert.
+     Hors du fil, rien ne change : la ligne d'outils reste le lien vers le
+     fichier quand elle y est invitée, et l'agent travaille autant. */
+  if (t.tools && t.tools.length && montrerMecanique){
     h += '<div class="u-tools">' + t.tools.map((x) =>
       '<div class="u-tool' + (x.state === "done" ? " done" : "")
       + (x.path ? ' ouvrable" data-fichier="' + encodeURIComponent(x.path)
@@ -486,7 +500,7 @@ function turnHTML(t){
       + '<span class="z">' + (x.state === "done" ? esc(fmtDur(x.ms)) : "en cours") + "</span>"
       + "</div>").join("") + "</div>";
   }
-  if (t.reasoning){
+  if (t.reasoning && montrerMecanique){
     h += "<details><summary>réflexion de l'agent</summary><pre class=\"u-raw\">"
       + esc(t.reasoning) + "</pre></details>";
   }
@@ -1667,6 +1681,8 @@ async function ouverture(){
   } catch (e){ etatPrecedent = null; }
   // Le toggle lui-même est un état persistant : il vit dans le même fichier.
   reprendreEtat = !!(etatPrecedent && etatPrecedent.reprendre === "1");
+  // « Afficher la mécanique » : off par défaut (novice), l'expert l'allume.
+  montrerMecanique = !!(etatPrecedent && etatPrecedent.mecanique === "1");
 
   if (reprendreEtat){
     // ── Reprise : la dernière utilisation revient, dans l'ordre inverse ──
@@ -2119,6 +2135,7 @@ async function sauverEtat(){
   try {
     const etat = Object.assign({}, etatPrecedent || {}, {
       reprendre: reprendreEtat ? "1" : "0",
+      mecanique: montrerMecanique ? "1" : "0",
       position: position || "",
       session_cwd: CFG.SESSION_CWD || "",
       etabli_path: etabliPath || ""
@@ -5104,6 +5121,9 @@ async function drawSet(){
       + ligne("Mode sans mémoire",
           "Le fil ne sera pas retrouvé dans l'historique, et se ferme avec la fenêtre.",
           sw(incognito, "incog"))
+      + ligne("Afficher la mécanique",
+          "Montrer ce que l'agent fait sous le capot : outils appelés et réflexion. Off : le fil ne montre que la réponse.",
+          sw(montrerMecanique, "mecanique"))
       + ligne("Reprendre la dernière utilisation",
           "À l'ouverture, retrouver la position et le dossier d'avant. Off : Ulysse s'ouvre vierge, en Manuel.",
           sw(reprendreEtat, "reprendre"))
@@ -5121,6 +5141,19 @@ async function drawSet(){
     });
     const s = b.querySelector('[data-sw="incog"]');
     if (s) s.onclick = () => { incognito = !incognito; drawSet(); paintHint(); };
+    /* ── Le toggle « Afficher la mécanique » (Raf, 2026-09-05) ──
+       Off par défaut : le novice ne lit que la réponse. On repeint le fil
+       immédiatement — l'effet doit se voir sans quitter la page. */
+    const meq = b.querySelector('[data-sw="mecanique"]');
+    if (meq) meq.onclick = async () => {
+      montrerMecanique = !montrerMecanique;
+      paintThread();
+      await sauverEtat();
+      snack(montrerMecanique
+        ? "Mécanique visible : outils et réflexion réapparaissent dans le fil."
+        : "Fil épuré : seules les réponses restent visibles.");
+      drawSet();
+    };
     /* ── Le toggle « Reprendre la dernière utilisation » (Raf, 2026-09-05) ──
        OFF par défaut : chaque ouverture est vierge (Manuel, aucun dossier).
        ON : la page relit au boot ce que la dernière session avait laissé.
