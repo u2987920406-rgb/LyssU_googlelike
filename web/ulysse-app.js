@@ -6807,7 +6807,7 @@ function boot(){
   H("mic1", svg("micro", { size: 22 }));
   H("snd1", svg("envoi", { size: 20 }));
   H("stopBtn", svg("fermer", { size: 22 }));
-  H("moreBtn", svg("tout", { size: 22 }));
+  H("moreBtn", svg("kebab", { size: 22 }));
   H("icSearch", svg("recherche", { size: 18 }));
 
   $("mic1").onclick = (e) => { e.stopPropagation(); basculerDictee(); };

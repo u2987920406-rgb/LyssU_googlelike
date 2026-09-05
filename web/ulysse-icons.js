@@ -21,6 +21,8 @@ const I={
    r:"Montre ou cache le détail, sur place. La même icône pivote : jamais deux dessins pour un aller-retour."},
  tout:{d:'M4 8h16M4 16h16M8 4l4 4 4-4M8 20l4-4 4 4',nm:'tout replier',
    r:"Applique le repli à toute la liste d'un coup."},
+ kebab:{d:'M12 5.5v.01M12 12v.01M12 18.5v.01',nm:'menu',
+   r:"Trois points : le menu des autres options. Le trait rond (linecap) les rend visibles malgré le zéro-longueur."},
  retour:{d:'M15 6l-6 6 6 6',nm:'retour',r:"Revient d'où l'on vient. Toujours en haut à gauche."},
  suivant:{d:'M9 6l6 6-6 6',nm:'suivant',
    r:"Va vers le détail. Sur une carte, annonce qu'un clic ouvre quelque chose."},

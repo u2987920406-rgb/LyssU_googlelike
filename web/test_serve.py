@@ -2188,6 +2188,101 @@ def main():
     check("le vrai ulysse-config.js n'a pas bouge d'un octet",
           vrai_apres == vrai_avant)
 
+    print("\n=== 10. /ulysse/etat : le fichier que la page lit et ecrit ===")
+
+    # FICHIER_ETAT est detourne vers un fichier jetable : la route ecrit un
+    # vrai fichier, mais jamais l'etat reel de la machine (HERMES_HOME est
+    # deja un faux home pour ce test, on epingle quand meme le chemin).
+    etat_essai = os.path.join(home, "ulysse-etat-essai.json")
+    etat_avant_chemin = serve.FICHIER_ETAT
+    serve.FICHIER_ETAT = etat_essai
+    try:
+        if os.path.exists(etat_essai):
+            os.remove(etat_essai)
+
+        # La page ecrit la cle `mecanique` (toggle « Afficher la mecanique »,
+        # commit 62c0e85) et la relit au boot (ouverture(), ulysse-app.js).
+        # Si le filtre serveur ne la connait pas, le toggle est vert ici et
+        # retombe a chaque reouverture : la reponse 200 masque la perte.
+        st, _, txt = req("POST", "/ulysse/etat", headers=same,
+                         body=json.dumps({"etat": {"mecanique": "1",
+                                                   "reprendre": "0"}}).encode())
+        rep = json.loads(txt) if st == 200 else {}
+        with open(etat_essai, encoding="utf-8") as f:
+            sur_disque = json.load(f)
+        check("la cle `mecanique` s'ecrit et survit (200, sur disque)",
+              st == 200 and rep.get("etat", {}).get("mecanique") == "1"
+              and sur_disque.get("mecanique") == "1",
+              "HTTP %d — disque: %s" % (st, json.dumps(sur_disque)[:80]))
+
+        st, _, txt = req("GET", "/ulysse/etat", headers=same)
+        rep = json.loads(txt) if st == 200 else {}
+        check("...et `mecanique` revient au GET que fait ouverture()",
+              st == 200 and rep.get("etat", {}).get("mecanique") == "1",
+              "HTTP %d — %s" % (st, txt[:100]))
+
+        # Une cle inconnue ne s'ecrit pas, mais la cle autorisee qui l'accompagne
+        # passe : le filtre est un filtre, pas un refus global.
+        st, _, txt = req("POST", "/ulysse/etat", headers=same,
+                         body=json.dumps({"etat": {"cle_inconnue": "x",
+                                                   "reprendre": "1"}}).encode())
+        with open(etat_essai, encoding="utf-8") as f:
+            sur_disque = json.load(f)
+        check("une cle inconnue est filtree, l'autorisee voisine s'ecrit",
+              st == 200 and "cle_inconnue" not in sur_disque
+              and sur_disque.get("reprendre") == "1",
+              "HTTP %d — disque: %s" % (st, json.dumps(sur_disque)[:80]))
+
+        # Une valeur de 600 caracteres est tronquee a 500, pas jetee.
+        st, _, txt = req("POST", "/ulysse/etat", headers=same,
+                         body=json.dumps({"etat": {"etabli_path": "A" * 600}}).encode())
+        with open(etat_essai, encoding="utf-8") as f:
+            sur_disque = json.load(f)
+        check("une valeur de 600 caracteres est tronquee a 500",
+              st == 200 and len(sur_disque.get("etabli_path", "")) == 500,
+              "HTTP %d — longueur %d" % (st, len(sur_disque.get("etabli_path", ""))))
+
+        # Un JSON illisible est refuse sans rien ecrire.
+        with open(etat_essai, encoding="utf-8") as f:
+            disque_ref = f.read()
+        st, _, txt = req("POST", "/ulysse/etat", headers=same, body=b"{pas du json")
+        with open(etat_essai, encoding="utf-8") as f:
+            disque_apres = f.read()
+        check("JSON illisible -> 400, fichier intact",
+              st == 400 and disque_apres == disque_ref, "HTTP %d" % st)
+
+        # Un corps sans `etat` (ou etat non-objet) est refuse pareillement.
+        st, _, _ = req("POST", "/ulysse/etat", headers=same, body=b'{"foo":1}')
+        check("corps sans cle etat -> 400", st == 400, "HTTP %d" % st)
+        st, _, _ = req("POST", "/ulysse/etat", headers=same,
+                       body=b'{"etat":"une-chaine"}')
+        check("etat non-objet -> 400", st == 400, "HTTP %d" % st)
+
+        # Une Origin etrangere est refusee sur la LECTURE aussi : /ulysse/etat
+        # est une route locale, pas une route publique.
+        st, _, _ = req("GET", "/ulysse/etat",
+                       headers={"Origin": "http://evil.example.com"})
+        check("GET avec Origin etrangere -> 403", st == 403, "HTTP %d" % st)
+
+        # Un fichier absent ou corrompu = etat vierge, pas une panne.
+        os.remove(etat_essai)
+        st, _, txt = req("GET", "/ulysse/etat", headers=same)
+        rep = json.loads(txt) if st == 200 else {}
+        check("fichier etat absent -> 200 {ok, etat vide}",
+              st == 200 and rep.get("ok") is True and rep.get("etat") == {},
+              "HTTP %d — %s" % (st, txt[:80]))
+        with open(etat_essai, "w", encoding="utf-8") as f:
+            f.write("{{{pas du json")
+        st, _, txt = req("GET", "/ulysse/etat", headers=same)
+        rep = json.loads(txt) if st == 200 else {}
+        check("fichier etat corrompu -> 200 {ok, etat vide}",
+              st == 200 and rep.get("ok") is True and rep.get("etat") == {},
+              "HTTP %d — %s" % (st, txt[:80]))
+    finally:
+        serve.FICHIER_ETAT = etat_avant_chemin
+        if os.path.exists(etat_essai):
+            os.remove(etat_essai)
+
     # --- bilan ---------------------------------------------------------
     passed = sum(1 for _, ok, _ in results if ok)
     total = len(results)

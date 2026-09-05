@@ -5037,6 +5037,19 @@ async function main(){
   }
 
 
+  /* === KEBAB IDENTIFIABLE (commit c61a79c, branche qa/issue-122) ===
+     moreBtn porte un VRAI kebab a 3 points, pas « tout replier ». Le test
+     echoue tant que le correctif n'est pas sur master. */
+  {
+    check("l'icone kebab (3 points) existe dans la bibliotheque",
+      /kebab\s*:/.test(fs.readFileSync(path.join(DIR, "ulysse-icons.js"), "utf8")),
+      "absente de ulysse-icons.js");
+    check("#moreBtn porte l'icone kebab (pas « tout replier »)",
+      win.document.getElementById("moreBtn").innerHTML.indexOf("<svg") >= 0
+      && win.document.getElementById("moreBtn").innerHTML.indexOf("M12 5.5") >= 0,
+      win.document.getElementById("moreBtn").innerHTML.slice(0, 120));
+  }
+
   console.log("\n--- Les chemins dégradés ---");
   win.eval('nav("Discuter"); setMode2("cowork");');
   await wait(60);

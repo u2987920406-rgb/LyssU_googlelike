@@ -1764,7 +1764,8 @@ class Handler(http.server.SimpleHTTPRequestHandler):
     # comme le marqueur : `localStorage` n'est utilisé nulle part dans le
     # produit, et un état de page ne survivrait ni à un autre navigateur ni
     # à un autre appareil — c'est exactement le cas d'usage du téléphone.
-    CLES_ETAT_AUTORISEES = ("position", "session_cwd", "etabli_path", "reprendre")
+    CLES_ETAT_AUTORISEES = ("position", "session_cwd", "etabli_path", "reprendre",
+                            "mecanique")
 
     def lire_etat(self):
         try:
