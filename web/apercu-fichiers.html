@@ -2055,6 +2055,14 @@ svg.graph *{cursor:inherit}
   .railwrap.m-open .rail-btn.on{transform:translateX(5px)}
   .railwrap.m-open .bellbtn .lbl{opacity:1}
   .railwrap.m-open .rail-note{opacity:1;pointer-events:auto}
+  /* Le burger fixe s'efface quand le drawer est ouvert : il recouvrait
+     l'angle du menu (capture Raf 2026-09-05). Le drawer lui-même offre une
+     croix (le burger interne, en haut du rail). */
+  .railwrap.m-open ~ .m-languette,
+  .m-languette.inutile{opacity:0;pointer-events:none}
+  /* Le sous-menu de Discuter vit DANS le drawer de 240px : sa largeur
+     desktop (380px) débordait et son contenu partait hors écran. */
+  .disc-menu{width:auto;left:8px;right:8px;position:absolute;z-index:61}
   /* La languette-ouvreur du drawer : fixe en haut à gauche, TOUJOURS
      accessible (le burger du rail est hors écran avec lui). Desktop : elle
      n'existe pas — le rail se déplie au survol. */

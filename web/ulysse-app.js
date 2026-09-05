@@ -174,6 +174,10 @@ function toggleDrawer(){
   const w = $("railwrap");
   if (isMobile()){
     w.classList.toggle("m-open");
+    /* La languette s'efface quand le drawer est ouvert (elle recouvrait son
+       angle) et revient à la fermeture. */
+    const lm = $("burgerM");
+    if (lm) lm.classList.toggle("inutile", w.classList.contains("m-open"));
     $("burger").setAttribute("aria-label",
       w.classList.contains("m-open") ? "Fermer le menu" : "Ouvrir le menu");
     return;
@@ -183,6 +187,8 @@ function toggleDrawer(){
 function fermerDrawer(){
   if (!isMobile()) return;
   $("railwrap").classList.remove("m-open");
+  const lm = $("burgerM");
+  if (lm) lm.classList.remove("inutile");
   $("burger").setAttribute("aria-label", "Ouvrir le menu");
 }
 function pinRail(){
@@ -2024,7 +2030,13 @@ function ouvrirDiscMenu(){
   // Le menu vit DANS le rail, qui coupe ce qui dépasse quand il est replié :
   // on le déplie donc, sinon le menu s'ouvre invisible. Voir `railSet()`.
   const w = $("railwrap");
-  if (w && w.classList.contains("mini")) w.classList.add("open");
+  if (w && w.classList.contains("mini")){
+    /* ⚠ MOBILE : l'état ouvert du drawer est `m-open` (2026-09-05), pas
+       `open` — n'ajouter que `open` laissait le drawer replié derrière le
+       menu : pills fantômes, sans labels (capture Raf). */
+    w.classList.add("open");
+    if (isMobile()) w.classList.add("m-open");
+  }
   /* Il tombe SOUS le bouton Discuter, et le recouvre à partir de là. On prend
      la position RÉELLE du bouton plutôt qu'un `top` écrit en dur : le rail a
      déjà changé de hauteur deux fois (la porte des coulisses, le bandeau),
