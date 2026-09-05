@@ -2101,6 +2101,13 @@ svg.graph *{cursor:inherit}
   .rail-btn{min-height:46px;height:auto}
   .rail-top .icon-btn{width:44px;height:44px}
   .bellbtn{min-height:46px}
+  /* ⚠ LES FENÊTRES VOLANTES DU RAIL (Notifications, Corbeille) DÉBORDAIENT.
+     (Raf, capture 2026-09-05 : « on voit pas la fenêtre volante qui est
+     tronquée ».) `.npanel` fait 394px et se posait à left=rail+12 : avec le
+     drawer de 240px ça dépassait l'écran de 412px. Sur mobile, la volante se
+     cale sur le bord droit du drawer et se rétrécit à ce qui reste. */
+  .npanel{left:12px !important;right:12px !important;width:auto;max-width:none;
+    z-index:85;bottom:70px}
   /* Les panneaux occupent toute la largeur, sans marge latérale parasite. */
   .panel{width:100vw;inset:0}
   .stage{padding:0}

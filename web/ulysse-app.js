@@ -783,9 +783,12 @@ function drawSlash(){
   const q = tok.toLowerCase();
   lireSlashCatalog().then((cat) => {
     if (!slashOuvert && tok === null) return;
-    const vues = cat.filter((c) => !q || c.cmd.toLowerCase().startsWith(q)
-                                || c.desc.toLowerCase().indexOf(q.slice(1)) >= 0)
-                   .slice(0, 9);
+    const mot = q.slice(1);          // ce qui suit le « / »
+    const vues = cat.filter((c) => !mot
+                                || c.cmd.toLowerCase().startsWith(mot)
+                                || c.cmd.toLowerCase().indexOf(mot) >= 0
+                                || c.desc.toLowerCase().indexOf(mot) >= 0)
+                   .slice(0, 30);   // plus fourni (Raf, 2026-09-05)
     p.innerHTML = vues.length
       ? vues.map((c) =>
           '<button type="button" class="slash-item" data-cmd="' + esc(c.cmd) + '">'
@@ -6873,7 +6876,7 @@ function boot(){
      le mode Plan garantit quelque chose ou se contente de le dire. Sans
      réponse, `modeAccords` reste nul et on n'affirme rien : on ne remplace pas
      une promesse fausse par une accusation fausse. */
-  link.ready().then(ouverture).catch(() => {});
+  link.ready().then(() => { ouverture(); lireSlashCatalog(); }).catch(() => {});
   initRailHover();
   drawRail();
   drawRoles();
