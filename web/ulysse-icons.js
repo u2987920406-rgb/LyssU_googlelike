@@ -80,7 +80,7 @@ const I={
  micro:{d:'M12 2a3 3 0 0 1 3 3v6a3 3 0 0 1-6 0V5a3 3 0 0 1 3-3zM5 11a7 7 0 0 0 14 0M12 18v4',
    nm:'parler',
    r:"Dicte à la place d'écrire. Non branché à ce jour : Hermès expose /api/audio/transcribe, l'interface reste à faire — le bouton le dit plutôt que de faire semblant."},
- envoi:{d:'M5 12h13M13 6l6 6-6 6',
+ envoi:{d:'M3 11l18-8-8 18-2-7-8-3z',
    nm:'envoyer',
    r:"Part vers l'agent. C'est le seul geste de l'écran qui engage un tour de travail ; il porte l'accent, et rien d'autre autour du champ ne le porte."},
  coche:{d:'M4 12l6 6L20 6',w:3.4,
