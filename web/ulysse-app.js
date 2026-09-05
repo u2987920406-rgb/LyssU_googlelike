@@ -732,6 +732,75 @@ function uLoadHTML(){
    ferait sauter le defilement pour rien ; on met a jour `#uLoad` en place,
    comme `compteur()` le fait deja pour l'ouverture de session. */
 let vivantT = null;
+/* ═══ LE PICKER « / » — palette de commandes et skills ════════════════════
+   Demande Raf (2026-09-05) : comme Discord, taper « / » ouvre une fenêtre
+   qui liste les commandes. La SOURCE est celle du TUI : le RPC
+   `commands.catalog` (tui_gateway/methods_tools.py) — commandes du registre
+   + skills (`scan_skill_commands`), avec descriptions. Le picker filtre à la
+   frappe ; un tap insère la commande dans le champ. Rien ne part tout seul :
+   c'est un remplisseur, pas un exécuteur — l'envoi reste le bouton bleu. */
+let slashCatalog = null;       // [[cmd, description], …] une fois lu
+let slashOuvert = false;
+
+async function lireSlashCatalog(){
+  if (slashCatalog) return slashCatalog;
+  try {
+    const r = await link.rpc("commands.catalog", {}, 15000);
+    const pairs = (r && r.pairs) || [];
+    slashCatalog = pairs.map((p) => ({ cmd: p[0], desc: p[1] || "" }));
+  } catch (e){
+    slashCatalog = [];          // catalog indisponible : le picker s'ouvre vide
+  }
+  return slashCatalog;
+}
+
+function fermerSlash(){
+  slashOuvert = false;
+  const p = $("slashPop");
+  if (p) p.style.display = "none";
+}
+
+/* Le token courant : le mot qui commence par « / » au début du champ, ou
+   juste après un saut de ligne. C'est LUI que le picker filtre. */
+function slashToken(texte){
+  const fin = texte.lastIndexOf("\\n") + 1;
+  const ligne = texte.slice(fin);
+  if (ligne.charAt(0) !== "/") return null;
+  return ligne;
+}
+
+function drawSlash(){
+  const p = $("slashPop"), ta = $("reply");
+  if (!p || !ta) return;
+  const tok = slashToken(ta.value);
+  if (tok === null){ fermerSlash(); return; }
+  const q = tok.toLowerCase();
+  lireSlashCatalog().then((cat) => {
+    if (!slashOuvert && tok === null) return;
+    const vues = cat.filter((c) => !q || c.cmd.toLowerCase().startsWith(q)
+                                || c.desc.toLowerCase().indexOf(q.slice(1)) >= 0)
+                   .slice(0, 9);
+    p.innerHTML = vues.length
+      ? vues.map((c) =>
+          '<button type="button" class="slash-item" data-cmd="' + esc(c.cmd) + '">'
+          + '<span class="t">' + esc(c.cmd) + "</span>"
+          + (c.desc ? '<span class="d">' + esc(c.desc) + "</span>" : "")
+          + "</button>").join("")
+      : '<div class="slash-vide">Aucune commande pour « ' + esc(tok) + " ».</div>";
+    p.style.display = "block";
+    slashOuvert = true;
+    p.querySelectorAll(".slash-item").forEach((b) => {
+      b.onclick = () => {
+        // Remplace la ligne courante par la commande (+ espace pour les args).
+        const fin = ta.value.lastIndexOf("\\n") + 1;
+        ta.value = ta.value.slice(0, fin) + b.dataset.cmd + " ";
+        fermerSlash();
+        ta.focus();
+      };
+    });
+  });
+}
+
 function armVivant(){
   clearInterval(vivantT);
   if (!conv.running || !conv.status) return;
@@ -1898,6 +1967,7 @@ async function onSend(ev){
   }
   input.value = "";
   input.blur();   // mobile : referme le clavier après l'envoi
+  fermerSlash();  // le picker « / » ne survit pas à l'envoi
 
   // Le premier message ouvre la session : c'est la seule attente qui soit
   // vraie, et elle a son compteur.
@@ -6827,7 +6897,14 @@ function boot(){
   // Coller une image dans la box : elle rejoint les pieces jointes, comme par
   // le « + ». Le texte, lui, passe normalement.
   const replyEl = $("reply");
-  if (replyEl) replyEl.addEventListener("paste", collerCapture);
+  if (replyEl){
+    replyEl.addEventListener("paste", collerCapture);
+    /* Le picker « / » suit chaque frappe ; on ferme au blur SANS délai —
+       le clic sur un item passe avant (mousedown n'est pas utilisé : au
+       doigt, touchstart précède blur de peu, et le picker vit dans la page). */
+    replyEl.addEventListener("input", drawSlash);
+    replyEl.addEventListener("blur", () => setTimeout(fermerSlash, 180));
+  }
 
   // Glisser une ligne de l'Établi jusqu'au composeur : un fichier se joint
   // (comme le « + »), un dossier demande d'abord — `proposerDossierEtabli()`

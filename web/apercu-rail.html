@@ -121,6 +121,28 @@ input{font:inherit;color:inherit;background:none;border:none;outline:none}
   background:transparent;color:inherit;font-family:inherit;
   resize:none;field-sizing:content;max-height:9em;overflow-y:auto;min-width:0}
 .composer textarea::placeholder{color:var(--muted)}
+/* ═══ LE PICKER « / » ═══════════════════════════════════════════════════════
+   La palette de commandes, façon Discord : elle monte AU-DESSUS du composeur,
+   dans le pied (le parent positionne déjà en relatif). Un item = commande +
+   description ; le tap insère, rien ne part tout seul. */
+.slash-pop{position:absolute;bottom:calc(100% + 8px);left:0;right:0;z-index:30;
+  background:var(--surface);border-radius:var(--radius-card);
+  box-shadow:var(--elev-3);padding:6px;max-height:320px;overflow-y:auto;
+  display:block}
+.slash-item{display:block;width:100%;text-align:left;border:none;background:none;
+  padding:10px 12px;border-radius:var(--radius-sm);cursor:pointer;
+  font:inherit;color:var(--text)}
+.slash-item:hover,.slash-item:focus{background:var(--hover-bg);outline:none}
+.slash-item .t{display:block;font-size:15px;font-weight:500;color:var(--accent)}
+.slash-item .d{display:block;font-size:12.5px;color:var(--muted);margin-top:2px;
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.slash-vide{padding:12px;font-size:13.5px;color:var(--muted)}
+
+/* Le lieu déménagé sous la chat box (Raf, 2026-09-05) : dans la sous-barre,
+   il reprend son habillage de gélule — la topbar ne le portait plus. */
+.u-sousbarre .u-lieuwrap{flex:none}
+.u-sousbarre .l-lieu{max-width:40vw}
+
 .icon-btn{width:44px;height:44px;flex:none;border-radius:var(--radius-pill);display:grid;
   place-items:center;color:var(--muted);transition:background .15s ease,color .15s ease}
 .icon-btn:hover{background:var(--hover-bg);color:var(--text)}

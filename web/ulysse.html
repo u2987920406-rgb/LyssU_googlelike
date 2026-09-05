@@ -1249,10 +1249,10 @@
       <div class="topbar">
         <span class="title">Discuter</span>
         <span class="privchip" id="privchip"></span>
-        <!-- Où ce fil travaille. La barre de titre décrit l'écran, et le
-             dossier fait partie de ce qu'il est. Rempli par `majLieu()` ;
-             vide tant qu'on ne sait rien, jamais rempli en dur. -->
-        <span class="u-lieuwrap" id="lieuSlot" style="position:relative"></span>
+        <!-- ⚠ LA GÉLULE LIEU A DÉMÉNAGÉ SOUS LA CHAT BOX (demande Raf le
+             2026-09-05) : elle vit désormais dans la sous-barre (.u-sousbarre,
+             en tête). Le `lieuSlot` reste l'id branché — majLieu() n'a pas
+             bougé. La topbar redevient ce qu'elle était : titre + kebab. -->
         <span class="sep"></span>
         <span style="position:relative">
           <button class="icon-btn" id="moreBtn" aria-label="Autres options"></button>
@@ -1302,6 +1302,13 @@
 
       <div class="foot"><div style="position:relative;max-width:720px;margin:0 auto">
         <div class="pop" id="pop"></div>
+        <!-- ══ LE PICKER « / » — la palette de commandes (demande Raf le
+             2026-09-05, « la même chose qu'ici » = Discord). Taper « / » au
+             début du champ l'ouvre : il liste les commandes ET les skills du
+             catalog d'Hermès (RPC `commands.catalog`, la même source que le
+             TUI), filtrées à la frappe. Un tap insère la commande dans le
+             champ. Rempli par `drawSlash()` — voir ulysse-app.js. -->
+        <div class="slash-pop" id="slashPop" style="display:none"></div>
         <!-- Le mot-marque vit AU-DESSUS du champ, dans le pied : il reste
              collé à lui pendant toute la descente au lieu de glisser à part.
              Même dégradé qu'avant — le produit ne se présente pas deux fois
@@ -1321,6 +1328,10 @@
         </form>
         <!-- La même bascule qu'à l'entrée, au même endroit : sous le champ. -->
         <div class="u-sousbarre">
+          <!-- ⚠ LA GÉLULE LIEU VIT ICI (demande Raf le 2026-09-05 : « sous la
+               chat box »). Même id, même peinture (majLieu) — juste déménagée
+               de la topbar vers la sous-barre, en tête. -->
+          <span class="u-lieuwrap" id="lieuSlot" style="position:relative"></span>
           <!-- ⚠ « QUASI INVISIBLE », demandé par kuchu le 2026-08-12. C'était
                un segment de 120 px qui proposait un CHOIX à chaque coup d'œil,
                pour un réglage qu'on change deux fois par heure. Ce n'est plus
