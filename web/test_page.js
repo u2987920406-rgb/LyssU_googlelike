@@ -4247,6 +4247,12 @@ async function main(){
     win.document.getElementById("ctlEtabli")
       ? win.document.getElementById("ctlEtabli").innerHTML.slice(0, 60) : "pas de .ctl");
   {
+    // ⚠ OUVERTURE VIERGE (Raf 2026-09-05) : sans dossier actif, l'Établi
+    // affiche « Aucun dossier ouvert » et ne frappe PAS le backend. Le
+    // test pose donc un dossier courant AVANT de compter les lectures —
+    // c'est le monde voulu : l'écran vide ne liste rien, un dossier choisi
+    // se relit toujours.
+    win.eval('CFG.SESSION_CWD = "/home/raf/projets/ulysse";');
     const compte = () => fetched.filter(
       (f) => f.path.indexOf("/api/files") === 0
              && f.path.indexOf("/api/files/read") !== 0).length;
@@ -4939,6 +4945,56 @@ async function main(){
   const noOverflow = /@media[^{]*max-width:[^{]*\{(?:[^@])*?(?:body|html|#app)\s*\{[^}]*overflow-x:\s*hidden/i.test(CSS);
   check("pas d'overflow horizontal sur mobile",
     noOverflow, "`overflow-x:hidden` (body|html|#app) introuvable sous un @media max-width");
+
+  /* ═══ OUVERTURE VIERGE + TOGGLE « REPRENDRE » (demande Raf, 2026-09-05) ═══
+     À l'ouverture : mode Manuel, aucun dossier actif. Le toggle de Réglages,
+     OFF par défaut, restaure la dernière utilisation. */
+  {
+    // 1. L'écran vide de l'Établi : sans dossier, AUCUN fetch /api/files
+    //    et un message qui dit ce qu'il manque.
+    win.eval('CFG.SESSION_CWD = ""; etabliPath = null; setMode("atelier");');
+    await wait(250);
+    check("Établi vierge : « Aucun dossier ouvert », pas le home",
+      /Aucun dossier ouvert/.test(win.document.getElementById("files").innerHTML),
+      win.document.getElementById("files").innerHTML.slice(0, 80));
+    // Le compteur est cumulatif sur toute la page : on compare à l'avant.
+    const base0 = fetched.filter(
+      (f) => f.path.indexOf("/api/files") === 0
+             && f.path.indexOf("/api/files/read") !== 0).length;
+    win.document.getElementById("etabliRefresh").click();
+    await wait(250);
+    const apres0 = fetched.filter(
+      (f) => f.path.indexOf("/api/files") === 0
+             && f.path.indexOf("/api/files/read") !== 0).length;
+    check("Établi vierge ne frappe PAS le backend (dossiers non actifs)",
+      apres0 === base0, base0 + " → " + apres0 + " lecture(s)");
+
+    // 2. Le toggle existe dans Réglages/Général, avec le libellé demandé.
+    win.eval('nav("Reglages");');
+    await wait(150);
+    win.eval('setSel = 0; drawSet();');
+    await wait(150);
+    const corps = win.document.getElementById("setbody").innerHTML;
+    check("Réglages : le toggle « Reprendre la dernière utilisation » est là",
+      corps.indexOf("Reprendre la dernière utilisation") >= 0
+      && !!win.document.querySelector('[data-sw="reprendre"]'),
+      corps.indexOf("Reprendre") >= 0 ? "libellé ok" : corps.slice(0, 80));
+
+    // 3. À l'ouverture vierge, la position retombe sur Manuel et le lieu
+    //    n'annonce aucun dossier (gélule « dossier en attente »).
+    const eo = JSON.parse(win.eval(
+      'JSON.stringify({ position: position, cwd: CFG.SESSION_CWD })'));
+    check("après ouverture vierge : la position est « manual »",
+      eo.position === "manual", "position = " + eo.position);
+    check("après ouverture vierge : aucun dossier de travail actif",
+      !eo.cwd, "cwd = " + JSON.stringify(eo.cwd));
+    win.eval('if (conv.info){ conv.info.cwd = ""; } majLieu();');
+    await wait(80);
+    const lieuHtml = win.document.getElementById("lieuSlot").innerHTML;
+    check("la gélule de lieu dit « dossier en attente » à l'ouverture",
+      /attente/.test(lieuHtml), lieuHtml.slice(0, 80));
+  }
+
 
   console.log("\n--- Les chemins dégradés ---");
   win.eval('nav("Discuter"); setMode2("cowork");');

@@ -151,6 +151,13 @@ const REST = {
   files: (path) => api("/api/files" + (path ? "?path=" + encodeURIComponent(path) : "")),
   // web_server.py:2386 — {name, path, size, mime_type, data_url}
   readFile: (path) => api("/api/files/read?path=" + encodeURIComponent(path)),
+
+  /* ── L'état « dernier utilisation » (serve.py, demande Raf 2026-09-05) ──
+     GET rend {ok, etat}; POST {etat} écrit (clés filtrées côté serveur).
+     Quand le toggle Réglages est OFF, Ulysse s'ouvre vierge et ne lit pas
+     l'état ; quand ON, la page le relit au boot et restaure position+dossier. */
+  etat: () => api("/ulysse/etat"),
+  ecrireEtat: (etat) => api("/ulysse/etat", { method: "POST", body: { etat } }),
   // web_server.py:12820 — {active, providers, builtin_files}
   memory: () => api("/api/memory"),
   // web_server.py:2627 — {text, byteSize, binary, truncated, path, …}

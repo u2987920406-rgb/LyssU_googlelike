@@ -114,6 +114,11 @@ def hermes_home():
 # les verifications de fidelite.
 MARQUEUR = os.path.join(hermes_home(), "ulysse-premier-vu")
 
+# L'état « dernier utilisation » (toggle de Réglages, demande Raf le
+# 2026-09-05). Même règle que le marqueur : DANS LE HERMES HOME, hors du
+# dossier servi — rien de ce qui est ici n'est publié par le serveur statique.
+FICHIER_ETAT = os.path.join(hermes_home(), "ulysse-etat.json")
+
 
 def premier_lancement():
     """Vrai tant que l'ecran d'accueil n'a pas ete vu une premiere fois."""
@@ -927,6 +932,11 @@ class Handler(http.server.SimpleHTTPRequestHandler):
             self.send_json(200, {"entrees": corbeille_liste(),
                                  "dossier": corbeille_dir()})
             return
+        if self.route() == "/ulysse/etat":
+            if self.guard():
+                return
+            self.lire_etat()
+            return
         if not self.static_allowed():
             self.send_error(404, "Not Found")
             return
@@ -953,6 +963,11 @@ class Handler(http.server.SimpleHTTPRequestHandler):
             if self.guard():
                 return
             self.marquer_premier_vu()
+            return
+        if self.route() == "/ulysse/etat":
+            if self.guard():
+                return
+            self.ecrire_etat()
             return
         # Ecrire dans la memoire ne passe PAS par le relais nu : la copie datee
         # doit avoir lieu avant, et le refus de SOUL.md doit tenir ici, pas
@@ -1740,6 +1755,49 @@ class Handler(http.server.SimpleHTTPRequestHandler):
             # Un marqueur qu'on ne peut pas ecrire n'est pas une panne : on
             # reverra l'ecran une fois de trop, c'est tout. On le dit.
             self.send_json(200, {"ok": False, "raison": str(e)})
+
+    # ── L'état « dernier utilisation » ────────────────────────────────────
+    # Le toggle de Réglages (demande Raf le 2026-09-05) : quand il est OFF
+    # (défaut), Ulysse s'ouvre VIERGE — position Manuel, aucun dossier.
+    # Quand il est ON, la page relit ici ce que la dernière session avait
+    # laissé (position, dossier de travail, établi). Stocké côté SERVEUR,
+    # comme le marqueur : `localStorage` n'est utilisé nulle part dans le
+    # produit, et un état de page ne survivrait ni à un autre navigateur ni
+    # à un autre appareil — c'est exactement le cas d'usage du téléphone.
+    CLES_ETAT_AUTORISEES = ("position", "session_cwd", "etabli_path", "reprendre")
+
+    def lire_etat(self):
+        try:
+            with open(FICHIER_ETAT, "r", encoding="utf-8") as f:
+                data = json.load(f)
+        except (OSError, ValueError):
+            # Absent ou corrompu = état vierge. C'est le défaut voulu.
+            self.send_json(200, {"ok": True, "etat": {}})
+            return
+        if not isinstance(data, dict):
+            self.send_json(200, {"ok": True, "etat": {}})
+            return
+        propre = {k: data[k] for k in self.CLES_ETAT_AUTORISEES
+                  if k in data and isinstance(data[k], str)}
+        self.send_json(200, {"ok": True, "etat": propre})
+
+    def ecrire_etat(self):
+        corps, souci = self.lire_json()
+        if not isinstance(corps, dict):
+            self.json_error(400, souci or "Corps JSON attendu : {cle: valeur}.")
+            return
+        if not isinstance(corps.get("etat"), dict):
+            self.json_error(400, "Corps attendu : {etat: {...}}.")
+            return
+        etat = {k: str(v)[:500] for k, v in corps["etat"].items()
+                if k in self.CLES_ETAT_AUTORISEES and isinstance(v, str)}
+        try:
+            with open(FICHIER_ETAT, "w", encoding="utf-8") as f:
+                json.dump(etat, f, ensure_ascii=False, indent=1)
+        except OSError as exc:
+            self.json_error(500, "Ecriture impossible (%s)." % exc)
+            return
+        self.send_json(200, {"ok": True, "etat": etat})
 
     def end_headers(self):
         self.send_header("Cache-Control", "no-store")

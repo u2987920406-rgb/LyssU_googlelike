@@ -310,6 +310,23 @@ let activeRole = null;
 let mode = "build";           // plan (posture) | build (Build → Vérif)
 let incognito = false;
 
+/* ═══ L'OUVERTURE VIERGE — et le toggle « Reprendre la dernière utilisation »
+   Demande Raf le 2026-09-05 : à l'ouverture, Ulysse tombe sur le mode
+   Manuel et les dossiers restent SANS ACTIVITÉ — rien d'actif, rien de
+   listé. Une option de Réglages, OFF par défaut, permet de restaurer la
+   dernière utilisation (position, dossier de travail, établi).
+
+   ⚠ DEUX SOURÇAGES, PAS UN. La position au démarrage vient d'Hermès
+   (`approvals.mode`, via `lireModeAccords` → `alignerPosition`) : c'est
+   écrit plus haut que notre valeur par défaut ne doit pas mentir. Donc
+   l'ouverture vierge ne se contente pas d'afficher « Manuel » — elle
+   ECRIT `manual` dans le profil si le réglage dit autre chose (et le
+   dit). Le dossier, lui, ne part de nulle part : tant que Raf n'a pas
+   choisi, `CFG.SESSION_CWD` reste vide, la gélule affiche « dossier en
+   attente » et l'Établi refuse de lister le home. ───────────────────── */
+let reprendreEtat = false;    // toggle : restaurer la dernière utilisation ?
+let etatPrecedent = null;     // ce que la dernière session avait laissé
+
 /* Le repli présente les six avec les ENCOCHES de la maquette (`.opt` et
    `.tick`, le langage de ses questions à choix) : on ne dessine pas une
    deuxième façon de choisir dans le même produit.
@@ -1597,6 +1614,7 @@ async function setPosition(id){
   position = id;
   setMode2(o.mode);
   if (avant !== id) snack(messagePosition(o));
+  sauverEtat();
 }
 
 /* ⚠ AU DÉMARRAGE, C'EST HERMÈS QUI A RAISON, PAS NOTRE VALEUR PAR DÉFAUT.
@@ -1615,6 +1633,87 @@ function alignerPosition(){
   if (!o || o.id === position) return;
   position = o.id;
   setMode2(o.mode);
+}
+
+/* ═══ OUVERTURE — vierge par défaut, ou reprise si le toggle le dit ════════
+   Demande Raf (2026-09-05) : en ouvrant Ulysse, on tombe sur le mode
+   Manuel et les dossiers ne sont pas actifs. Le toggle « Reprendre la
+   dernière utilisation » de Réglages, OFF par défaut, change ça.
+
+   L'ordre EST le contrat :
+     1. lire le toggle d'abord (un seul GET `/ulysse/etat`) ;
+     2. position — si reprise : ce que la dernière session avait laissé ;
+        sinon : MANUEL, écrit pour de vrai dans Hermès si `approvals.mode`
+        dit autre chose (on ne se contente pas d'afficher — le commentaire
+        d'`alignerPosition` l'interdit : la mention ne ment pas, elle agit) ;
+     3. dossiers — si reprise : le dossier de travail et l'établi d'avant ;
+        sinon : RIEN. `CFG.SESSION_CWD` reste vide, la gélule dit « dossier
+        en attente », et l'Établi ne liste pas le home (voir `drawEtabli`).
+     4. si reprise : écrire l'état lu (il DEVIENT la référence) ; sinon ne
+        rien écrire — la session qui démarre vierge n'ecrase pas l'état
+        d'avant : si Raf active le toggle plus tard, il retrouve SA
+        dernière vraie utilisation, pas un état vierge écrasé. */
+async function ouverture(){
+  await lireModeAccords();
+  try {
+    const r = await REST.etat();
+    etatPrecedent = (r && r.etat) || {};
+  } catch (e){ etatPrecedent = null; }
+  // Le toggle lui-même est un état persistant : il vit dans le même fichier.
+  reprendreEtat = !!(etatPrecedent && etatPrecedent.reprendre === "1");
+
+  if (reprendreEtat){
+    // ── Reprise : la dernière utilisation revient, dans l'ordre inverse ──
+    const ep = etatPrecedent || {};
+    if (ep.session_cwd){
+      CFG.SESSION_CWD = ep.session_cwd;           // gélule : orange « pressenti »
+    }
+    if (ep.etabli_path){
+      etabliPath = ep.etabli_path;                // l'Établi se rouvrira là
+    }
+    const pos = ep.position;
+    const o = POSITIONS.find((x) => x.id === pos);
+    if (o){
+      position = o.id;
+      setMode2(o.mode);
+      // Et on réaligne Hermès sur cette position (elle peut avoir bougé depuis).
+      await link.rpc("config.set", { key: "approval_mode", value: o.accords }, 20000)
+        .then(lireModeAccords).catch(() => {});
+    } else {
+      await imposerManuel();
+    }
+  } else {
+    // ── Ouverture VIERGE ──
+    CFG.SESSION_CWD = "";                          // aucun dossier actif
+    etabliPath = null;                             // l'Établi montre l'écran vide
+    await imposerManuel();
+  }
+  majLieu();
+  majInvite();
+  majMention();
+  paintThread();
+}
+
+/* La position de départ ENGAGÉE : si Hermès ne dit pas « manual », on le
+   lui écrit — et on dit ce qu'on a fait. Sans ça, « Manuel » affiché serait
+   la promesse creuse que le commentaire d'`alignerPosition` interdit. */
+async function imposerManuel(){
+  if (modeAccords === "manual"){ alignerPosition(); return; }
+  try {
+    await link.rpc("config.set", { key: "approval_mode", value: "manual" }, 20000);
+    await lireModeAccords();
+  } catch (e){
+    // Échec d'écriture : on ne prétend pas. Le snack reste honnête.
+    snack("Manuel voulu, mais le réglage n'a pas pris : " + (e.message || e));
+    return;
+  }
+  if (modeAccords !== "manual"){
+    snack("Manuel voulu, mais les accords restent en « " + String(modeAccords) + " ».");
+    return;
+  }
+  position = "manual";
+  setMode2("build");
+  if (modeAccords) alignerPosition();
 }
 
 /* Ce qu'on vient de changer, dit en une phrase qui engage. On ne félicite
@@ -2002,12 +2101,47 @@ function changerDossierMaintenant(chemin){
   paintThread();
   majLieu();
   snack("Dossier de travail : " + (chemin || "celui d’Hermès") + " — nouveau fil.");
+  sauverEtat();
+}
+
+/* ── Sauvegarder l'état de la dernière utilisation ─────────────────────────
+   Écrit côté serveur (toggle « Reprendre », Raf 2026-09-05). Appelé quand
+   quelque chose de restaurable change : position, dossier de travail,
+   établi. Silencieux : une sauvegarde qui échoue ne doit pas déranger —
+   seule l'ABSENCE d'état à la prochaine reprise en portera la trace. */
+async function sauverEtat(){
+  try {
+    const etat = Object.assign({}, etatPrecedent || {}, {
+      reprendre: reprendreEtat ? "1" : "0",
+      position: position || "",
+      session_cwd: CFG.SESSION_CWD || "",
+      etabli_path: etabliPath || ""
+    });
+    await REST.ecrireEtat(etat);
+    etatPrecedent = etat;
+  } catch (e){ /* silence : voir ci-dessus */ }
 }
 
 async function drawEtabli(){
+  /* ⚠ OUVERTURE VIERGE (demande Raf, 2026-09-05). Sans dossier choisi, on
+     NE liste PAS `/home/raf` — montrer le home complet (« .config », « .codex »…)
+     à quelqu'un qui n'a rien demandé, c'est activer les dossiers par
+     défaut, exactement ce qui a été refusé. L'écran dit ce qu'il manque
+     et propose le geste qui le remplit. La reprise (toggle ON) rouvre
+     l'établi là où il était. */
+  if (!etabliPath && !CFG.START_PATH && !CFG.SESSION_CWD){
+    H("files",
+      '<div class="empty">'
+      + '<div class="big">Aucun dossier ouvert.</div>'
+      + '<div class="u-dim">Choisissez un dossier de travail (Projets), ou '
+      + 'glissez-en un ici depuis vos fichiers.</div>'
+      + '</div>');
+    wireFileRows("files", (p) => { etabliPath = p; drawEtabli(); }, false);
+    return;
+  }
   H("files", '<div class="u-load">Lecture…</div>');
   try {
-    const d = await REST.files(etabliPath || CFG.START_PATH || "");
+    const d = await REST.files(etabliPath || CFG.START_PATH || CFG.SESSION_CWD || "");
     const up = (d.parent !== null && d.parent !== undefined && d.path)
       ? '<div class="row" data-dir="' + esc(d.parent) + '"><span class="ic">'
         + svg("dossier", { size: 18 }) + '</span><span class="nm">.. dossier parent</span></div>'
@@ -2024,7 +2158,7 @@ async function drawEtabli(){
         + '<span class="nm">' + esc(f.name) + '</span><span class="sp"></span>'
         + '<span class="meta">' + (dir ? "" : esc(fmtBytes(f.size))) + "</span></div>";
     }).join("") || '<div class="u-load">Dossier vide.</div>');
-    wireFileRows("files", (p) => { etabliPath = p; drawEtabli(); }, true);
+    wireFileRows("files", (p) => { etabliPath = p; drawEtabli(); sauverEtat(); }, true);
   } catch (e){
     H("files", '<div class="u-todo">Lecture impossible : ' + esc(pannePhrase(e)) + "</div>");
   }
@@ -4964,6 +5098,9 @@ async function drawSet(){
       + ligne("Mode sans mémoire",
           "Le fil ne sera pas retrouvé dans l'historique, et se ferme avec la fenêtre.",
           sw(incognito, "incog"))
+      + ligne("Reprendre la dernière utilisation",
+          "À l'ouverture, retrouver la position et le dossier d'avant. Off : Ulysse s'ouvre vierge, en Manuel.",
+          sw(reprendreEtat, "reprendre"))
       + titre("Où tourne Ulysse")
       + '<dl class="u-kv"><dt>Page servie par</dt><dd>' + esc(CFG.BASE) + "</dd>"
       + "<dt>Secrets</dt><dd>aucun dans le navigateur — serve.py les injecte</dd></dl>";
@@ -4978,6 +5115,28 @@ async function drawSet(){
     });
     const s = b.querySelector('[data-sw="incog"]');
     if (s) s.onclick = () => { incognito = !incognito; drawSet(); paintHint(); };
+    /* ── Le toggle « Reprendre la dernière utilisation » (Raf, 2026-09-05) ──
+       OFF par défaut : chaque ouverture est vierge (Manuel, aucun dossier).
+       ON : la page relit au boot ce que la dernière session avait laissé.
+       Le réglage vit côté serveur (`/ulysse/etat`), comme tout ce qui doit
+       survivre à un changement d'appareil. */
+    const rp = b.querySelector('[data-sw="reprendre"]');
+    if (rp) rp.onclick = async () => {
+      const nouveau = !reprendreEtat;
+      reprendreEtat = nouveau;
+      const etat = Object.assign({}, etatPrecedent || {}, { reprendre: nouveau ? "1" : "0" });
+      try {
+        await REST.ecrireEtat(etat);
+        etatPrecedent = etat;
+        snack(nouveau
+          ? "La dernière utilisation sera reprise à l'ouverture."
+          : "Ulysse s'ouvrira vierge : Manuel, aucun dossier.");
+      } catch (e){
+        reprendreEtat = !nouveau;   // l'écriture a échoué : on ne ment pas
+        snack("Réglage non enregistré : " + e.message);
+      }
+      drawSet();
+    };
     return;
   }
 
@@ -6568,7 +6727,7 @@ function boot(){
      le mode Plan garantit quelque chose ou se contente de le dire. Sans
      réponse, `modeAccords` reste nul et on n'affirme rien : on ne remplace pas
      une promesse fausse par une accusation fausse. */
-  link.ready().then(lireModeAccords).then(alignerPosition).catch(() => {});
+  link.ready().then(ouverture).catch(() => {});
   initRailHover();
   drawRail();
   drawRoles();
