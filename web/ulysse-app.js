@@ -810,6 +810,33 @@ function drawSlash(){
   });
 }
 
+/* ═══ EXÉCUTER UNE COMMANDE « / » ═════════════════════════════════════════
+   Une ligne qui commence par « / » n'est PAS un message : c'est une commande
+   du TUI Hermes (rpc `slash.exec`, params {session_id, command}, réponse
+   {output} — tui_gateway/methods_tools.py). Sans ce routage, « /model »
+   partait comme du texte et l'agent répondait « ce n'est pas à moi »
+   (capture Raf 2026-09-05 19:01). La sortie s'affiche dans le fil, comme
+   une réponse système. */
+async function executerSlash(texte){
+  try {
+    const sid = await ensureSession({});
+    const r = await link.rpc("slash.exec",
+      { session_id: sid, command: texte }, 60000);
+    const out = (r && (r.output || r.result || "")) || "(aucune sortie)";
+    conv.turns.push({ role: "system", text: String(out) });
+    paintThread();
+  } catch (e){
+    conv.turns.push({ role: "error",
+      text: "Commande « " + texte.split(/\s/)[0] + " » refusée : "
+        + (e.message || e) });
+    paintThread();
+  }
+}
+
+function estCommandeSlash(texte){
+  return /^\/(\w)/.test(texte.split(/\n/)[0].trim());
+}
+
 function armVivant(){
   clearInterval(vivantT);
   if (!conv.running || !conv.status) return;
@@ -1978,6 +2005,17 @@ async function onSend(ev){
   input.value = "";
   input.blur();   // mobile : referme le clavier après l'envoi
   fermerSlash();  // le picker « / » ne survit pas à l'envoi
+
+  /* Une ligne « /cmd » n'est PAS un message : elle s'exécute côté Hermes
+     (rpc slash.exec) — sinon l'agent répond « ce n'est pas à moi »
+     (capture Raf 2026-09-05 19:01). Ouvre la session si besoin : le TUI
+     attend un session_id. */
+  if (estCommandeSlash(text)){
+    if (accueil) attendreOuverture();
+    quitterAccueil();
+    await executerSlash(text);
+    return;
+  }
 
   // Le premier message ouvre la session : c'est la seule attente qui soit
   // vraie, et elle a son compteur.
