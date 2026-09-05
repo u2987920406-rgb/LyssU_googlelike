@@ -721,7 +721,7 @@ async function main(){
     && win.document.getElementById("reply").value === "");
   check("à l'accueil il demande, il ne répond pas",
     win.document.getElementById("reply").getAttribute("placeholder")
-      .indexOf("aimeriez faire") >= 0,
+      .indexOf("On commence par quoi") >= 0,
     win.document.getElementById("reply").getAttribute("placeholder"));
   check("le titre « Discuter » s'efface : le mot-marque le dit déjà",
     win.getComputedStyle(win.document.querySelector("#pDiscuter .topbar .title"))

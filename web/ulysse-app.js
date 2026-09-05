@@ -1891,7 +1891,8 @@ function majMention(){
    l'accueil. D'où un seul endroit qui l'écrit. */
 function majInvite(){
   if (!$("reply")) return;
-  $("reply").placeholder = accueil ? "Dites ce que vous aimeriez faire."
+  /* « On commence par quoi...? » — accueil demandé par Raf le 2026-09-05. */
+  $("reply").placeholder = accueil ? "On commence par quoi...?"
     : mode === "build" ? "Répondre…" : "Répondre, ou demander un plan…";
 }
 
