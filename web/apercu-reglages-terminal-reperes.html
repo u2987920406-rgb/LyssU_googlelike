@@ -2020,6 +2020,19 @@ svg.graph *{cursor:inherit}
   .railwrap.mini .rail, .rail{width:240px}
   /* Pas de lisière-souris sur mobile — elle n'a plus de sens au toucher. */
   .railhot{display:none}
+  /* ⚠ LE DRAWER OUVERT DOIT ÊTRE LISIBLE (capture Raf le 2026-09-05 :
+     icônes fantômes sans labels ni fond). Sur mobile, `toggleDrawer` bascule
+     `m-open` mais laisse `.mini` — or les règles desktop ne « déplient »
+     qu'avec `.mini.open`. Le drawer s'ouvrait donc en restant REPLIÉ :
+     labels opacity:0, fond railbg opacity:0. Sur mobile, l'état ouvert est
+     `m-open`, et il déplie TOUT. */
+  .railwrap.m-open .rail{background:#FFFFFF;
+    box-shadow:var(--elev-3);border-right:1px solid var(--outline-var)}
+  .railwrap.m-open .railbg{opacity:1}
+  .railwrap.m-open .rail-btn .lbl{opacity:1;pointer-events:auto}
+  .railwrap.m-open .rail-btn.on{transform:translateX(5px)}
+  .railwrap.m-open .bellbtn .lbl{opacity:1}
+  .railwrap.m-open .rail-note{opacity:1;pointer-events:auto}
   /* La languette-ouvreur du drawer : fixe en haut à gauche, TOUJOURS
      accessible (le burger du rail est hors écran avec lui). Desktop : elle
      n'existe pas — le rail se déplie au survol. */
