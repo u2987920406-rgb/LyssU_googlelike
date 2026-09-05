@@ -817,7 +817,65 @@ function drawSlash(){
    partait comme du texte et l'agent répondait « ce n'est pas à moi »
    (capture Raf 2026-09-05 19:01). La sortie s'affiche dans le fil, comme
    une réponse système. */
+/* La feuille de choix de /model — le menu interactif que le TUI rend, ici
+   en vrai UI : provider courant d'abord (REST.modelOptions), tap = applique
+   (config.set model.default, le chemin qui a déjà servi pour
+   deepseek-v4-pro) et l'annonce dans le fil. Demandé par Raf le 2026-09-05 :
+   « je tape /model ici j'ai un menu pour choisir un provider ». */
+async function feuilleModel(){
+  let d;
+  try { d = await REST.modelOptions(); }
+  catch (e){
+    conv.turns.push({ role: "error", text: "Modèles indisponibles : " + (e.message || e) });
+    paintThread(); return;
+  }
+  const provs = (d && d.providers) || [];
+  const courant = provs.find((x) => x.is_current) || provs[0] || null;
+  const bg = document.createElement("div");
+  bg.className = "sheet-bg on";
+  bg.id = "sModel";
+  const btn = (val, lbl, sel) =>
+    '<button type="button" class="btn-pick" data-m="' + esc(val) + '"'
+    + (sel ? ' style="font-weight:600"' : "") + '>' + esc(lbl) + "</button>";
+  let h = '<div class="sheet fiche">'
+    + '<div class="tt">Changer de modèle — ' + esc((courant && courant.slug) || "?")
+    + (courant && courant.is_current ? " (actuel)" : "") + '</div>'
+    + '<div class="u-dim" style="margin:6px 0 12px">Autres providers : '
+    + esc(provs.filter((x) => !x.is_current).map((x) => x.slug).join(", ") || "—")
+    + ' — le choix se fait dans Réglages > Le cerveau.</div>'
+    + ((courant && courant.models) || []).map((m) =>
+        btn(m, m, m === (d && d.model))).join("")
+    + '<div class="pop-sep"></div>'
+    + '<button type="button" class="quiet-link" id="sModelFermer">Annuler</button>'
+    + "</div>";
+  bg.innerHTML = h;
+  document.body.appendChild(bg);
+  bg.querySelectorAll("[data-m]").forEach((b) => {
+    b.onclick = async () => {
+      const choix = b.dataset.m;
+      bg.remove();
+      try {
+        await link.rpc("config.set", { key: "model.default", value: choix }, 20000);
+        conv.turns.push({ role: "system",
+          text: "Modèle changé : **" + choix + "** (provider "
+            + ((courant && courant.slug) || "?") + ")." });
+      } catch (e){
+        conv.turns.push({ role: "error",
+          text: "Changement refusé : " + (e.message || e) });
+      }
+      paintThread();
+    };
+  });
+  const f = bg.querySelector("#sModelFermer");
+  if (f) f.onclick = () => bg.remove();
+  bg.onclick = (e) => { if (e.target === bg) bg.remove(); };
+}
+
 async function executerSlash(texte){
+  const base = texte.split(/\s/)[0].toLowerCase();
+  if (base === "/model" && !texte.includes(" ")){
+    await feuilleModel(); return;   // menu interactif, pas du texte (Raf 2026-09-05)
+  }
   try {
     const sid = await ensureSession({});
     const r = await link.rpc("slash.exec",
