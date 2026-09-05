@@ -919,7 +919,13 @@ function quitterAccueil(){
   }
   majEtats();
   majInvite();
-  setTimeout(() => $("reply").focus(), 320);
+  /* ⚠ PAS DE FOCUS AUTOMATIQUE SUR TÉLÉPHONE. Sur desktop, reprendre le
+     focus prépare le message suivant. Sur Android, focus() ROUVRE le
+     clavier virtuel : on blurait à l'envoi (onSend) et ce focus le
+     refermait 320 ms plus tard — le clavier « ne s'efface jamais »
+     (constaté par Raf le 2026-09-05). `isMobile()` est déjà la coupe
+     responsive du produit ; la même règle gouverne le clavier. */
+  if (!isMobile()) setTimeout(() => $("reply").focus(), 320);
 }
 
 /* Le premier message ouvre la session. On quitte l'accueil dès que quelque
@@ -6383,7 +6389,9 @@ function quitterFirst(){
   if (f) f.classList.remove("on");
   $("app").classList.add("on");
   majEtats();
-  setTimeout(() => $("reply").focus(), 320);
+  /* Pas de focus auto sur téléphone : focus() rouvre le clavier Android
+     juste après le blur de l'envoi (Raf, 2026-09-05). */
+  if (!isMobile()) setTimeout(() => $("reply").focus(), 320);
   // Le marqueur vit côté serveur, pas dans la page : `localStorage` n'est
   // utilisé nulle part dans le produit, et un marqueur de page ne survivrait
   // ni à un autre navigateur ni à une session privée.
@@ -7033,7 +7041,9 @@ function boot(){
     lancerFirst();
   } else {
     link.connect();
-    setTimeout(() => $("reply").focus(), 340);
+    /* Pas de focus auto sur téléphone : ouvrir le clavier avant tout geste
+       est une agression, et il se refermerait sur le blur de l'envoi. */
+    if (!isMobile()) setTimeout(() => $("reply").focus(), 340);
   }
 }
 
