@@ -1974,12 +1974,25 @@ async function onSend(ev){
    Vu sur `tencent/hy3:free` ; un modèle plus obéissant l'aurait peut-être
    deviné, ce qui aurait caché le défaut au lieu de le supprimer. */
 function ligneDeMode(){
-  return mode === "build"
-    ? "\n\n[Mode Build : vous pouvez écrire et exécuter. Vérifiez ensuite votre"
-      + " travail contre le plan.]"
-    : "\n\n[Mode Plan : lisez, cherchez, ne modifiez rien. Répondez brièvement :"
+  /* ⚠ LA LIGNE DIT LE CONTRAT DE LA POSITION, PAS UN VERT ÉCRIT PAR AVANCE.
+     En Build + Auto/Accepter, « vous pouvez écrire et exécuter » est vrai.
+     En MANUEL, dire « écrivez et exécutez » pousse l'agent à répondre
+     « prêt à builder » à un simple « salut » (constaté par Raf le
+     2026-09-05, capture) : le texte promettait plus que la position n'en
+     exige. En Manuel l'agent PROPOSE, Raf arbitre — et une salutation
+     n'ouvre aucun chantier. */
+  if (mode !== "build"){
+    return "\n\n[Mode Plan : lisez, cherchez, ne modifiez rien. Répondez brièvement :"
       + " pas de plan pour une question. Pour un travail à étapes, posez-le"
       + " avec l'outil todo et préfixez « Option » les alternatives.]";
+  }
+  if (position === "manual"){
+    return "\n\n[Position Manuel : proposez avant d'écrire ou d'exécuter —"
+      + " chaque modification sera soumise. Ne vous lancez pas sur une"
+      + " salutation ; répondez simplement.]";
+  }
+  return "\n\n[Mode Build : vous pouvez écrire et exécuter. Vérifiez ensuite votre"
+      + " travail contre le plan.]";
 }
 
 /* --- L'Établi : les fichiers, à côté du fil ------------------------------ */

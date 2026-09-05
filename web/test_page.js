@@ -1205,7 +1205,7 @@ async function main(){
       .find((m) => m.method === "prompt.submit"
                    && /Fais le point/.test(String((m.params || {}).text)));
     check("le mode voyage avec le message, dans la trame envoyée",
-      !!submit && /\[Mode Build/.test(String(submit.params.text)),
+      !!submit && /\[(?:Mode Build|Position Manuel)/.test(String(submit.params.text)),
       submit ? String(submit.params.text).slice(-58) : "aucun prompt.submit");
     /* ⚠ ET IL NE SE LIT PAS DANS LE FIL. `onSend` promettait « elle part, elle
        ne s'affiche pas » — et la collait dans `text`, donc dans les deux. Le
@@ -2215,8 +2215,8 @@ async function main(){
     && win.eval("ligneDeMode()").length < 200,
     win.eval("ligneDeMode()").trim().slice(0, 70));
   win.eval('setMode2("build")');
-  check("...et elle change avec le mode",
-    /\[Mode Build/.test(win.eval("ligneDeMode()")));
+  check("...et elle change avec le mode (en Manuel : contrat Manuel ; en Auto : Build plein)",
+    /\[(?:Mode Build|Position Manuel)/.test(win.eval("ligneDeMode()")));
   win.eval('setMode2("plan")');
   {
     const appSrc = fs.readFileSync(path.join(DIR, "ulysse-app.js"), "utf8");
