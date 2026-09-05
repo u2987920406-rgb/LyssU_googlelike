@@ -1761,11 +1761,13 @@ async function onSend(ev){
      avec kuchu le 20/08/2026 : un verbe par controle. */
   if (conv.running){
     input.value = "";
+    input.blur();   // mobile : referme le clavier après l'envoi
     const ok = await steerTurn(text);
     snack(ok ? "Relance envoyée." : "La relance n'est pas partie.");
     return;
   }
   input.value = "";
+  input.blur();   // mobile : referme le clavier après l'envoi
 
   // Le premier message ouvre la session : c'est la seule attente qui soit
   // vraie, et elle a son compteur.
