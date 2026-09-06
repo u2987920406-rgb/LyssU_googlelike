@@ -311,6 +311,17 @@ function fakeFetch(url, opts){
     body = { versions: [{ nom: "USER.md.2026-08-09-101500", quand: "2026-08-09-101500",
                           octets: 40, horodatage: 1786000000 }] };
   }
+  /* /ulysse/graph — route LOCALE de serve.py (pas un relais). Le faux rend une
+     délégation réelle de l'aspect du state.db : une origine -> une délégation
+     -> deux buts, dont un tenu par un subagent. Le panneau doit la déplier. */
+  if (body === undefined && bare === "/ulysse/graph"){
+    body = { ok: true, origines: [{ session_id: "sess_o", titre: "Créer revue",
+      delegations: [{ id: "deleg_a", origine: "sess_o", etat: "complete",
+        duree_s: 72, buts: [
+          { texte: "But un", etat: "complete", resume: "resume un",
+            sessions: [{ id: "sess_sub1", etat: "complete", debut: "titre" }] },
+          { texte: "But deux", etat: "echec", resume: "", sessions: [] }] }] }] };
+  }
   if (body === undefined && (bare === "/ulysse/ecrire" || bare === "/ulysse/restaurer")){
     body = { ok: true, version_gardee: "USER.md.2026-08-09-120000",
              creation: false, versions: 2 };
@@ -3317,6 +3328,24 @@ async function main(){
   check("Plan · une carte terminée prend sa couleur de famille",
     carte && /fill:/.test(carte.getAttribute("style") || ""),
     carte ? carte.getAttribute("style") : "aucune carte");
+
+  // ── Graph agentique : l'arbre se déplie au chef de file ──
+  win.eval('nav("Graph")');
+  await wait(120);
+  check("Graph · le panneau s'ouvre et peint une origine + sa délégation",
+    win.document.querySelector("#pGraph .acard[data-gd]") !== null);
+  const gCard = win.document.querySelector("#pGraph .acard[data-gd]");
+  if (gCard){
+    check("Graph · le détail est replié au départ",
+      !gCard.classList.contains("open"));
+    gCard.querySelector(".ahead").click();
+    await wait(60);
+    check("Graph · le clic sur le chef de file déplie le détail",
+      gCard.classList.contains("open"));
+    check("Graph · le détail montre le but et son retour",
+      !!win.document.querySelector("#pGraph .abody .srow")
+      && /\bcomplete\b/.test(win.document.querySelector("#pGraph .abody").textContent));
+  } else check("Graph · le détail est replié au départ", false, "aucune carte");
 
   // ── Discuter : le kebab, la gélule, la languette ──
   win.eval('nav("Discuter")');

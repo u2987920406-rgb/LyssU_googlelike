@@ -4247,7 +4247,7 @@ function peindreGraph(d){
       + " délégation" + (nD > 1 ? "s" : "") + "</span></div>";
     (o.delegations || []).forEach((deleg, di) => {
       const buts = deleg.buts || [];
-      h += '<div class="acard"><div class="ahead">'
+      h += '<div class="acard" data-gd="' + di + '"><div class="ahead">'
         + gPuce(deleg.etat)
         + '<div class="amain"><div class="an">'
         + esc(buts.length === 1 ? (buts[0].texte || "délégation")
@@ -4280,6 +4280,15 @@ function peindreGraph(d){
     + "<span>Qui a délégué quoi à qui, et ce qui en est revenu — lu "
     + "<b>directement dans la base d'Hermès</b>. Rien ici n'est simulé ; "
     + "ce que la base ignore, l'écran le tait.</span></div>" + corps);
+
+  // Le détail d'une délégation se déplie au chef de file — le même pli que
+  // les Automatisations, mais SANS toucher leurs cartes : les `acard` du
+  // Graph portent `data-gd`, les leurs `ac<n>` (et un `data-open`).
+  $("gArbre").querySelectorAll("[data-gd]").forEach((card) => {
+    card.querySelector(".ahead").addEventListener("click", () => {
+      card.classList.toggle("open");
+    });
+  });
 }
 
 async function drawAutos(){
