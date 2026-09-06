@@ -129,6 +129,9 @@ function pannePhrase(e){
 const REST = {
   // web_server.py:3023 — {version, gateway_running, gateway_state, …}
   status: () => api("/api/status"),
+  /* Route LOCALE de serve.py (pas un relais) : l'arbre des delegations lu
+     en lecture seule dans le state.db d'Hermes. v2, demande Raf 2026-09-05. */
+  graph: () => api("/ulysse/graph"),
   // web_routers/sessions.py:50 — limit borne a 100, order ∈ {created,recent}
   sessions: (limit, order) =>
     api("/api/sessions?limit=" + Math.min(Math.max(limit || 20, 1), 100)

@@ -2283,6 +2283,100 @@ def main():
         if os.path.exists(etat_essai):
             os.remove(etat_essai)
 
+    print("\n=== 11. /ulysse/graph : l'arbre reel des delegations ===")
+
+    # La DB est detournee vers une base d'essai construite ici : le test
+    # prouve la lecture et la mise en forme, jamais l'etat reel de la
+    # machine. Meme schema que le state.db d'Hermes (async_delegations +
+    # sessions), colonnes seulement celles que la route lit.
+    graph_essai = os.path.join(home, "state-essai.db")
+    serve.FICHIER_GRAPH_DB = graph_essai
+    try:
+        if os.path.exists(graph_essai):
+            os.remove(graph_essai)
+        g = __import__("sqlite3").connect(graph_essai)
+        g.executescript("""
+            CREATE TABLE async_delegations (
+                delegation_id TEXT, origin_session TEXT,
+                parent_session_id TEXT, state TEXT,
+                dispatched_at REAL, completed_at REAL,
+                updated_at REAL, event_json TEXT, task_json TEXT);
+            CREATE TABLE sessions (
+                id TEXT PRIMARY KEY, source TEXT,
+                parent_session_id TEXT, title TEXT, started_at REAL);
+            CREATE TABLE messages (
+                session_id TEXT, role TEXT, content TEXT);
+        """)
+        # Deux delegations issues de la MEME session d'origine (batch de 2),
+        # + une session subagent rattachee au but no 1 par correspondance
+        # exacte de texte (premier message user = le goal).
+        g.execute("INSERT INTO async_delegations VALUES (?,?,?,?,?,?,?,?,?)",
+                  ("deleg_a", "agent:main:discord:thread:1:1",
+                   "sess_origine", "completed", 1000.0, 1060.0, 1061.0,
+                   json.dumps({"type": "async_delegation", "status": "completed",
+                               "is_batch": True,
+                               "goals": ["But un", "But deux"],
+                               "results": [
+                                   {"task_index": 0, "status": "completed",
+                                    "summary": "resume un"},
+                                   {"task_index": 1, "status": "failed",
+                                    "summary": "resume deux"}]}), None))
+        g.execute("INSERT INTO sessions VALUES (?,?,?,?,?)",
+                  ("sess_origine", "discord", None,
+                   "Créer revue quotidienne IA", 999.0))
+        g.execute("INSERT INTO sessions VALUES (?,?,?,?,?)",
+                  ("sess_sub1", "subagent", "sess_origine", None, 1001.0))
+        g.execute("INSERT INTO messages VALUES (?,?,?)",
+                  ("sess_sub1", "user", "But un"))
+        g.commit()
+        g.close()
+
+        st, _, txt = req("GET", "/ulysse/graph", headers=same)
+        rep = json.loads(txt) if st == 200 else {}
+        origines = rep.get("origines") or []
+        check("200 JSON avec origines[]", st == 200 and isinstance(origines, list)
+              and len(origines) == 1, "HTTP %d — %s" % (st, txt[:100]))
+        if origines:
+            o = origines[0]
+            check("l'origine porte la session, le titre et ses delegations",
+                  o.get("session_id") == "sess_origine"
+                  and o.get("titre") == "Créer revue quotidienne IA"
+                  and len(o.get("delegations", [])) == 1,
+                  json.dumps(o, ensure_ascii=False)[:150])
+            d = (o.get("delegations") or [{}])[0]
+            buts = d.get("buts") or []
+            check("chaque but porte son etat, la duree est celle de la deleg",
+                  len(buts) == 2
+                  and buts[0].get("etat") == "complete"
+                  and buts[1].get("etat") == "echec"
+                  and d.get("duree_s") == 60,
+                  json.dumps(buts, ensure_ascii=False)[:200])
+            check("la session subagent est rattachée au but par texte exact",
+                  (buts[0].get("sessions") or [{}])[0].get("id") == "sess_sub1",
+                  json.dumps(buts[0].get("sessions"), ensure_ascii=False)[:120])
+        # L'arbre reste lisible meme quand la DB est vide : pas une panne.
+        os.remove(graph_essai)
+        st, _, txt = req("GET", "/ulysse/graph", headers=same)
+        rep = json.loads(txt) if st == 200 else {}
+        check("DB absente -> 200 {ok, origines vides} (pas une panne)",
+              st == 200 and rep.get("ok") is True and rep.get("origines") == [],
+              "HTTP %d — %s" % (st, txt[:80]))
+        # DB corrompue : pareil, on degrade proprement.
+        with open(graph_essai, "wb") as fh:
+            fh.write(b"pas une base sqlite")
+        st, _, txt = req("GET", "/ulysse/graph", headers=same)
+        rep = json.loads(txt) if st == 200 else {}
+        check("DB corrompue -> 200 {ok, origines vides}",
+              st == 200 and rep.get("ok") is True and rep.get("origines") == [],
+              "HTTP %d — %s" % (st, txt[:80]))
+        # Une Origin etrangere est refusee, comme toute route locale.
+        st, _, _ = req("GET", "/ulysse/graph",
+                       headers={"Origin": "http://evil.example.com"})
+        check("GET avec Origin etrangere -> 403", st == 403, "HTTP %d" % st)
+    finally:
+        if os.path.exists(graph_essai):
+            os.remove(graph_essai)
+
     # --- bilan ---------------------------------------------------------
     passed = sum(1 for _, ok, _ in results if ok)
     total = len(results)

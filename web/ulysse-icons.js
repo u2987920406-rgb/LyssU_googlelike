@@ -126,9 +126,13 @@ const I={
  equipe:{people:true,
    nm:'Vestiaire',
    r:"Les rôles et les compétences — ce qu'on peut endosser. Trois silhouettes, parce qu'aucune n'est la bonne à elle seule."},
+ reseau:{raw:`<circle cx="12" cy="5" r="2.2"/>
+  <circle cx="6" cy="18" r="2.2"/><circle cx="18" cy="18" r="2.2"/>
+  <path d="M10.8 6.8 7.2 16M13.2 6.8l3.6 9.2"/>`,nm:'Graph agentique',
+  r:"Qui a délégué quoi à qui, et ce qui en est revenu. La vérité du cabinet, lue dans la base d'Hermès — rien d'affiché ici n'est inventé."},
  noeuds:{nodes:true,
-   nm:'Plan',
-   r:"Ce que fait l'agent, étape par étape. Des nœuds reliés : c'est une suite, pas une liste."},
+  nm:'Plan',
+  r:"Ce que fait l'agent, étape par étape. Des nœuds reliés : c'est une suite, pas une liste."},
  boussole:{fillable:'M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18zm3.5 5.5-2 5-5 2 2-5z',
    nm:'Repères',
    r:"Le sens de chaque signe de l'interface. On y vient avec un dessin en tête, pas pour le lire en entier."},

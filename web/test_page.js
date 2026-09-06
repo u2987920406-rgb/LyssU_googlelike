@@ -763,8 +763,8 @@ async function main(){
 
   win.toggleCoulisses({ stopPropagation(){} });
   const opened = win.document.querySelectorAll("#railItems .rail-btn");
-  check("les coulisses s'ouvrent sur les 6 autres destinations",
-    opened.length === 10, opened.length + " boutons");
+  check("les coulisses s'ouvrent sur les 7 autres destinations",
+    opened.length === 11, opened.length + " boutons");
 
   /* ── ON NE PEUT PLUS ÊTRE QUELQUE PART SANS QUE LE MENU LE DISE ─────────
      `nav()` allumait le panneau et redessinait le rail, mais n'ouvrait

@@ -119,6 +119,11 @@ MARQUEUR = os.path.join(hermes_home(), "ulysse-premier-vu")
 # dossier servi — rien de ce qui est ici n'est publié par le serveur statique.
 FICHIER_ETAT = os.path.join(hermes_home(), "ulysse-etat.json")
 
+# La base Hermes que lit le graph agentique (v2, demande Raf le 2026-09-05).
+# LECTURE SEULE, et en mode sqlite `ro` : la route n'ecrit jamais dans le
+# Hermes home — c'est l'etat REEL des delegations, pas une copie d'Ulysse.
+FICHIER_GRAPH_DB = os.path.join(hermes_home(), "state.db")
+
 
 def premier_lancement():
     """Vrai tant que l'ecran d'accueil n'a pas ete vu une premiere fois."""
@@ -415,6 +420,172 @@ def dossier_versions(chemin):
 # seul mot qui protege — « ne detruit pas ».
 DOSSIER_CORBEILLE = "corbeille-ulysse"
 INDEX_CORBEILLE = "corbeille.json"
+
+
+# ── Le graph agentique (v2 — demande Raf, 2026-09-05) ────────────────────
+# La vérité d'Hermes, lue telle quelle : une session d'origine (un fil
+# Discord, un chat Ulysse) délègue des tâches (async_delegations) ; chaque
+# tâche est un but ; certains buts ont été tenus par une session subagent,
+# rattachée au but par correspondance exacte de texte (le premier message
+# user d'une session subagent EST le goal passé par delegate_task). Rien
+# n'est simulé : ce que la base ignore, la route le rend tel quel.
+ETAT_BUTS = {"completed": "complete", "succeeded": "complete",
+             "ok": "complete",
+             "failed": "echec", "error": "echec",
+             "cancelled": "annule", "canceled": "annule",
+             "timeout": "annule"}
+
+
+def lire_graph(chemin_db=None):
+    """Construit l'arbre origines -> delegations -> buts -> sessions.
+
+    Toute lecture est défensive : une table absente, une ligne illisible,
+    un JSON cassé dégradent CE nœud, jamais la route (qui rend 200 avec ce
+    qu'elle a su lire — une base absente n'est pas une panne, c'est un
+    historique vide).
+    """
+    chemin = chemin_db or FICHIER_GRAPH_DB
+    import sqlite3
+    try:
+        db = sqlite3.connect("file:%s?mode=ro" % chemin, uri=True)
+        db.row_factory = sqlite3.Row
+    except sqlite3.Error:
+        return {"ok": True, "origines": []}
+
+    # Les sessions d'abord : titres, sous-typage (subagent ou non).
+    sessions = {}
+    try:
+        for r in db.execute(
+                "SELECT id, source, parent_session_id, title FROM sessions"):
+            sessions[r["id"]] = {
+                "id": r["id"], "source": r["source"] or "",
+                "parent": r["parent_session_id"] or "",
+                "titre": r["title"] or ""}
+    except sqlite3.Error:
+        pass
+
+    # Les délégations, groupées par session d'origine.
+    delegs = {}
+    ordre = []
+    try:
+        for r in db.execute(
+                "SELECT delegation_id, origin_session, parent_session_id, "
+                "state, dispatched_at, completed_at, event_json "
+                "FROM async_delegations ORDER BY dispatched_at"):
+            try:
+                ev = json.loads(r["event_json"] or "{}")
+            except ValueError:
+                ev = {}
+            if not isinstance(ev, dict):
+                ev = {}
+            goals = ev.get("goals")
+            if not isinstance(goals, list):
+                goals = []
+            results = ev.get("results")
+            if not isinstance(results, list):
+                results = []
+            # Le statut d'ensemble vient de l'événement, sinon de la table.
+            statut = ev.get("status") or r["state"] or ""
+            duree = None
+            try:
+                if r["dispatched_at"] and r["completed_at"]:
+                    duree = round(float(r["completed_at"])
+                                  - float(r["dispatched_at"]))
+            except (TypeError, ValueError):
+                pass
+            d = {
+                "id": r["delegation_id"],
+                "origine": r["parent_session_id"] or r["origin_session"] or "",
+                "etat": ETAT_BUTS.get(str(statut).lower(), "en cours"),
+                "dispatch_at": r["dispatched_at"],
+                "duree_s": duree,
+                "buts": [],
+            }
+            results_par_index = {}
+            for res in results:
+                if isinstance(res, dict) and "task_index" in res:
+                    results_par_index[res.get("task_index")] = res
+            if goals:
+                for i, g in enumerate(goals):
+                    if not isinstance(g, str):
+                        continue
+                    res = results_par_index.get(i) or {}
+                    etat_res = str(res.get("status") or statut or "").lower()
+                    d["buts"].append({
+                        "texte": g[:400],
+                        "etat": ETAT_BUTS.get(etat_res,
+                                              ETAT_BUTS.get(str(statut).lower(),
+                                                            "en cours")),
+                        "sessions": [],
+                        "resume": (res.get("summary") or "")[:600],
+                    })
+            else:
+                # Délégation sans buts lisibles : un but unique, son état réel.
+                d["buts"].append({
+                    "texte": ev.get("goal") or "(but non enregistré)",
+                    "etat": ETAT_BUTS.get(str(statut).lower(), "en cours"),
+                    "sessions": [],
+                    "resume": "",
+                })
+            cle = d["origine"]
+            delegs.setdefault(cle, []).append(d)
+            ordre.append(cle)
+    except sqlite3.Error:
+        pass
+
+    # Rattacher les sessions subagents aux buts par texte exact.
+    try:
+        for r in db.execute(
+                "SELECT session_id, content FROM messages "
+                "WHERE role='user' ORDER BY rowid"):
+            sid = r["session_id"] or ""
+            sess = sessions.get(sid)
+            if not sess or sess.get("source") != "subagent":
+                continue
+            contenu = (r["content"] or "").strip()
+            if not contenu:
+                continue
+            for cle, liste in delegs.items():
+                for d in liste:
+                    for b in d["buts"]:
+                        if b["texte"] == contenu:
+                            sess_info = {
+                                "id": sid,
+                                "etat": sess.get("source") == "subagent"
+                                and d["etat"] or "en cours",
+                                "debut": sessions[sid].get("titre") or "",
+                            }
+                            b["sessions"].append(sess_info)
+                            break  # un but, une session
+    except sqlite3.Error:
+        pass
+
+    try:
+        db.close()
+    except Exception:
+        pass
+
+    # Les origines : sessions qui ont délégué, avec leur titre réel.
+    origines = []
+    for cle in ordre:
+        liste = delegs[cle]
+        sess = sessions.get(cle) or {}
+        titre = sess.get("titre") or (cle if cle.startswith("agent:")
+                                      else cle)
+        origines.append({
+            "session_id": cle,
+            "titre": titre,
+            "delegations": liste,
+        })
+    # Dédupliquer les origines (plusieurs délégations, une seule entrée).
+    vus = set()
+    uniques = []
+    for o in origines:
+        if o["session_id"] in vus:
+            continue
+        vus.add(o["session_id"])
+        uniques.append(o)
+    return {"ok": True, "origines": uniques}
 
 
 def corbeille_dir():
@@ -936,6 +1107,11 @@ class Handler(http.server.SimpleHTTPRequestHandler):
             if self.guard():
                 return
             self.lire_etat()
+            return
+        if self.route() == "/ulysse/graph":
+            if self.guard():
+                return
+            self.dire_graph()
             return
         if not self.static_allowed():
             self.send_error(404, "Not Found")
@@ -1766,6 +1942,9 @@ class Handler(http.server.SimpleHTTPRequestHandler):
     # à un autre appareil — c'est exactement le cas d'usage du téléphone.
     CLES_ETAT_AUTORISEES = ("position", "session_cwd", "etabli_path", "reprendre",
                             "mecanique")
+
+    def dire_graph(self):
+        self.send_json(200, lire_graph())
 
     def lire_etat(self):
         try:

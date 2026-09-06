@@ -33,6 +33,10 @@ const PANELS = [
   // est du contrat. Seul le niveau change — le libellé ne bouge pas.
   { n: 3, id: "Plan",      lbl: "Ce que fait l'agent", ico: "noeuds",
     tint: "rgba(155,114,203,.12)" },
+  // v2 (demande Raf 2026-09-05) : l'arbre réel de délégation. Coulisses (n=3)
+  // — un novice ne le croise pas, un avancé l'a en deux taps.
+  { n: 3, id: "Graph",     lbl: "Graph agentique", ico: "reseau",
+    tint: "rgba(52,168,83,.10)" },
   { n: 3, id: "Automatisations", lbl: "Automatisations", ico: "boucle", tint: "rgba(0,121,145,.10)" },
   { n: 3, id: "Vestiaire", lbl: "Vestiaire", ico: "equipe",  tint: "rgba(234,67,53,.09)" },
   { n: 3, id: "Reglages",  lbl: "Réglages",  ico: "regler",  tint: "rgba(95,99,104,.07)" },
@@ -45,6 +49,7 @@ let current = null, pinned = false, coulisses = false;
 const LIFE = {
   Discuter:        { onEnter: () => { paintThread(); paintBand(); } },
   Plan:            { onEnter: drawPlan },
+  Graph:           { onEnter: drawGraph },
   Livrables:       { onEnter: drawLivrables },
   Projets:         { onEnter: drawProjets },
   Automatisations: { onEnter: drawAutos },
@@ -4169,6 +4174,114 @@ function planifDit(chaine){
   return s ? "Hermès lira « " + s + " » — forme non reconnue ici" : "";
 }
 
+/* ═══ Le graph agentique (v2 — demande Raf 2026-09-05) ═══════════════════
+   L'arbre RÉEL des délégations, lu dans le state.db d'Hermes par serve.py.
+   Lecture seule : ce panneau décrit le travail, il ne le pilote pas. Une
+   base vide est un état affiché (« rien encore »), pas une panne. */
+let graphDonnees = null;   // dernière réponse /ulysse/graph, pour gRefresh
+
+function gDuree(s){
+  if (s == null) return "";
+  if (s < 90) return s + " s";
+  if (s < 5400) return Math.round(s / 60) + " min";
+  return Math.round(s / 3600 * 10) / 10 + " h";
+}
+
+function gPuce(etat){
+  const c = etat === "complete" ? "var(--green)"
+          : etat === "echec" ? "var(--red, #d96570)"
+          : etat === "annule" ? "var(--grey)" : "var(--amber, #fbbc04)";
+  return '<span class="dot" style="margin-top:7px;background:' + c + '"></span>';
+}
+
+function drawGraph(){
+  const h = '<div class="trashnote">' + svg("reseau", { size: 20 })
+    + "<span>Qui a délégué quoi à qui, et ce qui en est revenu — lu "
+    + "<b>directement dans la base d'Hermès</b>. Rien ici n'est simulé ; "
+    + "ce que la base ignore, l'écran le tait.</span></div>";
+  H("gArbre", h + '<div class="u-load">Chargement…</div>');
+  chargerGraph();
+}
+
+async function chargerGraph(){
+  let d;
+  try {
+    d = await REST.graph();
+    graphDonnees = d;
+  } catch (e){
+    H("gArbre", '<div class="trashnote">' + svg("cloche", { size: 20 })
+      + "<span>Base injoignable : " + esc(String(e && e.message || e))
+      + "</span></div>");
+    majMetaGraph(null);
+    return;
+  }
+  peindreGraph(d);
+}
+
+function majMetaGraph(d){
+  const m = $("gMeta");
+  if (!m) return;
+  if (!d || !d.ok){ m.textContent = ""; return; }
+  const nO = (d.origines || []).length;
+  const nD = (d.origines || []).reduce((a, o) => a + (o.delegations || []).length, 0);
+  const nB = (d.origines || []).reduce((a, o) => a + (o.delegations || [])
+    .reduce((b, x) => b + (x.buts || []).length, 0), 0);
+  m.textContent = nO + " origine" + (nO > 1 ? "s" : "") + " · "
+    + nD + " délégation" + (nD > 1 ? "s" : "") + " · "
+    + nB + " but" + (nB > 1 ? "s" : "");
+}
+
+function peindreGraph(d){
+  majMetaGraph(d);
+  const origines = (d && d.origines) || [];
+  if (!origines.length){
+    H("gArbre", '<div class="trashnote">' + svg("reseau", { size: 20 })
+      + "<span>Aucune délégation dans la base : quand Hermes déléguera du "
+      + "travail, l'arbre apparaîtra ici.</span></div>");
+    return;
+  }
+  const corps = origines.map((o) => {
+    const nD = (o.delegations || []).length;
+    let h = '<div class="seth">' + esc(o.titre || o.session_id)
+      + '<span class="l"></span><span class="nomind">' + nD
+      + " délégation" + (nD > 1 ? "s" : "") + "</span></div>";
+    (o.delegations || []).forEach((deleg, di) => {
+      const buts = deleg.buts || [];
+      h += '<div class="acard"><div class="ahead">'
+        + gPuce(deleg.etat)
+        + '<div class="amain"><div class="an">'
+        + esc(buts.length === 1 ? (buts[0].texte || "délégation")
+              : "Lot de " + buts.length + " tâches")
+        + "</div>"
+        + '<div class="ameta"><span class="chip b">' + esc(deleg.etat) + "</span>"
+        + (deleg.duree_s != null
+           ? '<span class="nomind">' + gDuree(deleg.duree_s) + "</span>" : "")
+        + "</div></div>"
+        + '<span class="chev">' + svg("chevron", { size: 20 }) + "</span></div>";
+      h += '<div class="abody"><div class="in">';
+      buts.forEach((b, bi) => {
+        const sess = b.sessions || [];
+        h += '<div class="srow"><span class="sk">'
+          + (buts.length > 1 ? (bi + 1) + ". " : "")
+          + esc(shorten(b.texte || "", 160))
+          + '<span class="sub">'
+          + (sess.length
+             ? sess.map((s) => "tenu par un subagent (" + s.etat + ")").join(" · ")
+             : "sans subagent rattaché")
+          + (b.resume ? " — " + esc(shorten(b.resume, 120)) : "")
+          + "</span></span>"
+          + '<span class="sv">' + gPuce(b.etat) + "</span></div>";
+      });
+      h += "</div></div>";
+    });
+    return h;
+  }).join("");
+  H("gArbre", '<div class="trashnote">' + svg("reseau", { size: 20 })
+    + "<span>Qui a délégué quoi à qui, et ce qui en est revenu — lu "
+    + "<b>directement dans la base d'Hermès</b>. Rien ici n'est simulé ; "
+    + "ce que la base ignore, l'écran le tait.</span></div>" + corps);
+}
+
 async function drawAutos(){
   let h = '<div class="trashnote">' + svg("boucle", { size: 20 })
     + "<span>Une automatisation tourne <b>toute seule</b>. C'est ce qui la rend "
@@ -7174,7 +7287,7 @@ function boot(){
   // `sessions.changed`. Un bouton plein de 40 px était l'aveu du contraire.
   // L'Historique n'y est pas : son rafraîchissement vit dans `#ctlHisto`
   // (`wireCtlHisto`), au même endroit que sa fermeture — comme l'Établi.
-  ["livRefresh", "projRefresh", "autoRefresh"].forEach((id) => {
+  ["livRefresh", "projRefresh", "autoRefresh", "gRefresh"].forEach((id) => {
     H(id, svg("relancer", { size: 18 }));
   });
   document.querySelectorAll(".u-lo").forEach((el) => {
@@ -7190,6 +7303,7 @@ function boot(){
     (conv.info && conv.info.cwd) || "", (neuf) => ouvrirRanger(neuf));
   $("trashBtn").onclick = () => { projArchives = !projArchives; drawProjets(); };
   $("autoRefresh").onclick = drawAutos;
+  $("gRefresh").onclick = chargerGraph;
 
   // L'Historique charge 50 sessions, Livrables ouvre des dossiers qui en
   // contiennent des centaines. `.search` existait et ne servait qu'au
