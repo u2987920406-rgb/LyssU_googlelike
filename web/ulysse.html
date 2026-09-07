@@ -1445,11 +1445,31 @@
 
     <!-- ─── Graph agentique (v2, demande Raf 2026-09-05) ─── -->
     <div class="panel" id="pGraph">
-      <div class="topbar"><span class="title">Graph agentique</span><span class="sep"></span>
+      <div class="topbar"><span class="title">Graph agentique</span>
+        <div class="seg stseg" id="gseg">
+          <button data-gv="canvas">Schéma</button>
+          <button data-gv="both" class="on">Les deux</button>
+          <button data-gv="reader">Détail</button></div>
+        <span class="sep"></span>
         <span class="tmeta" id="gMeta"></span>
         <button class="icon-btn sm" id="gRefresh" aria-label="Rafraîchir"
                 title="Rafraîchir"></button></div>
-      <div class="body"><div class="body-in" id="gArbre"></div></div>
+      <div class="studio" id="gStudio">
+        <div class="volet" id="gCanv">
+          <div class="canvas-body u-canevas" id="gPane">
+            <svg class="graph" viewBox="-10 -10 920 380" id="gSvg"></svg>
+            <div class="u-echelle">
+              <button data-gz="-1" title="Dézoomer">−</button>
+              <button id="gRecentrer" title="Ranger">⊡</button>
+              <button data-gz="1" title="Zoomer">+</button>
+            </div>
+            <div class="u-hint">Molette pour zoomer, tirer pour déplacer, cliquer une carte pour son détail.</div>
+          </div>
+        </div>
+        <div class="volet" id="gReader">
+          <div class="body"><div class="body-in" id="gArbre"></div></div>
+        </div>
+      </div>
     </div>
 
     <!-- ─── Automatisations ─── -->

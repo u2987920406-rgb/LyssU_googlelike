@@ -4235,60 +4235,168 @@ function peindreGraph(d){
   majMetaGraph(d);
   const origines = (d && d.origines) || [];
   if (!origines.length){
+    H("gSvg", "");
     H("gArbre", '<div class="trashnote">' + svg("reseau", { size: 20 })
       + "<span>Aucune délégation dans la base : quand Hermes déléguera du "
       + "travail, l'arbre apparaîtra ici.</span></div>");
     return;
   }
-  const corps = origines.map((o) => {
-    const nD = (o.delegations || []).length;
-    let h = '<div class="seth">' + esc(o.titre || o.session_id)
-      + '<span class="l"></span><span class="nomind">' + nD
-      + " délégation" + (nD > 1 ? "s" : "") + "</span></div>";
-    (o.delegations || []).forEach((deleg, di) => {
-      const buts = deleg.buts || [];
-      h += '<div class="acard" data-gd="' + di + '"><div class="ahead">'
-        + gPuce(deleg.etat)
-        + '<div class="amain"><div class="an">'
-        + esc(buts.length === 1 ? (buts[0].texte || "délégation")
-              : "Lot de " + buts.length + " tâches")
-        + "</div>"
-        + '<div class="ameta"><span class="chip b">' + esc(deleg.etat) + "</span>"
-        + (deleg.duree_s != null
-           ? '<span class="nomind">' + gDuree(deleg.duree_s) + "</span>" : "")
-        + "</div></div>"
-        + '<span class="chev">' + svg("chevron", { size: 20 }) + "</span></div>";
-      h += '<div class="abody"><div class="in">';
-      buts.forEach((b, bi) => {
-        const sess = b.sessions || [];
-        h += '<div class="srow"><span class="sk">'
-          + (buts.length > 1 ? (bi + 1) + ". " : "")
-          + esc(shorten(b.texte || "", 160))
-          + '<span class="sub">'
-          + (sess.length
-             ? sess.map((s) => "tenu par un subagent (" + s.etat + ")").join(" · ")
-             : "sans subagent rattaché")
-          + (b.resume ? " — " + esc(shorten(b.resume, 120)) : "")
-          + "</span></span>"
-          + '<span class="sv">' + gPuce(b.etat) + "</span></div>";
-      });
-      h += "</div></div>";
-    });
-    return h;
-  }).join("");
-  H("gArbre", '<div class="trashnote">' + svg("reseau", { size: 20 })
-    + "<span>Qui a délégué quoi à qui, et ce qui en est revenu — lu "
-    + "<b>directement dans la base d'Hermès</b>. Rien ici n'est simulé ; "
-    + "ce que la base ignore, l'écran le tait.</span></div>" + corps);
 
-  // Le détail d'une délégation se déplie au chef de file — le même pli que
-  // les Automatisations, mais SANS toucher leurs cartes : les `acard` du
-  // Graph portent `data-gd`, les leurs `ac<n>` (et un `data-open`).
-  $("gArbre").querySelectorAll("[data-gd]").forEach((card) => {
-    card.querySelector(".ahead").addEventListener("click", () => {
-      card.classList.toggle("open");
+  /* ── L'arbre : une carte par origine, une carte par délégation ────────
+     Deux niveaux seulement, c'est ce que la base porte réellement :
+     la session (origine) → ses délégations. Les subagents sont indiqués
+     dans la carte de délégation, pas en troisième étage (la base ne relie
+     pas un subagent à une origine par une arête fiable). Si une origine
+     porte plusieurs délégations, elles se rangent en colonne sous elle. */
+  const NWG = 168, NHG = 74, RYG = 30;
+  const gx = 22, gy = 24;
+  const origine = (o) => o.titre || o.session_id;
+  // profondeur 0 = chaque origine ; profondeur 1 = ses délégations
+  const noeuds = [];   // {sid, o, deleg|undefined, etat, x, y}
+  const aretes = [];   // [sid, delegKey]
+  const pos = {};
+  let maxW = 0, maxH = 0;
+  /* Chaque origine forme un BLOC vertical qui lui est propre : la source à
+     gauche, ses délégations fan-out à droite alignées sur le centre de la
+     source, et le bloc suivant commence APRÈS la délégation la plus basse.
+     Sans cela, les délégations d'une origine aux neuf tâches écraseraient
+     l'origine du dessous. (Constaté : « Créer jeu kitsune » en a 9.) */
+  const PASG = NWG + 56;
+  let yCur = gy;
+  origines.forEach((o, oi) => {
+    const nD = (o.delegations || []).length;
+    const centre = (blocH) => yCur + (nD > 0 ? blocH / 2 - NHG / 2 : 0);
+    // on calcule les positions des délégations d'abord
+    const ds = (o.delegations || []).map((deleg, di) => ({
+      key: o.session_id + "::" + di,
+      y: yCur + di * (NHG + RYG),
+      deleg
+    }));
+    const dern = ds.length ? ds[ds.length - 1].y : yCur;
+    const yO = centre(dern + NHG - yCur);
+    pos[o.session_id] = { x: gx, y: yO };
+    noeuds.push({ key: o.session_id, titre: origine(o), etat: "orig",
+                  x: gx, y: yO, delegs: o.delegations || [] });
+    maxW = Math.max(maxW, gx + NWG); maxH = Math.max(maxH, yO + NHG);
+    ds.forEach((d) => {
+      const xD = gx + PASG;
+      pos[d.key] = { x: xD, y: d.y };
+      noeuds.push({ key: d.key, titre: d.deleg.buts.length === 1
+          ? (d.deleg.buts[0].texte || "délégation")
+          : "Lot de " + d.deleg.buts.length + " tâches",
+          etat: d.deleg.etat, deleg: d.deleg, x: xD, y: d.y });
+      aretes.push([o.session_id, d.key]);
+      maxW = Math.max(maxW, xD + NWG);
+      maxH = Math.max(maxH, d.y + NHG);
     });
+    // le bloc suivant commence après la délégation la plus basse
+    yCur = (ds.length ? dern : yO) + NHG + RYG;
   });
+
+  const svgEl = $("gSvg");
+  if (svgEl){
+    svgEl.setAttribute("viewBox", "-12 -12 " + (maxW + 24) + " " + (maxH + 24));
+    svgEl.style.aspectRatio = (maxW + 24) + " / " + (maxH + 24);
+
+    const COUL = { complete: "#34A853", echec: "#EA4335", en_cours: "#FBBC04",
+                   annule: "#9AA0A6", orig: "#9AA0A6" };
+    const dens = (etat) => etat === "en_cours" ? 0.19 : (etat === "complete" ? 0.12 : 0);
+
+    const parts = [];
+    // arêtes d'abord (derrière les cartes)
+    aretes.forEach(([a, b]) => {
+      const A = pos[a], B = pos[b];
+      if (!A || !B) return;
+      parts.push('<path class="edge" d="M' + (A.x + NWG) + " " + (A.y + NHG / 2)
+        + " L" + B.x + " " + (B.y + NHG / 2) + '"/>');
+    });
+    noeuds.forEach((nd) => {
+      const c = COUL[nd.etat] || "#9AA0A6";
+      const e = dens(nd.etat);
+      const l1 = nd.titre, t = String(l1).split(" ");
+      const ligne1 = t.slice(0, 2).join(" ");
+      const ligne2 = t.slice(2, 4).join(" ") + (t.length > 4 ? "…" : "");
+      const l2 = ligne2.trim();
+      parts.push('<g class="node st-' + nd.etat + '" data-k="' + esc(nd.key) + '">'
+        + '<rect class="glow" x="' + nd.x + '" y="' + nd.y + '" width="' + NWG
+        + '" height="' + NHG + '" rx="14" stroke="' + c + '"/>'
+        + '<rect class="b" x="' + nd.x + '" y="' + nd.y + '" width="' + NWG
+        + '" height="' + NHG + '" rx="14" stroke="' + c + '" style="stroke-width:1.3'
+        + (e ? ";fill:" + c + ";fill-opacity:" + e : "") + '"/>'
+        + '<text class="ti" x="' + (nd.x + 14) + '" y="' + (nd.y + 25) + '">'
+        + esc(nd.etat === "orig" ? (ligne1 || "délégation source") : (ligne1 || "délégation")) + '</text>'
+        + (l2 ? '<text class="ti" x="' + (nd.x + 14) + '" y="' + (nd.y + 41) + '">'
+          + esc(l2) + '</text>' : "")
+        + (nd.etat === "orig"
+            ? '<text class="eq" x="' + (nd.x + 14) + '" y="' + (nd.y + (l2 ? 59 : 47))
+              + '" fill="' + c + '">' + nd.delegs.length + " délégation"
+              + (nd.delegs.length > 1 ? "s" : "") + '</text>'
+            : '<text class="eq" x="' + (nd.x + 14) + '" y="' + (nd.y + (l2 ? 59 : 47))
+              + '" fill="' + c + '">' + esc(nd.etat) + '</text>')
+        + '</g>');
+    });
+    svgEl.innerHTML = parts.join("");
+  }
+
+  // ── Le détail : au clic sur une carte ─────────────────────────────────
+  const selKey = () => {
+    const s = svgEl && svgEl.querySelector("g.node.sel");
+    return s ? s.dataset.k : null;
+  };
+  function dessinerDetail(key){
+    if (!key){ H("gArbre", '<div class="trashnote">' + svg("reseau", { size: 20 })
+        + "<span>Cliquez une carte du schéma pour lire sa délégation, ses "
+        + "buts et ce qu'il en est revenu.</span></div>"); return; }
+    const [sid, di] = key.split("::");
+    const o = origines.find((x) => x.session_id === sid);
+    if (di === undefined){
+      // carte origine : la liste de ses délégations
+      H("gArbre", '<div class="seth">' + esc(o ? origine(o) : sid)
+        + '<span class="l"></span><span class="nomind">Origine</span></div>'
+        + ((o && o.delegations || []).map((deleg, i) => carteDeleg(
+            o.session_id + "::" + i, deleg)).join("")));
+      return;
+    }
+    const deleg = (o && o.delegations[ +di ]);
+    if (deleg) H("gArbre", carteDeleg(key, deleg));
+  }
+  if (svgEl) svgEl.addEventListener("click", (ev) => {
+    const g = ev.target.closest("g.node");
+    svgEl.querySelectorAll("g.node.sel").forEach((n) => n.classList.remove("sel"));
+    if (g){ g.classList.add("sel"); dessinerDetail(g.dataset.k); }
+  });
+
+  H("gArbre", '<div class="trashnote">' + svg("reseau", { size: 20 })
+    + "<span>Cliquez une carte du schéma pour lire sa délégation, ses "
+    + "buts et ce qu'il en est revenu.</span></div>");
+}
+
+/* Une carte de délégation pour le volet détail. */
+function carteDeleg(key, deleg){
+  const buts = deleg.buts || [];
+  let h = '<div class="trashnote">' + svg("reseau", { size: 20 })
+    + "<span><b>" + esc(buts.length === 1 ? (buts[0].texte || "délégation")
+      : "Lot de " + buts.length + " tâches") + "</b></span></div>"
+    + '<div class="srow"><span class="sk">État</span><span class="sv">'
+    + gPuce(deleg.etat) + " <span class=\"chip b\">" + esc(deleg.etat) + "</span></span></div>"
+    + (deleg.duree_s != null
+       ? '<div class="srow"><span class="sk">Durée</span><span class="sv">'
+         + esc(gDuree(deleg.duree_s)) + "</span></div>" : "")
+    + '<div class="seth">Buts<span class="l"></span></div>';
+  h += buts.map((b, bi) => {
+    const sess = b.sessions || [];
+    return '<div class="acard"><div class="ahead">' + gPuce(b.etat)
+      + '<div class="amain"><div class="an">' + esc(shorten(b.texte || "", 160)) + "</div>"
+      + '<div class="ameta"><span class="chip b">' + esc(b.etat) + "</span>"
+      + (sess.length
+         ? '<span class="nomind">tenu par ' + sess.length + " subagent"
+           + (sess.length > 1 ? "s" : "") + "</span>"
+         : '<span class="nomind">sans subagent rattaché</span>')
+      + "</div></div></div>"
+      + (b.resume ? '<div class="abody" style="max-height:none"><div class="in">'
+        + esc(shorten(b.resume, 300)) + "</div></div>" : "");
+  }).join("");
+  return h;
 }
 
 async function drawAutos(){
@@ -7313,6 +7421,20 @@ function boot(){
   $("trashBtn").onclick = () => { projArchives = !projArchives; drawProjets(); };
   $("autoRefresh").onclick = drawAutos;
   $("gRefresh").onclick = chargerGraph;
+
+  // Le segmenté du Graph : Schéma / Les deux / Détail.
+  const gseg = $("gseg");
+  const gStudio = $("gStudio");
+  if (gseg && gStudio){
+    gseg.querySelectorAll("button").forEach((b) => {
+      b.onclick = () => {
+        gseg.querySelectorAll("button").forEach((x) => x.classList.toggle("on", x === b));
+        const v = b.dataset.gv;
+        gStudio.classList.toggle("max-canvas", v === "canvas");
+        gStudio.classList.toggle("max-reader", v === "reader");
+      };
+    });
+  }
 
   // L'Historique charge 50 sessions, Livrables ouvre des dossiers qui en
   // contiennent des centaines. `.search` existait et ne servait qu'au

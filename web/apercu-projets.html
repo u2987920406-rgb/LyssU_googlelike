@@ -456,8 +456,12 @@ input{font:inherit;color:inherit;background:none;border:none;outline:none}
 /* D1 : le schéma prend deux tiers, la liste un tiers.
    Le visuel porte l'avancée, le texte porte le contenu. */
 #vCanvas{flex:2}#vReader{flex:1}
+/* Le graph agentique prend le même rapport schéma/détail que le Plan. */
+#gCanv{flex:2}#gReader{flex:1}
 .studio.max-canvas #vReader{display:none}
 .studio.max-reader #vCanvas{display:none}
+#gStudio.max-canvas #gReader{display:none}
+#gStudio.max-reader #gCanv{display:none}
 .volet-head{flex:none;height:46px;display:flex;align-items:center;gap:var(--space-2);padding:0 8px 0 18px}
 .volet-head .vt{font-size:var(--font-size-sm);color:var(--muted);font-weight:500}
 .volet-head .sp{flex:1}

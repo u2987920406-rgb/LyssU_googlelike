@@ -315,11 +315,11 @@ function fakeFetch(url, opts){
      délégation réelle de l'aspect du state.db : une origine -> une délégation
      -> deux buts, dont un tenu par un subagent. Le panneau doit la déplier. */
   if (body === undefined && bare === "/ulysse/graph"){
-    body = { ok: true, origines: [{ session_id: "sess_o", titre: "Créer revue",
-      delegations: [{ id: "deleg_a", origine: "sess_o", etat: "complete",
-        duree_s: 72, buts: [
+    body = { ok: true, origines: [{ session_id: "sess_o", titre: "Créer revue", delegations: [
+      { id: "deleg_a", origine: "sess_o", etat: "complete", duree_s: 72, buts: [
           { texte: "But un", etat: "complete", resume: "resume un",
-            sessions: [{ id: "sess_sub1", etat: "complete", debut: "titre" }] },
+            sessions: [{ id: "sess_sub1", etat: "complete", debut: "titre" }] }] },
+      { id: "deleg_b", origine: "sess_o", etat: "echec", duree_s: 20, buts: [
           { texte: "But deux", etat: "echec", resume: "", sessions: [] }] }] }] };
   }
   if (body === undefined && (bare === "/ulysse/ecrire" || bare === "/ulysse/restaurer")){
@@ -3329,23 +3329,22 @@ async function main(){
     carte && /fill:/.test(carte.getAttribute("style") || ""),
     carte ? carte.getAttribute("style") : "aucune carte");
 
-  // ── Graph agentique : l'arbre se déplie au chef de file ──
+  // ── Graph agentique : un schéma, un clic, un détail ──
   win.eval('nav("Graph")');
   await wait(120);
-  check("Graph · le panneau s'ouvre et peint une origine + sa délégation",
-    win.document.querySelector("#pGraph .acard[data-gd]") !== null);
-  const gCard = win.document.querySelector("#pGraph .acard[data-gd]");
-  if (gCard){
-    check("Graph · le détail est replié au départ",
-      !gCard.classList.contains("open"));
-    gCard.querySelector(".ahead").click();
+  const gNoeuds = win.document.querySelectorAll("#pGraph #gSvg g.node");
+  check("Graph · le schéma peint les noeuds (origine + délégations)",
+    gNoeuds.length >= 3, gNoeuds.length + " noeud(s)");
+  // le clic sur une carte de délégation peint son détail (but, état, durée)
+  const gDeleg = win.document.querySelector("#gSvg g.node[data-k*='::']");
+  if (gDeleg){
+    gDeleg.dispatchEvent(new win.MouseEvent("click", { bubbles: true }));
     await wait(60);
-    check("Graph · le clic sur le chef de file déplie le détail",
-      gCard.classList.contains("open"));
-    check("Graph · le détail montre le but et son retour",
-      !!win.document.querySelector("#pGraph .abody .srow")
-      && /\bcomplete\b/.test(win.document.querySelector("#pGraph .abody").textContent));
-  } else check("Graph · le détail est replié au départ", false, "aucune carte");
+    const det = win.document.getElementById("gArbre").textContent;
+    check("Graph · cliquer une délégation peint son détail (buts + états)",
+      /But un/.test(det) && /complete/.test(det), "");
+  } else check("Graph · cliquer une délégation peint son détail (buts + états)",
+    false, "aucune carte de délégation");
 
   // ── Discuter : le kebab, la gélule, la languette ──
   win.eval('nav("Discuter")');
