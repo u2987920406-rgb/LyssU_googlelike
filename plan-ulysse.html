@@ -1,0 +1,278 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Plan — [Nom du projet]</title>
+<style>
+  :root{
+    --bg:#0f1115; --panel:#171a21; --panel2:#1e222b; --ink:#e8eaf0;
+    --muted:#9aa3b2; --accent:#5ad1ff; --accent2:#9d7bff; --ok:#3ddc84;
+    --warn:#ffb020; --danger:#ff5d6c; --line:#262b35; --radius:10px;
+  }
+  *{box-sizing:border-box}
+  body{margin:0; background:var(--bg); color:var(--ink);
+    font:15px/1.55 system-ui,-apple-system,Segoe UI,Roboto,sans-serif}
+  header{position:sticky; top:0; z-index:10; background:#11131aE6;
+    backdrop-filter:blur(6px); border-bottom:1px solid var(--line);
+    padding:14px 22px; display:flex; align-items:baseline; gap:14px; flex-wrap:wrap}
+  header h1{font-size:19px; margin:0; letter-spacing:.2px}
+  header .meta{color:var(--muted); font-size:13px}
+  .wrap{max-width:1080px; margin:26px auto; padding:0 20px}
+  .tabs{display:flex; gap:6px; flex-wrap:wrap; position:sticky; top:60px;
+    z-index:9; background:var(--bg); padding:8px 0}
+  .tab{border:1px solid var(--line); background:var(--panel); color:var(--muted);
+    padding:8px 15px; border-radius:20px; cursor:pointer; font-size:13.5px;
+    transition:.15s}
+  .tab:hover{color:var(--ink); border-color:var(--accent)}
+  .tab.active{background:linear-gradient(120deg,#123a4a,#2a2150);
+    color:var(--accent); border-color:var(--accent); font-weight:600}
+  .pane{display:none; animation:fade .3s}
+  .pane.active{display:block}
+  @keyframes fade{from{opacity:0; transform:translateY(4px)}to{opacity:1}}
+  .card{background:var(--panel); border:1px solid var(--line);
+    border-radius:var(--radius); padding:18px 20px; margin:14px 0}
+  .card h2{margin:0 0 10px; font-size:16px; color:var(--accent);
+    border-bottom:1px solid var(--line); padding-bottom:8px}
+  .card h3{font-size:14px; color:var(--accent2); margin:16px 0 6px}
+  .grid2{display:grid; grid-template-columns:1fr 1fr; gap:14px}
+  @media(max-width:760px){.grid2{grid-template-columns:1fr}}
+  .kpi{display:flex; gap:12px; flex-wrap:wrap; margin:6px 0}
+  .kpi div{flex:1; min-width:130px; background:var(--panel2); border:1px solid var(--line);
+    border-radius:8px; padding:12px 14px}
+  .kpi b{display:block; font-size:18px; color:var(--accent)}
+  .kpi span{color:var(--muted); font-size:12px}
+  ul,ol{margin:6px 0; padding-left:22px}
+  li{margin:5px 0}
+  .tag{display:inline-block; font-size:11px; padding:2px 9px; border-radius:12px;
+    background:var(--panel2); border:1px solid var(--line); color:var(--muted); margin:2px}
+  .tag.hi{color:var(--danger); border-color:var(--danger)}
+  .tag.mid{color:var(--warn); border-color:var(--warn)}
+  .tag.low{color:var(--ok); border-color:var(--ok)}
+  .tag.idea{color:var(--accent2); border-color:var(--accent2)}
+  .ac{list-style:none; padding:0; margin:0}
+  .ac li{display:flex; gap:10px; align-items:flex-start; padding:9px 10px;
+    border:1px solid var(--line); border-radius:8px; margin:7px 0; cursor:pointer;
+    transition:.15s; background:var(--panel2)}
+  .ac li:hover{border-color:var(--accent)}
+  .ac li.done{opacity:.55; text-decoration:line-through}
+  .ac input{margin-top:3px; accent-color:var(--ok); cursor:pointer}
+  .ac code{background:#0c0e13; padding:1px 6px; border-radius:5px;
+    color:var(--accent); font-size:12.5px}
+  code{background:#0c0e13; padding:1px 6px; border-radius:5px;
+    color:var(--accent); font-size:12.5px}
+  .ms{border-left:3px solid var(--line); padding:0 0 0 16px; margin:8px 0;
+    position:relative}
+  .ms::before{content:""; position:absolute; left:-7px; top:4px; width:11px;
+    height:11px; border-radius:50%; background:var(--panel2); border:2px solid var(--accent)}
+  .ms.done::before{background:var(--ok); border-color:var(--ok)}
+  .ms h4{margin:0; font-size:14.5px}
+  .ms .risk{font-size:11.5px}
+  table{width:100%; border-collapse:collapse; font-size:13.5px}
+  th,td{text-align:left; padding:8px 10px; border:1px solid var(--line)}
+  th{background:var(--panel2); color:var(--muted); font-size:12px; text-transform:uppercase;
+    letter-spacing:.4px}
+  .mock{background:var(--panel2); border:1px dashed var(--accent); border-radius:8px;
+    padding:18px; margin-top:10px; min-height:120px}
+  .bar{height:14px; border-radius:6px; margin:7px 0; background:linear-gradient(90deg,#123a4a,#2a2150)}
+  .prog{height:8px; background:var(--panel2); border-radius:6px; overflow:hidden; margin-top:8px}
+  .prog>div{height:100%; width:0; background:linear-gradient(90deg,var(--accent),var(--accent2));
+    transition:.3s}
+  .foot{color:var(--muted); font-size:12px; text-align:center; padding:24px 0 40px}
+  .btn{border:1px solid var(--accent); color:var(--accent); background:transparent;
+    padding:8px 14px; border-radius:8px; cursor:pointer; font-size:13.5px; transition:.15s}
+  .btn:hover{background:#123a4a; border-color:var(--accent)}
+</style>
+</head>
+<body>
+<header>
+  <h1>Plan — <span id="projName">[Nom du projet]</span></h1>
+  <span class="meta" id="projMeta">v0.1 · jalon 1/x · en conception</span>
+</header>
+
+<div class="wrap">
+  <div class="kpi">
+    <div><b id="kpiJalons">0/x</b><span>Jalons validés</span></div>
+    <div><b id="kpiAC">0</b><span>AC cochées</span></div>
+    <div><b id="kpiRisque">—</b><span>Risque restant max</span></div>
+  </div>
+
+  <div class="tabs" id="tabBar">
+    <button class="tab active" data-tab="prd">PRD</button>
+    <button class="tab" data-tab="guidelines">Guidelines</button>
+    <button class="tab" data-tab="jalons">Plan jalons</button>
+    <button class="tab" data-tab="ac">AC</button>
+    <button class="tab" data-tab="mockups">Mockups</button>
+  </div>
+
+  <section class="pane active" id="pane-prd">
+    <div class="card">
+      <h2>Contexte &amp; objectif</h2>
+      <p id="prdCtx">[Remplace par le contexte : le problème, pourquoi ça existe.]</p>
+    </div>
+    <div class="grid2">
+      <div class="card">
+        <h2>Fonctionnalités</h2>
+        <ul id="prdFeats"><li>[Fonctionnalité 1]</li><li>[Fonctionnalité 2]</li></ul>
+      </div>
+      <div class="card">
+        <h2>Utilisateur &amp; contraintes</h2>
+        <ul id="prdCst"><li>[Utilisateur cible]</li><li>[Contrainte clé]</li></ul>
+      </div>
+    </div>
+    <div class="card">
+      <h2>Risques</h2>
+      <div class="kpi" id="prdRisques">
+        <div><b class="tag hi">Hi</b><span>[risque à fort impact]</span></div>
+        <div><b class="tag mid">Mid</b><span>[risque moyen]</span></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="pane" id="pane-guidelines">
+    <div class="card">
+      <h2>Règles que l'on ne transige pas (7 axes)</h2>
+      <ul id="guideAxes">
+        <li><b>Code :</b> [règle]</li>
+        <li><b>Archi :</b> [règle]</li>
+        <li><b>Tests :</b> [règle]</li>
+        <li><b>UX :</b> [règle]</li>
+        <li><b>Nommage :</b> [règle]</li>
+        <li><b>Data :</b> [règle]</li>
+        <li><b>Ops :</b> [règle]</li>
+      </ul>
+    </div>
+  </section>
+
+  <section class="pane" id="pane-jalons">
+    <div class="card">
+      <h2>Jalons verticaux (risque le plus élevé d'abord)</h2>
+      <div id="jalonsList"></div>
+    </div>
+  </section>
+
+  <section class="pane" id="pane-ac">
+    <div class="card">
+      <h2>Critères d'acceptation</h2>
+      <ul class="ac" id="acList"></ul>
+      <div class="prog"><div id="acProg"></div></div>
+    </div>
+  </section>
+
+  <section class="pane" id="pane-mockups">
+    <div class="card">
+      <h2>Mockups / UI</h2>
+      <div class="mock"><p>[Pose ici le croquis ou la description du rendu cible.]</p></div>
+    </div>
+  </section>
+
+  <div class="foot">Template « HTML-as-Plan » · skill la-methode · écrit en MD, lu en HTML</div>
+</div>
+
+<script>
+const DATA = {
+  name: "Projet Ulysse",
+  meta: "v0.1 · jalon 3/4 · Session C en cours",
+  prd: {
+    ctx: "Ulysse est le MASQUE VISUEL (web UI locale) posé PAR-DESSUS Hermès Agent. L'utilisateur final (grand public, non technique) ne voit qu'une icône : double-clic → interface web dans le navigateur → Hermès travaille invisible en arrière-plan. ZÉRO friction. On ne réinvente RIEN : on RELIE la coquille UI aux éléments DÉJÀ existants de Hermès (gateway run / proxy / serve / webhook).",
+    feats: [
+      "Discussion pur via proxy (chat) + bascule Cowork (agent complet)",
+      "Boutons précis via webhooks (image, résumé, recherche…)",
+      "Terminal hermes --tui derrière WebSocket /api/pty",
+      "Écriture mémoire avec diff, versions et retour arrière (jamais de destruction silencieuse)",
+      "Vestiaire : 6 RÔLES (pas des agents) — Orchestrateur, Généraliste, Raisonnement, Codage, Appel d'outil, Garde-fou",
+      "Studio = miroir temps réel du plan/état vivant (PAS de fichier 'live' séparé)",
+      "Installateur .bat from-scratch pour utilisateurs non-tech (auth OAuth Portal par défaut, clé API en alt)"
+    ],
+    cst: [
+      "Écran cible : mobile d'abord (412 px) puis desktop",
+      "Fichier de config servi SANS les secrets (serve.py les lit dans l'environnement et les expurge)",
+      "Aucun composant UI sans endpoint Hermès réel — pas de bouton mort (règle STU-1)",
+      "Écrire par-dessus une mémoire = destruction → version d'avant datée dans versions-ulysse/ ; si la copie échoue, RIEN n'est écrit"
+    ],
+    risques: [
+      {n:"Hi",  t:"Blocage externe : saturation NuPortal free → 403 upstream (déjà vu, Session A)"},
+      {n:"Hi",  t:"Complexité installateur .bat from-scratch (Python/uv/Node/Playwright/Hermès/webui)"},
+      {n:"Mid", t:"Webhooks : un contrôle 'qui n'agit pas' (bouton mort) — la dette revient vite"},
+      {n:"Mid", t:"OAuth device_code : dépendance au flux Portal, à valider sur le vrai machine-client"}
+    ]
+  },
+  guidelines: [
+    ["Code", "Wire, ne rebuild pas. Chaque composant = endpoint Hermès existant. Rien de simulé (STU-1)."],
+    ["Archi", "Hermès = le moteur invisible ; Ulysse = coquille qui relie. Pas de serveur maison à écrire."],
+    ["Tests", "Pour chaque écran : test_page.js (vraie page jsdom) + test_serve.py (frontières/écriture). Un test qui remplace ce qu'il vérifie ne vérifie que le reste."],
+    ["UX", "Mobile d'abord (412 px). Écrire par quel geste on atteint chaque état."],
+    ["Nommage", "Suivre CONTRAT-INTERFACE.md ; un id ou data-* manquant = le test n'a pas tort, c'est le contrat qui a disparu."],
+    ["Data", "Les secrets ne traversent jamais la page : serve.py les lit dans l'environnement et les expurge."],
+    ["Ops", "Frontière SOUL.md refusée à l'écriture via Ulysse ; la vraie frontière se joue dans les approbations Hermès."]
+  ],
+  jalons: [
+    {t:"J1 — Valider le flux Hermès réel (gateway / proxy / webhooks / serve), lever CORS", risk:3, riskL:"Hi",   done:true, ck:["proxy chat 8645 prouvé","webhook répond 8644","serve expose /api/* sur 9119"]},
+    {t:"J2 — Discuter (chat proxy) bout-en-bout", risk:2, riskL:"Mid", done:true, ck:["discussion.html + serve.py statique port 8080","texte bout-en-bout (NuPortal saturé un temps = 403 upstream, levé)"]},
+    {t:"J3 — Cowork + Studio + Projets", risk:2, riskL:"Mid", done:true, ck:["WS /api/ws + token loopback","projets : lister, ranger, explorer, archiver, supprimer","3 défauts du réel corrigés + éprouvés en les cassant"]},
+    {t:"Session C — Webhooks + Vestiaire + installateur .bat", risk:3, riskL:"Hi",   done:false, ck:["boutons précis via webhooks","6 rôles Vestiaire + 3 fantômes + soul.md","installateur .bat from-scratch + 1er lancement OAuth","mobile utilisable + chat = entité vierge (profil ulysse)"]},
+    {t:"J4 (plus tard) — Mémoire Obsidian (pack + coffre-mémoire)", risk:1, riskL:"Low", done:false, ck:["brancher le coffre-mémoire Obsidian","isolation par projet client"]}
+  ],
+  ac: [
+    {done:true, txt:"Quand <code>l'utilisateur double-clique sur l'icône</code>, <code>une interface web s'ouvre</code> est <code>dans son navigateur par défaut</code>"},
+    {done:true, txt:"Quand <code>on passe en Cowork</code>, <code>toucher l'ordinateur</code> est <code>autorisé (Obligatoire pour toute action système)</code>"},
+    {done:true, txt:"Si <code>on écrit par-dessus une mémoire</code>, <code>la version d'avant</code> est <code>datée, mise de côté dans versions-ulysse/ et la précédente copie échoue → rien n'est écrit</code>"},
+    {done:false, txt:"Quand <code>on choisit un sous-mode</code>, <code>chaque 4 sous-modes (Auto/Accept-edit/Manuel/Plan)</code> est <code>au choix de l'utilisateur, jamais imposé</code>"},
+    {done:false, txt:"Si <code>NuPortal est saturé</code>, <code>le flux</code> est <code>non bloqué (repli clé API / modèle local)</code>"},
+    {done:false, txt:"Quand <code>on lance l'installateur .bat</code>, <code>l'utilisateur non-tech</code> est <code>authentifié via OAuth Portal device_code SANS coller aucune clé</code>"}
+  ],
+  mockups: [
+    ["Maquette Google 33", "maquette-ulysse-google-33.html — coquille UI actuelle (front-only, à relier)"],
+    ["Terminal", "Rendu via hermes --tui derrière WebSocket /api/pty — pas de simulation"]
+  ]
+};
+
+const $ = id => document.getElementById(id);
+function render(){
+  $("projName").textContent = DATA.name;
+  $("projMeta").textContent = DATA.meta;
+  $("prdCtx").textContent = DATA.prd.ctx;
+  $("prdFeats").innerHTML = DATA.prd.feats.map(f=>`<li>${f}</li>`).join("");
+  $("prdCst").innerHTML  = DATA.prd.cst.map(f=>`<li>${f}</li>`).join("");
+  $("prdRisques").innerHTML = DATA.prd.risques
+    .map(r=>`<div><b class="tag ${r.n.toLowerCase()}">${r.n}</b><span>${r.t}</span></div>`).join("");
+  $("guideAxes").innerHTML = DATA.guidelines
+    .map(([k,v])=>`<li><b>${k} :</b> ${v}</li>`).join("");
+  $("jalonsList").innerHTML = DATA.jalons.map((j,i)=>`
+    <div class="ms ${j.done?'done':''}">
+      <h4>${j.t} <span class="tag ${j.riskL.toLowerCase()}">${j.riskL}</span></h4>
+      ${j.ck.length?`<ul>${j.ck.map(c=>`<li>${c}</li>`).join("")}</ul>`:""}
+    </div>`).join("");
+  $("acList").innerHTML = DATA.ac.map((a,i)=>`
+    <li class="${a.done?'done':''}">
+      <input type="checkbox" ${a.done?'checked':''} onchange="toggleAC(${i})">
+      <span>${a.txt}</span>
+    </li>`).join("");
+  const jalDone = DATA.jalons.filter(j=>j.done).length;
+  const acDone  = DATA.ac.filter(a=>a.done).length;
+  $("kpiJalons").textContent = `${jalDone}/${DATA.jalons.length}`;
+  $("kpiAC").textContent = `${acDone}/${DATA.ac.length}`;
+  let risq = DATA.jalons.filter(j=>!j.done).reduce((m,j)=>Math.max(m,j.risk),0);
+  $("kpiRisque").textContent = {3:"Hi",2:"Mid",1:"Low"}[risq] || (risq===0?"Terminé":risq);
+  $("acProg").style.width = ((acDone/DATA.ac.length)*100)+"%";
+  localStorage.setItem("plan-ac-"+DATA.name, JSON.stringify(DATA.ac.map(a=>a.done)));
+}
+function toggleAC(i){
+  DATA.ac[i].done = !DATA.ac[i].done;
+  render();
+}
+$("tabBar").addEventListener("click", e=>{
+  const b = e.target.closest(".tab"); if(!b) return;
+  document.querySelectorAll(".tab").forEach(t=>t.classList.remove("active"));
+  document.querySelectorAll(".pane").forEach(p=>p.classList.remove("active"));
+  b.classList.add("active");
+  $("pane-"+b.dataset.tab).classList.add("active");
+});
+try{
+  const saved = JSON.parse(localStorage.getItem("plan-ac-"+DATA.name)||"[]");
+  if(saved.length===DATA.ac.length) DATA.ac.forEach((a,i)=>a.done=saved[i]);
+}catch(e){}
+render();
+</script>
+</body>
+</html>
