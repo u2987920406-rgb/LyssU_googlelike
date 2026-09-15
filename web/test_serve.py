@@ -472,7 +472,7 @@ def main():
     # secret webhook lu depuis un faux HERMES_HOME
     home = os.path.join(os.path.dirname(os.path.abspath(__file__)), ".test-home")
     os.makedirs(home, exist_ok=True)
-    with open(os.path.join(home, "webhook_subscriptions.json"), "w", encoding="utf-8") as fh:
+    with open(os.path.join(home, "webhook_subscriptions.json"), "w", encoding="utf-8") as fh:  # nosec
         json.dump({WH_NAME: {"secret": WH_SECRET, "prompt": "essai"}}, fh)
     os.environ["HERMES_HOME"] = home
 

@@ -21,7 +21,7 @@ Usage :
 """
 import argparse
 import os
-import subprocess
+import subprocess  # nosec B404: git commands, controlled input
 import sys
 
 PROJECT_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -30,7 +30,7 @@ PROJECT_DIR = os.path.dirname(os.path.abspath(__file__))
 def run(cmd):
     """Lance une commande git en lecture seule, retourne stdout ou ''."""
     try:
-        out = subprocess.run(
+        out = subprocess.run(  # nosec B603: git command with controlled args
             ["git"] + cmd,
             cwd=PROJECT_DIR,
             capture_output=True,

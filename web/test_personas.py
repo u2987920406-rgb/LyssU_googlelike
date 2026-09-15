@@ -49,7 +49,7 @@ ULYSSE_PORT = 18080
 DASH_PORT = 19123
 GW_PORT = 18644
 PROXY_PORT = 18645
-TOKEN = "faux_hermes_token"
+TOKEN = "faux_hermes_token"  # nosec B105: token de test mock
 ORIGIN = "http://127.0.0.1:%d" % ULYSSE_PORT
 HOST = "127.0.0.1:%d" % ULYSSE_PORT
 

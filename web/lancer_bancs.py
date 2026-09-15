@@ -38,7 +38,7 @@ bas pourquoi il n'y a plus de « dernier rapport » qu'on ecrase.
 import io
 import json
 import os
-import subprocess
+import subprocess  # nosec B404: subprocess used for cron test execution
 import sys
 import time
 import urllib.error
@@ -127,7 +127,7 @@ def pile_debout():
     sans avoir rien eprouve du vrai Hermes.
     """
     try:
-        with urllib.request.urlopen(ULYSSE, timeout=4) as r:
+        with urllib.request.urlopen(ULYSSE, timeout=4) as r:  # nosec B310
             return bool(json.loads(r.read().decode("utf-8")).get("gateway_running"))
     except (urllib.error.URLError, OSError, ValueError):
         return False
@@ -218,7 +218,7 @@ def main():
         # ⚠ PAS DE TUBE. Passer un banc dans `| tee` rendrait le code du dernier
         # maillon, et un rouge passerait pour un vert. On capture, puis on rend
         # le code du banc lui-meme.
-        proc = subprocess.run(cmd, cwd=DOSSIER, capture_output=True, text=True,
+        proc = subprocess.run(cmd, cwd=DOSSIER, capture_output=True, text=True,  # nosec B603
                               encoding="utf-8", errors="replace")
         duree = time.time() - t0
         texte = (proc.stdout or "") + (proc.stderr or "")

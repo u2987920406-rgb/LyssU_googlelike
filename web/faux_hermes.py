@@ -35,13 +35,13 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 WS_GUID = "258EAFA5-E914-47DA-95CA-C5AB0DC85B11"
 
-TOKEN = "faux_hermes_token"
+TOKEN = "faux_hermes_token"  # nosec B105: mock token for testing only
 DASH_PORT = 9123
 GW_PORT = 8644
 PROXY_PORT = 8645
 BOUND = "127.0.0.1"
 
-WEBHOOK_SECRET = "secret-faux-hermes-0123456789"
+WEBHOOK_SECRET = "secret-faux-hermes-0123456789"  # nosec B105: mock secret for testing only
 WEBHOOK_NAME = "resume-lundi"
 
 # Journal partage : ce que les tests de persona inspectent apres coup.
@@ -390,6 +390,7 @@ class Dashboard(BaseHTTPRequestHandler):
             return
 
         key = self.headers.get("Sec-WebSocket-Key", "")
+        # nosec
         accept = base64.b64encode(hashlib.sha1((key + WS_GUID).encode()).digest()).decode()
         self.wfile.write(("HTTP/1.1 101 Switching Protocols\r\n"
                           "Upgrade: websocket\r\nConnection: Upgrade\r\n"

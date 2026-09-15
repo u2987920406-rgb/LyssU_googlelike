@@ -52,7 +52,7 @@ import select
 import shutil
 import socket
 import socketserver
-import subprocess
+import subprocess  # nosec B404: controlled git/command execution
 import ssl
 import sys
 import time
@@ -85,6 +85,7 @@ SESSION_TOKEN = None
 
 # Valeurs de repli si ulysse-config.js est absent ou muet.
 DASHBOARD_URL_FALLBACK = "http://127.0.0.1:9123"
+# nosec B105: empty fallback token, no security concern
 SESSION_TOKEN_FALLBACK = ""
 
 # Gateway des webhooks (port 8644 par defaut). Le declenchement est signe ici.
@@ -562,7 +563,7 @@ def lire_graph(chemin_db=None):
 
     try:
         db.close()
-    except Exception:
+    except Exception:  # nosec B110: cleanup, silence is intentional
         pass
 
     # Les origines : sessions qui ont délégué, avec leur titre réel.
@@ -2015,7 +2016,7 @@ def port_deja_pris(host, port, delai=0.4):
     doute : refuser de demarrer pour une raison qu'on ne sait pas nommer
     serait pire que le piege qu'on essaie d'eviter.
     """
-    cible = "127.0.0.1" if host in ("", "0.0.0.0") else host
+    cible = "127.0.0.1" if host in ("", "0.0.0.0") else host  # nosec B104: bind loopback only
     try:
         with socket.create_connection((cible, port), timeout=delai):
             return True

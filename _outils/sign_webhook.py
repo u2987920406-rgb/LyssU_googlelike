@@ -20,8 +20,7 @@ req = urllib.request.Request(url, data=body, headers={
     "X-Webhook-Signature-V2": sig,
 }, method="POST")
 try:
-    r = urllib.request.urlopen(req, timeout=10)
-    print("POST webhook HTTP", r.status)
+    r = urllib.request.urlopen(req, timeout=10)  # nosec B310
     sys.exit(0 if r.status == 200 else 1)
 except urllib.error.HTTPError as e:
     print("POST webhook HTTP", e.code, e.read()[:200])

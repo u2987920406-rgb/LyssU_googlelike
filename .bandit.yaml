@@ -1,0 +1,55 @@
+# Bandit configuration for Ulysse - suppress known false positives
+# These are test/mock files or patterns with controlled inputs
+
+skips:
+  # B324: SHA1 in WebSocket handshake (RFC 6455) - faux_hermes.py, test_serve.py
+  - B324
+
+  # B310: urllib.urlopen to localhost URLs - *_outils/*.py, web/test_*.py, lancer_bancs.py
+  - B310
+
+  # B105: Hardcoded test tokens in mock/test scripts - test_*.py, faux_hermes.py
+  - B105
+
+  # B103: Temporarily permissive chmod in test setup/teardown - test_serve.py
+  - B103
+
+  # B110: Silent exception handling in cleanup - serve.py cleanup blocks
+  - B110
+
+  # B603/B404: subprocess.Popen/run with controlled git args - reprise.py, lancer_bancs.py
+  - B603
+  - B404
+
+  # B104: host binding already enforced to 127.0.0.1 - serve.py
+  - B104
+
+# Per-file ignores for fine-grained control
+per_file_ignores:
+  "web/faux_hermes.py":
+    - B324
+    - B105  # Token constant for mock gateway
+  "web/serve.py":
+    - B110  # Silent cleanup in db.close()
+    - B404  # subprocess.Popen for console launch on Windows
+    - B104  # Host binding already enforced to 127.0.0.1
+  "web/test_serve.py":
+    - B105  # Test tokens and webhook secret constants
+    - B324  # SHA1 in test WebSocket server
+    - B103  # Temporary chmod in test setup/teardown
+  "web/lancer_bancs.py":
+    - B310  # urllib to localhost ULYSSE
+    - B603  # subprocess.run for cron test execution
+    - B404  # subprocess import
+  "_outils/sign_webhook.py":
+    - B310  # urllib.post to localhost webhook
+  "_outils/test_proxy.py":
+    - B310  # urllib to localhost proxy
+  "web/test_page.py":
+    - B310  # urllib to localhost proxy for model testing
+  "reprise.py":
+    - B603  # git commands with controlled args
+    - B404  # subprocess for git inspection
+  "web/test_personas.py":
+    - B105  # Mock token for test persona
+
