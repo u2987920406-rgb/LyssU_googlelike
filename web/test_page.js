@@ -4888,6 +4888,106 @@ async function main(){
     /\.l-livrables\{[^}]*border-left:3px solid var\(--accent/.test(
       fs.readFileSync(path.join(DIR, "ulysse.css"), "utf8")));
 
+  /* ══ LES COMMANDES « / » ══════════════════════════════════════════════════
+     La capture Raf (2026-09-21) : « /clear » dans le fil renvoyait le texte
+     TUI « Screen clear is terminal-only » — l'écran du NAVIGATEUR ne se
+     vidait pas. /clear est une commande D'ÉCRAN : dans Ulysse l'écran, c'est
+     le fil. Elle doit le vider et ouvrir une session neuve, en finalisant
+     l'ancienne (session.close) — pas renvoyer un texte de terminal. */
+
+  {
+    // Une session vivante avec du contenu dans le fil, comme en vrai.
+    const avantSlash = FakeWS.sent.length;
+    win.eval("resetSession();");
+    win.eval("conv.sessionId = 'live_9'; conv.storedId = 'st_9';");
+    win.eval("conv.turns.push({ role: 'user', text: 'Parle moi de jev' });"
+      + " conv.turns.push({ role: 'assistant', text: 'Voila.' });"
+      + " paintThread();");
+    await wait(20);
+    check("mise en place : le fil a du contenu avant /clear",
+      win.eval("conv.turns.length") === 2);
+    // Le message /clear part comme un message normal depuis le composer.
+    win.document.getElementById("reply").value = "/clear";
+    win.document.getElementById("composer").dispatchEvent(new win.Event("submit"));
+    await wait(80);
+    const slashSent = FakeWS.sent.slice(avantSlash)
+      .map((s) => { try { return JSON.parse(s.trim()); } catch (e){ return {}; } });
+    // Avant le fix, /clear part en slash.exec : on répond à TOUTE commande
+    // pendante, sinon son RPC reste vivant et rejaillit dans la section
+    // dégradée quand le lien se coupe (« refusée : WebSocket ferme »).
+    slashSent.filter((m) => m.method === "slash.exec" && m.id && !m.__vu)
+      .forEach((m) => { m.__vu = true;
+        FakeWS.last.push({ jsonrpc: "2.0", id: m.id,
+          result: { output: "Screen clear is terminal-only" } }); });
+    await wait(20);
+    const closeCall = slashSent.find((m) => m.method === "session.close");
+    check("/clear finalise l'ancienne session (session.close part)",
+      !!closeCall && closeCall.params.session_id === "live_9",
+      closeCall ? JSON.stringify(closeCall.params) : JSON.stringify(slashSent.map((m) => m.method)));
+    if (closeCall){
+      FakeWS.last.push({ jsonrpc: "2.0", id: closeCall.id, result: { closed: true } });
+      await wait(60);
+    }
+    check("le fil est vidé — plus aucune bulle",
+      win.eval("conv.turns.length") === 0,
+      "reste " + win.eval("conv.turns.length") + " tours");
+    check("la session en cours est oubliée — la prochaine repart de zéro",
+      win.eval("conv.sessionId") === null);
+    // Le message suivant ouvre une NOUVELLE session (pas l'ancienne).
+    const avantNouv = FakeWS.sent.length;
+    win.document.getElementById("reply").value = "Bonjour";
+    win.document.getElementById("composer").dispatchEvent(new win.Event("submit"));
+    await wait(80);
+    const nouvSent = FakeWS.sent.slice(avantNouv)
+      .map((s) => { try { return JSON.parse(s.trim()); } catch (e){ return {}; } });
+    const nouvCreate = nouvSent.find((m) => m.method === "session.create");
+    check("le message d'après ouvre une session NEUVE",
+      !!nouvCreate,
+      JSON.stringify(nouvSent.map((m) => m.method)));
+    if (nouvCreate){
+      FakeWS.last.push({ jsonrpc: "2.0", id: nouvCreate.id,
+        result: { session_id: "live_10", stored_session_id: "st_10" } });
+      await wait(40);
+      check("la nouvelle session remplace l'ancienne dans l'état",
+        win.eval("conv.sessionId") === "live_10");
+      // Le tour « Bonjour » doit FINIR, sinon il reste « running » et le
+      // /help suivant part en session.steer au lieu d'une commande. Le vrai
+      // événement de fin est `message.complete` (ulysse-core.js:659).
+      const promptIds = FakeWS.sent.slice(avantNouv)
+        .map((s) => { try { return JSON.parse(s.trim()); } catch (e){ return {}; } })
+        .filter((m) => m.method === "prompt.submit" && m.id);
+      promptIds.forEach((m) => FakeWS.last.push({ jsonrpc: "2.0", id: m.id, result: { ok: true } }));
+      FakeWS.last.push({ jsonrpc: "2.0", method: "event",
+        params: { type: "message.complete", session_id: "live_10",
+                   payload: { text: "Bonjour !", status: "done" } } });
+      await wait(40);
+      check("le tour de la nouvelle session se termine",
+        win.eval("conv.running") === false);
+    }
+    // Une commande texte ordinaire reste une commande : la sortie s'affiche.
+    const avantHelp = FakeWS.sent.length;
+    win.document.getElementById("reply").value = "/help";
+    win.document.getElementById("composer").dispatchEvent(new win.Event("submit"));
+    await wait(80);
+    const helpSent = FakeWS.sent.slice(avantHelp)
+      .map((s) => { try { return JSON.parse(s.trim()); } catch (e){ return {}; } });
+    const helpExec = helpSent.find((m) => m.method === "slash.exec");
+    check("les autres commandes passent toujours par slash.exec",
+      !!helpExec && helpExec.params.command === "/help",
+      JSON.stringify(helpSent.map((m) => m.method)));
+    if (helpExec){
+      FakeWS.last.push({ jsonrpc: "2.0", id: helpExec.id,
+        result: { output: "Commandes disponibles : /help /model..." } });
+      await wait(60);
+      check("la sortie d'une commande texte s'affiche dans le fil",
+        win.eval("conv.turns.some(t => t.role === 'system' "
+          + "&& /Commandes disponibles/.test(t.text))"),
+        "aucun tour system avec la sortie");
+    }
+    // État remis propre pour la suite du banc.
+    win.eval("resetSession();");
+  }
+
   /* ══ LES CHEMINS DÉGRADÉS ═════════════════════════════════════════════════
      C'est là qu'un produit non poli casse en public. Le produit a des messages
      pour ces cas ; AUCUN n'avait été éprouvé. On les met en scène et on exige

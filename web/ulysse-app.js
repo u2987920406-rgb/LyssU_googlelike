@@ -876,6 +876,26 @@ async function executerSlash(texte){
   if (base === "/model" && !texte.includes(" ")){
     await feuilleModel(); return;   // menu interactif, pas du texte (Raf 2026-09-05)
   }
+  /* /clear — une commande D'ÉCRAN (capture Raf 2026-09-21 : la commande
+     répondait « Screen clear is terminal-only » et l'écran ne se vidait pas).
+     Dans le TUI, /clear vide l'écran du terminal ; dans Ulysse l'écran, c'est
+     le fil. On le vide, et on finalise la session côté gateway (session.close
+     — elle restera dans /sessions, cf. TMEMO_TUI_FORT) : le message suivant
+     part sur une session NEUVE, pas sur le fil qu'on vient d'effacer. Même
+     chemin que « nouvelle discussion » du sous-menu Discuter. */
+  if (base === "/clear"){
+    const sid = conv.sessionId;
+    if (sid){
+      try { await link.rpc("session.close", { session_id: sid }, 20000); }
+      catch (e){
+        /* On vide quand même — c'est la demande. Si close échoue, le ramasse-
+          -miettes du gateway ramasse la session orpheline à la déconnexion. */
+      }
+    }
+    resetSession();
+    paintThread();
+    return;
+  }
   try {
     const sid = await ensureSession({});
     const r = await link.rpc("slash.exec",
