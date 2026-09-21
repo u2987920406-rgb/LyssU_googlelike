@@ -2111,3 +2111,23 @@ svg.graph *{cursor:inherit}
   .disc-menu .ctl{opacity:1;transform:none}
 }
 
+
+/* ══ LE GESTE GMAIL DE SUPPRESSION (demande Raf 2026-09-21) ═════════════════
+   Glisser une ligne de l'historique vers la droite révèle « Supprimer »,
+   le tap supprime — comme Gmail. Le pacte tactile : le doigt horizontal
+   appartient au geste, le vertical à la liste (pan-y). Le bouton vit à
+   GAUCHE, sous la surface qui glisse ; le kebab garde les autres actions. */
+#histoList .row.m-swipable{position:relative;overflow:hidden;touch-action:pan-y}
+#histoList .m-delswipe{position:absolute;left:0;top:0;bottom:0;width:64px;
+  display:flex;flex-direction:column;align-items:center;justify-content:center;
+  gap:4px;border:none;border-radius:var(--radius-md);background:#B3261E;color:#fff;
+  font-size:11px;cursor:pointer}
+#histoList .m-delswipe svg{stroke:#fff}
+#histoList .m-swcont{position:relative;display:flex;align-items:center;gap:16px;
+  background:var(--surface);border-radius:var(--radius-md);padding:14px 18px;
+  margin-bottom:8px;transition:transform .16s ease;will-change:transform;cursor:pointer}
+/* Pendant le geste la surface suit le doigt SANS animation — l'animation
+   trahirait la position du doigt. Elle ne reprend qu'au relâché, quand la
+   ligne revient ou s'ouvre d'elle-même. */
+#histoList .row.m-glide .m-swcont{transition:none}
+#histoList .row.m-swipe .m-swcont{transform:translateX(64px)}

@@ -315,6 +315,14 @@ function fakeFetch(url, opts){
     body = { ok: true, version_gardee: "USER.md.2026-08-09-120000",
              creation: false, versions: 2 };
   }
+  /* ⚠ LE VRAI DELETE /api/sessions/{id} EST IDÉMPOTENT (sessions.py:633) :
+     {ok:true, already_absent:true} même si la session n'existe plus. Le
+     geste Gmail (2026-09-21) a besoin de ce chemin pour son test — sans
+     lui, le faux rendait 404 là où le vrai dit OK. */
+  if (body === undefined && (opts && opts.method) === "DELETE"
+      && /^\/api\/sessions\/[^/]+$/.test(bare)){
+    body = { ok: true };
+  }
   /* ⚠ LE FAUX DOIT POUVOIR DIRE « J'AI ÉTÉ COUPÉ ». Le vrai `/proxy/chat` rend
      un `finish_reason` par choix — « stop » quand le modèle a fini, « length »
      quand il a heurté `max_tokens`. Le fixture n'en portait aucun, donc la
@@ -2592,6 +2600,81 @@ async function main(){
     win.document.getElementById("ctlHisto")
       ? win.document.getElementById("ctlHisto").innerHTML.slice(0, 60) : "pas de .ctl");
   check("Listes · l'historique a gagné son filtre", !!win.document.getElementById("histoQ"));
+
+  /* ══ LE GESTE GMAIL DE SUPPRESSION (demande Raf 2026-09-21) ════════════════
+     « un appuyé long et slide droit gauche au doigt » — comme dans Gmail :
+     glisser la ligne à droite révèle le bouton supprimer, le tap supprime.
+     Le kebab reste pour les autres actions (épingler, archiver…). */
+
+  // Une classe CSS marque la ligne prête à glisser — sans elle, aucun
+  // handler : le glissement ne fait rien sur les listes qui ne le veulent pas.
+  {
+    const wHisto = win.document.getElementById("histoList");
+    const lignes = wHisto.querySelectorAll(".row");
+    // jsdom ne met rien en page : le pacte tactile (pan-y = le doigt
+    // horizontal est à nous, le vertical au défilement) se lit dans la
+    // FEUILLE, comme le liseré de l'encart livrables.
+    const cssHisto = fs.readFileSync(path.join(DIR, "ulysse.css"), "utf8");
+    check("Geste · les lignes de l'historique sont marquées glissables",
+      lignes.length > 0
+      && /#histoList \.row\.m-swipable\{[^}]*touch-action:\s*pan-y/.test(cssHisto),
+      lignes.length + " lignes, pacte tactile "
+        + (/touch-action:\s*pan-y/.test(cssHisto) ? "présent" : "absent"));
+
+    // Simuler un glissement : touchstart sur la ligne, touchmove vers la
+    // droite, touchend — le bouton supprimer doit être révélé.
+    const cible = lignes[0];
+    const mkTouch = (target, x, y) => ({ identifier: 0, target,
+      clientX: x, clientY: y, pageX: x, pageY: y });
+    cible.dispatchEvent(new win.TouchEvent("touchstart", {
+      bubbles: true, cancelable: true,
+      touches: [mkTouch(cible, 50, 100)], targetTouches: [mkTouch(cible, 50, 100)],
+      changedTouches: [mkTouch(cible, 50, 100)] }));
+    cible.dispatchEvent(new win.TouchEvent("touchmove", {
+      bubbles: true, cancelable: true,
+      touches: [mkTouch(cible, 130, 100)], targetTouches: [mkTouch(cible, 130, 100)],
+      changedTouches: [mkTouch(cible, 130, 100)] }));
+    cible.dispatchEvent(new win.TouchEvent("touchend", {
+      bubbles: true, cancelable: true,
+      touches: [], targetTouches: [], changedTouches: [mkTouch(cible, 130, 100)] }));
+    await wait(30);
+    const btnDel = cible.querySelector("[data-del]");
+    check("Geste · le glissement révèle le bouton supprimer",
+      !!btnDel && cible.classList.contains("m-swipe"),
+      cible.outerHTML.slice(0, 200));
+    // Un appui court (tap) sur le bouton : DELETE doit partir.
+    if (btnDel){
+      fetched.length = 0;
+      btnDel.click();
+      await wait(80);
+      check("Geste · le tap sur supprimer envoie DELETE /api/sessions/{id}",
+        fetched.some((f) => f.method === "DELETE" && /\/api\/sessions\/s1$/.test(f.path)),
+        JSON.stringify(fetched.map((f) => f.method + " " + f.path)));
+      check("...et la ligne disparaît de la liste",
+        !wHisto.querySelector('[data-cle="s1"]'));
+      check("...et un snack le dit — l'action est irréversible",
+        /supprim/i.test(String(win.document.body.textContent)));
+    }
+    // Le glissement vertical ne révèle RIEN — c'est le défilement.
+    const cible2 = wHisto.querySelector(".row");
+    if (cible2){
+      cible2.dispatchEvent(new win.TouchEvent("touchstart", {
+        bubbles: true, cancelable: true,
+        touches: [mkTouch(cible2, 50, 100)], targetTouches: [mkTouch(cible2, 50, 100)],
+        changedTouches: [mkTouch(cible2, 50, 100)] }));
+      cible2.dispatchEvent(new win.TouchEvent("touchmove", {
+        bubbles: true, cancelable: true,
+        touches: [mkTouch(cible2, 55, 160)], targetTouches: [mkTouch(cible2, 55, 160)],
+        changedTouches: [mkTouch(cible2, 55, 160)] }));
+      cible2.dispatchEvent(new win.TouchEvent("touchend", {
+        bubbles: true, cancelable: true,
+        touches: [], targetTouches: [],
+        changedTouches: [mkTouch(cible2, 55, 160)] }));
+      await wait(30);
+      check("Geste · un glissement vertical ne révèle rien (défilement)",
+        !cible2.classList.contains("m-swipe"));
+    }
+  }
 
   /* ⚠ « ON NE PEUT PAS QUITTER LE MENU » — kuchu, 2026-08-21. Aucune porte de
      sortie sauf sa croix, le rouvrir, ou un clic ailleurs — comme les autres

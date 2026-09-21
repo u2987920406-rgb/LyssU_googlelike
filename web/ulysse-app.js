@@ -2854,8 +2854,18 @@ function drawHistoListe(){
     const titre = s.title || s.preview || s.id;
     const quand = fmtWhen(s.last_active || s.started_at);
     const bulle = [titre, quand, s.cwd || ""].filter(Boolean).join("\n");
-    return '<div class="row" data-cle="' + esc(s.id) + '" data-resume="' + esc(s.id) + '"'
+    /* Le bouton de suppression vit SOUS la ligne, côté droit — le geste
+       Gmail (demande Raf 2026-09-21) : glisser la ligne à droite le révèle,
+       le tap supprime. Il EST le `[data-a=supprimer]` du kebab sous un autre
+       id : même `supprimerSession`, même snack — un seul chemin de
+       suppression pour deux gestes. */
+    return '<div class="row m-swipable" data-cle="' + esc(s.id) + '" data-resume="' + esc(s.id) + '"'
       + ' title="' + esc(bulle) + '">'
+      + '<button type="button" class="m-delswipe" data-del="' + esc(s.id) + '"'
+      + ' title="Supprimer définitivement" aria-label="Supprimer définitivement">'
+      + svg("corbeille", { size: 20 })
+      + '<span>Supprimer</span></button>'
+      + '<span class="m-swcont">'   // la surface qui glisse sous le doigt
       + '<span class="dot" style="background:' + col + '"></span>'
       + '<span class="u-l2"><span class="t">' + esc(titre) + "</span>"
       + '<span class="s">' + esc(bits.join(" · ")) + "</span></span>"
@@ -2863,6 +2873,7 @@ function drawHistoListe(){
       + esc(fmtQuandCourt(s.last_active || s.started_at)) + "</span>"
       + '<button type="button" class="m-kebab" data-kebab="' + esc(s.id)
       + '" title="Actions" aria-label="Actions">' + svg("points", { size: 18 }) + "</button>"
+      + "</span>"
       + '<div class="pop m-kpop">'
       + item("reprendre", "relancer", "Reprendre cette conversation")
       + item(s.pinned ? "desepingler" : "epingler", "epingle",
@@ -2904,10 +2915,16 @@ function drawHistoListe(){
      depuis la position RÉELLE du bouton, échappe à ce découpage — la seule
      façon de la mesurer est de le poser, mesurer sa hauteur, puis choisir
      au-dessus ou en dessous selon la place qui reste sous la souris. */
+  /* ⚠ ET IL NE PEUT PLUS ÊTRE `nextElementSibling` : le geste Gmail
+     (2026-09-21) a glissé la surface `.m-swcont` autour du kebab — son
+     voisin DOM n'est plus le pop. On le cherche dans SA ligne : le
+     branchement survit aux restructurations, au lieu de dépendre de
+     l'ordre exact des enfants. */
   $("histoList").querySelectorAll(".m-kebab").forEach((b) => {
     b.onclick = (e) => {
       e.stopPropagation();
-      const pop = b.nextElementSibling;
+      const pop = b.closest(".row") && b.closest(".row").querySelector(".m-kpop");
+      if (!pop) return;
       const rouvre = !pop.classList.contains("on");
       document.querySelectorAll(".pop.on").forEach((p) => p.classList.remove("on"));
       if (!rouvre) return;
@@ -2942,6 +2959,68 @@ function drawHistoListe(){
         snack(a === "epingler" ? "Épinglée." : a === "desepingler" ? "Plus épinglée."
           : a === "archiver" ? "Archivée — elle n'est pas perdue." : "Sortie des archives.");
       } catch (e){ snack("Refusé : " + e.message); }
+    };
+  });
+
+  /* ══ LE GESTE GMAIL : glisser la ligne révèle « Supprimer » ════════════════
+     Demande Raf 2026-09-21 : « un appuyé long et slide droit gauche au doigt ».
+     Le doigt suit la ligne pendant le glissement (la surface .m-swcont se
+     déplace), et au relâché : au-delà du seuil la ligne reste ouverte avec
+         le bouton rouge ; en deçà elle revient d'elle-même. Un glissement
+     VERTICAL n'est pas un geste — c'est le défilement de la liste : on
+     abandonne dès que le doigt part plus en hauteur qu'en largeur. Le tap
+     sur le bouton prend le MÊME chemin que le kebab : `supprimerSession`.
+     Le bouton vit à GAUCHE (le doigt pousse la ligne vers la droite,
+     comme un fil Gmail qu'on écarte de sa boîte). */
+  $("histoList").querySelectorAll(".row.m-swipable").forEach((row) => {
+    const cont = row.querySelector(".m-swcont");
+    const btn = row.querySelector(".m-delswipe");
+    if (!cont || !btn) return;
+    const SEUIL = 40, OUVERT = 64;
+    let x0 = null, y0 = null, dx = 0, verrou = false, bouge = false;
+    // La surface suit le doigt PENDANT le geste, bornée à la largeur du
+    // bouton : au-delà le doigt entraîne la ligne pour rien.
+    const poser = (px) => {
+      if (!cont) return;
+      cont.style.transform = "translateX(" + px + "px)";
+    };
+    const fermer = () => { row.classList.remove("m-swipe"); poser(0); };
+    row.addEventListener("touchstart", (e) => {
+      const t = e.touches[0];
+      x0 = t.clientX; y0 = t.clientY; dx = 0; verrou = false; bouge = false;
+      row.classList.add("m-glide");   // la surface suivra le doigt sans délai
+    }, { passive: true });
+    row.addEventListener("touchmove", (e) => {
+      if (x0 === null) return;
+      const t = e.touches[0];
+      const mx = t.clientX - x0, my = t.clientY - y0;
+      // Le défilement a la priorité : un doigt qui part en hauteur rend
+      // la main à la liste, et le geste est abandonné pour de bon.
+      if (!verrou){
+        if (Math.abs(my) > Math.abs(mx) && Math.abs(my) > 6){ x0 = null; return; }
+        if (mx > 8) verrou = true;
+        else if (mx < -8){ x0 = null; return; }
+        else return;
+      }
+      bouge = true;
+      dx = Math.max(0, Math.min(mx, OUVERT));
+      poser(dx);
+    }, { passive: true });
+    row.addEventListener("touchend", () => {
+      row.classList.remove("m-glide");   // l'animation reprend au relâché
+      if (x0 === null) return;
+      // Le seuil est bas : un geste vaut mieux que deux loupés.
+      if (verrou && bouge && dx >= SEUIL){
+        row.classList.add("m-swipe");
+        poser(OUVERT);
+      } else { fermer(); }
+      x0 = null;
+    }, { passive: true });
+    // Tap sur le bouton : suppression par le chemin commun.
+    btn.onclick = (e) => {
+      e.stopPropagation();
+      const s = histoCache.find((x) => x.id === btn.dataset.del);
+      supprimerSession(btn.dataset.del, s);
     };
   });
 }
