@@ -174,14 +174,19 @@ DIM_DIM = {'width': 'width', 'height': 'height'}
 VOIR = [
     ('#app.artifact-split .u-art-viewer', 'width', '100%',
      'volet fichier plein ecran sur mobile'),
-    ('#app.artifact-split .panelwrap', 'display', 'none',
-     'surface de conversation masquee quand le volet est ouvert '
-     '(c\'est elle qui volait les gestes de defilement)'),
     ('.u-art-body .u-art-raw', 'overflow-wrap', 'anywhere',
      'source du fichier pliee a la largeur du volet'),
     ('.u-art-body .u-md', 'overflow-wrap', 'anywhere',
      'document markdown plie a la largeur du volet'),
 ]
+
+# La surface de conversation peut etre masquee par deux orthographes valides :
+# cacher le calque des panneaux (`.panelwrap`) ou le stage entier (`.stage`,
+# qui contient `.panelwrap`). Ce qui compte, c'est l'EFFET : quand le volet
+# prend l'ecran, plus rien ne doit le recouvrir ni lui voler les gestes. Un
+# test qui exige UNE orthographe crierait a tort le jour ou l'autre est
+# choisie (c'est deja arrive en atelier).
+SURFACES = ['#app.artifact-split .panelwrap', '#app.artifact-split .stage']
 
 
 def effective_props(rules, selector, props):
@@ -278,6 +283,22 @@ def main():
             print(f'  OK    visualiseur mobile : {label} '
                   f'— {prop} {val!r}')
 
+    # --- la surface de conversation doit s'effacer (effet, pas orthographe)
+    masquee = []
+    for sel in SURFACES:
+        eff, matched = effective_props(rules, sel, ['display'])
+        if matched and eff['display'] == 'none':
+            masquee.append(sel)
+    if masquee:
+        print(f'  OK    visualiseur mobile : surface de conversation masquee '
+              f'({masquee[0]} -> display none)')
+    else:
+        failures.append('surface de conversation non masquee quand le volet '
+                        'est plein ecran (gestes de defilement voles)')
+        print('  ECHEC visualiseur mobile : ni .panelwrap ni .stage en '
+              'display:none sous #app.artifact-split — la surface de '
+              'conversation recouvre le volet et vole les gestes')
+
     # --- les copies embarquees doivent porter le meme fix ---------------
     # web/apercu-*.html embarquent une copie du CSS : un fix qui ne bouge que
     # ulysse.css laisse les apercus mentir (piege vu issue #122).
@@ -288,7 +309,8 @@ def main():
         txt = open(os.path.join(DIR, f), encoding='utf-8').read()
         if 'artifact-split' not in txt:
             continue
-        if '#app.artifact-split .panelwrap{display:none}' not in txt \
+        if not ('#app.artifact-split .panelwrap{display:none}' in txt
+                or '#app.artifact-split .stage{display:none}' in txt) \
                 or 'overflow-wrap:anywhere' not in txt:
             manquantes.append(f)
     if manquantes:
@@ -298,7 +320,7 @@ def main():
     else:
         print(f'  OK    copies embarquees a jour ({len(copies)} apercu-*.html)')
 
-    total = len(CIBLES) + len(VOIR) + 2   # + bloc mobile + copies embarquees
+    total = len(CIBLES) + len(VOIR) + 3   # + bloc mobile + surface + copies
     if failures:
         print('ECHEC:')
         for f in failures:
