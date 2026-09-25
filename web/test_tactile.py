@@ -21,6 +21,12 @@ regles mobiles). Regle WCAG 2.5.5 / Material : cible tactile minimum 44x44px.
 Remplace la version « faible » qui cherchait la simple PRESENCE d'une regle
 par regex dans le bloc : elle passait alors que .validate/.ghost-btn restaient
 a 40px (aucun override mobile), donc le bug de l'issue #122 lui echappait.
+
+Depuis l'issue #126, le script verifie aussi le visualiseur de fichiers sur
+mobile (VOIR) : le volet plein ecran ne doit plus etre recouvert par la
+surface de conversation (gestes de defilement voles) et le document doit se
+plier a la largeur du volet (lignes sans espace incluses). Les copies
+embarquees web/apercu-*.html doivent porter le meme fix que ulysse.css.
 """
 import os
 import re
@@ -156,6 +162,54 @@ CIBLES = [
 
 DIM_DIM = {'width': 'width', 'height': 'height'}
 
+# --- visualiseur de fichiers, viewport mobile (issue #126) ---------------
+# La plainte : « rien ne s'adapte a la largeur mobile ; impossible de defiler
+# le document vers le bas ». Les deux defauts sont des VALEURS de CSS qui
+# manquent (pas de presence a deviner) :
+#   1. la surface de conversation (`.panel`, absolute, inset:0, z-index:1)
+#      restait AU-DESSUS du volet plein ecran et volait TOUS les gestes ;
+#   2. une ligne sans espace (URL, base64, code) ne se pliait pas et poussait
+#      le corps du volet au-dela de la largeur de l'ecran (mesure reelle en
+#      412px : corps a 902px de large dans un volet de 411px).
+VOIR = [
+    ('#app.artifact-split .u-art-viewer', 'width', '100%',
+     'volet fichier plein ecran sur mobile'),
+    ('#app.artifact-split .panelwrap', 'display', 'none',
+     'surface de conversation masquee quand le volet est ouvert '
+     '(c\'est elle qui volait les gestes de defilement)'),
+    ('.u-art-body .u-art-raw', 'overflow-wrap', 'anywhere',
+     'source du fichier pliee a la largeur du volet'),
+    ('.u-art-body .u-md', 'overflow-wrap', 'anywhere',
+     'document markdown plie a la largeur du volet'),
+]
+
+
+def effective_props(rules, selector, props):
+    """Comme effective(), mais pour n'importe quelle propriete CSS.
+
+    Meme cascade simplifiee : ordre du fichier, media queries applicables au
+    viewport, derniere declaration gagnante.
+    """
+    want = re.sub(r'\s+', ' ', selector).strip()
+    eff = {p: None for p in props}
+    matched = []
+    for cond, sel, decls in rules:
+        if re.sub(r'\s+', ' ', sel).strip() != want:
+            continue
+        if not media_applies(cond):
+            continue
+        matched.append((cond, decls))
+        for decl in decls.split(';'):
+            if ':' not in decl:
+                continue
+            prop, _, val = decl.partition(':')
+            prop = prop.strip().lower()
+            val = val.strip()
+            if prop in eff:
+                eff[prop] = val
+    return eff, matched
+
+
 
 def main():
     try:
@@ -203,18 +257,60 @@ def main():
               f'min-height={eff["min-height"]!r} '
               f'({len(matched)} regle(s) applicable(s))')
 
+    # --- visualiseur de fichiers : valeurs effectives (issue #126) -------
+    print(f'  visualiseur de fichiers — adaptation largeur + gestes '
+          f'(issue #126), viewport {VIEWPORT_W}px :')
+    for sel, prop, attendu, label in VOIR:
+        eff, matched = effective_props(rules, sel, [prop])
+        val = eff[prop]
+        if not matched:
+            failures.append(f'{sel}: aucune regle mobile applicable '
+                            f'({label})')
+            print(f'  ECHEC visualiseur mobile : {label} '
+                  f'— aucune regle applicable pour {sel}')
+            continue
+        if val != attendu:
+            failures.append(f'{label}: {prop} effective {val!r} '
+                            f'!= {attendu!r} sur mobile')
+            print(f'  ECHEC visualiseur mobile : {label} '
+                  f'— {prop} {val!r} au lieu de {attendu!r}')
+        else:
+            print(f'  OK    visualiseur mobile : {label} '
+                  f'— {prop} {val!r}')
+
+    # --- les copies embarquees doivent porter le meme fix ---------------
+    # web/apercu-*.html embarquent une copie du CSS : un fix qui ne bouge que
+    # ulysse.css laisse les apercus mentir (piege vu issue #122).
+    copies = [f for f in sorted(os.listdir(DIR))
+              if f.startswith('apercu-') and f.endswith('.html')]
+    manquantes = []
+    for f in copies:
+        txt = open(os.path.join(DIR, f), encoding='utf-8').read()
+        if 'artifact-split' not in txt:
+            continue
+        if '#app.artifact-split .panelwrap{display:none}' not in txt \
+                or 'overflow-wrap:anywhere' not in txt:
+            manquantes.append(f)
+    if manquantes:
+        failures.append('copies apercu-*.html sans le fix : '
+                        + ', '.join(manquantes))
+        print('  ECHEC copies embarquees : ' + ', '.join(manquantes))
+    else:
+        print(f'  OK    copies embarquees a jour ({len(copies)} apercu-*.html)')
+
+    total = len(CIBLES) + len(VOIR) + 2   # + bloc mobile + copies embarquees
     if failures:
         print('ECHEC:')
         for f in failures:
             print(f'  - {f}')
         print('\n' + '=' * 62)
-        print(f'  {len(CIBLES) + 1 - len(failures)} / {len(CIBLES) + 1} '
+        print(f'  {total - len(failures)} / {total} '
               f'verifications passees')
         print('=' * 62)
         return 1
     print('OK: toutes les cibles tactiles mobiles >=44px.')
     print('\n' + '=' * 62)
-    print(f'  {len(CIBLES) + 1} / {len(CIBLES) + 1} verifications passees')
+    print(f'  {total} / {total} verifications passees')
     print('=' * 62)
     return 0
 

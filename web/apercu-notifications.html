@@ -2006,10 +2006,21 @@ svg.graph *{cursor:inherit}
 .u-art-body{flex:1;min-height:0;overflow-y:auto;padding:24px 30px;background:var(--bg,#fff)}
 .u-art-empty{color:var(--muted,#5F6368);font-size:14px;text-align:center;margin-top:40px}
 .u-art-raw{font-family:var(--font-mono,ui-monospace,Menlo,monospace);font-size:12.5px;
-  white-space:pre-wrap;color:var(--text,#1F1F1F);line-height:1.6;background:var(--surface,#F0F4F9);
+  white-space:pre-wrap;overflow-wrap:anywhere;word-break:break-word;
+  color:var(--text,#1F1F1F);line-height:1.6;background:var(--surface,#F0F4F9);
   border-radius:10px;padding:14px}
 /* reutilise .u-md pour le rendu markdown (tableaux, listes, gras) */
 .u-art-body .u-md{padding:0}
+/* ⚠ ISSUE #126 — LE DOCUMENT S'ADAPTE À LA LARGEUR DU VOLET, QUOI QU'IL
+   CONTIENNE. Une ligne sans espace (URL, base64, sélecteur, code) ne se plie
+   pas : elle poussait le corps à 902 px dans un volet de 411 px, et
+   `html,body{overflow-x:hidden}` (bloc <=720px) COUPAIT le reste sans le
+   rendre lisible — « rien ne s'adapte à la largeur mobile ». On plie les mots
+   au lieu de couper la ligne ; les images et vidéos suivent la largeur. */
+.u-art-body .u-art-raw,.u-art-body .u-md,.u-art-body .u-md pre,
+.u-art-body .u-md code{overflow-wrap:anywhere;word-break:break-word}
+.u-art-body .u-md pre{white-space:pre-wrap}
+.u-art-body img,.u-art-body video{max-width:100%;height:auto}
 /* Un CSV se lit en colonnes ou ne se lit pas. Le tableau defile TOUT SEUL en
    largeur : sans ce conteneur, huit colonnes poussent le volet et c'est la
    page entiere qui part de travers. L'en-tete tient au haut du volet — on
@@ -2030,6 +2041,16 @@ svg.graph *{cursor:inherit}
 @media (max-width:560px){
   #app.artifact-split .u-art-viewer{width:100%}
   #app.artifact-split .work{display:none}
+  /* ⚠ ISSUE #126 — LA SURFACE DE CONVERSATION NE DOIT PLUS COUVRIR LE VOLET.
+     Le volet prend tout l'écran ici, mais `.panel` (position:absolute,
+     inset:0, z-index:1) restait AU-DESSUS de lui (le volet est statique, sans
+     z-index) : le composeur flottait au milieu du document, et le panneau
+     volait TOUS les gestes — doigt comme molette — donc « impossible de
+     défiler le document vers le bas » (mesure : scrollTop restait à 0 après
+     un swipe de 2 400 px, alors que le conteneur avait 8 252 px de course).
+     La conversation s'efface quand le volet est plein écran ; elle revient à
+     la fermeture (artifact-split enlevé). */
+  #app.artifact-split .panelwrap{display:none}
 }
 
 /* ═══ RESPONSIVE mobile — l'app doit marcher sur un téléphone comme sur un PC
