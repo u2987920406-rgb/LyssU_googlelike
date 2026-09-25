@@ -2141,6 +2141,25 @@ svg.graph *{cursor:inherit}
      TOUJOURS visibles. */
   .ctl{opacity:1;transform:none}
   .disc-menu .ctl{opacity:1;transform:none}
+
+  /* issue #126 : les contrôles du lecteur (source/copier/télécharger/fermer)
+     faisaient 30px — sous le plancher tactile WCAG 2.5.5 (44px), déjà
+     rencontré pour les autres boutons sur l'issue #122. */
+  .u-art-btn{width:44px;height:44px}
+
+  /* ⚠ LE LECTEUR DE DOCUMENTS NE DOIT PAS ÊTRE RECOUVERT (issue #126, Raf
+     2026-09-25 : « je ne peux même pas défiler les documents vers le bas »).
+     Quand un document s'ouvre, `#artifactViewer` (enfant direct de `#app`)
+     prend l'écran et `.stage` est écrasé à 0 de large — mais `.panel{width:
+     100vw}` s'échappait de ce conteneur vide et couvrait le lecteur d'un
+     calque invisible (position:absolute, z-index:1). Mesure CDP sur 512×1140 :
+     `elementFromPoint` renvoyait `#pDiscuter` au milieu du document — les
+     gestes du doigt atterrissaient sur le calque, le document ne défilait pas
+     et les boutons du lecteur ne répondaient plus. Sur téléphone, un document
+     ouvert est plein écran : le calque des panneaux disparaît derrière lui et
+     revient à la fermeture du lecteur. */
+  #app.artifact-split .stage{display:none}
+  #app.artifact-split .u-art-viewer{width:100%}
 }
 
 </style>
