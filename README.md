@@ -19,9 +19,6 @@
 Enveloppe web posée par-dessus **Hermes Agent**. Ulysse n'installe rien dans
 Hermes : il l'enveloppe (un masque UI + un plugin d'approbation). Tout ce qui
 est ici est servi/local, en loopback (127.0.0.1) — rien n'est exposé au réseau.
-Enveloppe web posée par-dessus **Hermes Agent**. Ulysse n'installe rien dans
-Hermes : il l'enveloppe (un masque UI + un plugin d'approbation). Tout ce qui
-est ici est servi/local, en loopback (127.0.0.1) — rien n'est exposé au réseau.
 
 ## Ce qu'il faut sur la machine cible
 
