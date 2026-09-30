@@ -1,5 +1,24 @@
+> # ⛔ PROJET EN STAND-BY — PRODUCTION ARRÊTÉE
+>
+> **Décision Raf, 30 septembre 2026. Aucune reprise planifiée.**
+>
+> La production d'Ulysse est arrêtée jusqu'à nouvel ordre. Motif : le banc
+> comparatif à armes égales (OpenCode vs Ulysse, `deepseek-v4.1-flash`) a montré
+> qu'Ulysse est un **masque visuel posé sur Hermes Agent** — ses qualités viennent
+> du prompt système de Hermes, pas du harness. Le maintenir coûtait cher en temps
+> et en forfait token, pour un comportement déjà obtenu par configuration.
+>
+> **Contexte complet : [issue #129](https://github.com/u2987920406-rgb/LyssU_googlelike/issues/129).**
+> Le dépôt est archivé en lecture seule ; le code et l'historique sont intacts.
+>
+> Ne pas reprendre sans répondre d'abord à : *qu'apporte Ulysse que Hermes ne
+> donne pas déjà ?*
+
 # Ulysse
 
+Enveloppe web posée par-dessus **Hermes Agent**. Ulysse n'installe rien dans
+Hermes : il l'enveloppe (un masque UI + un plugin d'approbation). Tout ce qui
+est ici est servi/local, en loopback (127.0.0.1) — rien n'est exposé au réseau.
 Enveloppe web posée par-dessus **Hermes Agent**. Ulysse n'installe rien dans
 Hermes : il l'enveloppe (un masque UI + un plugin d'approbation). Tout ce qui
 est ici est servi/local, en loopback (127.0.0.1) — rien n'est exposé au réseau.
