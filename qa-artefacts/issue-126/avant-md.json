@@ -1,0 +1,61 @@
+{
+  "prefixe": "avant-md",
+  "fichier": "D:/faux-home/CONTRAT-INTERFACE.md",
+  "mime": "text/markdown",
+  "ouvert": {
+    "ok": true
+  },
+  "mes": {
+    "viewport": {
+      "w": 412,
+      "h": 915
+    },
+    "doc_scroll_width": 412,
+    "body_scroll_width": 412,
+    "app_classes": "scene on artifact-split",
+    "viewer_present": true,
+    "viewer_width": 412,
+    "viewer_height": 915,
+    "viewer_display": "flex",
+    "viewer_width_css": "412px",
+    "corps_width": 411,
+    "corps_scroll_width": 417,
+    "scroll_height": 21233,
+    "client_height": 864,
+    "scroll_top_max": 20369,
+    "widest_right": 417.75,
+    "widest_sel": "table.u-md-t",
+    "inner_html_head": "<div class=\"u-md\"><h1 class=\"u-md-h\">Contrat d'interface — ce que le design peut changer, et ce qui casse</h1><p>Ce fichier existe pour une raison précise : le design se fait ailleurs (Claude Cowork), le câblage ici. Sans liste de ce qui porte la logique, une passe de design casse le produit sans qu"
+  },
+  "geste": {
+    "corps_apres_swipe_1": {
+      "corps_scroll_top": 0,
+      "page_scroll_top": 0
+    },
+    "corps_apres_swipe_2": {
+      "corps_scroll_top": 0,
+      "page_scroll_top": 0
+    },
+    "contenu_apres_swipe": {
+      "corps_scroll_top": 0,
+      "page_scroll_top": 0
+    },
+    "styles": {
+      "corps": "auto | overscroll:auto",
+      "contenu": "auto | overscroll:auto",
+      "embed": null
+    }
+  },
+  "erreurs": [
+    "console: Failed to load resource: the server responded with a status of 404 (File not found)",
+    "console: Failed to load resource: the server responded with a status of 404 (File not found)",
+    "console: Failed to load resource: the server responded with a status of 404 (File not found)",
+    "console: Failed to load resource: the server responded with a status of 404 (File not found)"
+  ],
+  "fetches": [
+    "/api/status",
+    "/api/memory",
+    "/proxy/chat",
+    "/api/files/read?path=D%3A%2Ffaux-home%2FCONTRAT-INTERFACE.md"
+  ]
+}

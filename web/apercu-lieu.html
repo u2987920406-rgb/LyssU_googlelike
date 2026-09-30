@@ -2143,6 +2143,44 @@ svg.graph *{cursor:inherit}
      TOUJOURS visibles. */
   .ctl{opacity:1;transform:none}
   .disc-menu .ctl{opacity:1;transform:none}
+
+  /* ⚠ L'ÉTABLI NE PARTAGE PLUS LA LARGEUR DU FIL (Raf, 2026-09-24 :
+     « la fenêtre établi prend de la place sur le chat »). En flex, ses
+     340px s'ouvraient À CÔTÉ du thread : sur ~400px d'écran, le fil ne
+     vivait plus que sur une bande. En overlay, il glisse PAR-DESSUS — le
+     chat reste derrière, la croix (toujours visible, règle .ctl ci-dessus)
+     referme, et le tissu du fil ne bouge pas d'un pixel.
+
+     ⚠ FOND EXPLICITE — et c'est LE piège du thème : `data-d="epure"` est
+     la valeur par défaut du document (ulysse.html) et il pose
+     `.etabli{background:none}` (choisi pour la colonne desktop, où la
+     bordure suffit). Posé SUR le fil, none = panneau transparent : le fil
+     transparaissait dedans (constat Raf + mesure CDP : backgroundColor
+     rgba(0,0,0,0)). Ici le fond redevient la couleur de surface, quel que
+     soit le thème. La languette, elle, GARDE sa translucidité (c'était le
+     vœu : seule l'icône s'efface). */
+  .work.atelier .etabli{position:fixed;top:0;right:0;bottom:0;z-index:88;
+    width:min(340px,86vw);border-radius:0;box-shadow:var(--elev-3);
+    background:var(--sidebar)}
+
+  /* issue #126 : les contrôles du lecteur (source/copier/télécharger/fermer)
+     faisaient 30px — sous le plancher tactile WCAG 2.5.5 (44px), déjà
+     rencontré pour les autres boutons sur l'issue #122. */
+  .u-art-btn{width:44px;height:44px}
+
+  /* ⚠ LE LECTEUR DE DOCUMENTS NE DOIT PAS ÊTRE RECOUVERT (issue #126, Raf
+     2026-09-25 : « je ne peux même pas défiler les documents vers le bas »).
+     Quand un document s'ouvre, `#artifactViewer` (enfant direct de `#app`)
+     prend l'écran et `.stage` est écrasé à 0 de large — mais `.panel{width:
+     100vw}` s'échappait de ce conteneur vide et couvrait le lecteur d'un
+     calque invisible (position:absolute, z-index:1). Mesure CDP sur 512×1140 :
+     `elementFromPoint` renvoyait `#pDiscuter` au milieu du document — les
+     gestes du doigt atterrissaient sur le calque, le document ne défilait pas
+     et les boutons du lecteur ne répondaient plus. Sur téléphone, un document
+     ouvert est plein écran : le calque des panneaux disparaît derrière lui et
+     revient à la fermeture du lecteur. */
+  #app.artifact-split .stage{display:none}
+  #app.artifact-split .u-art-viewer{width:100%}
 }
 
 
@@ -2165,6 +2203,25 @@ svg.graph *{cursor:inherit}
    ligne revient ou s'ouvre d'elle-même. */
 #histoList .row.m-glide .m-swcont{transition:none}
 #histoList .row.m-swipe .m-swcont{transform:translateX(64px)}
+
+
+/* ══ TEMPS DE RÉPONSE SOUS LA BULLE (demande Raf 2026-09-24) ═══════════════
+   Une note muette : elle ne propose rien, elle raconte un fait — même
+   famille que .u-micro (11px, muted, chiffres tabulaires pour que les
+   durées s'alignent en colonne quand on relit le fil). */
+.u-duree{font-size:11px;color:var(--muted);margin:3px 2px 0;line-height:1.2;
+  font-variant-numeric:tabular-nums}
+.msg.you .u-duree{text-align:right}
+
+/* ══ STATUS BAR : LA LIGNE DES TOKENS (demande Raf 2026-09-24) ════════════
+   « une status bar line pour connaître le nombre de token de la discussion
+   en millions et en pourcentage ». Une ligne fine au-dessus du composeur —
+   jamais une bannière. Masquée par défaut (HTML) : sans session ou sans
+   donnée, elle n'existe pas plutôt qu'afficher un zéro mensonger. */
+.u-statbar{font-size:11px;color:var(--muted);letter-spacing:.01em;
+  font-variant-numeric:tabular-nums;text-align:center;line-height:1.4;
+  padding:1px 6px 3px;white-space:nowrap;overflow:hidden;
+  text-overflow:ellipsis;user-select:none}
 </style>
 
 <style>

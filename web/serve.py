@@ -168,7 +168,8 @@ SECRET_CONFIG_KEYS = ("SESSION_TOKEN", "PROXY_TOKEN")
 # part en clair. Avec une liste blanche, il faut un geste explicite pour
 # publier quoi que ce soit.
 STATIC_SUFFIXES = (".html", ".css", ".js", ".svg", ".png", ".jpg", ".jpeg",
-                   ".gif", ".webp", ".ico", ".woff", ".woff2", ".map", ".md")
+                   ".gif", ".webp", ".ico", ".woff", ".woff2", ".map", ".md",
+                   ".json", ".pdf")
 
 # Renseignes dans main().
 BACKEND = None
@@ -906,6 +907,108 @@ class Handler(http.server.SimpleHTTPRequestHandler):
             return False
         return name.lower().endswith(STATIC_SUFFIXES)
 
+    def serve_stats(self):
+        """GET /ulysse/stats?sid=<session> — compteurs de LA discussion.
+
+        Demande Raf, 2026-09-24 : « le nombre de token de la discussion en
+        millions et en pourcentage ». Sources RÉELLES, deux lectures :
+          · ~/.hermes/state.db ouvert en ``file:...?mode=ro`` — jamais
+            d'écriture sur l'état d'Hermès, c'est un miroir en lecture ;
+          · ~/.hermes/models_dev_cache.json — la fenêtre du modèle, LUE au
+            catalogue et jamais devinée : si le modèle n'y est pas, ``pct``
+            reste null et la barre affiche les millions seuls (pas de
+            dénominateur inventé).
+
+        ``actifs`` = somme des ``token_count`` des messages actifs + le
+        préfixe système mesuré (15 067 tokens — mesure maison du 2026-08-12,
+        cf. ulysse-app.js) : c'est la taille ACTUELLE du fil, pas le cumulé
+        des renvois.
+        """
+        import json as _json
+        import os as _os
+        import sqlite3 as _sqlite3
+        import urllib.parse as _up
+
+        qs = _up.parse_qs(_up.urlparse(self.path).query)
+        sid = (qs.get("sid") or [""])[0].strip()
+        home = _os.path.expanduser("~")
+        out: dict = {"sid": sid}
+        try:
+            conn = _sqlite3.connect(
+                "file:%s/.hermes/state.db?mode=ro" % home, uri=True)
+            cur = conn.cursor()
+            if sid:
+                cur.execute(
+                    "SELECT model, input_tokens, output_tokens, message_count"
+                    " FROM sessions WHERE id = ?", (sid,))
+                row = cur.fetchone()
+                if row:
+                    out["model"] = row[0] or ""
+                    cin, cout = int(row[1] or 0), int(row[2] or 0)
+                    out["cumul_in"] = cin
+                    out["cumul_out"] = cout
+                    out["cumul"] = cin + cout
+                    out["messages"] = int(row[3] or 0)
+                    cur.execute(
+                        "SELECT COUNT(*),"
+                        " COALESCE(SUM(LENGTH(COALESCE(content, ''))), 0)"
+                        " FROM messages WHERE session_id = ? AND active = 1",
+                        (sid,))
+                    n, octets = cur.fetchone()
+                    out["messages_actifs"] = int(n or 0)
+                    # ⚠ `token_count` est VIDE sur les 221 018 lignes de cette
+                    # base (mesuré le 2026-09-24 : colonne jamais alimentée
+                    # par cette version d'Hermès) — calculer le % dessus
+                    # donnerait 1,4 % pour une conversation de 465 messages.
+                    # La taille du fil se déduit donc des OCTETS du texte, à
+                    # la convention standard ≈ 4 octets/token. C'est une
+                    # ESTIMATION et elle porte ce nom : `actifs_source` le
+                    # dit, le front affiche le ~. Un chiffre estimé affiché
+                    # comme mesuré est un mensonge.
+                    out["actifs"] = int(octets or 0) // 4 + 15067
+                    out["actifs_source"] = "estime:octets/4"
+            conn.close()
+        except Exception as exc:                # base absente / verrouillée
+            out["db_erreur"] = str(exc)
+        # La fenêtre du modèle : catalogue maison, descente récursive.
+        try:
+            with open(_os.path.join(home, ".hermes/models_dev_cache.json")) as fh:
+                catalogue = _json.load(fh)
+            cible = (out.get("model") or "").lower()
+            cible = cible.replace(".", "-").replace("_", "-")
+            trouve = [None]
+
+            def _descente(noeud):
+                if trouve[0] or not isinstance(noeud, dict):
+                    return
+                for cle, valeur in noeud.items():
+                    if not isinstance(valeur, dict):
+                        continue
+                    nom = str(cle).lower().replace(".", "-").replace("_", "-")
+                    if cible and (nom == cible or cible in nom or nom in cible):
+                        limite = valeur.get("limit") or {}
+                        if isinstance(limite, dict) and limite.get("context"):
+                            trouve[0] = int(limite["context"])
+                            return
+                    _descente(valeur)
+
+            _descente(catalogue)
+            if trouve[0]:
+                out["fenetre"] = trouve[0]
+        except Exception:                        # catalogue illisible : pas de %
+            pass
+        if out.get("fenetre") and out.get("actifs"):
+            out["pct"] = round(100.0 * out["actifs"] / out["fenetre"], 1)
+        else:
+            out["pct"] = None
+        body = _json.dumps(out, ensure_ascii=False).encode("utf-8")
+        self.send_response(200)
+        self.send_header("Content-Type", "application/json; charset=utf-8")
+        self.send_header("Content-Length", str(len(body)))
+        self.send_header("Cache-Control", "no-store")
+        self.end_headers()
+        self.wfile.write(body)
+
     def do_GET(self):
         if self.is_relayed():
             if self.guard():
@@ -914,6 +1017,11 @@ class Handler(http.server.SimpleHTTPRequestHandler):
                 self.proxy_websocket()
             else:
                 self.proxy_http("GET")
+            return
+        if self.route() == "/ulysse/stats":
+            if self.guard():
+                return
+            self.serve_stats()
             return
         if self.route() == "/" + CONFIG_FILE:
             self.serve_redacted_config()
@@ -1765,7 +1873,7 @@ class Handler(http.server.SimpleHTTPRequestHandler):
     # produit, et un état de page ne survivrait ni à un autre navigateur ni
     # à un autre appareil — c'est exactement le cas d'usage du téléphone.
     CLES_ETAT_AUTORISEES = ("position", "session_cwd", "etabli_path", "reprendre",
-                            "mecanique")
+                            "mecanique", "derniere_session")
 
     def lire_etat(self):
         try:

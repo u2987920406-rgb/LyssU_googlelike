@@ -1,0 +1,464 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Ulysse — mini guide pour l'utiliser comme un pro</title>
+<style>
+  :root{
+    --bg:#0e1116; --card:#161a21; --card2:#1b2029; --line:#262c37;
+    --txt:#e3e7ee; --dim:#9aa3b2; --acc:#4285f4; --acc2:#9b72cb;
+    --ok:#34a853; --warn:#fbbc04; --bad:#ea4335; --mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--txt);
+    font:16px/1.6 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;}
+  .wrap{max-width:940px;margin:0 auto;padding:32px 20px 80px}
+  header{border-bottom:1px solid var(--line);padding-bottom:20px;margin-bottom:24px}
+  h1{font-size:30px;margin:0 0 6px;letter-spacing:-.4px}
+  .sub{color:var(--dim);font-size:15px}
+  h2{font-size:21px;margin:38px 0 12px;letter-spacing:-.2px;
+     display:flex;align-items:center;gap:10px}
+  h2 .n{font:600 13px/1 var(--mono);background:var(--card2);border:1px solid var(--line);
+     color:var(--acc);border-radius:8px;padding:5px 8px}
+  h3{font-size:16px;margin:20px 0 6px}
+  p{margin:8px 0}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:14px;
+     padding:16px 18px;margin:12px 0}
+  .card > :first-child{margin-top:0}
+  .card > :last-child{margin-bottom:0}
+  ul{margin:8px 0;padding-left:20px}
+  li{margin:5px 0}
+  li::marker{color:var(--acc)}
+  code{font-family:var(--mono);font-size:.9em;background:var(--card2);
+     border:1px solid var(--line);border-radius:6px;padding:1px 6px}
+  kbd{font-family:var(--mono);font-size:.85em;background:var(--card2);
+     border:1px solid var(--line);border-bottom-width:2px;border-radius:6px;padding:1px 6px}
+  table{width:100%;border-collapse:collapse;font-size:14.5px;margin:12px 0}
+  th,td{text-align:left;padding:9px 10px;border-bottom:1px solid var(--line);vertical-align:top}
+  th{color:var(--dim);font-weight:600;font-size:13px;text-transform:uppercase;letter-spacing:.4px}
+  tr:last-child td{border-bottom:none}
+  .toc{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:8px;margin-top:18px}
+  .toc a{display:block;background:var(--card);border:1px solid var(--line);
+     border-radius:10px;padding:9px 12px;color:var(--txt);text-decoration:none;font-size:14.5px}
+  .toc a:hover{border-color:var(--acc);color:#fff}
+  .toc a span{color:var(--acc);font-family:var(--mono);font-size:12px;margin-right:8px}
+  .pill{display:inline-block;font-size:12.5px;font-weight:600;border-radius:999px;
+     padding:2px 10px;border:1px solid var(--line);background:var(--card2);color:var(--dim)}
+  .pill.ok{color:var(--ok);border-color:#1e3a2a}
+  .pill.warn{color:var(--warn);border-color:#3b3113}
+  .pill.bad{color:var(--bad);border-color:#3d1d1a}
+  .why{color:var(--dim);font-size:14.5px}
+  .pro{border-left:3px solid var(--acc);background:linear-gradient(90deg,#152033,var(--card) 70%)}
+  .alert{border-left:3px solid var(--warn);background:linear-gradient(90deg,#241f10,var(--card) 70%)}
+  .danger{border-left:3px solid var(--bad);background:linear-gradient(90deg,#251413,var(--card) 70%)}
+  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+  @media(max-width:720px){.grid2{grid-template-columns:1fr} h1{font-size:25px}}
+  footer{margin-top:56px;padding-top:16px;border-top:1px solid var(--line);
+     color:var(--dim);font-size:13.5px}
+  @media print{
+    body{background:#fff;color:#111}
+    .card,.toc a{background:#fff;border-color:#ccc}
+    a{color:#111}
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header>
+  <h1>Ulysse — comme un pro</h1>
+  <div class="sub">Mini guide de poche · ce qui existe, comment le bien utiliser, et ce qu'il ne fait pas.
+  Tiré du code et des passes de design du projet (état : septembre 2026).</div>
+
+  <div class="toc">
+    <a href="#s1"><span>01</span>Les 30 premières secondes</a>
+    <a href="#s2"><span>02</span>Le rail, la cloche, la corbeille</a>
+    <a href="#s3"><span>03</span>Discuter : le composeur</a>
+    <a href="#s4"><span>04</span>Les 4 positions d'accord</a>
+    <a href="#s5"><span>05</span>Ce que fait l'agent (Plan)</a>
+    <a href="#s6"><span>06</span>Historique, corbeille, reprise</a>
+    <a href="#s7"><span>07</span>Livrables et le volet fichier</a>
+    <a href="#s8"><span>08</span>Projets et gélule « lieu »</a>
+    <a href="#s9"><span>09</span>Automatisations et Terminal</a>
+    <a href="#s10"><span>10</span>Réglages, mémoire, Repères</a>
+    <a href="#s11"><span>11</span>Raccourcis et réflexes</a>
+    <a href="#s12"><span>12</span>Ce qu'Ulysse ne fait pas</a>
+  </div>
+</header>
+
+<!-- ══════════ 1 ══════════ -->
+<h2 id="s1"><span class="n">01</span>Les 30 premières secondes</h2>
+<div class="card">
+  <p><strong>Ulysse est un masque visuel posé par-dessus Hermes Agent.</strong> Il n'a
+  ni moteur ni mémoire à lui : chaque bouton envoie une commande à un des trois
+  moteurs d'Hermès déjà lancés.</p>
+  <table>
+    <tr><th>Moteur</th><th>Rôle</th></tr>
+    <tr><td><code>proxy :8645</code></td><td>la conversation (chat)</td></tr>
+    <tr><td><code>gateway :8644</code></td><td>webhooks, canaux, événements</td></tr>
+    <tr><td><code>serve :9119</code></td><td>fichiers, sessions, mémoire, MCP, terminal</td></tr>
+  </table>
+  <p class="why">Conséquence pratique : si une brique ne répond plus, le problème est
+  côté Hermès, pas côté page — la cloche et la pastille d'état le disent.</p>
+  <p>Au premier lancement, un écran vérifie les quatre (Hermès, agent, compétences,
+  gateway) et affiche toujours <strong>« Entrer quand même »</strong>. L'accueil de
+  <em>Discuter</em> <em>est</em> l'écran d'entrée : un mot, un champ, rien d'autre.</p>
+</div>
+
+<!-- ══════════ 2 ══════════ -->
+<h2 id="s2"><span class="n">02</span>Le rail, la cloche, la corbeille</h2>
+<div class="card">
+  <p>Deux niveaux, dans cet ordre :</p>
+  <table>
+    <tr><th>Niveau 2 — le travail en cours</th><th>Niveau 3 — la machine</th></tr>
+    <tr>
+      <td><strong>Discuter</strong> · <strong>Projet</strong> · <strong>Livrables</strong></td>
+      <td><strong>Ce que fait l'agent</strong> (Plan) · <strong>Automatisations</strong> ·
+          <strong>Vestiaire</strong> · <strong>Réglages</strong> ·
+          <strong>Terminal CLI</strong> · <strong>Repères</strong></td>
+    </tr>
+  </table>
+  <p class="why">Neuf panneaux, plus deux boutons de barre (cloche, corbeille) et
+  l'invite « Survolez la lisière gauche pour déplier ».</p>
+  <ul>
+    <li><strong>Épingler le rail</strong> : survolez la lisière gauche (~0,15 s) —
+    il reste ouvert, sinon il se replie. Le bouton burger le détache ou le
+    ré-épingle.</li>
+    <li><strong>La porte des coulisses</strong> porte un point <span class="pill">•</span>
+    quand la destination voulue est derrière une porte refermée à la main. Cliquer la
+    destination ouvre la porte <em>et</em> y va : jamais d'écran orphelin.</li>
+    <li><strong>Chaque panneau a une ancre d'URL</strong> (<code>#Reperes</code>,
+    <code>#Terminal</code>…). Un lien envoyé ouvre directement le bon panneau —
+    sans repasser par l'accueil.</li>
+    <li>La <strong>cloche</strong> groupe ses notifications en trois tas :
+    « Votre réponse est attendue », « Ce qui ne va pas », « Récent ».</li>
+    <li><strong>La corbeille</strong> : un bouton du rail, à côté de la cloche.
+    Deux groupes — <em>Fichiers</em> (déplacés, pas effacés) et <em>Projets</em>
+    (archivés, « votre dossier n'a pas bougé »). Chaque ligne a
+    <strong>Remettre</strong> ; le chemin y est affiché et copiable ; le seul
+    bouton destructeur dit le nombre <em>avant</em> et écrit « définitivement ».</li>
+    <li>Les listes ont un champ de filtre : <strong>Historique, Livrables,
+    Vestiaire, Repères</strong> — tapez avant de scroller.</li>
+    <li><strong>Le sous-menu de Discuter</strong> : cliquer le bouton
+    <strong>Discuter</strong> ouvre <em>Nouvelle discussion</em> +
+    l'<strong>Historique</strong> complet, filtre compris.</li>
+  </ul>
+</div>
+
+<!-- ══════════ 3 ══════════ -->
+<h2 id="s3"><span class="n">03</span>Discuter : le composeur</h2>
+
+<div class="card">
+  <h3>La ligne de saisie</h3>
+  <table>
+    <tr><th>Contrôle</th><th>Ce qu'il fait vraiment</th></tr>
+    <tr><td><code>+</code></td><td>joindre des fichiers du PC (plusieurs à la fois)</td></tr>
+    <tr><td>coller une image</td><td>même chemin que <code>+</code> : <kbd>Ctrl</kbd>+<kbd>V</kbd>
+      avec une capture dans le presse-papiers part dans le fil, visible dans votre bulle</td></tr>
+    <tr><td>micro</td><td>dictée (STT) — un silence se traduit en message vide, pas en erreur</td></tr>
+    <tr><td>croix <strong>Interrompre</strong></td><td>coupe la réponse en cours</td></tr>
+    <tr><td>le bouton d'envoi</td><td><strong>c'est lui qui envoie</strong> :
+      <kbd>Entrée</kbd> fait un saut de ligne, rien d'autre (l'invite change selon
+      l'état : « On commence par quoi…? » à l'accueil, « Répondre, ou demander un
+      plan… » en Plan)</td></tr>
+  </table>
+</div>
+
+<div class="card pro">
+  <h3>Le <code>/</code> du composeur — la commande, pas le message</h3>
+  <p>Tapez <code>/</code> au début d'une ligne : un sélecteur suit chaque frappe
+  (catalogue demandé à Hermès, jusqu'à 30 propositions, filtrées au fur et à
+  mesure). Une ligne qui commence par <code>/</code> <strong>n'est pas envoyée à
+  l'agent</strong> : elle part en commande de la TUI Hermès et sa
+  <strong>sortie s'affiche dans le fil</strong>.</p>
+  <p class="why">Sans ce routage, <code>/model</code> partait comme du texte et
+  l'agent répondait « ce n'est pas à moi ». Cliquez une proposition : elle
+  remplace la ligne en cours, curseur à la fin, prête pour les arguments.</p>
+</div>
+
+<div class="card pro">
+  <h3>Le menu <code>⋯</code> — trois gestes que 90 % des gens ne trouvent pas</h3>
+  <ul>
+    <li><strong>Fil sans mémoire</strong> : le prochain fil n'est <em>pas</em> retrouvé
+    dans l'historique ; un bandeau le dit en tête du fil et une pastille près du titre.
+    Le bon geste pour un secret, un test, une conversation jetable.</li>
+    <li><strong>Ouvrir l'Établi</strong> : le volet fichiers à côté du fil — les
+    fichiers déjà sur la machine, parcourables sans quitter la discussion.</li>
+    <li><strong>Nouvelle conversation</strong> : la session s'ouvre au prochain message
+    (pas de requête gaspillée).</li>
+    <li>Et l'état du réseau en haut : c'est là qu'on regarde quand « ça répond plus ».</li>
+  </ul>
+</div>
+
+<div class="card">
+  <h3>Le cadre (la gélule « Cadre »)</h3>
+  <p>Six rôles : <em>Orchestrateur, Généraliste, Raisonnement, Codage, Appel d'outil,
+  Garde-fou</em>. Aucun n'est pré-sélectionné.</p>
+  <p class="why">Le préfixe de rôle n'est envoyé qu'au <strong>premier message</strong>
+  de la session — c'est pour ça qu'un rôle se choisit <em>avant</em> d'écrire, et que
+  changer de rôle en cours de fil ne rétroagit pas sur ce qui a déjà été dit.</p>
+</div>
+
+<div class="card pro">
+  <h3>Les livrables de fin de tour</h3>
+  <p>En fin de réponse, l'encart <strong>Livrables du tour</strong> liste ce qui vient
+  d'être produit. Deux espèces, à ne pas confondre :</p>
+  <ul>
+    <li><span class="pill ok">fichier</span> un vrai fichier sur le disque → il
+    s'ouvre dans le volet, on peut copier son chemin ou le reprendre plus tard ;</li>
+    <li><span class="pill">bloc</span> un contenu qui n'existe que dans la réponse
+    → il s'ouvre en mémoire, rien n'est écrit nulle part.</li>
+  </ul>
+  <p class="why">« Livrables » (le panneau) est un simple explorateur de fichiers —
+  il n'a rien à voir avec cet encart, malgré le même mot.</p>
+</div>
+
+<!-- ══════════ 4 ══════════ -->
+<h2 id="s4"><span class="n">04</span>Les 4 positions d'accord</h2>
+<div class="card">
+  <p>Sous le champ, un mot (« Manuel » au départ) ouvre les positions. Ce sont les
+  modes d'approbation <strong>d'Hermès</strong>, affichés — pas réinventés.</p>
+  <table>
+    <tr><th>Position</th><th>Ce qu'elle promet</th></tr>
+    <tr><td><strong>Manuel</strong> <span class="pill">défaut</span></td>
+        <td>toujours demander avant d'apporter des modifications</td></tr>
+    <tr><td><strong>Accepter les modifications</strong></td>
+        <td>accepte automatiquement toutes les écritures de fichiers</td></tr>
+    <tr><td><strong>Auto</strong></td>
+        <td>Hermès juge les commandes lui-même ; <em>les fichiers passent sans question</em></td></tr>
+    <tr><td><strong>Plan</strong> <span class="pill">posture</span></td>
+        <td>discuter, lire, proposer — Ulysse <strong>refuse</strong> ce qui
+        modifierait le disque ou exécuterait une commande</td></tr>
+  </table>
+  <div class="alert card">
+    <p><strong>La limite, mesurée :</strong> même en <em>Manuel</em>, un certain nombre
+    d'écritures Hermès les laisse passer sans demander — Ulysse ne peut pas promettre
+    « chaque écriture sera validée ». En <strong>Plan</strong>, en revanche, le refus
+    est opposé <em>par Ulysse</em>, côté page : c'est la seule garantie tenue de bout
+    en bout. La mention sous le champ dit la vérité sur votre installation, pas une
+    promesse.</p>
+  </div>
+  <p class="why">À droite du mot : la <strong>gélule « lieu »</strong> — où ce fil
+  travaille (voir §08). Elle se dédouble en ambre quand le dossier d'ouverture et le
+  dossier réel divergent ; c'est voulu, c'est l'incohérence rendue visible.</p>
+</div>
+
+<!-- ══════════ 5 ══════════ -->
+<h2 id="s5"><span class="n">05</span>Ce que fait l'agent (Plan)</h2>
+<div class="card">
+  <ul>
+    <li>Trois vues : <strong>Schéma · Les deux · Détail</strong>. « Les deux » est la
+    vue par défaut et la bonne pour suivre.</li>
+    <li>Le plan vient <strong>uniquement de l'outil <code>todo</code></strong> — jamais
+    déduit du texte de la réponse. Un plan affiché est un plan réel.</li>
+    <li>Chaque étape a un <strong>kebab</strong> : tout savoir, ouvrir le fichier,
+    copier le détail, rejouer…</li>
+    <li><strong>Zoom</strong> : molette/tirer + les boutons d'échelle, avec le pourcentage
+    affiché et un <strong>Recentrer</strong> qui remet à 100 %.</li>
+    <li><strong>Voir le journal</strong> : flux brut d'événements avec compteur —
+    l'outil de diagnostic quand « le plan est vide ».</li>
+    <li><strong>Interrompre</strong> dans la barre du panneau coupe le travail en cours.</li>
+    <li>La phase <em>Build → Vérif</em> s'affiche toute seule quand toutes les étapes
+    sont closes : elle ne se choisit pas, elle constate.</li>
+  </ul>
+  <div class="alert card">
+    <p><strong>Après une reprise, le graphe du Plan ne revient pas.</strong> La reprise
+    de session ne renvoie jamais le détail structuré des outils — limite de l'API
+    Hermès, acceptée. Le texte et la mémoire, eux, reviennent bien.</p>
+  </div>
+</div>
+
+<!-- ══════════ 6 ══════════ -->
+<h2 id="s6"><span class="n">06</span>Historique, corbeille, reprise</h2>
+<div class="card">
+  <ul>
+    <li><strong>L'Historique</strong> vit dans le sous-menu de Discuter (et non
+    plus en panneau du rail). Trois gestes par ligne : <strong>épingler</strong>
+    (en tête), <strong>archiver</strong> (« ranger sans jeter »),
+    <strong>supprimer</strong> — et on glisse la ligne pour le révéler, à la
+    Gmail.</li>
+    <li><strong>Reprendre</strong> : une ligne de l'Historique rouvre la session —
+    mémoire réelle conservée (les secrets donnés avant la coupure sont retrouvés).</li>
+    <li><strong>Corbeille</strong> : les fichiers déplacés y sont restaurables
+    d'un clic ; les projets archivés aussi. « Vider » n'efface que les fichiers,
+    dit le compte avant, et s'écrit « définitivement ».</li>
+    <li><strong>F5 en direct</strong> est sûr : le fil redevenu vide est un état normal,
+    pas un plantage.</li>
+    <li>Le <strong>kebab</strong> d'une ligne propose : Reprendre ·
+    Épingler/Désépingler · Archiver/Désarchiver · <strong>Copier le lien de cette
+    conversation</strong> · Supprimer définitivement (en rouge, à part).</li>
+    <li><span class="pill warn">limite</span> Après <code>session.resume</code>, le
+    bloc abandonné en cours de route peut rester <strong>vide, sans marque</strong> :
+    rien ne dit à l'écran qu'il a été coupé. Le journal, lui, le dit.</li>
+    <li>Un <strong>tour interrompu par un nouvel envoi</strong> est marqué côté
+    interne, mais l'affichage de ce marque n'est pas confirmé : en cas de doute,
+    regardez le Plan ou relancez proprement.</li>
+  </ul>
+</div>
+
+<!-- ══════════ 7 ══════════ -->
+<h2 id="s7"><span class="n">07</span>Livrables et le volet fichier</h2>
+<div class="card">
+  <ul>
+    <li><strong>Un seul écran pour un fichier</strong> : le volet (jamais une modale).
+    Établi, Livrables et le fil y passent tous par le même code — ce qui s'ouvre ici
+    s'ouvre là.</li>
+    <li>Le volet montre <strong>le document entier, jamais tronqué</strong> (limite
+    honnête à 2 Mo), rend le Markdown, et rend un <strong>CSV en tableau</strong> avec
+    en-tête collant.</li>
+    <li>Le bouton <code>⟨/⟩</code> (basculer source/rendu) est <strong>grisé quand il
+    n'y a qu'une seule lecture</strong> — il ne sert à rien, il ne clignote pas.</li>
+    <li>Un fichier <strong>absent du disque</strong> est signalé sur la carte
+    <em>avant</em> le clic, pas après.</li>
+    <li>Un fichier à plus de 2 Mo s'ouvre avec la limite annoncée, pas un écran vide.</li>
+    <li>Les actions de ligne Livrables : <strong>poser sur l'Établi</strong>,
+    <strong>copier le chemin</strong>, ouvrir le dossier. Le fil d'Ariane est cliquable.</li>
+  </ul>
+</div>
+
+<!-- ══════════ 8 ══════════ -->
+<h2 id="s8"><span class="n">08</span>Projets et gélule « lieu »</h2>
+<div class="card">
+  <ul>
+    <li><strong>« Ranger un dossier en projet »</strong> ne crée rien sur le disque :
+    il désigne un dossier existant. Un projet réclame <strong>tout son sous-arbre</strong> —
+    ranger un dossier parent absorbe ses sous-dossiers <em>et</em> les conversations
+    qui s'y tiennent. L'avertissement les nomme et dit l'issue.</li>
+    <li>Trois espèces de cartes : <strong>vrai projet</strong> (a nom, couleur, identifiant),
+    <strong>dossier déduit</strong> (déduit de l'activité), <strong>Home</strong>. Les deux
+    derniers n'ont ni renommage ni archivage — les boutons qui n'agiraient pas
+    n'existent pas.</li>
+    <li><strong>Archiver ≠ supprimer.</strong> Archiver pose un drapeau, rien
+    n'expire. Les projets archivés apparaissent dans la <strong>Corbeille</strong>
+    du rail (« votre dossier n'a pas bougé »), d'où ils se remettent ; la
+    suppression définitive n'existe que là, ligne par ligne, avec une seconde
+    confirmation — et elle est en cascade.</li>
+    <li><strong>La mémoire reste commune</strong> : un projet cloisonne les dossiers et
+    les fils, pas le profil.</li>
+    <li><strong>La gélule lieu</strong> lit le dossier <em>de la session en cours</em>
+    (pas celui de la prochaine) : elle ne peut pas se tromper. « Travailler ici » ne
+    ferme pas le fil ouvert — l'ouvrir <em>là-bas</em> est un geste séparé, dans le repli.</li>
+    <li>En mode <em>Chat</em>, pas de gélule : aucune session n'est ouverte, aucun
+    dossier n'arriverait.</li>
+  </ul>
+</div>
+
+<!-- ══════════ 9 ══════════ -->
+<h2 id="s9"><span class="n">09</span>Automatisations et Terminal</h2>
+<div class="grid2">
+  <div class="card">
+    <h3>Automatisations</h3>
+    <ul>
+      <li>Liste des crons Hermès, avec pause/reprise et <strong>déclenchement
+      immédiat</strong> (pour tester sans attendre l'échéance).</li>
+      <li>Webhooks : une URL par action, déclenchement <strong>signé côté serveur</strong>.</li>
+      <li>Les cartes de webhook ne se déplient pas (elles en ont l'air) — tout est
+      sur la ligne.</li>
+    </ul>
+  </div>
+  <div class="card">
+    <h3>Terminal CLI</h3>
+    <ul>
+      <li><strong>Un vrai</strong> <code>hermes --tui</code> dans un vrai pseudo-terminal
+      (WebSocket <code>/api/pty</code>), rendu par xterm.js.</li>
+      <li>Plein écran applicatif ; <kbd>Échap</kbd> sort d'abord le repli ouvert,
+      puis le plein écran — et la sortie est toujours un bouton nommé, jamais
+      <kbd>Échap</kbd> seul.</li>
+      <li>L'aide-mémoire a <strong>deux familles</strong> : « Dans votre console » se
+      <strong>copie</strong>, « Dans cette session » se <strong>pose</strong> dans la
+      ligne (sans lancer). La ligne n'est pas un shell : y coller une commande shell
+      l'enverrait à l'agent comme un message.</li>
+      <li><strong>Ouvrir une console Hermès</strong> lance vraiment le processus —
+      le seul endroit du produit où Ulysse exécute quelque chose sur la machine.</li>
+    </ul>
+  </div>
+</div>
+<div class="card danger">
+  <p><strong>Le Terminal échappe aux accords Ulysse.</strong> Position <em>Plan</em>,
+  refus d'écriture, portées « toujours » : rien ne s'y applique là-haut. Ce que vous
+  tapez dans la TUI va directement à Hermès.</p>
+</div>
+
+<!-- ══════════ 10 ══════════ -->
+<h2 id="s10"><span class="n">10</span>Réglages, mémoire, Repères</h2>
+<div class="card">
+  <p>Sept sous-écrans : <strong>Général · Ce qu'Ulysse sait · Le cerveau ·
+  Sécurité et accords · Connexions · Dépenses · Avancé</strong>.</p>
+  <table>
+    <tr><th>Écran</th><th>Le geste pro</th></tr>
+    <tr><td>Général</td><td><strong>densité Épurée / Dense</strong> (même réglage
+      ailleurs que dans le fil) et le <strong>mode sans mémoire</strong> — aussi
+      atteignable par <code>⋯</code></td></tr>
+    <tr><td>Ce qu'Ulysse sait</td><td>l'écran le plus sensible : on y <strong>écrit
+      dans les fichiers de mémoire</strong>, avec la différence affichée, le bilan de
+      ce qui se perd, <strong>les versions gardées et le retour en arrière</strong>.
+      L'écriture passe par le serveur local avec copie datée — jamais en direct sur
+      Hermès, sinon la promesse de défaire serait fausse</td></tr>
+    <tr><td>Le cerveau</td><td>override du modèle par surface ; c'est un
+      <strong>réglage durable</strong>, pas un choix de session</td></tr>
+    <tr><td>Sécurité et accords</td><td>état réel des accords, lu à l'ouverture de
+      l'écran — jamais peint à l'avance</td></tr>
+    <tr><td>Dépenses</td><td>consommation réelle (tokens / coût) — à regarder avant
+      de se demander « pourquoi c'est lent »</td></tr>
+    <tr><td>Avancé</td><td>le <code>/api/status</code> brut : l'état des trois moteurs</td></tr>
+  </table>
+  <p class="why">La <strong>dette de profil</strong> (ce qui manque au profil pour
+  être complet) n'apparaît que sur <em>Discuter</em> et <em>Réglages</em> — volontairement.</p>
+  <p><strong>Repères</strong> = le glossaire des icônes, filtrable : quand un signe
+  ne parle pas, on le cherche là avant de deviner.</p>
+</div>
+
+<!-- ══════════ 11 ══════════ -->
+<h2 id="s11"><span class="n">11</span>Raccourcis et réflexes</h2>
+<div class="card">
+  <table>
+    <tr><th>Situation</th><th>Le réflexe</th></tr>
+    <tr><td>« ça ne répond plus »</td><td><code>⋯</code> → état du réseau, ou Réglages → Avancé</td></tr>
+    <tr><td>je vais donner un secret</td><td><code>⋯</code> → <strong>Fil sans mémoire</strong></td></tr>
+    <tr><td>je veux qu'il lise sans toucher</td><td>position <strong>Plan</strong></td></tr>
+    <tr><td>l'agent doit écrire/exécuter</td><td>une position <strong>hors Plan</strong>
+      (Manuel, Auto ou Accepter) — le rappel sous le champ change avec</td></tr>
+    <tr><td>un panneau reste bloqué / un repli traîne</td><td><kbd>Échap</kbd> (ferme le repli d'abord, jamais deux choses d'un coup)</td></tr>
+    <tr><td>je cherche un fichier produit</td><td>l'encart de fin de tour, sinon Livrables (filtre)</td></tr>
+    <tr><td>je cherche une vieille conversation</td><td>bouton <strong>Discuter</strong> →
+      Historique → filtre → <strong>Reprendre</strong></td></tr>
+    <tr><td>j'ai supprimé un fichier par erreur</td><td>Corbeille → <strong>Remettre</strong></td></tr>
+    <tr><td>« qu'est-ce que cette icône ? »</td><td>panneau <strong>Repères</strong></td></tr>
+    <tr><td>« combien ça coûte ? »</td><td>Réglages → <strong>Dépenses</strong></td></tr>
+    <tr><td>un lien vers un écran précis</td><td>copiez l'URL : l'ancre ouvre le panneau</td></tr>
+    <tr><td>voir tout le détail du fil</td><td>le journal (Plan → Voir le journal)</td></tr>
+  </table>
+</div>
+
+<!-- ══════════ 12 ══════════ -->
+<h2 id="s12"><span class="n">12</span>Ce qu'Ulysse ne fait pas</h2>
+<div class="card">
+  <p class="why">Mieux vaut le savoir ici que de le découvrir en voulant le faire.</p>
+  <ul>
+    <li><strong>Pas d'édition d'un rôle.</strong> Les six cadres sont figés dans le
+    code : aucun écran ne permet de changer durablement leur prompt.</li>
+    <li><strong>Pas de création de compétence (skill) depuis Ulysse</strong> — décision
+    explicite, il n'y a pas d'endpoint pour ça. Le Vestiaire <em>affiche</em> rôles et
+    compétences, il ne les fabrique pas.</li>
+    <li><strong>Pas de saisie de clé API</strong> : « une clé saisie dans une page est
+    une clé qui traîne ». Connexions (MCP, Telegram…) est en lecture.</li>
+    <li><strong>Le plan ne se reconstruit pas après une reprise</strong> (limite Hermès,
+    cf. §05).</li>
+    <li><strong>« Manuel » ne garantit pas une demande d'approbation</strong> sur
+    Hermès (cf. §04) — seule la position <em>Plan</em> oppose un refus vérifiable.</li>
+    <li><strong>Les positions ne changent pas le moteur</strong> : il n'y en a qu'un,
+    Hermès, du premier au dernier mot.</li>
+  </ul>
+</div>
+
+<footer>
+  Mini guide Ulysse · source : <code>web/CONTRAT-INTERFACE.md</code>,
+  <code>audit-fonctionnalites-ulysse.md</code>, les passes <code>PASSE-DESIGN-*.md</code>
+  et la lecture du code (<code>ulysse-app.js</code>). Fichier autonome, aucune
+  dépendance réseau — il s'ouvre tel quel.
+</footer>
+
+</div>
+</body>
+</html>

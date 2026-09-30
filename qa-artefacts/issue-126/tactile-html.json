@@ -1,0 +1,71 @@
+{
+  "prefixe": "tactile-html",
+  "temoin_drag_tactile": 175,
+  "temoin_molette": 2855,
+  "ouvert": {
+    "ok": true
+  },
+  "avant_geste": {
+    "corps_scroll_top": 0,
+    "corps_scroll_height": 9116,
+    "corps_client_height": 864,
+    "corps_scroll_width": 902,
+    "corps_width": 411,
+    "page_scroll_top": 0
+  },
+  "cibles_avant": [
+    {
+      "pt": [
+        206,
+        300
+      ],
+      "chaine": "div.foot{relative ta:auto ov:visible pe:auto} > div#pDiscuter.panel.accueil.cowork.build.on.hs{absolute ta:auto ov:visible pe:auto} > div.panelwrap{relative ta:auto ov:visible pe:auto} > div.stage{relative ta:auto ov:visible pe:auto} > section#app.scene.on.artifact-split{fixed ta:auto ov:visible pe:auto} > body{static ta:auto ov:hidden pe:auto}"
+    },
+    {
+      "pt": [
+        206,
+        500
+      ],
+      "chaine": "div.foot{relative ta:auto ov:visible pe:auto} > div#pDiscuter.panel.accueil.cowork.build.on.hs{absolute ta:auto ov:visible pe:auto} > div.panelwrap{relative ta:auto ov:visible pe:auto} > div.stage{relative ta:auto ov:visible pe:auto} > section#app.scene.on.artifact-split{fixed ta:auto ov:visible pe:auto} > body{static ta:auto ov:hidden pe:auto}"
+    },
+    {
+      "pt": [
+        206,
+        760
+      ],
+      "chaine": "div#pDiscuter.panel.accueil.cowork.build.on.hs{absolute ta:auto ov:visible pe:auto} > div.panelwrap{relative ta:auto ov:visible pe:auto} > div.stage{relative ta:auto ov:visible pe:auto} > section#app.scene.on.artifact-split{fixed ta:auto ov:visible pe:auto} > body{static ta:auto ov:hidden pe:auto}"
+    },
+    {
+      "pt": [
+        380,
+        600
+      ],
+      "chaine": "div#pDiscuter.panel.accueil.cowork.build.on.hs{absolute ta:auto ov:visible pe:auto} > div.panelwrap{relative ta:auto ov:visible pe:auto} > div.stage{relative ta:auto ov:visible pe:auto} > section#app.scene.on.artifact-split{fixed ta:auto ov:visible pe:auto} > body{static ta:auto ov:hidden pe:auto}"
+    }
+  ],
+  "apres_drag_document": {
+    "corps_scroll_top": 0,
+    "corps_scroll_height": 9116,
+    "corps_client_height": 864,
+    "corps_scroll_width": 902,
+    "corps_width": 411,
+    "page_scroll_top": 0
+  },
+  "apres_drag_droite": {
+    "corps_scroll_top": 0,
+    "corps_scroll_height": 9116,
+    "corps_client_height": 864,
+    "corps_scroll_width": 902,
+    "corps_width": 411,
+    "page_scroll_top": 0
+  },
+  "apres_molette": {
+    "corps_scroll_top": 0,
+    "corps_scroll_height": 9116,
+    "corps_client_height": 864,
+    "corps_scroll_width": 902,
+    "corps_width": 411,
+    "page_scroll_top": 0
+  },
+  "erreurs": []
+}

@@ -15,6 +15,17 @@
      le dit au lieu de rester blanc. -->
 <link rel="stylesheet" href="/xterm/xterm.css">
 
+<!-- ══ PWA installable sur l'écran d'accueil (demande Raf, 2026-09-24) ════
+     C'EST CETTE PAGE qui porte le manifest : c'est son URL le start_url de
+     l'app installée. Seul index.html avait les liens — après la redirection,
+     la page vivante (celle-ci) ne déclarait rien : pas d'icône d'app, pas de
+     thème, et Chrome Android ne proposait aucunement « Installer l'app ». -->
+<link rel="manifest" href="/manifest.json">
+<link rel="apple-touch-icon" href="/apple-touch-icon.png">
+<meta name="theme-color" content="#0b0e14">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+
 <style>
 /* ═══════════════════════════════════════════════════════════════════════
    Ce qui s'ajoute à la maquette — et RIEN QUI LA RECOUVRE.
@@ -835,6 +846,19 @@
 /* `.work` est déjà `position:relative` dans la maquette — on ne la redéclare
    pas pour ça, la languette s'y ancre telle quelle. */
 
+/* ══ Mobile : la languette devient une ombre au bord ════════════════════════
+   (Raf, 2026-09-24 : « l'icône établi et la fenêtre établi prennent de la
+   place sur le chat »). Elle rétrécit à l'icône seule et se translucide au
+   repos — le geste reste, l'encombrement disparaît ; au toucher elle se
+   révèle. Le texte ne quitte que le VISIBLE (display:none), pas le DOM :
+   le titre et les lecteurs d'écran gardent « Établi · n ». */
+@media (max-width:720px){
+  .u-languette{right:0;padding:13px 5px;gap:0;background:transparent;
+    color:var(--muted);opacity:.42;max-width:34px;overflow:hidden}
+  .u-languette span{display:none}
+  .u-languette:active{opacity:1;background:rgba(0,0,0,.05)}
+}
+
 /* ═══ Le sous-menu de Discuter : nouvelle discussion + historique ═════════
    L'Historique vivait en volet accroché à Discuter (PITCH-DISCUTER-VIVANT.
    html), ouvert depuis le kebab — un menu à l'autre bout de l'écran pour
@@ -1308,6 +1332,11 @@
       </div>
 
       <div class="foot"><div style="position:relative;max-width:720px;margin:0 auto">
+        <!-- ══ STATUS BAR — tokens de la discussion, en millions + % (demande
+             Raf, 2026-09-24). Une LIGNE, pas une bannière : muette par défaut
+             (display:none), remplie par majStatBar() de ulysse-app.js quand la
+             session est connue et les chiffres réels. -->
+        <div class="u-statbar" id="statbar" style="display:none"></div>
         <div class="pop" id="pop"></div>
         <!-- ══ LE PICKER « / » — la palette de commandes (demande Raf le
              2026-09-05, « la même chose qu'ici » = Discord). Taper « / » au
@@ -1554,5 +1583,19 @@
 <script src="ulysse-core.js"></script>
 <script src="ulysse-app.js"></script>
 <script src="ulysse-artifact.js"></script>
+<script>
+/* Enregistrement du service worker — RÉSEAU D'ABORD (exigence Raf,
+   2026-09-24, ce salon) : « toute mise à jour back et front sera
+   effective directement après un rechargement ou une relance de l'app ».
+   Le sw.js ne sert qu'à rendre l'app installable et à replier
+   hors-ligne ; il ne retient JAMAIS une version obsolète du front. */
+if ("serviceWorker" in navigator) {
+  window.addEventListener("load", () => {
+    navigator.serviceWorker.register("/sw.js").catch((e) => {
+      console.warn("SW non enregistré :", e);
+    });
+  });
+}
+</script>
 </body>
 </html>

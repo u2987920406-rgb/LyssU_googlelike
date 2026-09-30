@@ -1,0 +1,61 @@
+{
+  "prefixe": "apres-pdf",
+  "fichier": "D:/faux-home/comment-fonctionne-internet.pdf",
+  "mime": "application/pdf",
+  "ouvert": {
+    "ok": true
+  },
+  "mes": {
+    "viewport": {
+      "w": 412,
+      "h": 915
+    },
+    "doc_scroll_width": 412,
+    "body_scroll_width": 412,
+    "app_classes": "scene on artifact-split",
+    "viewer_present": true,
+    "viewer_width": 412,
+    "viewer_height": 915,
+    "viewer_display": "flex",
+    "viewer_width_css": "412px",
+    "corps_width": 411,
+    "corps_scroll_width": 411,
+    "scroll_height": 872,
+    "client_height": 864,
+    "scroll_top_max": 8,
+    "widest_right": 412,
+    "widest_sel": "div.wash",
+    "inner_html_head": "<embed src=\"data:application/pdf;base64,JVBERi0xLjQKJdPr6eEKMSAwIG9iago8PC9UaXRsZSA8RkVGRjAwNDMwMDZGMDA2RDAwNkQwMDY1MDA2RTAwNzQwMDIwMDA2NjAwNkYwMDZFMDA2MzAwNzQwMDY5MDA2RjAwNkUwMDZFMDA2NTAwMjAwMDQ5MDA2RTAwNzQwMDY1MDA3MjAwNkUwMDY1MDA3NDAwMjAyMDE0MDAyMDAwNjQwMDY1MDA3MzAwMjAwMDZGMDA3MjAwNjkwMDY3MDA2OTAw"
+  },
+  "geste": {
+    "corps_apres_swipe_1": {
+      "corps_scroll_top": 0,
+      "page_scroll_top": 0
+    },
+    "corps_apres_swipe_2": {
+      "corps_scroll_top": 0,
+      "page_scroll_top": 0
+    },
+    "contenu_apres_swipe": {
+      "corps_scroll_top": 0,
+      "page_scroll_top": 0
+    },
+    "styles": {
+      "corps": "auto | overscroll:auto",
+      "contenu": "auto | overscroll:auto",
+      "embed": "auto | overscroll:auto"
+    }
+  },
+  "erreurs": [
+    "console: Failed to load resource: the server responded with a status of 404 (File not found)",
+    "console: Failed to load resource: the server responded with a status of 404 (File not found)",
+    "console: Failed to load resource: the server responded with a status of 404 (File not found)",
+    "console: Failed to load resource: the server responded with a status of 404 (File not found)"
+  ],
+  "fetches": [
+    "/api/status",
+    "/api/memory",
+    "/proxy/chat",
+    "/api/files/read?path=D%3A%2Ffaux-home%2Fcomment-fonctionne-internet.pdf"
+  ]
+}

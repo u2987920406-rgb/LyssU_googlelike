@@ -1,0 +1,61 @@
+{
+  "prefixe": "apres",
+  "fichier": "D:/faux-home/revolution-francaise.html",
+  "mime": "text/html",
+  "ouvert": {
+    "ok": true
+  },
+  "mes": {
+    "viewport": {
+      "w": 412,
+      "h": 915
+    },
+    "doc_scroll_width": 412,
+    "body_scroll_width": 412,
+    "app_classes": "scene on artifact-split",
+    "viewer_present": true,
+    "viewer_width": 412,
+    "viewer_height": 915,
+    "viewer_display": "flex",
+    "viewer_width_css": "412px",
+    "corps_width": 411,
+    "corps_scroll_width": 411,
+    "scroll_height": 9156,
+    "client_height": 864,
+    "scroll_top_max": 8292,
+    "widest_right": 412,
+    "widest_sel": "div.wash",
+    "inner_html_head": "<pre class=\"u-art-raw\">&lt;!DOCTYPE html&gt;\n&lt;html lang=\"fr\"&gt;\n&lt;head&gt;\n&lt;meta charset=\"utf-8\"&gt;\n&lt;meta name=\"viewport\" content=\"width=device-width, initial-scale=1\"&gt;\n&lt;title&gt;La Révolution française — 1789-1799&lt;/title&gt;\n&lt;style&gt;\n  :root {\n    --encre: #23252b;\n    --"
+  },
+  "geste": {
+    "corps_apres_swipe_1": {
+      "corps_scroll_top": 0,
+      "page_scroll_top": 0
+    },
+    "corps_apres_swipe_2": {
+      "corps_scroll_top": 0,
+      "page_scroll_top": 0
+    },
+    "contenu_apres_swipe": {
+      "corps_scroll_top": 0,
+      "page_scroll_top": 0
+    },
+    "styles": {
+      "corps": "auto | overscroll:auto",
+      "contenu": "auto | overscroll:auto",
+      "embed": null
+    }
+  },
+  "erreurs": [
+    "console: Failed to load resource: the server responded with a status of 404 (File not found)",
+    "console: Failed to load resource: the server responded with a status of 404 (File not found)",
+    "console: Failed to load resource: the server responded with a status of 404 (File not found)",
+    "console: Failed to load resource: the server responded with a status of 404 (File not found)"
+  ],
+  "fetches": [
+    "/api/status",
+    "/api/memory",
+    "/proxy/chat",
+    "/api/files/read?path=D%3A%2Ffaux-home%2Frevolution-francaise.html"
+  ]
+}

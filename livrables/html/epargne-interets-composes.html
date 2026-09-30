@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>L'épargne et les intérêts composés — comprendre et calculer</title>
+<style>
+  :root{
+    --ink:#12212e; --muted:#5b6b7a; --paper:#f7f4ee; --card:#ffffff;
+    --line:#e3ddd2; --accent:#0f766e; --accent-soft:#dff1ee;
+    --gold:#b45309; --gold-soft:#fdf1de;
+  }
+  *{box-sizing:border-box}
+  body{
+    margin:0; background:var(--paper); color:var(--ink);
+    font-family:Georgia,"Times New Roman",serif;
+    line-height:1.62; font-size:17px;
+    -webkit-font-smoothing:antialiased;
+  }
+  .wrap{max-width:860px; margin:0 auto; padding:48px 28px 72px}
+  header{border-bottom:3px solid var(--accent); padding-bottom:26px; margin-bottom:34px}
+  .kicker{
+    font-family:"Helvetica Neue",Arial,sans-serif; font-size:12px;
+    letter-spacing:.16em; text-transform:uppercase; color:var(--accent); font-weight:700;
+  }
+  h1{font-size:44px; line-height:1.12; margin:10px 0 12px}
+  .lede{font-size:20px; color:var(--muted); margin:0; font-style:italic}
+  h2{
+    font-family:"Helvetica Neue",Arial,sans-serif; font-size:23px;
+    margin:46px 0 14px; padding-left:12px; border-left:5px solid var(--accent);
+  }
+  h3{font-family:"Helvetica Neue",Arial,sans-serif; font-size:18px; margin:26px 0 8px}
+  p{margin:0 0 14px}
+  .card{
+    background:var(--card); border:1px solid var(--line); border-radius:12px;
+    padding:22px 24px; margin:20px 0;
+    box-shadow:0 1px 2px rgba(18,33,46,.05);
+  }
+  .callout{background:var(--accent-soft); border-color:#b9ddd7}
+  .warn{background:var(--gold-soft); border-color:#e7cfa4}
+  .callout h3, .warn h3{margin-top:0}
+  .grid{display:grid; grid-template-columns:repeat(3,1fr); gap:16px; margin:22px 0}
+  .stat{background:var(--card); border:1px solid var(--line); border-radius:12px; padding:18px}
+  .stat .num{font-family:"Helvetica Neue",Arial,sans-serif; font-size:32px; font-weight:700; color:var(--accent)}
+  .stat .lbl{font-family:"Helvetica Neue",Arial,sans-serif; font-size:13px; color:var(--muted); line-height:1.45}
+  table{width:100%; border-collapse:collapse; margin:18px 0; background:var(--card)}
+  th,td{padding:11px 13px; border:1px solid var(--line); text-align:right}
+  th:first-child, td:first-child{text-align:left}
+  thead th{
+    background:var(--accent); color:#fff;
+    font-family:"Helvetica Neue",Arial,sans-serif; font-size:14px;
+    letter-spacing:.03em;
+  }
+  tbody tr:nth-child(even){background:#faf8f4}
+  .formula{
+    font-family:"Courier New",monospace; font-size:17px;
+    background:#12212e; color:#eaf3f1; border-radius:10px;
+    padding:16px 18px; margin:16px 0; overflow-x:auto;
+  }
+  .pill{
+    display:inline-block; font-family:"Helvetica Neue",Arial,sans-serif;
+    font-size:12px; font-weight:700; letter-spacing:.05em; text-transform:uppercase;
+    background:var(--accent-soft); color:var(--accent);
+    border-radius:999px; padding:4px 12px; margin:2px 6px 2px 0;
+  }
+  ul{margin:10px 0 16px; padding-left:22px}
+  li{margin-bottom:7px}
+  .src{font-family:"Helvetica Neue",Arial,sans-serif; font-size:14px; color:var(--muted)}
+  .src ol{padding-left:20px}
+  .src li{margin-bottom:9px}
+  footer{
+    margin-top:52px; padding-top:18px; border-top:1px solid var(--line);
+    font-family:"Helvetica Neue",Arial,sans-serif; font-size:13px; color:var(--muted);
+    display:flex; justify-content:space-between; gap:12px; flex-wrap:wrap;
+  }
+  @media print{
+    body{background:#fff; font-size:12px}
+    .card,.stat{break-inside:avoid}
+    h1{font-size:30px}
+    .wrap{padding:0}
+  }
+  @media (max-width:640px){
+    h1{font-size:32px}
+    .grid{grid-template-columns:1fr}
+    .wrap{padding:28px 16px 48px}
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header>
+  <div class="kicker">Finance personnelle · Fiche pratique</div>
+  <h1>L'épargne et les intérêts composés</h1>
+  <p class="lede">Pourquoi le temps compte davantage que le montant — et comment le prouver chiffres à l'appui.</p>
+</header>
+
+<div class="grid">
+  <div class="stat">
+    <div class="num">1,7 %</div>
+    <div class="lbl">Taux du Livret A depuis le 1<sup>er</sup> août 2026 (il était de 1,5 % depuis février 2026).<br>Source : service-public.gouv.fr, 15 juillet 2026</div>
+  </div>
+  <div class="stat">
+    <div class="num">2,5 %</div>
+    <div class="lbl">Taux du LEP (Livret d'épargne populaire) au 1<sup>er</sup> août 2026, maintenu par « coup de pouce » — la formule réglementaire donnait 2,2 %.<br>Source : service-public.gouv.fr / Banque de France</div>
+  </div>
+  <div class="stat">
+    <div class="num">17,2 %</div>
+    <div class="lbl">Taux d'épargne des ménages français au T2 2026 (part du revenu disponible brut).<br>Source : Insee, Informations rapides n° 212, 28 août 2026</div>
+  </div>
+</div>
+
+<h2>1 · Ce que sont les intérêts composés</h2>
+<p>Un intérêt <strong>simple</strong> ne rapporte que sur le capital initial. Un intérêt
+<strong>composé</strong> rapporte aussi sur les intérêts déjà accumulés : chaque année,
+la base de calcul grossit. C'est l'effet « boule de neige » d'une épargne qu'on ne touche pas.</p>
+
+<div class="card callout">
+  <h3>La formule, une fois pour toutes</h3>
+  <div class="formula">V = C × (1 + t)<sup>n</sup>&nbsp;&nbsp;&nbsp;·&nbsp;&nbsp;&nbsp;C = capital, t = taux annuel, n = nombre d'années</div>
+  <p>Exemple : 1 000 € placés à 1,7 % pendant 30 ans deviennent
+  <strong>1 658 €</strong> (calcul : 1 000 × 1,017<sup>30</sup>), dont 658 € d'intérêts.
+  À 5 % sur la même période : <strong>4 322 €</strong> — plus de quatre fois la mise initiale.</p>
+</div>
+
+<h3>La règle de 72 : l'estimation mentale</h3>
+<p>72 ÷ taux (en %) donne approximativement le nombre d'années pour <strong>doubler</strong> son capital :</p>
+<ul>
+  <li><span class="pill">1,7 % → 42 ans</span> environ pour doubler (72 ÷ 1,7 ≈ 42,4)</li>
+  <li><span class="pill">5 % → 14 ans</span> (72 ÷ 5 = 14,4)</li>
+  <li><span class="pill">10 % → 7 ans</span> (72 ÷ 10 = 7,2)</li>
+</ul>
+
+<h2>2 · Ce que donne une épargne régulière</h2>
+<p>Verser 100 € chaque mois, c'est capitaliser 36 000 € sur 30 ans. Le tableau montre
+ce que les intérêts composés ajoutent à cette somme, selon le taux annuel retenu
+(versements en fin de mois, intérêts composés mensuellement — calculs réalisés
+pour cette fiche, hors fiscalité et hors inflation).</p>
+
+<table>
+  <thead>
+    <tr><th>Versements de 100 €/mois</th><th>1,7 % / an</th><th>2,5 % / an</th><th>5 % / an</th></tr>
+  </thead>
+  <tbody>
+    <tr><td>Après 5 ans (6 000 € versés)</td><td>6 258 €</td><td>6 384 €</td><td>6 801 €</td></tr>
+    <tr><td>Après 10 ans (12 000 € versés)</td><td>13 070 €</td><td>13 617 €</td><td>15 528 €</td></tr>
+    <tr><td>Après 20 ans (24 000 € versés)</td><td>28 561 €</td><td>31 097 €</td><td>41 103 €</td></tr>
+    <tr><td>Après 30 ans (36 000 € versés)</td><td>46 919 €</td><td>53 537 €</td><td>83 226 €</td></tr>
+  </tbody>
+</table>
+
+<div class="card callout">
+  <h3>La lecture à retenir</h3>
+  <p>À 5 % sur 30 ans, les intérêts (47 226 €) dépassent les versements (36 000 €) :
+  plus de la moitié du capital final vient du temps, pas de l'épargnant. À 1,7 %
+  (le taux du Livret A), l'effet existe mais reste modeste : 10 919 € d'intérêts sur 30 ans.</p>
+</div>
+
+<h2>3 · Les points de vigilance</h2>
+<div class="card warn">
+  <h3>Trois pièges classiques</h3>
+  <ul>
+    <li><strong>L'inflation.</strong> Si les prix montent plus vite que le taux du livret, le pouvoir d'achat de l'épargne baisse malgré les intérêts. Le Livret A (1,7 %) sert de filet de sécurité disponible, pas de moteur de performance.</li>
+    <li><strong>La fiscalité.</strong> Les intérêts sont imposables (prélèvement forfaitaire unique de 30 % sur les placements non réglementés) ; les livrets réglementés (Livret A, LDDS, LEP) en sont exonérés.</li>
+    <li><strong>L'interruption des versements.</strong> L'effet boule de neige suppose la régularité : suspendre les versements réduit très fortement le résultat final, surtout au début.</li>
+  </ul>
+</div>
+
+<div class="card">
+  <h3>Ordre de grandeur pour agir</h3>
+  <p>Les spécialistes recommandent en général de garder l'équivalent de
+  <strong>3 à 6 mois de dépenses courantes</strong> sur un support disponible
+  (épargne de précaution), puis d'orienter l'épargne vers des supports plus longs
+  et mieux rémunérés selon son horizon. C'est un repère de gestion, pas un conseil
+  d'investissement personnalisé.</p>
+</div>
+
+<h2>Sources</h2>
+<div class="src">
+  <ol>
+    <li><strong>service-public.gouv.fr</strong> (Premier ministre) — « Livret A et LEP : quel changement de rémunération au 1<sup>er</sup> août 2026 ? », publié le 15 juillet 2026 : Livret A à 1,7 % et LEP à 2,5 % au 1<sup>er</sup> août 2026 (LDDS aligné sur le Livret A).</li>
+    <li><strong>Banque de France</strong> — « Taux de rémunération des dépôts bancaires » (Stat Info, avril 2026) : taux Livret A de 1,5 % au T1 2026 ; formule de calcul des livrets réglementés (moyenne des taux interbancaires de la zone euro + inflation hors tabac sur 12 mois).</li>
+    <li><strong>Insee</strong> — « Consommation et investissement des ménages », Note de conjoncture juin 2026 : taux d'épargne de 17,9 % du revenu disponible brut au T1 2026 ; et Informations rapides n° 212 (28 août 2026) : 17,2 % au T2 2026.</li>
+    <li><strong>Eurostat</strong> — série teina500 (épargne brute des ménages) : zone euro à 14,14 % du revenu disponible brut au T1 2026.</li>
+    <li>Calculs d'intérêts composés et règle de 72 : réalisés pour cette fiche
+    (formule V = C × (1 + t)<sup>n</sup>, versements mensuels en fin de mois,
+    hors fiscalité et hors inflation).</li>
+  </ol>
+</div>
+
+<footer>
+  <span>Fiche pédagogique · Épargne et intérêts composés</span>
+  <span>Données à jour au 25 septembre 2026 · Ne constitue pas un conseil en investissement</span>
+</footer>
+
+</div>
+</body>
+</html>

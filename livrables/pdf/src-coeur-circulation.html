@@ -1,0 +1,224 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<title>Le cœur et la circulation sanguine</title>
+<style>
+  @page { size: A4; margin: 0; }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: "DejaVu Sans", Arial, sans-serif;
+    color: #22303c; background: #ffffff; line-height: 1.55;
+    font-size: 11.5pt;
+  }
+  .page {
+    width: 210mm; height: 296mm; padding: 16mm 18mm;
+    page-break-after: always; position: relative; overflow: hidden;
+  }
+  .page:last-child { page-break-after: auto; }
+  h1 {
+    font-size: 26pt; line-height: 1.15; color: #8e2430; letter-spacing: -0.3px;
+    margin-bottom: 4mm;
+  }
+  h2 {
+    font-size: 15pt; color: #8e2430; border-left: 5px solid #c0392b;
+    padding-left: 8px; margin: 7mm 0 3mm;
+  }
+  h3 { font-size: 12pt; color: #2c3e50; margin: 4mm 0 1.5mm; }
+  p { margin-bottom: 2.5mm; text-align: justify; }
+  .kicker {
+    text-transform: uppercase; letter-spacing: 2.5px; font-size: 9.5pt;
+    color: #c0392b; font-weight: bold; margin-bottom: 3mm;
+  }
+  .subtitle { font-size: 13pt; color: #4a5a68; margin-bottom: 6mm; }
+  .band {
+    background: #fdf1f0; border-radius: 8px; padding: 5mm 6mm;
+    border: 1px solid #f0c9c2; margin: 4mm 0;
+  }
+  .stats { display: flex; gap: 5mm; margin: 5mm 0; }
+  .stat {
+    flex: 1; background: #2c3e50; color: #fff; border-radius: 8px;
+    padding: 5mm 4mm; text-align: center;
+  }
+  .stat .num { font-size: 20pt; font-weight: bold; color: #ffd9d3; line-height: 1.1; }
+  .stat .lbl { font-size: 8.5pt; margin-top: 2mm; opacity: 0.92; line-height: 1.35; }
+  .flow { display: flex; align-items: center; gap: 3mm; margin: 4mm 0; }
+  .flow .step {
+    flex: 1; background: #eef3f7; border: 1px solid #cfdbe6; border-radius: 6px;
+    padding: 3mm; text-align: center; font-size: 9.5pt;
+  }
+  .flow .arrow { color: #c0392b; font-size: 15pt; font-weight: bold; }
+  table { width: 100%; border-collapse: collapse; margin: 3mm 0; font-size: 10pt; }
+  th {
+    background: #8e2430; color: #fff; text-align: left;
+    padding: 2.4mm 3mm; font-size: 9.5pt; text-transform: uppercase; letter-spacing: 0.5px;
+  }
+  td { padding: 2.2mm 3mm; border-bottom: 1px solid #dfe6ec; vertical-align: top; }
+  tr:nth-child(even) td { background: #f6f9fb; }
+  ul { margin: 1mm 0 2.5mm 6mm; }
+  li { margin-bottom: 1.4mm; }
+  .sources {
+    font-size: 8.5pt; color: #55636e; background: #f4f7f9;
+    border: 1px solid #dfe6ec; border-radius: 8px; padding: 4mm 5mm;
+  }
+  .sources h2 { margin: 0 0 2mm; font-size: 11.5pt; border: none; padding: 0; }
+  .sources li { margin-bottom: 1.2mm; }
+  .footer {
+    position: absolute; bottom: 8mm; left: 18mm; right: 18mm;
+    display: flex; justify-content: space-between; font-size: 8pt; color: #97a5b0;
+    border-top: 1px solid #e3eaef; padding-top: 2mm;
+  }
+  .note { font-size: 9pt; color: #6b7a87; font-style: italic; }
+  .tight h2 { margin: 5mm 0 2mm; }
+  .tight h3 { margin: 3mm 0 1mm; }
+  .tight p { margin-bottom: 2mm; }
+  .tight table { font-size: 9.5pt; margin: 2.5mm 0; }
+  .tight td, .tight th { padding: 1.7mm 2.5mm; }
+</style>
+</head>
+<body>
+
+<!-- PAGE 1 -->
+<div class="page">
+  <div class="kicker">Sciences du vivant · Fiche documentaire</div>
+  <h1>Le cœur et la<br>circulation sanguine</h1>
+  <p class="subtitle">Un organe de 300 g qui pompe environ 4 000 litres de sang par jour, sans jamais s'arrêter.</p>
+
+  <div class="stats">
+    <div class="stat"><div class="num">60–100</div><div class="lbl">battements par minute chez l'adulte au repos (Inserm)</div></div>
+    <div class="stat"><div class="num">~100 000</div><div class="lbl">battements par jour à ~70 bpm (Fondation Recherche Cardio-Vasculaire)</div></div>
+    <div class="stat"><div class="num">4 000 L</div><div class="lbl">de sang propulsés chaque jour par le cœur adulte (Inserm)</div></div>
+  </div>
+
+  <h2>Un muscle à quatre chambres</h2>
+  <p>Le cœur est un muscle creux d'environ 300 grammes, divisé en quatre
+  chambres : deux oreillettes en haut, qui reçoivent le sang, et deux ventricules
+  en bas, qui l'éjectent. Quatre valves — tricuspide, pulmonaire, mitrale et
+  aortique — s'ouvrent et se ferment alternativement « un peu comme des portes
+  d'écluse », pour que le sang circule toujours dans le même sens. Le bruit de
+  leur fermeture produit les battements que l'on entend au stéthoscope <a
+  href="#s1">[1]</a>.</p>
+
+  <h2>La double circulation</h2>
+  <p>Le sang parcourt deux boucles distinctes, en série :</p>
+  <div class="flow">
+    <div class="step"><strong>Cœur</strong><br>ventricule droit</div>
+    <div class="arrow">→</div>
+    <div class="step"><strong>Poumons</strong><br>circulation pulmonaire : le sang se recharge en oxygène</div>
+    <div class="arrow">→</div>
+    <div class="step"><strong>Cœur</strong><br>ventricule gauche</div>
+    <div class="arrow">→</div>
+    <div class="step"><strong>Corps entier</strong><br>circulation systémique : le sang livre l'oxygène</div>
+    <div class="arrow">→</div>
+    <div class="step"><strong>Cœur</strong><br>retour par les veines</div>
+  </div>
+  <ul>
+    <li><strong>La petite circulation (pulmonaire)</strong> relie le cœur aux poumons : elle recharge le sang en oxygène et le débarrasse du dioxyde de carbone.</li>
+    <li><strong>La grande circulation (systémique)</strong> part du ventricule gauche vers l'aorte, puis tous les organes, et revient par les veines caves à l'oreillette droite.</li>
+    <li>Le cœur reçoit lui-même son sang par les artères coronaires, les premières branches de l'aorte.</li>
+  </ul>
+
+  <div class="band">
+    <strong>Le saviez-vous ?</strong> Le cœur ne se commande pas consciemment : il
+    possède son propre stimulateur, le nœud sinusal, qui déclenche environ
+    70 contractions par minute au repos — soit près de 100 000 par jour, et
+    plusieurs milliards sur une vie <a href="#s2">[2]</a>.
+  </div>
+
+  <div class="footer"><span>Le cœur et la circulation sanguine</span><span>Page 1 / 3</span></div>
+</div>
+
+<!-- PAGE 2 -->
+<div class="page tight">
+  <h2>Du dogme antique à la découverte de Harvey (1628)</h2>
+  <p>Pendant près de quinze siècles, la médecine européenne suit la théorie de
+  Galien : le sang serait produit dans le foie, consommé par les organes, et
+  passerait du cœur droit au cœur gauche à travers de minuscules pores dans la
+  cloison interventriculaire. Cette vision n'explique pas le volume de sang
+  circulant, et aucune dissection ne montre ces pores.</p>
+  <p>En 1628, le médecin anglais William Harvey (1578–1657) publie à Francfort un
+  petit livre latin de 86 pages, <em>Exercitatio anatomica de motu cordis et
+  sanguinis in animalibus</em> — le <em>De motu cordis</em>. Par des mesures
+  simples (ligatures, décompte du volume éjecté à chaque battement), il démontre
+  que le sang ne fait pas qu'affluer vers les organes : il tourne en circuit
+  fermé, du cœur aux artères, des veines au cœur, et revient <a href="#s3">[3]</a><a href="#s4">[4]</a>.</p>
+
+  <h3>Les trois apports de Harvey</h3>
+  <table>
+    <tr><th style="width:28%">Apport</th><th>En quoi il change la médecine</th></tr>
+    <tr><td><strong>Le sang circule</strong></td><td>Il ne se consomme pas : le même volume tourne en boucle. Les saignées thérapeutiques, pratiquées à doses massives, perdent leur justification.</td></tr>
+    <tr><td><strong>La mesure</strong></td><td>Harvey calcule qu'en une demi-heure le cœur éjecte plus de sang que le corps n'en contient : la seule explication logique est le circuit fermé.</td></tr>
+    <tr><td><strong>Le cœur, une pompe</strong></td><td>Le muscle cardiaque n'est plus un « foyer de chaleur vitale » mais une pompe mécanique — base de la physiologie moderne <a href="#s4">[4]</a>.</td></tr>
+  </table>
+  <p class="note">Harvey n'a pas vu les capillaires, invisibles au microscope de son
+  temps : leur existence a été démontrée en 1661 par Marcello Malpighi.</p>
+
+  <h2>Chiffres clés de la circulation</h2>
+  <table>
+    <tr><th style="width:45%">Grandeur</th><th>Valeur ordre de grandeur</th></tr>
+    <tr><td>Rythme cardiaque adulte au repos</td><td>60 à 100 battements/min <a href="#s1">[1]</a></td></tr>
+    <tr><td>Battements sur une journée (~70 bpm)</td><td>≈ 100 000 <a href="#s2">[2]</a></td></tr>
+    <tr><td>Sang propulsé par le cœur adulte</td><td>≈ 4 000 litres par jour <a href="#s1">[1]</a></td></tr>
+    <tr><td>Valves cardiaques</td><td>4 : tricuspide, pulmonaire, mitrale, aortique <a href="#s1">[1]</a></td></tr>
+    <tr><td>Circuit sanguin</td><td>2 boucles : pulmonaire et systémique <a href="#s1">[1]</a></td></tr>
+    <tr><td>Décès par maladies cardiovasculaires (monde, 2022)</td><td>19,8 millions, soit ≈ 32 % de tous les décès <a href="#s5">[5]</a></td></tr>
+  </table>
+
+  <div class="footer"><span>Le cœur et la circulation sanguine</span><span>Page 2 / 3</span></div>
+</div>
+
+<!-- PAGE 3 -->
+<div class="page">
+  <h2>Protéger son cœur : ce que dit l'OMS</h2>
+  <p>D'après l'Organisation mondiale de la santé, les maladies cardiovasculaires
+  (MCV) sont la principale cause de décès dans le monde : <strong>19,8 millions de
+  personnes en sont mortes en 2022</strong>, soit environ 32 % de l'ensemble des
+  décès. Parmi eux, 85 % ont été causés par un infarctus du myocarde ou un
+  accident vasculaire cérébral (AVC). Plus des trois quarts de ces décès
+  surviennent dans des pays à revenu faible ou intermédiaire <a href="#s5">[5]</a>.</p>
+
+  <h3>Facteurs de risque modifiables (OMS)</h3>
+  <ul>
+    <li><strong>Alimentation</strong> : excès de sel, de sucre et de graisses ; faible consommation de fruits et légumes.</li>
+    <li><strong>Activité physique insuffisante</strong> et sédentarité.</li>
+    <li><strong>Tabac</strong> et <strong>usage nocif de l'alcool</strong>.</li>
+    <li><strong>Pollution de l'air</strong>, facteur environnemental majeur <a href="#s5">[5]</a>.</li>
+    <li>L'hypertension, l'hypercholestérolémie et le diabète majorent le risque ; ils se détectent par un suivi médical régulier.</li>
+  </ul>
+
+  <div class="band">
+    <strong>Les bons gestes</strong> : bouger régulièrement, équilibrer l'assiette
+    (moins de sel, de sucre et de graisses saturées), ne pas fumer, limiter
+    l'alcool, faire contrôler sa tension et son cholestérol. La plupart des
+    maladies cardiovasculaires peuvent être évitées en agissant sur ces facteurs
+    <a href="#s5">[5]</a>.
+  </div>
+
+  <h2>Repères chronologiques</h2>
+  <table>
+    <tr><th style="width:18%">Date</th><th>Événement</th></tr>
+    <tr><td><strong>IIᵉ s.</strong></td><td>Galien décrit la théorie du sang consommé par les organes — doctrine dominante pendant ~15 siècles <a href="#s3">[3]</a></td></tr>
+    <tr><td><strong>1628</strong></td><td>William Harvey publie le <em>De motu cordis</em> : la circulation sanguine en circuit fermé est démontrée <a href="#s3">[3]</a><a href="#s4">[4]</a></td></tr>
+    <tr><td><strong>1661</strong></td><td>Marcello Malpighi observe les capillaires au microscope, complétant la boucle de Harvey <a href="#s3">[3]</a></td></tr>
+    <tr><td><strong>2022</strong></td><td>19,8 millions de décès dus aux MCV dans le monde (OMS) <a href="#s5">[5]</a></td></tr>
+  </table>
+
+  <div class="sources">
+    <h2>Sources</h2>
+    <ul>
+      <li id="s1">[1] Inserm, <em>Le cœur</em>, Le magazine de l'Inserm n° 43 — valves et sens de circulation, 4 000 litres de sang propulsés par jour, 60–100 battements/min chez l'adulte. ipubli.inserm.fr</li>
+      <li id="s2">[2] Fondation Recherche Cardio-Vasculaire, <em>Le cœur, ce moteur vital de notre corps</em> — ~70 battements/min au repos, ≈ 100 000 battements par jour. fondation-recherche-cardio-vasculaire.org</li>
+      <li id="s3">[3] « William Harvey and the discovery of the circulation of the blood », PubMed Central (PMC2776239) — <em>De motu cordis</em>, Francfort, 1628.</li>
+      <li id="s4">[4] University of Glasgow, Special Collections, <em>De motu cordis</em> (Francfort, 1628) ; J. Appl. Physiol., « Harvey's epoch-making discovery of the Circulation ». gla.ac.uk</li>
+      <li id="s5">[5] Organisation mondiale de la santé, fiche d'information <em>Maladies cardiovasculaires</em> — 19,8 millions de décès en 2022 (~32 % des décès mondiaux), 85 % infarctus/AVC, facteurs de risque et prévention. who.int/fr</li>
+    </ul>
+    <p class="note" style="margin-top:2mm">Document autonome — aucune ressource
+    externe requise pour la lecture. Chiffres vérifiés à la date de rédaction
+    (septembre 2026).</p>
+  </div>
+
+  <div class="footer"><span>Le cœur et la circulation sanguine</span><span>Page 3 / 3</span></div>
+</div>
+
+</body>
+</html>

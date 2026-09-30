@@ -455,6 +455,61 @@ function choisirOptionPlan(cleTour, idx){
   submitPrompt(e.contenu, Object.assign({}, roleOpts(), { suffix: ligneDeMode() }));
 }
 
+/* ══ STATUS BAR — TOKENS DE LA DISCUSSION (demande Raf 2026-09-24) ═══════
+   « une status bar line pour connaître le nombre de token de la discussion
+   en millions et en pourcentage ».
+
+   Source : GET /ulysse/stats?sid= — state.db en LECTURE (mode=ro) côté
+   serve.py, fenêtre du modèle lue au catalogue maison. Deux états possibles,
+   tous deux honnêtes :
+     · pct null (modèle absent du catalogue) → les millions seuls ;
+     · pas de session → la barre n'existe pas (display:none), jamais un
+       chiffre de nulle part.
+
+   Maj : au chargement (si la session est déjà ouverte) + à chaque tour
+   terminé via coreHooks.onComplete. Pas de polling : la donnée ne bouge
+   que quand on discute. `statBarVue` évite tout repaint inutile. */
+let statBarVue = null;
+async function majStatBar(){
+  const bar = document.getElementById("statbar");
+  if (!bar) return;
+  const sid = (typeof conv !== "undefined" && conv.sessionId) || null;
+  if (!sid){ statBarVue = null; bar.style.display = "none"; return; }
+  try {
+    const r = await fetch("/ulysse/stats?sid=" + encodeURIComponent(sid),
+                          { cache: "no-store" });
+    if (!r.ok) throw new Error("HTTP " + r.status);
+    const d = await r.json();
+    const cle = JSON.stringify(d);
+    if (cle === statBarVue) return;
+    statBarVue = cle;
+    const millions = (d.cumul || 0) / 1e6;
+    let texte = millions.toLocaleString("fr-FR", { maximumFractionDigits: 2 })
+      + " M tokens";
+    if (d.pct !== null && d.pct !== undefined){
+      // Le ~ n'est pas décoratif : `actifs` est une ESTIMATION (octets/4,
+      // cf. serve_stats — token_count vide dans toute la base). L'afficher
+      // sans son tilde serait présenter une estimation pour un mesuré.
+      texte += " · ~" + d.pct.toLocaleString("fr-FR", { maximumFractionDigits: 1 })
+        + " % du contexte";
+    }
+    bar.textContent = texte;
+    bar.title = "Session " + (d.model || "?") + " — cumul "
+      + (d.cumul || 0).toLocaleString("fr-FR") + " tokens · fil actuel ~"
+      + (d.actifs || 0).toLocaleString("fr-FR")
+      + " (estimation octets/4)"
+      + (d.fenetre ? " / fenêtre " + d.fenetre.toLocaleString("fr-FR") : "");
+    bar.style.display = "";
+  } catch (e){
+    statBarVue = null;
+    bar.style.display = "none";   // pas de chiffre inventé, pas de bannière
+  }
+}
+/* Le tour fini = la donnée a bougé : c'est le seul moment où on relit.
+   Le boot couvre le cas « page ouverte avec session déjà vivante ». */
+coreHooks.onComplete = () => { majStatBar(); };
+setTimeout(majStatBar, 1800);
+
 function turnHTML(t){
   // La trace d'un accord donné : elle n'a ni bulle ni auteur, c'est un fait du
   // fil. Voir `accordDonneHTML` — elle se range où la décision a eu lieu.
@@ -561,6 +616,22 @@ function turnHTML(t){
     h += "<div class=\"u-md\""
       + (t.state === "streaming" && !t.text && !t.interrompu ? ' data-caret=\"1\"' : "")
       + ">" + rendu + "</div>";
+  }
+  /* ⚠ LE TEMPS DE RÉPONSE SOUS LE TEXTE (demande Raf 2026-09-24 :
+     « j'aimerais avoir le temps de réponse sous les textes »). `t.duree` est
+     posée par ulysse-core.js sur message.complete — le délai DEPUIS NOTRE
+     ENVOI, outils compris. Un tour sans complete n'a pas de durée : rien à
+     afficher, pas un chiffre inventé. fmtDur est le même format que la durée
+     des outils plus haut : le fil parle d'une seule voix. */
+  if (t.role === "assistant" && t.state !== "streaming" && t.duree){
+    h += '<div class="u-duree">⏱ ' + esc(fmtDur(t.duree)) + "</div>";
+  }
+  /* ⚠ LE MESSAGE EN ATTENTE DU LIEN (file d'attente, choix Raf 2026-09-24).
+     Le badge dit la VÉRITÉ : tant que prompt.submit n'a pas été accepté, ce
+     message n'est pas parti — il partira seul au rebranchement. Il disparaît
+     au moment de l'envoi réel, jamais avant. */
+  if (t.enAttente){
+    h += '<div class="u-duree">⏳ en attente du lien — envoi automatique au rebranchement</div>';
   }
   /* La réponse a été coupée par le plafond. On le dit SOUS le texte, dans la
      bulle : ce n'est pas un événement qui passe, c'est une propriété de cette
@@ -1906,6 +1977,24 @@ async function ouverture(){
   majInvite();
   majMention();
   paintThread();
+
+  /* ⚠ LA CONVERSATION REVIENT AU RETOUR (Raf, 2026-09-24 : « quand je
+     reviens, je me retrouve sur une nouvelle discussion »). Le storedId vit
+     dans l'état serveur (clé `derniere_session`, écrite par sauverEtat via
+     coreHooks.onSession). ouverture() est appelé depuis link.ready().then :
+     le lien est donc là. Session récoltée entre-temps → échec silencieux,
+     la clé obsolète s'efface et l'accueil reste — jamais un fil qui ment. */
+  const sidDernier = (etatPrecedent && etatPrecedent.derniere_session) || "";
+  if (sidDernier){
+    resumeSession(sidDernier).then(() => {
+      quitterAccueil();
+      nav("Discuter");
+      snack("Dernière conversation reprise.");
+    }).catch(() => {
+      conv.storedId = null;
+      sauverEtat();            // derniere_session = "" (conv.storedId null)
+    });
+  }
 }
 
 /* La position de départ ENGAGÉE : si Hermès ne dit pas « manual », on le
@@ -2362,12 +2451,20 @@ async function sauverEtat(){
       mecanique: montrerMecanique ? "1" : "0",
       position: position || "",
       session_cwd: CFG.SESSION_CWD || "",
-      etabli_path: etabliPath || ""
+      etabli_path: etabliPath || "",
+      /* La conversation courante, pour qu'elle soit retrouvée au retour
+         (Raf, 2026-09-24). Vide quand il n'y en a pas — l'état dit vrai. */
+      derniere_session: (typeof conv !== "undefined" && conv.storedId) || ""
     });
     await REST.ecrireEtat(etat);
     etatPrecedent = etat;
   } catch (e){ /* silence : voir ci-dessus */ }
 }
+
+/* Une session créée OU REPRISE alimente l'état : c'est `sauverEtat` qui grave
+   le storedId dans `derniere_session`, lu au prochain retour par ouverture().
+   Silencieux — même contrat que sauverEtat. Branché par ulysse-core.js. */
+coreHooks.onSession = () => { sauverEtat(); };
 
 async function drawEtabli(){
   /* ⚠ OUVERTURE VIERGE (demande Raf, 2026-09-05). Sans dossier choisi, on

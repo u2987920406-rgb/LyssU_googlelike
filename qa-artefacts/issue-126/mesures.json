@@ -1,0 +1,80 @@
+{
+  "avant": {
+    "doc_scroll_width": 412,
+    "corps_width": 411,
+    "corps_scroll_width": 902,
+    "scroll_height": 9116,
+    "client_height": 864,
+    "scroll_top_max": 8252,
+    "fichier": "revolution-francaise.html"
+  },
+  "apres": {
+    "doc_scroll_width": 412,
+    "corps_width": 411,
+    "corps_scroll_width": 411,
+    "scroll_height": 9156,
+    "client_height": 864,
+    "scroll_top_max": 8292,
+    "fichier": "revolution-francaise.html"
+  },
+  "avant-pdf": {
+    "doc_scroll_width": 412,
+    "corps_width": 411,
+    "corps_scroll_width": 411,
+    "scroll_height": 872,
+    "client_height": 864,
+    "scroll_top_max": 8,
+    "fichier": "comment-fonctionne-internet.pdf"
+  },
+  "apres-pdf": {
+    "doc_scroll_width": 412,
+    "corps_width": 411,
+    "corps_scroll_width": 411,
+    "scroll_height": 872,
+    "client_height": 864,
+    "scroll_top_max": 8,
+    "fichier": "comment-fonctionne-internet.pdf"
+  },
+  "avant-md": {
+    "doc_scroll_width": 412,
+    "corps_width": 411,
+    "corps_scroll_width": 417,
+    "scroll_height": 21233,
+    "client_height": 864,
+    "scroll_top_max": 20369,
+    "fichier": "CONTRAT-INTERFACE.md"
+  },
+  "apres-md": {
+    "doc_scroll_width": 412,
+    "corps_width": 411,
+    "corps_scroll_width": 411,
+    "scroll_height": 21184,
+    "client_height": 864,
+    "scroll_top_max": 20320,
+    "fichier": "CONTRAT-INTERFACE.md"
+  },
+  "avant_tactile": {
+    "avant_geste": 0,
+    "apres_drag_document": 0,
+    "apres_drag_droite": 0,
+    "apres_molette": 0
+  },
+  "avant_tactile_cibles": [
+    "div.foot{relative ta:auto ov:visible pe:auto} > div#pDiscuter.panel.accueil.cowork.build.on.hs{absolute ta:auto ov:visib",
+    "div.foot{relative ta:auto ov:visible pe:auto} > div#pDiscuter.panel.accueil.cowork.build.on.hs{absolute ta:auto ov:visib",
+    "div#pDiscuter.panel.accueil.cowork.build.on.hs{absolute ta:auto ov:visible pe:auto} > div.panelwrap{relative ta:auto ov:",
+    "div#pDiscuter.panel.accueil.cowork.build.on.hs{absolute ta:auto ov:visible pe:auto} > div.panelwrap{relative ta:auto ov:"
+  ],
+  "apres_tactile": {
+    "avant_geste": 0,
+    "apres_drag_document": 550,
+    "apres_drag_droite": 1080,
+    "apres_molette": 2680
+  },
+  "apres_tactile_cibles": [
+    "pre.u-art-raw{static ta:auto ov:visible pe:auto} > div#artVBody.u-art-body{static ta:auto ov:auto pe:auto} > aside#artif",
+    "pre.u-art-raw{static ta:auto ov:visible pe:auto} > div#artVBody.u-art-body{static ta:auto ov:auto pe:auto} > aside#artif",
+    "pre.u-art-raw{static ta:auto ov:visible pe:auto} > div#artVBody.u-art-body{static ta:auto ov:auto pe:auto} > aside#artif",
+    "pre.u-art-raw{static ta:auto ov:visible pe:auto} > div#artVBody.u-art-body{static ta:auto ov:auto pe:auto} > aside#artif"
+  ]
+}

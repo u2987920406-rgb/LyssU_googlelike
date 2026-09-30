@@ -1,0 +1,26 @@
+[
+ {
+  "rowid": 451,
+  "ts": 1790283067.0886915,
+  "role": "user",
+  "content": "Question A : dis bonjour en un mot."
+ },
+ {
+  "rowid": 452,
+  "ts": 1790283069.5245209,
+  "role": "assistant",
+  "content": "Salut !"
+ },
+ {
+  "rowid": 453,
+  "ts": 1790283116.2078109,
+  "role": "user",
+  "content": "Question B : dis merci en un mot."
+ },
+ {
+  "rowid": 454,
+  "ts": 1790283120.37478,
+  "role": "assistant",
+  "content": "Merci !"
+ }
+]

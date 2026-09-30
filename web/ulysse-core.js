@@ -599,7 +599,7 @@ let turnWatchdog = null;
    Elle est branchee par ulysse-app.js, qui seul connait le mode : le noyau
    parle le protocole, il ne connait pas les ecrans. */
 const coreHooks = { onChange: () => {}, onSystem: () => {}, onChanged: () => {},
-                    refusDeMode: () => "" };
+                    onComplete: () => {}, onSession: () => {}, refusDeMode: () => "" };
 
 function armTurnWatchdog(){
   clearTimeout(turnWatchdog);
@@ -660,10 +660,23 @@ link.onEvent((type, params) => {
       const t = currentAssistantTurn();
       if (!t.sawDelta && pl.text) t.text = pl.text;   // les deltas ont deja peint
       t.state = pl.status === "error" ? "error" : "done";
+      /* ⚠ LE TEMPS DE RÉPONSE, DEMANDÉ PAR RAF LE 2026-09-24. t0 = le tour
+         UTILISATEUR qui a déclenché ce tour (Date.now() posé à l'envoi),
+         t1 = ce message.complete : le délai vécu, outils et pause compris —
+         pas seulement le temps de streaming, qui mentirait sur l'attente.
+         Sans tour utilisateur en amont (reprise, événement orphelin) il n'y
+         a pas de t0 : `duree` reste absente, et on n'invente pas un chiffre. */
+      for (let i = conv.turns.length - 1; i >= 0; i--){
+        const amont = conv.turns[i];
+        if (amont === t) continue;
+        if (amont.role === "user"){ t.duree = Date.now() - amont.ts; break; }
+        if (amont.role === "assistant") break;   // un autre tour : hors sujet
+      }
       conv.running = false;
       conv.status = null;
       conv.approval = null;
       clearTimeout(turnWatchdog);
+      if (coreHooks.onComplete) coreHooks.onComplete(t);
       break;
     }
 
@@ -842,10 +855,42 @@ link.onState((s) => {
     conv.info = null;
     conv.status = null;
   }
+  /* ⚠ LA FILE SE VIDE TOUTE SEULE (choix Raf, 2026-09-24). Le lien revient
+     → chaque message gardé pendant la coupure part dans l'ordre où il a été
+     écrit. On repasse par ensureSession : la session est reprise (resume)
+     ou rouverte proprement, donc le message atterrit au bon endroit. */
+  if (s === "open" && fileAttente.length){
+    const aPartir = fileAttente;
+    fileAttente = [];
+    aPartir.forEach(async (fa) => {
+      try {
+        const sid = await ensureSession(fa.session);
+        await link.rpc("prompt.submit", { session_id: sid, text: fa.sent }, 0);
+        if (fa.tour) fa.tour.enAttente = false;
+        conv.status = { kind: "", text: "l'agent travaille…" };
+      } catch (e){
+        if (fa.tour) fa.tour.enAttente = false;
+        const err = newTurn("error",
+          "Votre message n'est toujours pas parti malgré le rebranchement"
+          + " (" + e.message + ") — renvoyez-le.");
+        err.state = "error";
+      }
+      coreHooks.onChange();
+    });
+  }
   coreHooks.onChange();
 });
 
 /* ═══ 4. Actions ═════════════════════════════════════════════════════════ */
+
+/* ⚠ FILE D'ATTENTE DES COUPURES (choix Raf, 2026-09-24 : refuser un envoi
+   parce que le lien est en train de se rebrancher, c'est le faire se
+   battre). Un message écrit pendant la coupure est gardé ici et part TOUT
+   SEUL dès que `onState` revoit « open » — jamais de refus à écran. Chaque
+   entrée garde son tour pour lever le badge « en attente » au moment de
+   l'envoi réel. Si l'envoi échoue même après rebranchement, on le dit
+   franchement (jamais « envoyé » tant que ce n'est pas envoyé). */
+let fileAttente = [];   // [{ session, sent, tour }]
 
 /* session.create — methods_session.py:14.
    Params reconnus : cwd, model, cols, title, source, profile, messages…
@@ -853,6 +898,20 @@ link.onState((s) => {
 async function ensureSession(extra){
   await link.ready();
   if (conv.sessionId) return conv.sessionId;
+
+  /* ⚠ REPRISE D'ABORD, CRÉATION ENSUITE (Raf, 2026-09-24 : « quand je
+     reviens, je me retrouve sur une NOUVELLE discussion »). On ne crée une
+     session QUE si on n'en connaît pas : le storedId peut venir du boot
+     (état serveur, clé derniere_session) ou d'une coupure qui a jeté
+     conv.sessionId sans perdre conv.storedId. Une session déjà récoltée
+     échoue ici silencieusement → on retombe sur un create propre. */
+  if (conv.storedId){
+    try {
+      const r = await resumeSession(conv.storedId);
+      coreHooks.onSession();
+      return r.session_id;
+    } catch (e){ conv.storedId = null; }   // récoltée : on repart neuve
+  }
 
   /* Profil « ulysse » (demande Raf le 2026-09-05) : le chat Ulysse est une
      ENTITÉ VIERGE — ni les sessions, ni la mémoire vive de l'Hermès Discord/CLI.
@@ -870,6 +929,7 @@ async function ensureSession(extra){
   conv.sessionId = res.session_id;
   conv.storedId = res.stored_session_id || null;
   if (res.info) conv.info = res.info;
+  coreHooks.onSession();
   return conv.sessionId;
 }
 
@@ -905,16 +965,20 @@ async function submitPrompt(text, opts){
      n'ouvre plus est pire qu'une absence d'issue — on la prend, et on se
      retrouve devant la meme porte. */
   if (link.state === "closed" || link.state === "denied"){
-    const mort = newTurn("user", shown);
-    if (opts.jointes && opts.jointes.length) mort.jointes = opts.jointes;
-    mort.state = "done";
-    const err = newTurn("error",
-      "Le lien avec l'agent est coupé" + (link.reason ? " (" + link.reason + ")" : "")
-      + " — votre message n'est pas parti. Ulysse réessaie de se rebrancher : "
-      + "renvoyez-le dans un instant. S'il ne revient pas, relancez "
-      + "lancer_ulysse.bat. Le fil reste affiché.");
-    err.state = "error";
+    /* On ne REFUSE PLUS : le tour s'affiche tout de suite (c'est bien son
+       message), en attente du lien. Le refus forçait un second appui au
+       pire moment (mobile qui revient du fond), et perdait des messages. */
+    const t = newTurn("user", shown);
+    if (opts.jointes && opts.jointes.length) t.jointes = opts.jointes;
+    t.state = "done";
+    t.enAttente = true;
+    fileAttente.push({ session: opts.session, sent: sent, tour: t });
     conv.running = false;
+    conv.status = { kind: "",
+                    text: "lien coupé : votre message partira dès le rebranchement" };
+    coreHooks.onSystem("Le lien avec l'agent est coupé : votre message est en "
+      + "attente et partira tout seul dès que la connexion revient. Vous pouvez "
+      + "continuer à écrire.");
     coreHooks.onChange();
     return;
   }
@@ -948,6 +1012,13 @@ async function submitPrompt(text, opts){
     }
   }
   const t = newTurn("user", shown);
+  /* ⚠ « EN VOL » : ce message n'existe PAS ENCORE côté serveur (prompt.submit
+     part plus bas, après ensureSession). Si un resume traverse ce tour, il
+     doit le conserver — c'était le bug « je ne vois plus la question que
+     j'ai posée pour avoir la réponse » (testé le 2026-09-24). Le flag retombe
+     dès que le serveur a accepté le message : ensuite la priorité au serveur
+     est sans risque de doublon. */
+  t.enVol = true;
   if (opts.preambleLabel) t.preamble = opts.preambleLabel;
   /* Ce qu'on a joint se voit dans SA bulle, en puces — comme avant l'envoi.
      Une image collee ne laissait AUCUNE trace dans le fil (mesure : zero
@@ -964,6 +1035,7 @@ async function submitPrompt(text, opts){
     conv.status = { kind: "", text: "l'agent travaille…" };
     armTurnWatchdog();
     link.rpc("prompt.submit", { session_id: sid, text: sent }, 0)
+      .then(() => { t.enVol = false; })   // le serveur l'a : plus « en vol »
       .catch((e) => {
         conv.running = false;
         /* Le message partait en brut : « prompt.submit : WebSocket ferme ».
@@ -1091,8 +1163,31 @@ function respondApproval(choice, all){
    place ne l'est pas. */
 async function resumeSession(storedId){
   await link.ready();
-  const res = await link.rpc("session.resume", { session_id: storedId, cols: 100 }, 90000);
+  /* ⚠ `profile` EST OBLIGATOIRE ICI (constaté en test le 2026-09-24) :
+     `session.resume` est profile-scoped (methods_session.py:42 lit
+     `params.profile`) et sans lui il cherche dans la DB DU PROFIL DE
+     LANCEMENT, alors que nos sessions vivent dans `profiles/ulysse/state.db`
+     — le registre live filtré par profile_home ne les voit pas, l'adoption
+     « default store » non plus, et le RPC rend 4007 « session not found ».
+     C'est ce qui rendait « quitter puis revenir » impossible : la conversation
+     n'était jamais retrouvée, on retombait sur une session neuve.
+     Même `profile` que `ensureSession` (session.create) : les deux doivent
+     parler au même magasin, sinon reprendre ne reprend jamais. */
+  const res = await link.rpc("session.resume",
+                             { session_id: storedId, cols: 100, profile: "ulysse" },
+                             90000);
   if (!res || !res.session_id) throw new Error("session.resume n'a pas renvoye de session_id");
+  /* ⚠ ON NE JETTE JAMAIS LE TOUR EN COURS D'ENVOI (bug reproduit + testé le
+     2026-09-24 — Raf : « je ne vois plus la question que j'ai posée pour
+     avoir la réponse »). Le tour user part AVANT ensureSession ; ce `vide`
+     jetait la question que le serveur ne connaît pas encore, pendant que sa
+     réponse continuait d'arriver : le fil affichait deux réponses collées,
+     sans la question entre les deux. On garde donc une copie des tours
+     locaux, et après restauration on réinsère ceux que le SERVEUR n'a pas —
+     le serveur reste prioritaire partout où il en possède un (zéro
+     doublon). Les messages système locaux (« lien interrompu ») ne
+     survivent pas : après un resume réussi, ils mentiraient. */
+  const locauxAvant = conv.turns.slice();
   conv.sessionId = res.session_id;
   conv.storedId = res.session_key || storedId;
   conv.info = res.info || null;
@@ -1103,8 +1198,14 @@ async function resumeSession(storedId){
     const t = newTurn(m.role, typeof m.text === "string" ? m.text : contentToText(m.content));
     t.state = "done";
   });
+  const vues = new Set(conv.turns.map((t) => t.role + "\u0000" + (t.text || "").slice(0, 120)));
+  locauxAvant
+    .filter((t) => t.enVol)
+    .forEach((t) => { if (!vues.has(t.role + "\u0000" + (t.text || "").slice(0, 120))){
+      conv.turns.push(t); vues.add(t.role + "\u0000" + (t.text || "").slice(0, 120)); } });
   conv.running = !!res.running;
   coreHooks.onChange();
+  coreHooks.onSession();
   return res;
 }
 

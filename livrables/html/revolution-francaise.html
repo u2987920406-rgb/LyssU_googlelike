@@ -1,0 +1,301 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>La Révolution française — 1789-1799</title>
+<style>
+  :root {
+    --encre: #23252b;
+    --bleu: #1e3a5f;
+    --rouge: #a8322d;
+    --or: #b98a2f;
+    --papier: #f7f4ee;
+    --carte: #ffffff;
+    --gris: #6b6f78;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: "Georgia", "Times New Roman", serif;
+    background: var(--papier);
+    color: var(--encre);
+    line-height: 1.65;
+    padding: 0 0 3rem;
+  }
+  header {
+    background: linear-gradient(135deg, var(--bleu) 0%, #2c4f7c 60%, var(--rouge) 100%);
+    color: #f7f4ee;
+    padding: 3.2rem 1.5rem 2.6rem;
+    text-align: center;
+  }
+  header .sur-titre {
+    font-family: "Helvetica Neue", Arial, sans-serif;
+    text-transform: uppercase;
+    letter-spacing: 0.32em;
+    font-size: 0.72rem;
+    opacity: 0.85;
+    margin-bottom: 0.9rem;
+  }
+  header h1 { font-size: 2.6rem; line-height: 1.15; font-weight: normal; }
+  header .dates {
+    margin-top: 1rem;
+    font-family: "Helvetica Neue", Arial, sans-serif;
+    font-size: 1.05rem;
+    letter-spacing: 0.12em;
+    border-top: 1px solid rgba(247,244,238,0.35);
+    border-bottom: 1px solid rgba(247,244,238,0.35);
+    display: inline-block;
+    padding: 0.45rem 1.4rem;
+    margin-top: 1.3rem;
+  }
+  main { max-width: 900px; margin: 0 auto; padding: 0 1.5rem; }
+  section { margin-top: 2.6rem; }
+  h2 {
+    font-family: "Helvetica Neue", Arial, sans-serif;
+    font-size: 1.28rem;
+    color: var(--bleu);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    border-left: 5px solid var(--rouge);
+    padding-left: 0.75rem;
+    margin-bottom: 1.1rem;
+  }
+  p.intro { font-size: 1.06rem; }
+  .chiffres {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 1rem;
+    margin-top: 1.4rem;
+  }
+  .chiffre {
+    flex: 1 1 200px;
+    background: var(--carte);
+    border-top: 4px solid var(--or);
+    padding: 1.1rem 1.2rem;
+    box-shadow: 0 1px 4px rgba(35,37,43,0.08);
+  }
+  .chiffre .valeur {
+    font-family: "Helvetica Neue", Arial, sans-serif;
+    font-size: 1.75rem;
+    font-weight: 700;
+    color: var(--rouge);
+    line-height: 1.2;
+  }
+  .chiffre .libelle { font-size: 0.92rem; color: var(--gris); margin-top: 0.35rem; }
+  .chiffre .source { font-size: 0.72rem; color: var(--gris); margin-top: 0.55rem; font-style: italic; }
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    background: var(--carte);
+    box-shadow: 0 1px 4px rgba(35,37,43,0.08);
+    font-size: 0.97rem;
+  }
+  th {
+    background: var(--bleu);
+    color: #f7f4ee;
+    font-family: "Helvetica Neue", Arial, sans-serif;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    font-size: 0.82rem;
+    padding: 0.75rem 0.9rem;
+    text-align: left;
+  }
+  td {
+    padding: 0.72rem 0.9rem;
+    border-bottom: 1px solid #e4e0d8;
+    vertical-align: top;
+  }
+  tr:nth-child(even) td { background: #faf8f4; }
+  td.date {
+    font-family: "Helvetica Neue", Arial, sans-serif;
+    font-weight: 700;
+    color: var(--rouge);
+    white-space: nowrap;
+    width: 9.5rem;
+  }
+  .encadre {
+    background: var(--carte);
+    border: 1px solid #ddd6c8;
+    border-left: 5px solid var(--or);
+    padding: 1.15rem 1.35rem;
+    margin-top: 1.3rem;
+    font-size: 0.97rem;
+  }
+  .encadre strong { color: var(--bleu); }
+  .phases {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 1rem;
+    margin-top: 1.3rem;
+  }
+  .phase {
+    flex: 1 1 240px;
+    background: var(--carte);
+    padding: 1.15rem 1.25rem;
+    box-shadow: 0 1px 4px rgba(35,37,43,0.08);
+  }
+  .phase .periode {
+    font-family: "Helvetica Neue", Arial, sans-serif;
+    font-size: 0.8rem;
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    color: var(--rouge);
+    font-weight: 700;
+  }
+  .phase h3 { font-size: 1.06rem; color: var(--bleu); margin: 0.35rem 0 0.55rem; font-weight: normal; }
+  .phase p { font-size: 0.92rem; color: var(--encre); }
+  ul.sources { list-style: none; font-size: 0.88rem; }
+  ul.sources li { padding: 0.55rem 0; border-bottom: 1px solid #e4e0d8; }
+  ul.sources li:last-child { border-bottom: none; }
+  ul.sources a { color: var(--bleu); text-decoration: none; word-break: break-all; }
+  ul.sources .cite { font-family: "Helvetica Neue", Arial, sans-serif; font-weight: 700; color: var(--rouge); margin-right: 0.5rem; }
+  footer {
+    max-width: 900px;
+    margin: 2.8rem auto 0;
+    padding: 1.2rem 1.5rem 0;
+    border-top: 2px solid var(--bleu);
+    font-size: 0.82rem;
+    color: var(--gris);
+    font-style: italic;
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="sur-titre">Fiche d'histoire · France</div>
+  <h1>La Révolution française</h1>
+  <div class="dates">5 mai 1789 &nbsp;→&nbsp; 9 novembre 1799</div>
+</header>
+
+<main>
+
+  <section>
+    <p class="intro">La Révolution française désigne la période de bouleversements politiques et
+    sociaux qui, en France, met fin à l'Ancien Régime : la monarchie absolue est remplacée par une
+    monarchie constitutionnelle (1789-1792), puis par la Première République. Les bornes
+    traditionnelles sont l'ouverture des États généraux (5 mai 1789) et le coup d'État du
+    18 Brumaire (9 novembre 1799) qui instaure le Consulat. <em>[1]</em></p>
+
+    <div class="chiffres">
+      <div class="chiffre">
+        <div class="valeur">10 ans, 6 mois, 4 jours</div>
+        <div class="libelle">durée traditionnelle de la Révolution (1789-1799)</div>
+        <div class="source">Source : Wikipédia, « Révolution française » <em>[1]</em></div>
+      </div>
+      <div class="chiffre">
+        <div class="valeur">584 / 291 / 270</div>
+        <div class="libelle">députés du tiers état / du clergé / de la noblesse aux États généraux de 1789</div>
+        <div class="source">Source : Wikipédia, « Révolution française » <em>[1]</em></div>
+      </div>
+      <div class="chiffre">
+        <div class="valeur">7 prisonniers</div>
+        <div class="libelle">effectif de la Bastille le 14 juillet 1789 — d'où sa portée symbolique</div>
+        <div class="source">Source : Lumni, « La Révolution française : les grandes dates » <em>[2]</em></div>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <h2>Chronologie des grandes dates</h2>
+    <table>
+      <thead>
+        <tr><th>Date</th><th>Événement</th><th>Portée</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td class="date">5 mai 1789</td>
+          <td>Ouverture des États généraux à Versailles</td>
+          <td>Début traditionnel de la Révolution ; le tiers état (584 députés) réclame le vote par tête. <em>[1]</em></td>
+        </tr>
+        <tr>
+          <td class="date">20 juin 1789</td>
+          <td>Serment du Jeu de paume</td>
+          <td>Les députés jurent de ne pas se séparer avant d'avoir donné une Constitution à la France. <em>[1][2]</em></td>
+        </tr>
+        <tr>
+          <td class="date">14 juillet 1789</td>
+          <td>Prise de la Bastille</td>
+          <td>Le peuple parisien s'empare de la forteresse royale ; acte fondateur de la révolution populaire. <em>[1][2]</em></td>
+        </tr>
+        <tr>
+          <td class="date">4 août 1789</td>
+          <td>Abolition des privilèges et des droits féodaux</td>
+          <td>Fin de la société d'ordres de l'Ancien Régime, proclamée par l'Assemblée constituante. <em>[1][3]</em></td>
+        </tr>
+        <tr>
+          <td class="date">26 août 1789</td>
+          <td>Déclaration des droits de l'homme et du citoyen</td>
+          <td>Égalité devant la loi, libertés fondamentales, souveraineté de la Nation. <em>[1]</em></td>
+        </tr>
+        <tr>
+          <td class="date">5-6 octobre 1789</td>
+          <td>Marche des femmes sur Versailles</td>
+          <td>La famille royale est ramenée à Paris ; fin de fait de Versailles comme siège du pouvoir. <em>[1]</em></td>
+        </tr>
+        <tr>
+          <td class="date">14 juillet 1790</td>
+          <td>Fête de la Fédération</td>
+          <td>Anniversaire de la prise de la Bastille, célébré sur le Champ-de-Mars. <em>[2]</em></td>
+        </tr>
+        <tr>
+          <td class="date">9 novembre 1799</td>
+          <td>Coup d'État du 18 Brumaire (an VIII)</td>
+          <td>Instauration du Consulat dominé par Bonaparte ; fin traditionnelle de la Révolution. <em>[1]</em></td>
+        </tr>
+      </tbody>
+    </table>
+  </section>
+
+  <section>
+    <h2>Les trois régimes en dix ans</h2>
+    <div class="phases">
+      <div class="phase">
+        <div class="periode">1789 – 1792</div>
+        <h3>Monarchie constitutionnelle</h3>
+        <p>L'Ancien Régime est démantelé, la souveraineté passe à la Nation, mais Louis XVI conserve
+        un rôle exécutif jusqu'à la chute de la monarchie en août-septembre 1792. <em>[1]</em></p>
+      </div>
+      <div class="phase">
+        <div class="periode">1792 – 1795</div>
+        <h3>Première République</h3>
+        <p>Proclamation de la République, période de la Convention et de la Terreur, jusqu'à la
+        mise en place du Directoire en 1795. <em>[1]</em></p>
+      </div>
+      <div class="phase">
+        <div class="periode">1795 – 1799</div>
+        <h3>Directoire</h3>
+        <p>Régime instable, marqué par des coups d'État successifs (dont le 30 prairial an VII,
+        18 juin 1799) et clos par le 18 Brumaire. <em>[1][2]</em></p>
+      </div>
+    </div>
+
+    <div class="encadre">
+      <strong>Repère — Versailles, enjeu du conflit.</strong> Résidence de la Cour et du gouvernement
+      depuis 1682, le château abrite aujourd'hui <strong>2 300 pièces réparties sur 63 154 m²</strong> et
+      accueille <strong>près de 10 millions de visiteurs par an</strong> ; il est inscrit au patrimoine
+      mondial de l'UNESCO depuis 1979. En 1789, la Révolution contraint Louis XVI à quitter Versailles
+      pour Paris ; le château ne sera plus jamais une résidence royale. <em>[4][5]</em>
+    </div>
+  </section>
+
+  <section>
+    <h2>Sources</h2>
+    <ul class="sources">
+      <li><span class="cite">[1]</span> Wikipédia, « Révolution française » (chronologie, effectifs des États généraux, bornes 1789-1799) — <a href="https://fr.wikipedia.org/wiki/R%C3%A9volution_fran%C3%A7aise">fr.wikipedia.org/wiki/Révolution_française</a></li>
+      <li><span class="cite">[2]</span> Lumni (Éducation nationale), « La Révolution française : les grandes dates » (7 prisonniers de la Bastille, fête de la Fédération, 30 prairial an VII) — <a href="https://www.lumni.fr/article/la-revolution-francaise">lumni.fr/article/la-revolution-francaise</a></li>
+      <li><span class="cite">[3]</span> Assemblée nationale, « La Révolution française » (nuit du 4 août 1789, abolition des droits féodaux) — <a href="https://www.assemblee-nationale.fr/dyn/histoire-et-patrimoine/revolution-francaise">assemblee-nationale.fr</a></li>
+      <li><span class="cite">[4]</span> Château de Versailles, « The Palace » (2 300 pièces, 63 154 m², UNESCO 1979, départ de Louis XVI en 1789) — <a href="https://en.chateauversailles.fr/discover/estate/palace">en.chateauversailles.fr/discover/estate/palace</a></li>
+      <li><span class="cite">[5]</span> Château de Versailles, « Visitors to Versailles (1682-1789) » (près de 10 millions de visiteurs par an) — <a href="https://en.chateauversailles.fr/news/patronage-news/visitors-versailles-1682-1789">en.chateauversailles.fr</a></li>
+    </ul>
+  </section>
+
+</main>
+
+<footer>
+  Fiche pédagogique autonome — tous les chiffres et dates sont sourcés et cités ci-dessus.
+  Générée le 25 septembre 2026.
+</footer>
+
+</body>
+</html>

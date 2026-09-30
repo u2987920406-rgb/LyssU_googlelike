@@ -1,0 +1,5 @@
+**25/09/2026 — Ulysse — Agent QA — clapet #126 : couverture comparée des 3 écritures**
+Trois correctifs de la même #126 coexistent : **PR #128** (cette run), la branche locale `qa/issue-126-clean` (19:40, non poussée), et le clone de Raf (non commité, 19:37).
+Vérifié sur le code : **seule la PR #128 couvre les deux critères de l'issue** — le pliage en largeur (`overflow-wrap:anywhere`, corps mesuré 902→411 px) est **absent** des deux autres (leurs `overflow-wrap:anywhere` sont ceux de `master`, sur `.exp-h .t`). Les deux autres couvrent le défilement (`.stage{display:none}`) + les commandes du lecteur à 44 px (30 px aujourd'hui — hors critères de l'issue, donc hors PR).
+Test : la garde de la PR tourne **dans `cmd_test`** (`test_tactile.py` étendu, 13/13, accepte les deux orthographes, rouge 9/13 sur master vierge) ; `test_lecture_mobile.py` (branche rivale) est bon mais **hors** `cmd_test`.
+→ Recommandation : merger **#128**, garder par-dessus `.u-art-btn{44px}` (+ `test_lecture_mobile.py` si utile, à alors ajouter à `cmd_test`). Corps de la PR = repro + mesures + captures + tableau de couverture.

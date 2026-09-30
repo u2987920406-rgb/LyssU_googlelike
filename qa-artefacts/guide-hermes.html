@@ -1,0 +1,287 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<title>Guide Hermès Agent — 5 pages</title>
+<style>
+  body { font-family: 'Segoe UI', sans-serif; margin: 0; padding: 0; background: #fff; color: #1e1e1e; }
+  .page { width: 100%; height: 100vh; page-break-after: always; position: relative; border-bottom: 2px solid #eee; }
+  .page:last-child { border-bottom: none; }
+  h1 { font-size: 2.5rem; margin: 1rem 2rem; color: #333; }
+  .desc { font-size: 1.1rem; margin: 0 2rem 1rem; color: #555; }
+  .canvas-wrap { position: absolute; top: 120px; left: 50%; transform: translateX(-50%); width: 80%; height: 60vh; }
+  canvas { width: 100%; height: 100%; }
+  @media print { .page { height: auto; page-break-after: always; } }
+</style>
+<script src="https://cdn.jsdelivr.net/npm/roughjs@4.3.0/bundled/rough.js"></script>
+</head>
+<body>
+
+<!-- Page 1 -->
+<div class="page">
+  <h1>5 rôles du cabinet</h1>
+  <p class="desc">La machine de dialogue Hermès — chaque rôle a sa couleur et sa mission.</p>
+  <div class="canvas-wrap">
+    <canvas id="c1"></canvas>
+  </div>
+</div>
+
+<!-- Page 2 -->
+<div class="page">
+  <h1>Un mandat bien écrit</h1>
+  <p class="desc">L'agent ne devine pas — il exécute ce que tu lui demandes.</p>
+  <div class="canvas-wrap">
+    <canvas id="c2"></canvas>
+  </div>
+</div>
+
+<!-- Page 3 -->
+<div class="page">
+  <h1>Comment l'agent fonctionne</h1>
+  <p class="desc">Boucle : tu parles, il exécute, tu vérifies, tu décides.</p>
+  <div class="canvas-wrap">
+    <canvas id="c3"></canvas>
+  </div>
+</div>
+
+<!-- Page 4 -->
+<div class="page">
+  <h1>HTML-as-Plan</h1>
+  <p class="desc">Voir vrai avec une page, pas avec son écran.</p>
+  <div class="canvas-wrap">
+    <canvas id="c4"></canvas>
+  </div>
+</div>
+
+<!-- Page 5 -->
+<div class="page">
+  <h1>Boucle Rétro</h1>
+  <p class="desc">On améliore à chaque tour — pas à chaque erreur.</p>
+  <div class="canvas-wrap">
+    <canvas id="c5"></canvas>
+  </div>
+</div>
+
+<script>
+// Helper: roughjs rectangle with label
+function drawBox(canvas, x, y, w, h, fill, stroke, label, fontSize=18, roundness=0.2) {
+  const rc = rough.canvas(canvas);
+  rc.rectangle(x, y, w, h, { fill: fill, stroke: stroke, strokeWidth: 2, roughness: 0.8, bowing: 2, rx: roundness * w, ry: roundness * h });
+  // label as text (roughjs doesn't do text well, so we use canvas native)
+  const ctx = canvas.getContext('2d');
+  ctx.font = `${fontSize}px 'Segoe UI', sans-serif`;
+  ctx.fillStyle = '#1e1e1e';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText(label, x + w/2, y + h/2);
+}
+
+function drawEllipse(canvas, x, y, w, h, fill, stroke, label, fontSize=16) {
+  const rc = rough.canvas(canvas);
+  rc.ellipse(x + w/2, y + h/2, w/2, h/2, { fill: fill, stroke: stroke, strokeWidth: 2, roughness: 0.8 });
+  const ctx = canvas.getContext('2d');
+  ctx.font = `${fontSize}px 'Segoe UI', sans-serif`;
+  ctx.fillStyle = '#1e1e1e';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText(label, x + w/2, y + h/2);
+}
+
+function drawArrow(canvas, x1, y1, x2, y2, color='#1e1e1e', dashed=false) {
+  const rc = rough.canvas(canvas);
+  rc.line(x1, y1, x2, y2, { stroke: color, strokeWidth: 2, roughness: 0.5, bowing: 0, strokeLinecap: 'round', dashed: dashed });
+}
+
+function drawDiamond(canvas, cx, cy, w, h, fill, stroke, label, fontSize=16) {
+  const rc = rough.canvas(canvas);
+  rc.polygon([[cx, cy - h/2], [cx + w/2, cy], [cx, cy + h/2], [cx - w/2, cy]], { fill: fill, stroke: stroke, strokeWidth: 2, roughness: 0.8 });
+  const ctx = canvas.getContext('2d');
+  ctx.font = `${fontSize}px 'Segoe UI', sans-serif`;
+  ctx.fillStyle = '#1e1e1e';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText(label, cx, cy);
+}
+
+// Page 1: 5 rôles
+function page1() {
+  const canvas = document.getElementById('c1');
+  canvas.width = canvas.clientWidth * 2;
+  canvas.height = canvas.clientHeight * 2;
+  const ctx = canvas.getContext('2d');
+  ctx.scale(2, 2);
+  const w = canvas.clientWidth;
+  const h = canvas.clientHeight;
+
+  // Title
+  ctx.font = '24px "Segoe UI", sans-serif';
+  ctx.fillStyle = '#333';
+  ctx.textAlign = 'center';
+  ctx.fillText("5 rôles du cabinet", w/2, 30);
+
+  // Boxes positions
+  const bx = w * 0.08, bw = w * 0.38, by1 = h * 0.30, bh = h * 0.22, gap = w * 0.05, by2 = by1 + bh + gap, by3 = by2 + bh + gap;
+
+  // Conception (blue)
+  drawBox(canvas, bx, by1, bw, bh, '#a5d8ff', '#1e1e1e', 'Conception\n\nLe concepteur\ncoupe les décisions\nen plans clairs\navant de coder.', 14);
+  // Codeur (green)
+  drawBox(canvas, bx + bw + gap, by1, bw, bh, '#b2f2bb', '#1e1e1e', 'Codeur\n\nL\'implémenteur\nécrit le code minimal\nvérifié pas à pas,\nTDD vert.', 14);
+  // Vision (red)
+  drawBox(canvas, bx, by2, bw, bh, '#ffc9c9', '#1e1e1e', 'Vision\n\nL\'inspecteur\nregarde l\'app\ncomme un usager,\ncapte les défauts.', 14);
+  // Recherche (purple)
+  drawBox(canvas, bx + bw + gap, by2, bw, bh, '#d0bfff', '#1e1e1e', 'Recherche\n\nL\'investigateur\nrapporte les sources\nfiables, pas de\ndevinettes.', 14);
+  // Boucle rétro (orange) - full width
+  drawBox(canvas, bx, by3, w - 2*bx, bh, '#ffd8a8', '#1e1e1e', 'Boucle Rétro\n\nLa critique boucle\nce qui a marché\net ce qui a raté,\npour la prochaine fois.', 14);
+
+  // Arrows between boxes
+  drawArrow(canvas, bx + bw, by1 + bh/2, bx + bw + gap, by1 + bh/2);
+  drawArrow(canvas, bx + bw, by2 + bh/2, bx + bw + gap, by2 + bh/2);
+  // Dashed arrow from vision to rétro
+  drawArrow(canvas, bx + bw/2, by2 + bh, bx + bw/2, by3, '#1e1e1e', true);
+}
+
+// Page 2: mandat
+function page2() {
+  const canvas = document.getElementById('c2');
+  canvas.width = canvas.clientWidth * 2;
+  canvas.height = canvas.clientHeight * 2;
+  const ctx = canvas.getContext('2d');
+  ctx.scale(2, 2);
+  const w = canvas.clientWidth;
+  const h = canvas.clientHeight;
+
+  ctx.font = '24px "Segoe UI", sans-serif';
+  ctx.fillStyle = '#333';
+  ctx.textAlign = 'center';
+  ctx.fillText("Un mandat bien écrit", w/2, 30);
+
+  const bx = w * 0.06, bw = w * 0.40, by1 = h * 0.30, bh = h * 0.20, gap = w * 0.04, by2 = by1 + bh + gap;
+
+  drawBox(canvas, bx, by1, bw, bh, '#a5d8ff', '#1e1e1e', 'Objectif lié\n\nUn but clair.\nEx : « affiche la\nliste des 3\nderniers messages ».', 13);
+  drawBox(canvas, bx + bw + gap, by1, bw, bh, '#b2f2bb', '#1e1e1e', 'Compétences\nà activer\n\nAOù : discussion,\nCowork, exos.\nScopes précis.', 13);
+  drawBox(canvas, bx, by2, bw, bh, '#c3fae8', '#1e1e1e', 'Livrable\nattendu\n\nFichier PNG,\ncode, rapport,\ndiagramme?\nTrès précis.', 13);
+  drawBox(canvas, bx + bw + gap, by2, bw, bh, '#ffc9c9', '#1e1e1e', 'Critères\nde fin\n\nQuand s\'arrête-\nt-on ? Vérification\nvisible, test vert.', 13);
+
+  drawArrow(canvas, bx + bw, by1 + bh/2, bx + bw + gap, by1 + bh/2);
+  drawArrow(canvas, bx + bw, by2 + bh/2, bx + bw + gap, by2 + bh/2);
+
+  // labels on arrows
+  ctx.font = '12px "Segoe UI", sans-serif';
+  ctx.fillStyle = '#555';
+  ctx.textAlign = 'center';
+  ctx.fillText('plus précis', bx + bw + gap/2, by1 + bh/2 - 10);
+  ctx.fillText('vérifie', bx + bw + gap/2, by2 + bh/2 - 10);
+}
+
+// Page 3: comment l'agent Fonctionne
+function page3() {
+  const canvas = document.getElementById('c3');
+  canvas.width = canvas.clientWidth * 2;
+  canvas.height = canvas.clientHeight * 2;
+  const ctx = canvas.getContext('2d');
+  ctx.scale(2, 2);
+  const w = canvas.clientWidth;
+  const h = canvas.clientHeight;
+
+  ctx.font = '24px "Segoe UI", sans-serif';
+  ctx.fillStyle = '#333';
+  ctx.textAlign = 'center';
+  ctx.fillText("Comment l'agent fonctionne", w/2, 30);
+
+  const cx = w/2, cw = w * 0.35, ch = h * 0.15;
+  const cy1 = h * 0.22, cy2 = cy1 + ch + h * 0.04, cy3 = cy2 + ch + h * 0.04, cy4 = cy3 + ch + h * 0.04, cy5 = cy4 + ch + h * 0.04;
+
+  drawEllipse(canvas, cx - cw/2, cy1, cw, ch, '#a5d8ff', '#1e1e1e', 'Tu parles\n\nDemande claire,\ncontexte, but.', 14);
+  drawEllipse(canvas, cx - cw/2, cy2, cw, ch, '#b2f2bb', '#1e1e1e', 'L\'agent\nréfléchit\n\nPlan, mandat,\ncompétences.', 14);
+  drawEllipse(canvas, cx - cw/2, cy3, cw, ch, '#d0bfff', '#1e1e1e', 'L\'agent\nexécute\n\nAction, code,\ntest, rapport.', 14);
+  drawEllipse(canvas, cx - cw/2, cy4, cw, ch, '#fff3bf', '#1e1e1e', 'Tu vérifies\n\nTeste, lit,\nrejet/effectue.', 14);
+  drawEllipse(canvas, cx - cw/2, cy5, cw, ch, '#ffd8a8', '#1e1e1e', 'Tu décides\n\nApprouve,\ncontinue, stop.', 14);
+
+  // Arrows down
+  for (let i = 0; i < 4; i++) {
+    drawArrow(canvas, cx, cy1 + ch/2 + i*ch + i*h*0.04, cx, cy1 + ch/2 + (i+1)*ch + i*h*0.04 + h*0.04);
+  }
+  // Feedback dashed from vérifies to réfléchit
+  drawArrow(canvas, cx + cw/2 + w*0.05, cy4 + ch/2, cx + cw/2 + w*0.05, cy2 + ch/2, '#1e1e1e', true);
+  // Label
+  ctx.font = '12px "Segoe UI", sans-serif';
+  ctx.fillStyle = '#555';
+  ctx.textAlign = 'left';
+  ctx.fillText('boucle rétro', cx + cw/2 + w*0.05 - 20, (cy4 + cy2)/2);
+}
+
+// Page 4: HTML-as-Plan
+function page4() {
+  const canvas = document.getElementById('c4');
+  canvas.width = canvas.clientWidth * 2;
+  canvas.height = canvas.clientHeight * 2;
+  const ctx = canvas.getContext('2d');
+  ctx.scale(2, 2);
+  const w = canvas.clientWidth;
+  const h = canvas.clientHeight;
+
+  ctx.font = '24px "Segoe UI", sans-serif';
+  ctx.fillStyle = '#333';
+  ctx.textAlign = 'center';
+  ctx.fillText("HTML-as-Plan", w/2, 30);
+
+  const bx = w * 0.08, bw = w * 0.38, by1 = h * 0.30, bh = h * 0.30, gap = w * 0.05;
+
+  drawBox(canvas, bx, by1, bw, bh, '#a5d8ff', '#1e1e1e', '.md\n\nTu écris en\nmarkdown, texte\ncourt.\n\nC\'est le plan\nen version texte.', 13);
+  drawBox(canvas, bx + bw + gap, by1, bw, bh, '#b2f2bb', '#1e1e1e', '.html\n\nL\'agent génère\nla page HTML,\nvisuellement.\n\nC\'est la même\nidée, rendue.', 13);
+
+  // Big box below
+  drawBox(canvas, bx, by1 + bh + gap, w - 2*bx, h * 0.25, '#d0bfff', '#1e1e1e', 'Pourquoi ça aide\n\n• La page est le vrai livrable — l\'agent la rend,\n  tu la lis telle quelle.\n• Chaque décision visuelle : une case, une couleur,\n  un texte — pas un dialogue.\n• Tu valides l\'effet visible, pas le code —\n  le résultat, pas le processus.', 12);
+
+  // Arrow between md and html
+  drawArrow(canvas, bx + bw, by1 + bh/2, bx + bw + gap, by1 + bh/2);
+  ctx.font = '12px "Segoe UI", sans-serif';
+  ctx.fillStyle = '#555';
+  ctx.textAlign = 'center';
+  ctx.fillText('→ rendu', bx + bw + gap/2, by1 + bh/2 - 10);
+}
+
+// Page 5: Boucle Rétro
+function page5() {
+  const canvas = document.getElementById('c5');
+  canvas.width = canvas.clientWidth * 2;
+  canvas.height = canvas.clientHeight * 2;
+  const ctx = canvas.getContext('2d');
+  ctx.scale(2, 2);
+  const w = canvas.clientWidth;
+  const h = canvas.clientHeight;
+
+  ctx.font = '24px "Segoe UI", sans-serif';
+  ctx.fillStyle = '#333';
+  ctx.textAlign = 'center';
+  ctx.fillText("Boucle Rétro", w/2, 30);
+
+  const cx = w/2, cw = w * 0.38, ch = h * 0.13;
+  const cy1 = h * 0.20, cy2 = cy1 + ch + h*0.03, cy3 = cy2 + ch + h*0.03, cy4 = cy3 + ch + h*0.03, cy5 = cy4 + ch + h*0.03;
+
+  drawEllipse(canvas, cx - cw/2, cy1, cw, ch, '#a5d8ff', '#1e1e1e', 'Faire\n\nAction, test,\nexécution,\nrésultat.', 14);
+  drawEllipse(canvas, cx - cw/2, cy2, cw, ch, '#ffcc9c', '#1e1e1e', 'Observer\n\nCe qui a marché,\nce qui a raté,\nle ressenti.', 14);
+  drawEllipse(canvas, cx - cw/2, cy3, cw, ch, '#fff3bf', '#1e1e1e', 'Mémoriser\n\nNotebook mémoire,\nles bouts à\nretenir.', 14);
+  drawEllipse(canvas, cx - cw/2, cy4, cw, ch, '#b2f2bb', '#1e1e1e', 'Ajuster\n\nPlan suivant,\noutil, procédure.', 14);
+  drawEllipse(canvas, cx - cw/2, cy5, cw, ch, '#d0bfff', '#1e1e1e', 'Relancer\n\nNouveau tour,\nversion suivante.', 14);
+
+  for (let i = 0; i < 4; i++) {
+    drawArrow(canvas, cx, cy1 + ch/2 + i*ch + i*h*0.03, cx, cy1 + ch/2 + (i+1)*ch + i*h*0.03 + h*0.03);
+  }
+  // Feedback from relancer to faire
+  drawArrow(canvas, cx + cw/2 + w*0.05, cy5 + ch/2, cx + cw/2 + w*0.05, cy1 + ch/2, '#1e1e1e', true);
+  ctx.font = '12px "Segoe UI", sans-serif';
+  ctx.fillStyle = '#555';
+  ctx.textAlign = 'left';
+  ctx.fillText('boucle', cx + cw/2 + w*0.05 - 15, (cy5 + cy1)/2);
+}
+
+// Run all pages
+page1();
+page2();
+page3();
+page4();
+page5();
+</script>
+</body>
+</html>
